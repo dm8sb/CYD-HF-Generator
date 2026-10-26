@@ -11,14 +11,24 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 
 - ILI9341 320x240 landscape GUI with LVGL
 - XPT2046 touch on a separate VSPI bus
-- SI5351 clock generator on explicit I2C pins SDA=27 / SCL=22
+- SI5351 clock generator on explicit I2C pins SDA=22 / SCL=27
 - CH1 and CH2 independent 1-100 MHz outputs
-- CH3 IQ follower of CH1 or CH2 with selectable 0/90/180/270 degree phase setting
+- CH3 IQ follower of CH1 or CH2 with selectable 0/90/180/270 degree phase setting (4.730-100 MHz, 180/270 via output inversion)
 - Independent output enable/High-Z control
 - 2/4/6/8 mA drive strength selection
 - Backlight PWM on GPIO21 only
 - Preferences/NVS persistence with 5 second autosave debounce
-- Serial logging for boot, I2C, SI5351, touch, frequency, output and settings events
+- Serial logging for boot, I2C, SI5351, touch, frequency, output and settings events (verbose SI5351 logs with `LOG_DEBUG 1` in `include/config.h`)
+
+## Changes in 1.1.0
+
+- Layout fixed: no clipped or overlapping controls, no scrollbars (header padding, card sizes, layout grid in `gui/gui_layout.h`)
+- Main page cards are tappable and have their own ON/OFF switch; status ON / OFF / WAIT / NO HW
+- Step presets (1 Hz-1 MHz) on the channel pages, hold-to-repeat for +/-, SI5351 deviation shown
+- New numpad (4x4, back button, input validation instead of silent clamping)
+- Frequency correction in ppm (0.01/0.1/1 ppm steps), no SI5351 re-init on change
+- CH3 IQ only from 4.730 MHz (VCO >= 600 MHz), all phases in the whole range, CH3 stays requested while waiting
+- Only the affected PLL is reset on frequency changes; backlight minimum 5 %; error dialogs close with OK and do not stack
 
 ## Pinout
 
@@ -54,7 +64,7 @@ Pinned or requested by `platformio.ini`:
 - `bodmer/TFT_eSPI@^2.5.43`
 - `lvgl/lvgl@8.3.11`
 - `paulstoffregen/XPT2046_Touchscreen@1.4`
-- `https://github.com/osmanovv/esp32-si5351.git`
+- `https://github.com/osmanovv/esp32-si5351.git#301b87ca2393fefa10099f924606115ac0532e9f` (pinned; the driver uses library internals)
 - `Preferences` from Arduino-ESP32
 
 ## Build and Flash
@@ -70,20 +80,20 @@ The project uses `huge_app.csv`. A standard 4 MB ESP32 module is sufficient.
 
 ## Operation
 
-- Main page shows all channel states.
-- CH1/CH2 pages allow +/- step adjustment, ON/OFF, and numpad entry.
-- Numpad accepts max 9 characters and units Hz/kHz/MHz. If OK is used, Hz is assumed.
-- CH3 page selects master, phase, drive and follower enable.
-- Config page sets backlight, delta step, SI5351 correction and one global drive strength for all channels.
+- Main page shows all channel states; tap a card to open the channel, use its switch to toggle the output.
+- CH1/CH2 pages allow step preset selection, +/- adjustment (hold to repeat), ON/OFF, and numpad entry.
+- Numpad accepts max 9 characters; a unit key (Hz/kHz/MHz) confirms, the back key cancels. Input outside 1-100 MHz is rejected.
+- CH3 page selects master, phase and follower enable.
+- Config page sets backlight (5-100 %), frequency step, SI5351 correction in ppm and one global drive strength for all channels.
 
 ## Notes and Limitations
 
-- CH3 is always configured with the same PLL as its master through `si5351_CalcIQ()`.
+- CH3 is always configured with the same PLL as its master through `si5351_CalcIQ()` (CH1 = PLL A, CH2 = PLL B). The firmware writes the PLL registers itself so only the affected PLL is reset.
 - The selected SI5351 library exposes no direct PLL lock readback; the firmware logs that limitation and continues safely.
-- The SI5351 phase register is 7-bit. Some 180/270 degree requests at low frequencies can exceed that hardware/library phase-offset field; the code logs this and applies the masked register value.
+- The SI5351 phase register is 7-bit. 90 degrees uses the register (= MultiSynth divider, <= 127 in the IQ range); 180/270 degrees invert the CH3 output (CLK_INV) in addition, so every phase works from 4.730 to 100 MHz.
 - Touch calibration UI and runtime calibration code are disabled. The firmware always uses the built-in default XPT2046 calibration values: x_min=300, x_max=3800, y_min=300, y_max=3800.
 - Drive strength is a single global CONFIG value for CH1, CH2 and CH3; CH3 has no independent drive setting.
-- The firmware validates CH3 phase offsets against the SI5351 7-bit phase register and rejects impossible phase/frequency combinations.
+- Below 4.730 MHz CH3 waits (output off, switch stays ON) and starts automatically once the master frequency allows IQ mode.
 - Switching artifacts are allowed by design. The firmware disables outputs before reconfiguration and restores only enabled channels.
 
 ## Architecture
@@ -92,11 +102,12 @@ The project follows a modular structure:
 
 - `main.cpp`: initialization order and loop
 - `core/app_controller.*`: single source of truth for runtime state and SI5351 coordination
-- `drivers/*`: SI5351, touch and backlight hardware drivers
+- `drivers/*`: SI5351, touch, backlight and RGB status LED drivers
 - `services/*`: Preferences storage and autosave
 - `hal/i2c_bus.*`: explicit I2C setup
-- `gui/gui.cpp`: LVGL setup, navigation, shared widgets and callbacks
-- `gui/pages/*`: page rendering for Main, channel, CH3, Config and Numpad pages
+- `gui/gui.cpp`: LVGL setup, deferred navigation, shared widgets, action dispatch and message box
+- `gui/gui_layout.h`: layout grid and color scheme
+- `gui/pages/*`: page creation and refresh for Main, channel (CH1/CH2), CH3, Config and Numpad pages
 - `utils/*`: logging and frequency helpers
 
 
