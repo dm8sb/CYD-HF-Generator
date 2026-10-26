@@ -15,21 +15,6 @@ bool TouchDriver::begin(const TouchCalibration& cal) {
     return ok;
 }
 
-void TouchDriver::setCalibration(const TouchCalibration& cal) { cal_ = cal; }
-
-void TouchDriver::process() {
-    // LVGL pulls through readLvgl(). Kept as a non-blocking hook for future gestures.
-}
-
-bool TouchDriver::rawPoint(int16_t* x, int16_t* y, int16_t* z) {
-    if (!touch_.touched()) return false;
-    TS_Point p = touch_.getPoint();
-    if (x) *x = p.x;
-    if (y) *y = p.y;
-    if (z) *z = p.z;
-    return true;
-}
-
 bool TouchDriver::mapPoint(int16_t rx, int16_t ry, lv_coord_t* x, lv_coord_t* y) {
     if (cal_.x_max == cal_.x_min || cal_.y_max == cal_.y_min) return false;
     long mx = map(rx, cal_.x_min, cal_.x_max, 0, SCREEN_WIDTH - 1);

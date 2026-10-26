@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <config.h>
+#include <constants.h>
 #include <pins.h>
 #include <types.h>
 #include <hal/i2c_bus.h>
@@ -34,7 +35,9 @@ void setup() {
     backlight.begin();
 
     // 4. Settings load
-    settings.begin();
+    if (!settings.begin()) {
+        Logger::error("BOOT", "NVS unavailable; using defaults, changes will not be saved");
+    }
     settings.load(loadedState);
     app.begin(loadedState);
 
@@ -45,7 +48,7 @@ void setup() {
     }
 
     // 6. Touch init
-    if (!touch.begin(loadedState.touch_cal)) {
+    if (!touch.begin(TOUCH_CAL_DEFAULT)) {
         Logger::error("BOOT", "Touch init failed");
     }
 
@@ -56,7 +59,7 @@ void setup() {
         GUI.showMessage("SI5351", "No I2C ACK at 0x60. Check SDA/SCL pins, VCC, GND, OE pin and pullups.");
     }
 
-    // 9. Apply stored channel settings safely
+    // 9. Apply stored channel settings safely (no-op without SI5351)
     app.applyStoredChannelSettings();
 
     Logger::info("BOOT", "Setup complete");
@@ -64,7 +67,6 @@ void setup() {
 
 void loop() {
     lv_timer_handler();
-    touch.process();
     app.update();
     GUI.update();
     delay(5);

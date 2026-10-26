@@ -1,22 +1,75 @@
 #include "../gui.h"
+#include "../gui_layout.h"
 #include <utils/frequency_utils.h>
 
+using namespace Layout;
+
+static const char* PHASE_LABELS[4] = {"0", "90", "180", "270"};
+
 void Gui::createCH3_() {
-    const lv_color_t color = lv_color_hex(0x1E88E5);
-    createHeader_("CH3 IQ", color, true, true, "ch3_en", app_->ch3().enabled);
+    const lv_color_t color = Colors::ch3();
+    createHeader_("CH3 IQ", color, 3);
 
-    char buf[48];
-    lv_obj_t* card = addCard_(root_, 8, 58, 304, 54, color);
-    FrequencyUtils::format(app_->ch3().master == 1 ? app_->ch1().frequency : app_->ch2().frequency, buf, sizeof(buf));
-    lv_obj_t* freq = lv_label_create(card); lv_label_set_text(freq, buf); lv_obj_set_pos(freq, 8, 4); lv_obj_set_style_text_font(freq, &lv_font_montserrat_24, 0);
-    lv_obj_t* info = lv_label_create(card); lv_label_set_text(info, "Follower frequency = master"); lv_obj_set_pos(info, 8, 32);
+    lv_obj_t* card = addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, 66, color);
+    w_.freq = addLabel_(card, "", &lv_font_montserrat_28, Colors::text(), 2, 0);
+    w_.info = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), 2, 32);
 
-    lv_obj_t* lm = lv_label_create(root_); lv_label_set_text(lm, "Master"); lv_obj_set_pos(lm, 36, 128);
-    lv_obj_t* lp = lv_label_create(root_); lv_label_set_text(lp, "Phase"); lv_obj_set_pos(lp, 190, 128);
+    addLabel_(root_, "Master", &lv_font_montserrat_14, Colors::muted(), MARGIN + 2, 114);
+    addLabel_(root_, "Phase (deg)", &lv_font_montserrat_14, Colors::muted(), 152, 114);
 
-    lv_obj_t* ddm = lv_dropdown_create(root_); lv_dropdown_set_options(ddm, "CH1\nCH2"); lv_dropdown_set_selected(ddm, app_->ch3().master - 1); lv_obj_set_pos(ddm, 34, 152); lv_obj_set_size(ddm, 110, 40); lv_obj_set_user_data(ddm, (void*)"ch3_master"); lv_obj_add_event_cb(ddm, dropdownEvent_, LV_EVENT_VALUE_CHANGED, nullptr);
-    lv_obj_t* ddp = lv_dropdown_create(root_); lv_dropdown_set_options(ddp, "0\n90\n180\n270"); uint8_t pidx = app_->ch3().phase / 90; lv_dropdown_set_selected(ddp, pidx); lv_obj_set_pos(ddp, 184, 152); lv_obj_set_size(ddp, 110, 40); lv_obj_set_user_data(ddp, (void*)"ch3_phase"); lv_obj_add_event_cb(ddp, dropdownEvent_, LV_EVENT_VALUE_CHANGED, nullptr);
+    w_.masterChips[0] = addChip_(root_, "CH1", MARGIN, 134, 64, 40, Colors::ch1(), Action::Ch3Master, 1);
+    w_.masterChips[1] = addChip_(root_, "CH2", MARGIN + 70, 134, 64, 40, Colors::ch2(), Action::Ch3Master, 2);
+    for (uint8_t i = 0; i < 4; ++i) {
+        w_.chips[i] = addChip_(root_, PHASE_LABELS[i], 150 + i * 41, 134, 39, 40, color, Action::Ch3Phase, i);
+    }
 
-    lv_obj_t* follow = lv_label_create(root_); lv_label_set_text(follow, "Drive strength is global from CONFIG for all channels."); lv_obj_set_pos(follow, 12, 206);
+    lv_obj_t* note = addLabel_(root_, "IQ range 4.730 - 100 MHz. 180/270 deg use output inversion. "
+                                      "Drive strength is set globally in CONFIG.",
+                               &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, 186);
+    lv_obj_set_width(note, CONTENT_W - 4);
+    lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
 }
 
+void Gui::refreshCH3_() {
+    const AppController& app = *app_;
+    const Channel3& c3 = app.ch3();
+    char buf[64];
+
+    setHeaderState_(c3.enabled);
+    FrequencyUtils::format(app.ch3Frequency(), buf, sizeof(buf));
+    lv_label_set_text(w_.freq, buf);
+
+    lv_color_t infoColor = Colors::muted();
+    switch (app.ch3Status()) {
+        case Ch3Status::Off:
+            snprintf(buf, sizeof(buf), "Off  |  follows CH%u", c3.master);
+            break;
+        case Ch3Status::Active:
+            snprintf(buf, sizeof(buf), "IQ active, follows CH%u", c3.master);
+            infoColor = Colors::ok();
+            break;
+        case Ch3Status::MasterOff:
+            snprintf(buf, sizeof(buf), "Waiting: master CH%u is off", c3.master);
+            infoColor = Colors::warn();
+            break;
+        case Ch3Status::FreqTooLow:
+            snprintf(buf, sizeof(buf), "Waiting: CH%u below 4.730 MHz", c3.master);
+            infoColor = Colors::warn();
+            break;
+        case Ch3Status::NoDevice:
+            snprintf(buf, sizeof(buf), "SI5351 not found");
+            infoColor = Colors::error();
+            break;
+    }
+    lv_label_set_text(w_.info, buf);
+    lv_obj_set_style_text_color(w_.info, infoColor, 0);
+
+    for (uint8_t i = 0; i < 2; ++i) {
+        if (c3.master == i + 1) lv_obj_add_state(w_.masterChips[i], LV_STATE_CHECKED);
+        else lv_obj_clear_state(w_.masterChips[i], LV_STATE_CHECKED);
+    }
+    for (uint8_t i = 0; i < 4; ++i) {
+        if (c3.phase == i * 90) lv_obj_add_state(w_.chips[i], LV_STATE_CHECKED);
+        else lv_obj_clear_state(w_.chips[i], LV_STATE_CHECKED);
+    }
+}
