@@ -17,10 +17,11 @@ static BacklightDriver backlight;
 static SI5351Manager si5351;
 static TouchDriver touch;
 static AppController app(settings, si5351, backlight);
+static Gui gui;
 static PersistentState loadedState;
 
 static void showError(const char* title, const char* text) {
-    GUI.showMessage(title, text);
+    gui.showMessage(title, text);
 }
 
 void setup() {
@@ -54,14 +55,14 @@ void setup() {
     }
 
     // 7-8. LVGL and GUI init
-    GUI.begin(app, touch);
+    gui.begin(app, touch);
     app.setErrorCallback(showError);
     if (!si5351Ok) {
-        GUI.showMessage("SI5351", "No I2C ACK at 0x60. Check SDA/SCL pins, VCC, GND, OE pin and pullups. "
+        gui.showMessage("SI5351", "No I2C ACK at 0x60. Check SDA/SCL pins, VCC, GND, OE pin and pullups. "
                                   "Reconnecting automatically.");
     }
     if (!settingsOk) {
-        GUI.showMessage("Settings", "Flash storage (NVS) unavailable. Settings will not be saved.");
+        gui.showMessage("Settings", "Flash storage (NVS) unavailable. Settings will not be saved.");
     }
     lv_refr_now(nullptr);
     backlight.setPercent(loadedState.sys.backlight);
@@ -75,6 +76,6 @@ void setup() {
 void loop() {
     lv_timer_handler();
     app.update();
-    GUI.update();
+    gui.update();
     delay(5);
 }

@@ -5,7 +5,7 @@
 The goal of this project is to implement a maintainable, modular, touchscreen-controlled **3-channel HF square-wave generator** based on:
 
 - **ESP32-2432S028R / Sunton CYD / Cheap Yellow Display**
-- **ILI9341 320×240 TFT display**
+- **ILI9341 320×240 TFT display** (original CYD) or **ST7789** (CYD2USB, additional USB-C port)
 - **XPT2046 resistive touch controller**
 - **SI5351 clock generator with 25 MHz crystal**
 - **PlatformIO + Arduino-ESP32**
@@ -92,11 +92,20 @@ No WiFi, no OTA and no external buttons are used.
 ### 4.1 Display Type
 
 ```text
-ILI9341 TFT
+ILI9341 TFT (original CYD) or ST7789 TFT (CYD2USB)
 Resolution: 320 × 240
 Orientation: Landscape
 SPI bus: HSPI
 ```
+
+Two boards are sold as ESP32-2432S028R. They differ only in the display controller:
+
+| Board | How to recognize it | Display controller |
+|---|---|---|
+| Original CYD | micro-USB port only | ILI9341 |
+| CYD2USB | additional USB-C port | ST7789 |
+
+Pinout, touch, backlight and SI5351 wiring are identical. Firmware built for the other controller shows only noise.
 
 ### 4.2 Display Pinout
 
@@ -115,7 +124,14 @@ SPI bus: HSPI
 TFT_eSPI
 ```
 
-The display is configured through PlatformIO build flags, not by editing the library files.
+The display is configured through PlatformIO build flags, not by editing the library files. TFT_eSPI selects the controller at compile time, so each board variant has its own PlatformIO environment (see 33.1):
+
+| Environment | Controller flags |
+|---|---|
+| `esp32-2432S028R` | `-DILI9341_DRIVER=1` |
+| `esp32-2432S028R-usbc` | `-DST7789_DRIVER=1`, `-DTFT_RGB_ORDER=TFT_BGR`, `-DTFT_INVERSION_OFF` |
+
+All other display flags (pins, HSPI, SPI frequency, fonts) are shared.
 
 ---
 
@@ -1124,12 +1140,26 @@ Frequency range:
 
 ### 33.1 PlatformIO Environment
 
+Shared settings are in `[env]`; the two environments only add the display controller flags (see 4.3):
+
 ```ini
-[env:esp32-2432S028R]
+[platformio]
+default_envs = esp32-2432S028R
+
+[env]
 platform = espressif32@6.7.0
 board = esp32dev
 framework = arduino
+; lib_deps, shared build_flags, partitions
+
+[env:esp32-2432S028R]        ; original CYD, ILI9341
+build_flags = ${env.build_flags} -DILI9341_DRIVER=1
+
+[env:esp32-2432S028R-usbc]   ; CYD2USB, ST7789
+build_flags = ${env.build_flags} -DST7789_DRIVER=1 -DTFT_RGB_ORDER=TFT_BGR -DTFT_INVERSION_OFF
 ```
+
+`default_envs` is required: without it, `pio run -t upload` builds and flashes every environment in turn and leaves the last one on the board. Flash a specific variant with `pio run -e <environment> -t upload`.
 
 ### 33.2 Required Libraries
 
@@ -1320,3 +1350,4 @@ Further changes:
 - dialogs for NVS unavailable / save failed, CONFIG indicator `Not saved` / `Save failed`; dialogs are queued instead of replaced
 - channel page: tap a digit to select the step, tap the unit to open the numpad, active digit highlighted
 - `PIN_TFT_*` removed from `pins.h`; the display pins are defined only by the build flags
+- support for the CYD2USB board (ST7789) as a second PlatformIO environment; `default_envs` selects the original CYD
