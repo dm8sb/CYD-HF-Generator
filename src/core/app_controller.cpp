@@ -29,7 +29,14 @@ void AppController::superviseHardware_() {
     if (now - lastHwCheckMs_ < HW_CHECK_INTERVAL_MS) return;
     lastHwCheckMs_ = now;
     if (si5351_.ready()) {
-        if (!si5351_.checkAlive()) reportError_("SI5351", MSG_HW_LOST);
+        if (!si5351_.checkAlive()) {
+            reportError_("SI5351", MSG_HW_LOST);
+        } else if (anyFault_()) {
+            quietRetry_ = true;
+            reconfigureOutputs_();
+            quietRetry_ = false;
+            if (!anyFault_()) Logger::info("APP", "Output error cleared");
+        }
         return;
     }
     if (si5351_.begin(state_.sys.freq_correction)) {
@@ -50,6 +57,7 @@ const Channel& AppController::channel_(uint8_t ch) const { return (ch == 1) ? st
 void AppController::markChanged_() { settings_.markDirty(); }
 
 void AppController::reportError_(const char* title, const char* text) {
+    if (quietRetry_) return;
     Logger::error(title, text);
     if (errorCb_) errorCb_(title, text);
 }
@@ -67,10 +75,17 @@ bool AppController::iqConfigured_() const {
     return state_.ch3.enabled && masterFrequency_() >= IQ_MIN_HZ;
 }
 
+ChannelStatus AppController::channelStatus(uint8_t ch) const {
+    if (!si5351_.ready()) return ChannelStatus::NoDevice;
+    if (fault_[clkForChannel_(ch)]) return ChannelStatus::Error;
+    return channel_(ch).enabled ? ChannelStatus::On : ChannelStatus::Off;
+}
+
 Ch3Status AppController::ch3Status() const {
     if (!state_.ch3.enabled) return Ch3Status::Off;
     if (!si5351_.ready()) return Ch3Status::NoDevice;
     if (masterFrequency_() < IQ_MIN_HZ) return Ch3Status::FreqTooLow;
+    if (fault_[CLK_CH3]) return Ch3Status::Error;
     if (!masterEnabled_()) return Ch3Status::MasterOff;
     return Ch3Status::Active;
 }
@@ -79,10 +94,11 @@ void AppController::configureStandalone_(uint8_t ch) {
     if (!si5351_.ready()) return;
     const Channel& c = channel_(ch);
     const uint8_t clk = clkForChannel_(ch);
-    if (!si5351_.setupStandalone(clk, pllForChannel_(ch), c.frequency, c.drive_strength) ||
-        !si5351_.enableOutput(clk, c.enabled)) {
-        reportHardwareError_("Frequency set failed");
-    }
+    const bool ok = si5351_.setupStandalone(clk, pllForChannel_(ch), c.frequency, c.drive_strength) &&
+                    si5351_.enableOutput(clk, c.enabled);
+    // A lost SI5351 is shown as NO HW, not as an output error.
+    fault_[clk] = !ok && si5351_.ready();
+    if (!ok) reportHardwareError_("Frequency set failed");
 }
 
 void AppController::configureMasterGroup_() {
@@ -90,18 +106,21 @@ void AppController::configureMasterGroup_() {
     if (!iqConfigured_()) {
         // An unused MultiSynth would only add spurs.
         si5351_.powerDown(CLK_CH3);
+        fault_[CLK_CH3] = false;
         configureStandalone_(master);
         return;
     }
     const uint8_t masterClk = clkForChannel_(master);
     if (!si5351_.setupIQPair(masterClk, CLK_CH3, pllForChannel_(master), masterFrequency_(),
                              channel_(master).drive_strength, state_.ch3.phase)) {
+        fault_[CLK_CH3] = si5351_.ready();
         reportHardwareError_("CH3 IQ setup failed");
         // Keep at least the master running.
         si5351_.powerDown(CLK_CH3);
         configureStandalone_(master);
         return;
     }
+    fault_[masterClk] = fault_[CLK_CH3] = false;
     if (!si5351_.enableOutput(masterClk, masterEnabled_()) || !si5351_.enableOutput(CLK_CH3, masterEnabled_())) {
         reportHardwareError_("Output switch failed");
     }

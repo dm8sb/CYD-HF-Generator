@@ -37,7 +37,7 @@ bool Gui::begin(AppController& app, TouchDriver& touch) {
     lv_indev_drv_register(&indevDrv_);
 
     lv_theme_default_init(lv_disp_get_default(), lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
-    lastHwReady_ = app.hardwareReady();
+    lastHwState_ = hardwareState_();
     navigate(PageId::Main);
     Logger::info("GUI", "LVGL initialized");
     return true;
@@ -182,11 +182,12 @@ void Gui::createHeader_(const char* title, lv_color_t color, uint8_t switchChann
     addButton_(bar, "MAIN", SCREEN_WIDTH - 66, 4, 62, Layout::HEADER_H - 8, Colors::gray(), Action::Navigate, (uint8_t)PageId::Main);
 }
 
-void Gui::setHeaderState_(bool on) {
+void Gui::setHeaderState_(bool on, bool error) {
     if (!w_.hdrSwitch) return;
     if (on) lv_obj_add_state(w_.hdrSwitch, LV_STATE_CHECKED);
     else lv_obj_clear_state(w_.hdrSwitch, LV_STATE_CHECKED);
-    lv_label_set_text(w_.hdrState, on ? "ON" : "OFF");
+    lv_label_set_text(w_.hdrState, error ? "ERR" : (on ? "ON" : "OFF"));
+    lv_obj_set_style_text_color(w_.hdrState, error ? Colors::error() : Colors::text(), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -244,15 +245,26 @@ void Gui::refresh_() {
 }
 
 void Gui::update() {
-    // Without user input only the autosave indicator and the SI5351 connection change.
+    // Without user input only the autosave indicator, the SI5351 connection and
+    // output errors (cleared by the periodic retry) change.
     if (millis() - lastUpdateMs_ < 300) return;
     lastUpdateMs_ = millis();
-    if (app_->hardwareReady() != lastHwReady_) {
-        lastHwReady_ = app_->hardwareReady();
+    const uint8_t hwState = hardwareState_();
+    if (hwState != lastHwState_) {
+        lastHwState_ = hwState;
         refresh_();
     } else if (currentPage_ == PageId::Config) {
         refreshSaveState_();
     }
+}
+
+// Changes whenever the connection or an output error state changes.
+uint8_t Gui::hardwareState_() const {
+    uint8_t s = app_->hardwareReady() ? 1 : 0;
+    if (app_->channelStatus(1) == ChannelStatus::Error) s |= 2;
+    if (app_->channelStatus(2) == ChannelStatus::Error) s |= 4;
+    if (app_->ch3Status() == Ch3Status::Error) s |= 8;
+    return s;
 }
 
 // ---------------------------------------------------------------------------

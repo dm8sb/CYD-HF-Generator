@@ -68,9 +68,11 @@ private:
     void refreshCH3_();
     void refreshConfig_();
     void refreshSaveState_();
+    uint8_t hardwareState_() const;
 
     void createHeader_(const char* title, lv_color_t color, uint8_t switchChannel);
-    void setHeaderState_(bool on);
+    // Switch = requested state; the label shows ERR in red when the output failed.
+    void setHeaderState_(bool on, bool error);
     lv_obj_t* addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w, int h, lv_color_t color,
                          Action action, uint8_t arg = 0, bool repeat = false);
     lv_obj_t* addChip_(lv_obj_t* parent, const char* txt, int x, int y, int w, int h, lv_color_t color,
@@ -103,7 +105,7 @@ private:
     uint8_t channel_ = 1;       // channel shown on the CH1/CH2 page and edited by the numpad
     uint8_t corrStepIdx_ = 1;   // index into CORRECTION_STEPS
     uint32_t lastUpdateMs_ = 0;
-    bool lastHwReady_ = false;
+    uint8_t lastHwState_ = 0;
     char freqText_[24] {};      // plain frequency text on the channel page, for hit testing
     Widgets w_ {};
     lv_obj_t* root_ = nullptr;

@@ -35,12 +35,13 @@ void Gui::refreshCH3_() {
     const Channel3& c3 = app.ch3();
     char buf[64];
 
-    setHeaderState_(c3.enabled);
+    const Ch3Status status = app.ch3Status();
+    setHeaderState_(c3.enabled, status == Ch3Status::Error);
     FrequencyUtils::format(app.ch3Frequency(), buf, sizeof(buf));
     lv_label_set_text(w_.freq, buf);
 
     lv_color_t infoColor = Colors::muted();
-    switch (app.ch3Status()) {
+    switch (status) {
         case Ch3Status::Off:
             snprintf(buf, sizeof(buf), "Off  |  follows CH%u", c3.master);
             break;
@@ -55,6 +56,10 @@ void Gui::refreshCH3_() {
         case Ch3Status::FreqTooLow:
             snprintf(buf, sizeof(buf), "Waiting: CH%u below 4.730 MHz", c3.master);
             infoColor = Colors::warn();
+            break;
+        case Ch3Status::Error:
+            snprintf(buf, sizeof(buf), "IQ setup failed, retrying");
+            infoColor = Colors::error();
             break;
         case Ch3Status::NoDevice:
             snprintf(buf, sizeof(buf), "SI5351 not found");

@@ -47,6 +47,7 @@ Statusanzeige unter dem Kanalnamen:
 |---|---|
 | `ON` (grün) | Ausgang aktiv |
 | `OFF` (grau) | Ausgang aus |
+| `ERR` (rot) | Einstellen des Ausgangs ist fehlgeschlagen, obwohl der SI5351 antwortet; die Firmware versucht es alle 2 s erneut. Der Schalter zeigt weiter die gewünschte Einstellung |
 | `WAIT` (orange) | CH3 ist eingeschaltet, kann aber gerade nicht laufen (Master aus oder Masterfrequenz unter 4,730 MHz) |
 | `NO HW` (rot) | SI5351 nicht gefunden oder Verbindung verloren; die Firmware verbindet automatisch neu |
 

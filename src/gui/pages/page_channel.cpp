@@ -42,7 +42,8 @@ void Gui::refreshChannel_() {
     char buf[64];
     char step[16];
 
-    setHeaderState_(c.enabled);
+    const ChannelStatus status = app.channelStatus(channel_);
+    setHeaderState_(c.enabled, status == ChannelStatus::Error);
     // The digit that +/- changes is shown in the channel color.
     FrequencyUtils::format(c.frequency, freqText_, sizeof(freqText_));
     const int stepExp = FrequencyUtils::decimalExponent(app.system().delta_step);
@@ -59,8 +60,11 @@ void Gui::refreshChannel_() {
     lv_label_set_text(w_.freq, buf);
 
     FrequencyUtils::formatStep(app.system().delta_step, step, sizeof(step));
-    if (!app.hardwareReady()) {
+    if (status == ChannelStatus::NoDevice) {
         snprintf(buf, sizeof(buf), "Step %s  |  SI5351 not found", step);
+        lv_obj_set_style_text_color(w_.info, Colors::error(), 0);
+    } else if (status == ChannelStatus::Error) {
+        snprintf(buf, sizeof(buf), "Step %s  |  Output error, retrying", step);
         lv_obj_set_style_text_color(w_.info, Colors::error(), 0);
     } else {
         // Deviation of the synthesized frequency from the requested one (SI5351 resolution).

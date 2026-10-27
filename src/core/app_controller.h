@@ -41,6 +41,7 @@ public:
     bool hardwareReady() const { return si5351_.ready(); }
     SaveState saveState() const;
     uint64_t ch3Frequency() const { return masterFrequency_(); }
+    ChannelStatus channelStatus(uint8_t ch) const;
     Ch3Status ch3Status() const;
     // ch 1..3; expected output frequency incl. SI5351 rounding (0 if not configured).
     double actualHz(uint8_t ch) const { return si5351_.actualHz(ch - 1); }
@@ -55,6 +56,7 @@ private:
     // Reports a lost SI5351 instead of `text` when the failure came from the I2C bus.
     void reportHardwareError_(const char* text);
     void superviseHardware_();
+    bool anyFault_() const { return fault_[0] || fault_[1] || fault_[2]; }
     bool iqConfigured_() const;
     void configureStandalone_(uint8_t ch);
     void configureMasterGroup_();
@@ -69,4 +71,8 @@ private:
     PersistentState state_ {};
     ErrorCallback errorCb_ = nullptr;
     uint32_t lastHwCheckMs_ = 0;
+    // Per CLK: last setup failed while the SI5351 answered. Cleared by the next successful setup.
+    bool fault_[3] {};
+    // Periodic retries of failed setups report to the log only, not as a dialog.
+    bool quietRetry_ = false;
 };

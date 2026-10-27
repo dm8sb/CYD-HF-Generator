@@ -8,3 +8,8 @@
 #ifndef LOG_DEBUG
 #define LOG_DEBUG 0
 #endif
+
+// 1 = test hook: the CH3 IQ setup fails at 270 deg, to check the ERR state on the device.
+#ifndef TEST_FAULT_IQ
+#define TEST_FAULT_IQ 0
+#endif

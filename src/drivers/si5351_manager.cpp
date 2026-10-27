@@ -1,5 +1,6 @@
 #include "si5351_manager.h"
 #include <Wire.h>
+#include <config.h>
 #include <constants.h>
 #include <utils/logger.h>
 #include <cstring>
@@ -247,6 +248,7 @@ bool SI5351Manager::setupStandalone(uint8_t clk, Pll pll, uint64_t freq, uint8_t
 bool SI5351Manager::setupIQPair(uint8_t masterClk, uint8_t followerClk, Pll pll, uint64_t freq, uint8_t driveMa, uint16_t phaseDeg) {
     if (!ready_ || masterClk > 2 || followerClk > 2 || masterClk == followerClk) return false;
     if (!isValidPhase(phaseDeg) || freq < IQ_MIN_HZ || freq > IQ_MAX_HZ) return false;
+    if (TEST_FAULT_IQ && phaseDeg == 270) return false;
 
     // Integer divider (fractional mode) with the VCO as close to 900 MHz as possible.
     uint64_t div = VCO_MAX_HZ / freq;

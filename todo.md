@@ -5,7 +5,7 @@ Stand: 2026-10-27 · Review-Basis: Commit `058e44d` (Firmware 1.1.0 + Build-Umge
 Prioritäten: **P1** = Fehler / sichtbares Problem · **P2** = deutliche Verbesserung · **P3** = Aufräumen / nice-to-have
 Status: `[ ]` offen · `[~]` teilweise · `[?]` wartet auf Rückfrage (Abschnitt 7)
 
-Erledigte Punkte sind entfernt; sie stehen in der Git-Historie dieser Datei. In 1.2.0 umgesetzt: eigener SI5351-Treiber (exakte Korrektur, kein PLL-Reset beim Abstimmen, Powerdown CLK2, Wiederverbindung), Ausgänge starten aus, Backlight erst nach dem ersten Frame, NVS-Dialoge, Stelle direkt antippen, `PIN_TFT_*` entfernt. Danach: USB-C-Variante in Handbüchern und Spezifikation dokumentiert, `gGui` und globales `GUI` entfernt (Instanz über `user_data` der LVGL-Treiber).
+Erledigte Punkte sind entfernt; sie stehen in der Git-Historie dieser Datei. In 1.2.0 umgesetzt: eigener SI5351-Treiber (exakte Korrektur, kein PLL-Reset beim Abstimmen, Powerdown CLK2, Wiederverbindung), Ausgänge starten aus, Backlight erst nach dem ersten Frame, NVS-Dialoge, Stelle direkt antippen, `PIN_TFT_*` entfernt. Danach: USB-C-Variante in Handbüchern und Spezifikation dokumentiert, `gGui` und globales `GUI` entfernt (Instanz über `user_data` der LVGL-Treiber). Fehlerzustand „ERR“ je Ausgang mit Wiederholversuch.
 
 ---
 
@@ -19,7 +19,6 @@ Erledigte Punkte sind entfernt; sie stehen in der Git-Historie dieser Datei. In 
 
 ## 2. SI5351 / HF-Funktion
 
-- [~] **P2 Fehlerzustand**: Bei einem Fehlschlag kommt ein Dialog, der Schalter zeigt aber weiter ON, obwohl der Ausgang aus ist. Nach einem fehlgeschlagenen IQ-Setup ist CLK2 jetzt abgeschaltet (Powerdown), CH3 zeigt aber weiter „ON“. Ein I2C-Ausfall wird inzwischen als „NO HW“ angezeigt. Offen: den Ist-Zustand je Ausgang im `AppController` führen und in der GUI als rotes „ERR“ zeigen.
 - [ ] **P2 Frequenzbereich CH1/CH2 auf 8 kHz – 160 MHz erweitern** (Entscheidung 2026-10-27). Der Treiber kann den Bereich schon (`OUT_MIN_HZ` / `OUT_MAX_HZ` in [si5351_manager.cpp](src/drivers/si5351_manager.cpp), unter 1 MHz mit R-Teiler); die Simulation ergibt ≤ 0,5 Hz Fehler bis ≈ 110 MHz und ≤ 2 Hz darüber. Teilaufgaben:
   - `FREQ_MIN_HZ` / `FREQ_MAX_HZ` in [constants.h](include/constants.h) anpassen; Numpad-Fehlertext („1 - 100 MHz“) und Eingabeprüfung folgen den Konstanten.
   - **CH3 bleibt bei 4,73 – 100 MHz**: `setupIQPair()` lehnt Frequenzen über `IQ_MAX_HZ` ab (Fehlerdialog). `IQ_MAX_HZ` zusätzlich in `iqConfigured_()` prüfen, neuer `Ch3Status::FreqTooHigh` mit Anzeige „WAIT … > 100 MHz“ auf MAIN und CH3.
@@ -69,35 +68,36 @@ Beantwortet am 2026-10-27: Alle Ausgänge starten aus (Abschnitt 3). Die USB-C-F
 
 ## 8. Messplan für die Hardware-Verifikation
 
-Geräte: Frequenzzähler, Oszilloskop (2 Kanäle), Spektrumanalysator. Die Tests 1–15 stammen aus dem Review vom 2026-10-26 und sind am Gerät noch offen.
+Geräte: Frequenzzähler, Oszilloskop (2 Kanäle), Spektrumanalysator. Die Tests 1–15 stammen aus dem Review vom 2026-10-26 und sind am Gerät noch offen. Abhaken: `[ ]` in der Spalte OK durch `[x]` ersetzen.
 
-| # | Test | Erwartung |
-|---|---|---|
-| 1 | Booten ohne SI5351 (oder mit getrenntem SDA) | genau **ein** Dialog, „OK“ schließt ihn, Karten zeigen „NO HW“ |
-| 1a | Danach SI5351 anschließen (SDA verbinden) | nach ≤ 2 s verschwindet „NO HW“, Kanäle schaltbar |
-| 1b | Im Betrieb CH1 an, SDA kurz trennen und wieder verbinden | Dialog „Connection lost“, „NO HW“, danach läuft CH1 wieder mit gleicher Frequenz |
-| 1c | SI5351-Versorgung kurz unterbrechen (CH1 an) | wie 1b: Neuinitialisierung, CH1 läuft wieder |
-| 2 | Helligkeit am Slider ganz nach links | Display bleibt bei 5 % sichtbar |
-| 3 | CH1 = 10 MHz, Zähler an CLK0 | Abweichung zum Zähler ≈ angezeigte „Deviation“ + Quarzfehler |
-| 4 | Kalibrierung: Abweichung bei 10 MHz in Hz ÷ 10 = ppm eintragen | danach < 1 Hz Abweichung bei 10 MHz |
-| 5 | CH1 = 80 MHz, Schrittweite 1 Hz, 10× `+` | Zähler steigt um ≈ 10 Hz und bleibt **nicht hängen** |
-| 6 | Oszilloskop auf CH1 (Trigger auf CH1, Nachleuchten), CH2 mehrfach verstellen | **kein** Aussetzer an CH1 |
-| 7 | CH3 an, Master CH1 = 10 MHz, Phase 0/90/180/270, Scope CLK0 gegen CLK2 | 0°, 90°, 180°, 270° (± Kabellaufzeit) |
-| 8 | wie 7 bei 5 MHz, 30 MHz und 99 MHz | alle vier Phasen korrekt |
-| 9 | Master auf 4,72 MHz, dann 4,73 MHz | CH3 erst „WAIT … < 4.73 MHz“, danach automatisch aktiv |
-| 10 | Spektrum CLK2 bei 4,73 MHz und 10 MHz | keine auffälligen Nebenlinien gegenüber CLK0 |
-| 11 | Korrektur um +1 ppm ändern, Zähler an CH1 = 10 MHz | Frequenz sinkt um ≈ 10 Hz, ohne Aussetzer |
-| 12 | `+` gedrückt halten | erster Schritt nach 0,4 s, dann alle 0,1 s, ohne Flackern |
-| 13 | Numpad: „500“ + MHz, „0.5“ + MHz, „10.7“ + MHz | Fehler, Fehler, 10,700 000 MHz |
-| 13a | Numpad: Eingabe mit „Hz“ bzw. „kHz“ bestätigen, Finger kurz liegen lassen | Kanalseite erscheint, Numpad öffnet **nicht** erneut, Schrittweite bleibt unverändert |
-| 13b | Korrektur −1 ppm, CH3 an, Master = 100 MHz | Master und CH3 laufen (keine Meldung „CH3 IQ setup failed“) |
-| 14 | Einstellung ändern, > 5 s warten („Saved“), aus- und einschalten | Einstellung bleibt erhalten, alle Ausgänge sind aus |
-| 14a | Einschalten und Display beobachten | kein weißes oder verrauschtes Bild, Hauptseite erscheint direkt |
-| 15 | Sichtprüfung aller Seiten | nichts abgeschnitten, keine Scrollbalken, kein Überlappen |
-| 17 | Original-CYD mit `pio run -t upload` (ohne `-e`) flashen | nur `esp32-2432S028R` wird geflasht, Display läuft |
-| 18 | CH1 = 10 MHz und 99 MHz, Schrittweite 1 Hz bzw. 1 MHz, `+` halten, Scope mit Nachleuchten | keine Lücken im Signal |
-| 18a | Kanalseite: auf die Ziffer „1 kHz“ tippen, dann auf „MHz“ | Schritt 1 kHz und Ziffer farbig markiert; NUMPAD öffnet sich |
-| 19 | Korrektur +50 ppm, Zähler an CH1 bei 1,9 MHz und 10,9 MHz | Abweichung ≈ angezeigte „Deviation“ + Quarzfehler, bei beiden Frequenzen gleich gut |
-| 20 | Nach Bereichserweiterung: CH1 = 8 kHz, 455 kHz, 999,999 kHz, 1 MHz, Zähler | Frequenz stimmt, Anzeige in kHz bzw. MHz |
-| 21 | CH1 = 120 MHz und 160 MHz, Zähler und Spektrum | Abweichung ≤ 2 Hz, Ausgang vorhanden (Pegel geringer) |
-| 22 | CH3 an, Master von 100 MHz auf 100,000001 MHz stellen | CH3 wechselt auf „WAIT … > 100 MHz“, CLK2 aus, Master läuft weiter |
+| OK | # | Test | Erwartung |
+|---|---|---|---|
+| [ ] | 1 | Booten ohne SI5351 (oder mit getrenntem SDA) | genau **ein** Dialog, „OK“ schließt ihn, Karten zeigen „NO HW“ |
+| [ ] | 1a | Danach SI5351 anschließen (SDA verbinden) | nach ≤ 2 s verschwindet „NO HW“, Kanäle schaltbar |
+| [ ] | 1b | Im Betrieb CH1 an, SDA kurz trennen und wieder verbinden | Dialog „Connection lost“, „NO HW“, danach läuft CH1 wieder mit gleicher Frequenz |
+| [ ] | 1c | SI5351-Versorgung kurz unterbrechen (CH1 an) | wie 1b: Neuinitialisierung, CH1 läuft wieder |
+| [ ] | 2 | Helligkeit am Slider ganz nach links | Display bleibt bei 5 % sichtbar |
+| [ ] | 3 | CH1 = 10 MHz, Zähler an CLK0 | Abweichung zum Zähler ≈ angezeigte „Deviation“ + Quarzfehler |
+| [ ] | 4 | Kalibrierung: Abweichung bei 10 MHz in Hz ÷ 10 = ppm eintragen | danach < 1 Hz Abweichung bei 10 MHz |
+| [ ] | 5 | CH1 = 80 MHz, Schrittweite 1 Hz, 10× `+` | Zähler steigt um ≈ 10 Hz und bleibt **nicht hängen** |
+| [ ] | 6 | Oszilloskop auf CH1 (Trigger auf CH1, Nachleuchten), CH2 mehrfach verstellen | **kein** Aussetzer an CH1 |
+| [ ] | 7 | CH3 an, Master CH1 = 10 MHz, Phase 0/90/180/270, Scope CLK0 gegen CLK2 | 0°, 90°, 180°, 270° (± Kabellaufzeit) |
+| [ ] | 8 | wie 7 bei 5 MHz, 30 MHz und 99 MHz | alle vier Phasen korrekt |
+| [ ] | 9 | Master auf 4,72 MHz, dann 4,73 MHz | CH3 erst „WAIT … < 4.73 MHz“, danach automatisch aktiv |
+| [ ] | 10 | Spektrum CLK2 bei 4,73 MHz und 10 MHz | keine auffälligen Nebenlinien gegenüber CLK0 |
+| [ ] | 11 | Korrektur um +1 ppm ändern, Zähler an CH1 = 10 MHz | Frequenz sinkt um ≈ 10 Hz, ohne Aussetzer |
+| [ ] | 12 | `+` gedrückt halten | erster Schritt nach 0,4 s, dann alle 0,1 s, ohne Flackern |
+| [ ] | 13 | Numpad: „500“ + MHz, „0.5“ + MHz, „10.7“ + MHz | Fehler, Fehler, 10,700 000 MHz |
+| [ ] | 13a | Numpad: Eingabe mit „Hz“ bzw. „kHz“ bestätigen, Finger kurz liegen lassen | Kanalseite erscheint, Numpad öffnet **nicht** erneut, Schrittweite bleibt unverändert |
+| [ ] | 13b | Korrektur −1 ppm, CH3 an, Master = 100 MHz | Master und CH3 laufen (keine Meldung „CH3 IQ setup failed“) |
+| [ ] | 14 | Einstellung ändern, > 5 s warten („Saved“), aus- und einschalten | Einstellung bleibt erhalten, alle Ausgänge sind aus |
+| [ ] | 14a | Einschalten und Display beobachten | kein weißes oder verrauschtes Bild, Hauptseite erscheint direkt |
+| [ ] | 15 | Sichtprüfung aller Seiten | nichts abgeschnitten, keine Scrollbalken, kein Überlappen |
+| [ ] | 17 | Original-CYD mit `pio run -t upload` (ohne `-e`) flashen | nur `esp32-2432S028R` wird geflasht, Display läuft |
+| [ ] | 18 | CH1 = 10 MHz und 99 MHz, Schrittweite 1 Hz bzw. 1 MHz, `+` halten, Scope mit Nachleuchten | keine Lücken im Signal |
+| [ ] | 18b | Build mit `-DTEST_FAULT_IQ=1`: CH1 an, CH3 an, Phase 270° | CH3 „ERR“ (MAIN, Header, Infozeile), ein Dialog, CH1 läuft weiter; Phase 90° → nach ≤ 2 s „ON“ |
+| [ ] | 18a | Kanalseite: auf die Ziffer „1 kHz“ tippen, dann auf „MHz“ | Schritt 1 kHz und Ziffer farbig markiert; NUMPAD öffnet sich |
+| [ ] | 19 | Korrektur +50 ppm, Zähler an CH1 bei 1,9 MHz und 10,9 MHz | Abweichung ≈ angezeigte „Deviation“ + Quarzfehler, bei beiden Frequenzen gleich gut |
+| [ ] | 20 | Nach Bereichserweiterung: CH1 = 8 kHz, 455 kHz, 999,999 kHz, 1 MHz, Zähler | Frequenz stimmt, Anzeige in kHz bzw. MHz |
+| [ ] | 21 | CH1 = 120 MHz und 160 MHz, Zähler und Spektrum | Abweichung ≤ 2 Hz, Ausgang vorhanden (Pegel geringer) |
+| [ ] | 22 | CH3 an, Master von 100 MHz auf 100,000001 MHz stellen | CH3 wechselt auf „WAIT … > 100 MHz“, CLK2 aus, Master läuft weiter |
