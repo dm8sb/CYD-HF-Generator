@@ -86,6 +86,7 @@ private:
     void openMessage_(const char* title, const char* text);
     void requestNavigate_(PageId page);
 
+    static Gui* from_(lv_obj_t* obj);
     static void eventCb_(lv_event_t* e);
     static void msgboxEventCb_(lv_event_t* e);
     static void asyncNavigateCb_(void* gui);
@@ -123,4 +124,3 @@ private:
     lv_indev_drv_t indevDrv_;
 };
 
-extern Gui GUI;

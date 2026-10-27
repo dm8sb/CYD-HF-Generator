@@ -681,6 +681,17 @@ SI5351 Adresse = 0x60
 
 Display und Touch verwenden separate SPI-Busse.
 
+### Board-Variante und passende Firmware
+
+Unter der Bezeichnung ESP32-2432S028R werden zwei Boards verkauft, die sich nur im Display-Controller unterscheiden. Für jedes gibt es eine eigene Firmware:
+
+| Board | Erkennungsmerkmal | Display-Controller | Firmware (PlatformIO-Umgebung) |
+|---|---|---|---|
+| Original-CYD | nur Micro-USB-Buchse | ILI9341 | `esp32-2432S028R` |
+| CYD2USB | zusätzliche USB-C-Buchse | ST7789 | `esp32-2432S028R-usbc` |
+
+Zeigt das Display nach dem Flashen nur Störungen oder Rauschen, ist die Firmware der anderen Variante aufgespielt. Dann die passende Firmware flashen (siehe README, Abschnitt „Build and Flash“). Pinbelegung, Touch und Bedienung sind bei beiden Varianten gleich.
+
 ---
 
 ## 14. Sicherheitshinweis

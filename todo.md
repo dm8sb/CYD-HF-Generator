@@ -5,13 +5,12 @@ Stand: 2026-10-27 · Review-Basis: Commit `058e44d` (Firmware 1.1.0 + Build-Umge
 Prioritäten: **P1** = Fehler / sichtbares Problem · **P2** = deutliche Verbesserung · **P3** = Aufräumen / nice-to-have
 Status: `[ ]` offen · `[~]` teilweise · `[?]` wartet auf Rückfrage (Abschnitt 7)
 
-Erledigte Punkte sind entfernt; sie stehen in der Git-Historie dieser Datei. In 1.2.0 umgesetzt: eigener SI5351-Treiber (exakte Korrektur, kein PLL-Reset beim Abstimmen, Powerdown CLK2, Wiederverbindung), Ausgänge starten aus, Backlight erst nach dem ersten Frame, NVS-Dialoge, Stelle direkt antippen, `PIN_TFT_*` entfernt.
+Erledigte Punkte sind entfernt; sie stehen in der Git-Historie dieser Datei. In 1.2.0 umgesetzt: eigener SI5351-Treiber (exakte Korrektur, kein PLL-Reset beim Abstimmen, Powerdown CLK2, Wiederverbindung), Ausgänge starten aus, Backlight erst nach dem ersten Frame, NVS-Dialoge, Stelle direkt antippen, `PIN_TFT_*` entfernt. Danach: USB-C-Variante in Handbüchern und Spezifikation dokumentiert, `gGui` und globales `GUI` entfernt (Instanz über `user_data` der LVGL-Treiber).
 
 ---
 
 ## 1. Build & Hardware-Varianten
 
-- [~] **P2 Doku zur USB-C-Variante**: Die README nennt beide Varianten und Umgebungen. Die Handbücher DE/EN und die Spezifikation nennen nur den ILI9341.
 - [ ] **P3 Eine Firmware für beide Varianten**: Den Display-Controller beim Start erkennen, statt zwei Build-Umgebungen zu pflegen (Entscheidung 2026-10-27: vorerst zwei Builds). Ansatz: Das ID-Register per SPI lesen (MISO GPIO 12 ist angeschlossen): ILI9341 liefert über `0xD3` die ID `0x9341`, ST7789 über `0x04` die ID `0x85 0x85 0x52`. TFT_eSPI legt den Treiber beim Kompilieren fest, deshalb ist ein Wechsel zu einer Bibliothek mit Laufzeit-Auswahl nötig (z. B. LovyanGFX) oder eine eigene Init-Sequenz je Controller. Danach entfallen die zweite Umgebung und das Risiko, die falsche Firmware zu flashen.
 - [ ] **P3 TFT_eSPI exakt pinnen** (`bodmer/TFT_eSPI@2.5.43` statt `^2.5.43`), wie die anderen Bibliotheken auch.
 - [ ] **P3 CI**: GitHub Action, die beide Umgebungen baut (später auch `pio test -e native`).
@@ -41,7 +40,6 @@ Erledigte Punkte sind entfernt; sie stehen in der Git-Historie dieser Datei. In 
 - [ ] **P3 Redundanter Drive-Zustand**: `drive_strength` steht in `Channel`, `Channel3` und `SystemSettings`, ist aber immer gleich (globale Einstellung). Nur `sys.default_drive_strength` behalten.
 - [ ] **P3 Ungenutzter Code**: `BacklightDriver::percent()`, `Storage::end()`, `AppController::ch1()/ch2()/state()`, `Logger::debug()`, `PIN_FREE_INPUT_ONLY` und `LV_HOR_RES_MAX` (ein LVGL-7-Rest in [lv_conf.h](include/lv_conf.h)).
 - [ ] **P3 Feste Koordinaten in den Pages**: Header (158/214), CH3 (114/134/186), CONFIG (92/140/180/236) usw. in [gui_layout.h](src/gui/gui_layout.h) bzw. als lokale Konstanten zusammenfassen, wie in [page_main.cpp](src/gui/pages/page_main.cpp) schon geschehen.
-- [~] **P3 Globale Instanzen**: Neben `GUI` existiert `gGui` nur für die statischen Callbacks. Den `Gui*` über `user_data` von Display- und Indev-Treiber durchreichen, dann entfällt `gGui`.
 - [ ] **P3 Logging im Normalbetrieb**: `valueU64` bei jeder Frequenzänderung, I2C-Scan bei jedem Start und `CORE_DEBUG_LEVEL=3` hinter `LOG_DEBUG` bzw. Level 1 legen.
 - [ ] **P3 Mehrere Anweisungen pro Zeile** in [touch.cpp:22-23](src/drivers/touch.cpp#L22-L23).
 - [ ] **P3 Unit-Tests für die Teilerberechnung**: `approxRatio()` und die Teilerwahl aus [si5351_manager.cpp](src/drivers/si5351_manager.cpp) in eine Hardware-unabhängige Datei auslagern und mit `pio test -e native` prüfen (Fehler ≤ 0,5 Hz, Registergrenzen). Bisher nur per Python-Nachbildung simuliert.

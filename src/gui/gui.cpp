@@ -5,14 +5,11 @@
 #include <utils/logger.h>
 #include <cstring>
 
-Gui GUI;
-static Gui* gGui = nullptr;
 lv_color_t Gui::buf1_[SCREEN_WIDTH * 24];
 
 static void* packAction(uint8_t action, uint8_t arg) { return (void*)(uintptr_t)((action << 8) | arg); }
 
 bool Gui::begin(AppController& app, TouchDriver& touch) {
-    gGui = this;
     app_ = &app;
     touch_ = &touch;
 
@@ -29,11 +26,14 @@ bool Gui::begin(AppController& app, TouchDriver& touch) {
     dispDrv_.ver_res = SCREEN_HEIGHT;
     dispDrv_.flush_cb = flushCb_;
     dispDrv_.draw_buf = &drawBuf_;
+    // The static LVGL callbacks find this instance through the driver user data.
+    dispDrv_.user_data = this;
     lv_disp_drv_register(&dispDrv_);
 
     lv_indev_drv_init(&indevDrv_);
     indevDrv_.type = LV_INDEV_TYPE_POINTER;
     indevDrv_.read_cb = touchCb_;
+    indevDrv_.user_data = this;
     lv_indev_drv_register(&indevDrv_);
 
     lv_theme_default_init(lv_disp_get_default(), lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
@@ -43,19 +43,24 @@ bool Gui::begin(AppController& app, TouchDriver& touch) {
     return true;
 }
 
+Gui* Gui::from_(lv_obj_t* obj) {
+    return static_cast<Gui*>(lv_obj_get_disp(obj)->driver->user_data);
+}
+
 void Gui::flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p) {
-    if (!gGui) return;
+    Gui* g = static_cast<Gui*>(disp->user_data);
     uint32_t w = (area->x2 - area->x1 + 1);
     uint32_t h = (area->y2 - area->y1 + 1);
-    gGui->tft_.startWrite();
-    gGui->tft_.setAddrWindow(area->x1, area->y1, w, h);
-    gGui->tft_.pushColors((uint16_t*)&color_p->full, w * h, true);
-    gGui->tft_.endWrite();
+    g->tft_.startWrite();
+    g->tft_.setAddrWindow(area->x1, area->y1, w, h);
+    g->tft_.pushColors((uint16_t*)&color_p->full, w * h, true);
+    g->tft_.endWrite();
     lv_disp_flush_ready(disp);
 }
 
 void Gui::touchCb_(lv_indev_drv_t* drv, lv_indev_data_t* data) {
-    if (gGui && gGui->touch_) gGui->touch_->readLvgl(drv, data);
+    Gui* g = static_cast<Gui*>(drv->user_data);
+    if (g->touch_) g->touch_->readLvgl(drv, data);
 }
 
 // ---------------------------------------------------------------------------
@@ -254,9 +259,11 @@ void Gui::update() {
 // Events
 
 void Gui::eventCb_(lv_event_t* e) {
-    if (!gGui || !gGui->app_) return;
+    lv_obj_t* obj = lv_event_get_current_target(e);
+    // The event user data carries the packed action, so the instance comes from the display.
+    Gui* g = from_(obj);
     uintptr_t packed = (uintptr_t)lv_event_get_user_data(e);
-    gGui->handleAction_((Action)((packed >> 8) & 0xFF), (uint8_t)(packed & 0xFF), lv_event_get_current_target(e));
+    g->handleAction_((Action)((packed >> 8) & 0xFF), (uint8_t)(packed & 0xFF), obj);
 }
 
 void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
@@ -360,18 +367,18 @@ void Gui::nextMessageCb_(void* gui) {
 
 void Gui::msgboxEventCb_(lv_event_t* e) {
     lv_obj_t* box = lv_event_get_current_target(e);
-    if (!gGui) return;
-    if (gGui->msgbox_ == box) {
-        gGui->msgbox_ = nullptr;
-        gGui->msgText_[0] = '\0';
+    Gui* g = from_(box);
+    if (g->msgbox_ == box) {
+        g->msgbox_ = nullptr;
+        g->msgText_[0] = '\0';
     }
     // lv_msgbox footer buttons have no default action in LVGL 8.3.
     if (lv_event_get_code(e) == LV_EVENT_VALUE_CHANGED) {
         // Block a second tap before the async close runs, it would close a deleted box.
         lv_obj_clear_flag(lv_msgbox_get_btns(box), LV_OBJ_FLAG_CLICKABLE);
         lv_msgbox_close_async(box);
-    } else if (gGui->msgCount_ > 0) {
+    } else if (g->msgCount_ > 0) {
         // Not inside the delete event of the old box.
-        lv_async_call(nextMessageCb_, gGui);
+        lv_async_call(nextMessageCb_, g);
     }
 }
