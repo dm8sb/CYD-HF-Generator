@@ -1140,24 +1140,32 @@ Frequency range:
 
 ### 33.1 PlatformIO Environment
 
-Shared settings are in `[env]`; the two environments only add the display controller flags (see 4.3):
+Shared ESP32 settings are in `[esp32]`; the two firmware environments extend it and only add the display controller flags (see 4.3). Two host environments run the unit tests in `test/`:
 
 ```ini
 [platformio]
 default_envs = esp32-2432S028R
 
-[env]
+[esp32]
 platform = espressif32@6.7.0
 board = esp32dev
 framework = arduino
 ; lib_deps, shared build_flags, partitions
+test_ignore = *              ; the tests run on the host only
 
 [env:esp32-2432S028R]        ; original CYD, ILI9341
-build_flags = ${env.build_flags} -DILI9341_DRIVER=1
+extends = esp32
+build_flags = ${esp32.build_flags} -DILI9341_DRIVER=1
 
 [env:esp32-2432S028R-usbc]   ; CYD2USB, ST7789
-build_flags = ${env.build_flags} -DST7789_DRIVER=1 -DTFT_RGB_ORDER=TFT_BGR -DTFT_INVERSION_OFF
+extends = esp32
+build_flags = ${esp32.build_flags} -DST7789_DRIVER=1 -DTFT_RGB_ORDER=TFT_BGR -DTFT_INVERSION_OFF
+
+[env:native]                 ; host tests, gcc in PATH (Linux/macOS/CI)
+[env:native-win]             ; host tests, PlatformIO's bundled MinGW (Windows)
 ```
+
+The host environments compile only the hardware-independent sources (`AppController`, `SI5351Manager`, settings, storage, backlight, frequency utilities, logger) against the fakes in `test/fakes`; `include/constants.h`, `include/types.h` and `utils/frequency_utils.h` therefore must not include `Arduino.h`.
 
 `default_envs` is required: without it, `pio run -t upload` builds and flashes every environment in turn and leaves the last one on the board. Flash a specific variant with `pio run -e <environment> -t upload`.
 
@@ -1214,7 +1222,6 @@ Possible future extensions:
 - external trigger on GPIO35
 - calibration assistant (enter measured frequency, compute correction)
 - display flush via DMA and double buffer
-- native unit tests for `FrequencyUtils`
 
 ---
 

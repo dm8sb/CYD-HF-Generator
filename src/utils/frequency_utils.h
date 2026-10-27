@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stddef.h>
+#include <stdint.h>
 
 namespace FrequencyUtils {
 uint64_t clamp(uint64_t hz);
