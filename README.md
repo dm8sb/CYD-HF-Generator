@@ -9,7 +9,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 
 ## Features
 
-- ILI9341 320x240 landscape GUI with LVGL
+- ILI9341 or ST7789 (CYD2USB) 320x240 landscape GUI with LVGL
 - XPT2046 touch on a separate VSPI bus
 - SI5351 clock generator on explicit I2C pins SDA=22 / SCL=27
 - CH1 and CH2 independent 1-100 MHz outputs
@@ -29,6 +29,15 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - Frequency correction in ppm (0.01/0.1/1 ppm steps), no SI5351 re-init on change
 - CH3 IQ only from 4.730 MHz (VCO >= 600 MHz), all phases in the whole range, CH3 stays requested while waiting
 - Only the affected PLL is reset on frequency changes; backlight minimum 5 %; error dialogs close with OK and do not stack
+
+## Changes in 1.2.0
+
+- All outputs start off after power-up
+- Own SI5351 register driver: exact frequency correction, glitch-free tuning (no PLL reset), ≤ 0.5 Hz error, unused MultiSynth powered down
+- SI5351 supervision with automatic reconnect
+- Backlight switches on after the first frame (no noise at boot)
+- Dialogs for NVS errors; dialogs are queued
+- Channel page: tap a digit to select the step, tap the unit to open the numpad
 
 ## Pinout
 
@@ -64,17 +73,27 @@ Pinned or requested by `platformio.ini`:
 - `bodmer/TFT_eSPI@^2.5.43`
 - `lvgl/lvgl@8.3.11`
 - `paulstoffregen/XPT2046_Touchscreen@1.4`
-- `https://github.com/osmanovv/esp32-si5351.git#301b87ca2393fefa10099f924606115ac0532e9f` (pinned; the driver uses library internals)
 - `Preferences` from Arduino-ESP32
 
 ## Build and Flash
 
+Two board variants are sold as ESP32-2432S028R. They differ only in the display controller:
+
+| Board | Display controller | PlatformIO environment |
+|---|---|---|
+| Original CYD, micro-USB only | ILI9341 | `esp32-2432S028R` (default) |
+| CYD2USB, additional USB-C port | ST7789 | `esp32-2432S028R-usbc` |
+
+Flashing the wrong variant leaves the display showing only noise.
+
 ```bash
-cd cyd_hf_generator
-pio run
-pio run -t upload
+cd CYD-HF-Generator
+pio run -e esp32-2432S028R -t upload        # original CYD
+pio run -e esp32-2432S028R-usbc -t upload   # CYD with USB-C port
 pio device monitor -b 115200
 ```
+
+Without `-e`, only the default environment `esp32-2432S028R` is built.
 
 The project uses `huge_app.csv`. A standard 4 MB ESP32 module is sufficient.
 
@@ -89,12 +108,11 @@ The project uses `huge_app.csv`. A standard 4 MB ESP32 module is sufficient.
 ## Notes and Limitations
 
 - CH3 is always configured with the same PLL as its master through `si5351_CalcIQ()` (CH1 = PLL A, CH2 = PLL B). The firmware writes the PLL registers itself so only the affected PLL is reset.
-- The selected SI5351 library exposes no direct PLL lock readback; the firmware logs that limitation and continues safely.
 - The SI5351 phase register is 7-bit. 90 degrees uses the register (= MultiSynth divider, <= 127 in the IQ range); 180/270 degrees invert the CH3 output (CLK_INV) in addition, so every phase works from 4.730 to 100 MHz.
 - Touch calibration UI and runtime calibration code are disabled. The firmware always uses the built-in default XPT2046 calibration values: x_min=300, x_max=3800, y_min=300, y_max=3800.
 - Drive strength is a single global CONFIG value for CH1, CH2 and CH3; CH3 has no independent drive setting.
 - Below 4.730 MHz CH3 waits (output off, switch stays ON) and starts automatically once the master frequency allows IQ mode.
-- Switching artifacts are allowed by design. The firmware disables outputs before reconfiguration and restores only enabled channels.
+- Switching artifacts are allowed by design. Standalone outputs are retuned without a PLL reset; IQ pairs are disabled, reconfigured and realigned.
 
 ## Architecture
 

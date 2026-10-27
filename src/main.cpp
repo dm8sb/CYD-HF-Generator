@@ -31,11 +31,12 @@ void setup() {
     // 2. I2C explicit pins from include/pins.h @ 400kHz
     I2CBus::begin();
 
-    // 3. Backlight on GPIO21 PWM only
+    // 3. Backlight on GPIO21 PWM only; dark until the first frame
     backlight.begin();
 
     // 4. Settings load
-    if (!settings.begin()) {
+    const bool settingsOk = settings.begin();
+    if (!settingsOk) {
         Logger::error("BOOT", "NVS unavailable; using defaults, changes will not be saved");
     }
     settings.load(loadedState);
@@ -56,10 +57,16 @@ void setup() {
     GUI.begin(app, touch);
     app.setErrorCallback(showError);
     if (!si5351Ok) {
-        GUI.showMessage("SI5351", "No I2C ACK at 0x60. Check SDA/SCL pins, VCC, GND, OE pin and pullups.");
+        GUI.showMessage("SI5351", "No I2C ACK at 0x60. Check SDA/SCL pins, VCC, GND, OE pin and pullups. "
+                                  "Reconnecting automatically.");
     }
+    if (!settingsOk) {
+        GUI.showMessage("Settings", "Flash storage (NVS) unavailable. Settings will not be saved.");
+    }
+    lv_refr_now(nullptr);
+    backlight.setPercent(loadedState.sys.backlight);
 
-    // 9. Apply stored channel settings safely (no-op without SI5351)
+    // 9. Program stored frequencies; all outputs start off (no-op without SI5351)
     app.applyStoredChannelSettings();
 
     Logger::info("BOOT", "Setup complete");

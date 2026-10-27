@@ -35,7 +35,7 @@ CH3 IQ mode is available for master frequencies from 4.730 MHz to 100 MHz; all f
 
 If a requested frequency or phase cannot be represented safely by the SI5351 configuration, the firmware shall reject the value or keep the output safely off and operate safely.
 
-Firmware version described: **1.1.0**. Changes against 1.0.0 and the approved deviations from the original specification are listed in section 40.
+Firmware version described: **1.2.0**. Changes against 1.0.0 and the approved deviations from the original specification are listed in sections 40 and 41.
 
 ---
 
@@ -337,19 +337,17 @@ The GUI does not display `High-Z`.
 
 ## 10. SI5351 Configuration Rules
 
-### 10.1 Library
+### 10.1 Driver
 
-The project uses:
+The firmware uses its own register-level driver (`SI5351Manager`, Skyworks AN619); no external SI5351 library is used.
 
-```text
-https://github.com/osmanovv/esp32-si5351.git#301b87ca2393fefa10099f924606115ac0532e9f
-```
-
-The library is pinned to this commit because the firmware relies on library internals:
-
-- `si5351_Calc()`, `si5351_CalcIQ()` and `si5351_SetupOutput()` are used as provided.
-- `si5351_SetupPLL()` is **not** used, because it always resets both PLLs. The firmware writes the PLL parameters itself and resets only the affected PLL (register 177: bit 5 = PLL A, bit 7 = PLL B).
-- The frequency correction is set through the library global `si5351Correction`, so a correction change does not re-initialize the chip (`si5351_Init()` would power down all outputs).
+- **Correction**: the crystal is modeled as 25 MHz × (1 + correction × 10⁻⁸) and all dividers are computed against it with 64-bit integer math. This applies the correction exactly at every frequency (the former library truncated the frequency to whole MHz).
+- **Dividers**: fractions are the best rational approximation with a 20-bit denominator (continued fractions).
+- **Standalone outputs**: the PLL stays at a fixed value (900 MHz or 887.5 MHz) and only the MultiSynth divider changes. The second PLL value is used only where the first cannot reach ≤ 0.25 Hz (near 900 MHz / n); the current PLL is kept while it is good enough. Error ≤ 0.5 Hz up to ~110 MHz. Above that, an even integer MultiSynth divider (6 or 4) and a fractional PLL are used. Below 1 MHz the R divider is used.
+- **Register cache**: only changed registers are written. A PLL is reset (register 177: bit 5 = PLL A, bit 7 = PLL B) only when its parameters changed, so tuning does not interrupt the output.
+- **Unused MultiSynths** are powered down (CLK2 while CH3 is not in IQ mode).
+- **Supervision**: every 2 s the firmware reads back the output enable and CLK control registers. A failed transfer or unexpected content (e.g. after a power interruption of the SI5351) marks the device as lost; the firmware then tries to re-initialize it every 2 s and restores all outputs.
+- Crystal load capacitance 10 pF (register 183 = 0xD2).
 
 ### 10.2 Outputs
 
@@ -382,18 +380,11 @@ CH3 has no independent drive setting.
 
 ### 10.4 Frequency Switching Sequence
 
-When changing frequency, the firmware shall switch safely:
-
-```text
-1. Disable output
-2. Reconfigure SI5351 / PLL / MultiSynth
-3. Apply frequency
-4. Re-enable output if channel is ON
-```
+Standalone outputs are retuned without disabling them: only the changed MultiSynth registers are written. The PLL is written and reset only when its parameters change (rare, see 10.1). For an IQ pair, both outputs are disabled, reconfigured, the PLL is reset to align the phases, and the outputs are re-enabled if ON; a pure drive strength or inversion change is written without reset.
 
 Switching artifacts are allowed.
 
-Only the PLL of the channel being changed is reset, so a frequency change on one channel does not interrupt the channel running on the other PLL:
+A PLL reset affects only the PLL of the channel being changed, so a frequency change on one channel does not interrupt the channel running on the other PLL:
 
 | Channel | PLL |
 |---|---|
@@ -407,17 +398,17 @@ CH3 must share the same PLL as its selected master.
 
 When CH3 is enabled and the master frequency is at least 4.730 MHz:
 
-- master and CH3 are configured as an IQ pair with `si5351_CalcIQ()`
+- master and CH3 are configured as an IQ pair: integer MultiSynth divider d = min(127, ⌊900 MHz / f⌋) in fractional mode, PLL = d × f
 - same frequency
 - phase applied to CH3 (see 10.6)
 - the shared PLL is reset after writing the phase offsets, which aligns both outputs
 
 When CH3 is disabled, or enabled but the master is below 4.730 MHz:
 
-- CLK2 is disabled
+- CLK2 is disabled and its MultiSynth powered down
 - CH1 and CH2 are configured as standalone outputs
 
-Lower limit: below 4.9 MHz `si5351_CalcIQ()` uses the fixed MultiSynth divider 127. The VCO stays within its 600 MHz minimum only from 600 MHz / 127 ≈ 4.725 MHz upwards; the firmware uses `IQ_MIN_HZ = 4 730 000 Hz`.
+Lower limit: the divider is at most 127 (7-bit phase register). The VCO stays within its 600 MHz minimum only from 600 MHz / 127 ≈ 4.725 MHz upwards; the firmware uses `IQ_MIN_HZ = 4 730 000 Hz`. Upper limit: the divider must be ≥ 9 in fractional mode, so `IQ_MAX_HZ = 100 MHz`. Accuracy ≤ 1 Hz (worst case next to multiples of the crystal frequency, e.g. 75 MHz).
 
 ### 10.6 Phase Validation
 
@@ -557,6 +548,7 @@ Control CH1 frequency and output state.
 - ON/OFF switch in title row
 - Frequency display
 - Info line: `Step <step>  |  Deviation <±x.x> Hz`
+- The digit changed by `+`/`-` is highlighted in the channel color
 - Step preset buttons: 1, 10, 100, 1k, 10k, 100k, 1M (Hz); the selected step is highlighted
 - `-` button (left)
 - `+` button (right)
@@ -570,6 +562,7 @@ Control CH1 frequency and output state.
 - holding `+` / `-` repeats the step (first repeat after 0.4 s, then every 0.1 s)
 - the frequency is clamped to 1–100 MHz
 - `NUMPAD` opens numeric frequency entry
+- tapping a digit of the frequency display selects it as step (digits above 1 MHz select 1 MHz); tapping the unit opens the numpad
 - ON/OFF switch enables/disables CLK0
 - the requested frequency is stored exactly (1 Hz); "Deviation" is the calculated difference of the synthesized SI5351 frequency from the requested one, assuming the correction is right
 
@@ -638,9 +631,9 @@ The CONFIG page contains global device settings.
   - 4 mA
   - 6 mA
   - 8 mA
-- Autosave indicator: `Saving...` / `Saved`
+- Autosave indicator: `Saving...` / `Saved` / `Save failed` / `Not saved` (NVS unavailable)
 
-Correction unit: `freq_correction` is stored in 0.01 ppm, which equals the library's definition "Hz deviation at 100 MHz". Positive means the uncorrected output is too high. Calibration: measure at 10 MHz, deviation in Hz / 10 = ppm (e.g. +97 Hz → +9.70 ppm).
+Correction unit: `freq_correction` is stored in 0.01 ppm (= Hz deviation at 100 MHz). Positive means the crystal, and thus the uncorrected output, is too high. Calibration: measure at 10 MHz, deviation in Hz / 10 = ppm (e.g. +97 Hz → +9.70 ppm).
 
 A correction change reconfigures the outputs but does not re-initialize the SI5351.
 
@@ -722,9 +715,6 @@ Stored values include:
 
 - CH1 frequency
 - CH2 frequency
-- CH1 ON/OFF
-- CH2 ON/OFF
-- CH3 ON/OFF
 - CH3 master selection
 - CH3 phase
 - backlight percentage
@@ -732,7 +722,7 @@ Stored values include:
 - frequency correction
 - global drive strength
 
-Touch calibration is not stored. Backlight values below 5 % are replaced by 80 %, the step is snapped to the nearest preset and the correction is limited to ±50 ppm when loading.
+The ON/OFF state of the outputs is not stored; all outputs start off (approved 2026-10-27). Keys `ch1_en` / `ch2_en` / `ch3_en` from 1.1.0 are ignored. Touch calibration is not stored. Backlight values below 5 % are replaced by 80 %, the step is snapped to the nearest preset and the correction is limited to ±50 ppm when loading.
 
 
 ### 19.3 Autosave
@@ -748,6 +738,8 @@ Process:
 4. Save all persistent settings to NVS
 5. Print Serial log
 ```
+
+If NVS cannot be opened at startup, a dialog is shown and nothing is saved (CONFIG: `Not saved`). If a save fails, a dialog is shown (CONFIG: `Save failed`).
 
 Expected log:
 
@@ -919,13 +911,14 @@ The firmware initialization order is:
 ```text
 1. Serial / Logger
 2. I2C bus initialization and scan
-3. Backlight PWM
+3. Backlight PWM (backlight off)
 4. Settings load from NVS
 5. SI5351 initialization and probe
 6. Touch initialization
 7. LVGL initialization
-8. GUI initialization
-9. Apply stored channel settings
+8. GUI initialization, boot dialogs (SI5351 missing, NVS unavailable)
+9. First frame rendered, then backlight on (the uninitialized panel would show noise)
+10. Program stored frequencies; all outputs off
 ```
 
 The main loop:
@@ -1017,7 +1010,10 @@ Responsibilities:
 - probe I2C address 0x60
 - configure standalone frequency outputs
 - configure IQ pair for CH3 (phase register + CLK_INV)
-- write PLL parameters and reset only the affected PLL
+- compute PLL / MultiSynth / R divider values (exact correction, best rational approximation)
+- cache register contents, write only changes, reset a PLL only when it changed
+- power down unused MultiSynths
+- check the device every 2 s (`checkAlive()`) and re-initialize after a loss (`begin()`)
 - set the frequency correction without re-initialization
 - enable/disable outputs
 - report the expected synthesized frequency per CLK (`actualHz()`)
@@ -1065,6 +1061,7 @@ Responsibilities:
 - save settings
 - debounce autosave
 - log save events
+- report NVS unavailability and failed saves
 
 Autosave delay:
 
@@ -1140,7 +1137,6 @@ framework = arduino
 TFT_eSPI
 LVGL
 XPT2046_Touchscreen v1.4 from GitHub
-osmanovv/esp32-si5351 from GitHub, pinned to commit 301b87ca2393fefa10099f924606115ac0532e9f
 Preferences built into Arduino-ESP32
 ```
 
@@ -1163,7 +1159,8 @@ Mandatory constraints:
 - display uses HSPI
 - touch uses VSPI
 - SI5351 I2C pins are explicitly configured
-- outputs are disabled before SI5351 reconfiguration
+- IQ outputs are disabled before reconfiguration; standalone outputs are retuned glitch-free
+- all outputs are off after power-up
 - errors do not crash the firmware
 
 ---
@@ -1171,8 +1168,8 @@ Mandatory constraints:
 ## 35. Known Limitations
 
 - Touch calibration is fixed to default values.
-- The displayed deviation assumes that the frequency correction is right; the library applies the correction with integer MHz (`Fclk / 1000000`), which leaves a small residual error below 2 MHz.
-- The external SI5351 library does not expose full I2C write-status details for every register write it performs.
+- The displayed deviation assumes that the frequency correction is right.
+- CH3 IQ accuracy is ≤ 1 Hz (standalone ≤ 0.5 Hz).
 - CH3 IQ mode is not available below 4.730 MHz.
 
 ---
@@ -1186,7 +1183,6 @@ Possible future extensions:
 - modulation modes
 - external trigger on GPIO35
 - calibration assistant (enter measured frequency, compute correction)
-- optional SI5351 library fork with complete I2C error reporting
 - display flush via DMA and double buffer
 - native unit tests for `FrequencyUtils`
 
@@ -1305,3 +1301,22 @@ Further changes (within the specification):
 - pages are built once per navigation and updated by `refresh_()`; navigation is deferred with `lv_async_call()`; enum-based action dispatch
 - SI5351 library pinned to a commit; unused LVGL fonts and widgets disabled
 
+## 41. Changes in 1.2.0
+
+Approved by the project owner on 2026-10-27:
+
+| Topic | Before | Now |
+|---|---|---|
+| Startup state | Stored ON/OFF states were restored | All outputs start off; ON/OFF is no longer stored |
+| SI5351 driver | osmanovv/esp32-si5351 plus direct writes to library internals | Own register-level driver (10.1) |
+
+Further changes:
+
+- frequency correction applied exactly at every frequency
+- standalone tuning without PLL reset and without disabling the output; ≤ 0.5 Hz error
+- unused MultiSynth (CLK2 outside IQ mode) powered down
+- SI5351 supervision every 2 s, automatic reconnect, `Connection lost` dialog
+- backlight switched on only after the first frame
+- dialogs for NVS unavailable / save failed, CONFIG indicator `Not saved` / `Save failed`; dialogs are queued instead of replaced
+- channel page: tap a digit to select the step, tap the unit to open the numpad, active digit highlighted
+- `PIN_TFT_*` removed from `pins.h`; the display pins are defined only by the build flags

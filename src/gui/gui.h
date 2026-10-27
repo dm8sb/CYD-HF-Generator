@@ -13,6 +13,7 @@ class Gui {
 public:
     bool begin(AppController& app, TouchDriver& touch);
     void update();
+    // One dialog at a time; further messages are queued, identical ones dropped.
     void showMessage(const char* title, const char* text);
     void navigate(PageId page);
 
@@ -22,6 +23,7 @@ private:
         ChannelSwitch,  // arg: channel 1..3
         FreqUp,
         FreqDown,
+        FreqTap,        // tap on the frequency: digit selects the step, unit opens the numpad
         SetStep,        // arg: DELTA_STEPS index
         StepUp,
         StepDown,
@@ -65,6 +67,7 @@ private:
     void refreshChannel_();
     void refreshCH3_();
     void refreshConfig_();
+    void refreshSaveState_();
 
     void createHeader_(const char* title, lv_color_t color, uint8_t switchChannel);
     void setHeaderState_(bool on);
@@ -79,11 +82,14 @@ private:
 
     void handleAction_(Action action, uint8_t arg, lv_obj_t* obj);
     void handleNumpadKey_(lv_obj_t* matrix);
+    void handleFreqTap_(lv_obj_t* label);
+    void openMessage_(const char* title, const char* text);
     void requestNavigate_(PageId page);
 
     static void eventCb_(lv_event_t* e);
     static void msgboxEventCb_(lv_event_t* e);
     static void asyncNavigateCb_(void* gui);
+    static void nextMessageCb_(void* gui);
     static void flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p);
     static void touchCb_(lv_indev_drv_t* drv, lv_indev_data_t* data);
 
@@ -96,9 +102,20 @@ private:
     uint8_t channel_ = 1;       // channel shown on the CH1/CH2 page and edited by the numpad
     uint8_t corrStepIdx_ = 1;   // index into CORRECTION_STEPS
     uint32_t lastUpdateMs_ = 0;
+    bool lastHwReady_ = false;
+    char freqText_[24] {};      // plain frequency text on the channel page, for hit testing
     Widgets w_ {};
     lv_obj_t* root_ = nullptr;
     lv_obj_t* msgbox_ = nullptr;
+
+    struct Message {
+        char title[24];
+        char text[160];
+    };
+    static constexpr uint8_t MSG_QUEUE_LEN = 3;
+    char msgText_[160] {};      // text of the open dialog
+    Message msgQueue_[MSG_QUEUE_LEN] {};
+    uint8_t msgCount_ = 0;
 
     lv_disp_draw_buf_t drawBuf_;
     static lv_color_t buf1_[SCREEN_WIDTH * 24];

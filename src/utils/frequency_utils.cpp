@@ -2,6 +2,7 @@
 #include <constants.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 namespace FrequencyUtils {
 
@@ -62,5 +63,29 @@ uint8_t stepIndex(uint32_t step) {
 }
 
 uint32_t snapStep(uint32_t step) { return DELTA_STEPS[stepIndex(step)]; }
+
+int digitExponent(const char* text, size_t index) {
+    if (!text || index >= strlen(text) || !isdigit((unsigned char)text[index])) return -1;
+    int exponent = 0;
+    for (const char* p = text + index + 1; *p; ++p) {
+        if (isdigit((unsigned char)*p)) ++exponent;
+    }
+    return exponent;
+}
+
+uint8_t decimalExponent(uint32_t value) {
+    uint8_t exponent = 0;
+    while (value >= 10) {
+        value /= 10;
+        ++exponent;
+    }
+    return exponent;
+}
+
+uint32_t powerOfTen(uint8_t exponent) {
+    uint32_t v = 1;
+    while (exponent--) v *= 10;
+    return v;
+}
 
 }

@@ -1,6 +1,6 @@
 # User Manual – CYD HF Generator
 
-Firmware version: 1.1.0
+Firmware version: 1.2.0
 
 ## 1. Overview
 
@@ -26,7 +26,7 @@ CH3 always follows the frequency of its selected master and can use a phase offs
 
 ## 2. Basic Operation
 
-After power-up, the main page is displayed.
+After power-up, the main page is displayed. **All outputs are off after power-up**, even if they were on when the device was switched off. Frequencies, CH3 master and phase are kept.
 
 The main page shows one card per channel with:
 
@@ -48,7 +48,7 @@ Status below the channel name:
 | `ON` (green) | Output active |
 | `OFF` (gray) | Output off |
 | `WAIT` (orange) | CH3 is switched on but cannot run right now (master off or master frequency below 4.730 MHz) |
-| `NO HW` (red) | SI5351 was not found at startup |
+| `NO HW` (red) | SI5351 not found or connection lost; the firmware reconnects automatically |
 
 The navigation buttons are color-coded:
 
@@ -134,6 +134,10 @@ The CH1 and CH2 pages contain:
 - the `NUMPAD` button
 
 The `-` and `+` buttons change the frequency by the selected step. The selected step is highlighted and can be chosen directly on the channel page (or in CONFIG).
+
+**Tap a digit:** Tapping a digit of the frequency display selects that digit as the step (e.g. the third decimal = 1 kHz). The digit changed by `-`/`+` is highlighted in the channel color. Digits above 1 MHz (10 MHz, 100 MHz) select the largest step, 1 MHz. Tapping the unit `MHz` opens the NUMPAD.
+
+Below about 110 MHz, frequency changes do not interrupt the output. Only in rare cases the PLL has to be switched, which causes a short dropout.
 
 **Press and hold:** after about 0.4 s the step repeats automatically about every 0.1 s until the button is released.
 
@@ -448,6 +452,8 @@ The right side of the `Drive all` row shows the save state:
 |---|---|
 | `Saving...` | Change not yet saved (autosave after 5 s) |
 | `Saved` | Everything saved |
+| `Save failed` (red) | Writing to flash failed; a dialog is shown as well |
+| `Not saved` (red) | Flash storage (NVS) unavailable at startup; changes are lost at power-off |
 
 ---
 
@@ -470,9 +476,6 @@ Saved values include:
 
 - CH1 frequency
 - CH2 frequency
-- CH1 ON/OFF
-- CH2 ON/OFF
-- CH3 ON/OFF
 - CH3 master
 - CH3 phase
 - Backlight
@@ -481,6 +484,8 @@ Saved values include:
 - Global drive strength
 
 Touch calibration is not saved. Default values are always used.
+
+The ON/OFF state of the outputs is not saved; all outputs are off after power-up.
 
 ---
 
@@ -580,11 +585,17 @@ The setting now applies to all channels.
 
 ### Error Messages
 
-Errors are shown as a dialog. `OK` closes it. At most one dialog is open at a time; identical messages are not stacked.
+Errors are shown as a dialog. `OK` closes it. At most one dialog is open at a time; further messages follow one after another, identical messages appear only once.
 
 ### SI5351 Not Found
 
 If the SI5351 is not found at startup, **one** message is shown. Afterwards the main page shows `NO HW` for the channels and the channel pages show `SI5351 not found`. Settings can still be changed and are saved.
+
+The firmware checks every 2 seconds whether the SI5351 answers. When it is connected later or a loose contact is fixed, the firmware reconnects automatically and restores the set frequencies and ON/OFF states. If the connection is lost during operation (or the SI5351 briefly loses power), the message `Connection lost` is shown and the channels show `NO HW` until the connection is back.
+
+### Settings Are Not Saved
+
+If the flash storage (NVS) is unavailable at startup, a dialog is shown and CONFIG shows `Not saved`. If saving fails, a dialog is shown and CONFIG shows `Save failed`.
 
 ### No Output Signal
 

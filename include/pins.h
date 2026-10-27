@@ -2,13 +2,8 @@
 
 #include <Arduino.h>
 
-// ILI9341 display on HSPI
-static constexpr int PIN_TFT_MOSI = 13;
-static constexpr int PIN_TFT_MISO = 12;
-static constexpr int PIN_TFT_SCK  = 14;
-static constexpr int PIN_TFT_CS   = 15;
-static constexpr int PIN_TFT_DC   = 2;
-static constexpr int PIN_TFT_RST  = -1;
+// Display (HSPI: MOSI 13, MISO 12, SCK 14, CS 15, DC 2) is configured for TFT_eSPI
+// by the build flags in platformio.ini, one environment per display controller.
 
 // XPT2046 touch on VSPI
 static constexpr int PIN_TOUCH_MOSI = 32;
