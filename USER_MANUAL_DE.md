@@ -1,6 +1,6 @@
 # Benutzeranleitung – CYD HF Generator
 
-Firmware-Version: 1.1.0
+Firmware-Version: 1.2.0
 
 ## 1. Überblick
 
@@ -26,7 +26,7 @@ CH3 folgt immer der Frequenz seines Masters und kann mit einer Phasenlage von 0�
 
 ## 2. Grundbedienung
 
-Nach dem Einschalten erscheint die Hauptseite.
+Nach dem Einschalten erscheint die Hauptseite. **Alle Ausgänge sind nach dem Einschalten aus**, auch wenn sie beim Ausschalten an waren. Frequenzen, CH3-Master und -Phase bleiben gespeichert.
 
 Die Hauptseite zeigt für jeden Kanal eine Karte mit:
 
@@ -48,7 +48,7 @@ Statusanzeige unter dem Kanalnamen:
 | `ON` (grün) | Ausgang aktiv |
 | `OFF` (grau) | Ausgang aus |
 | `WAIT` (orange) | CH3 ist eingeschaltet, kann aber gerade nicht laufen (Master aus oder Masterfrequenz unter 4,730 MHz) |
-| `NO HW` (rot) | SI5351 wurde beim Start nicht gefunden |
+| `NO HW` (rot) | SI5351 nicht gefunden oder Verbindung verloren; die Firmware verbindet automatisch neu |
 
 Die Navigationsbuttons sind farbig:
 
@@ -134,6 +134,10 @@ Die Kanalseite von CH1 und CH2 enthält:
 - die Taste `NUMPAD`
 
 Die Tasten `-` und `+` ändern die Frequenz um den aktuell gewählten Schritt. Der gewählte Schritt ist farbig hervorgehoben und wird direkt auf der Kanalseite (oder in CONFIG) gewählt.
+
+**Stelle direkt antippen:** Ein Tipp auf eine Ziffer der Frequenzanzeige wählt diese Stelle als Schritt (z. B. die dritte Nachkommastelle = 1 kHz). Die Stelle, die `-`/`+` ändert, ist in der Kanalfarbe hervorgehoben. Ziffern über 1 MHz (10 MHz, 100 MHz) wählen den größten Schritt 1 MHz. Ein Tipp auf die Einheit `MHz` öffnet das NUMPAD.
+
+Frequenzänderungen unter ca. 110 MHz erfolgen ohne Unterbrechung des Ausgangs. Nur in seltenen Fällen muss die PLL umgeschaltet werden; dann gibt es einen kurzen Aussetzer.
 
 **Gedrückt halten:** Nach ca. 0,4 s wiederholt sich der Schritt automatisch etwa alle 0,1 s, bis die Taste losgelassen wird.
 
@@ -448,6 +452,8 @@ Rechts in der Zeile `Drive all` steht der Speicherzustand:
 |---|---|
 | `Saving...` | Änderung noch nicht gespeichert (Autosave nach 5 s) |
 | `Saved` | Alles gespeichert |
+| `Save failed` (rot) | Speichern im Flash ist fehlgeschlagen, zusätzlich erscheint ein Dialog |
+| `Not saved` (rot) | Flash-Speicher (NVS) beim Start nicht verfügbar, Änderungen gehen beim Ausschalten verloren |
 
 ---
 
@@ -470,9 +476,6 @@ Gespeichert werden unter anderem:
 
 - CH1 Frequenz
 - CH2 Frequenz
-- CH1 ON/OFF
-- CH2 ON/OFF
-- CH3 ON/OFF
 - CH3 Master
 - CH3 Phase
 - Backlight
@@ -481,6 +484,8 @@ Gespeichert werden unter anderem:
 - globale Drive-Strength
 
 Touch-Kalibrierung wird nicht gespeichert. Es werden immer Default-Werte verwendet.
+
+Der ON/OFF-Zustand der Ausgänge wird nicht gespeichert; nach dem Einschalten sind alle Ausgänge aus.
 
 ---
 
@@ -580,11 +585,17 @@ Diese Einstellung gilt danach für alle Kanäle.
 
 ### Fehlermeldungen
 
-Fehler werden als Dialog angezeigt. `OK` schließt den Dialog. Es ist immer höchstens ein Dialog offen; gleiche Meldungen werden nicht mehrfach gestapelt.
+Fehler werden als Dialog angezeigt. `OK` schließt den Dialog. Es ist immer höchstens ein Dialog offen; weitere Meldungen erscheinen nacheinander, gleiche Meldungen nur einmal.
 
 ### SI5351 nicht gefunden
 
 Wird der SI5351 beim Start nicht gefunden, erscheint **eine** Meldung. Danach zeigen die Kanäle auf der Hauptseite `NO HW`, die Kanalseiten `SI5351 not found`. Einstellungen lassen sich trotzdem ändern und werden gespeichert.
+
+Die Firmware prüft alle 2 Sekunden, ob der SI5351 antwortet. Wird er nachträglich angeschlossen oder ist ein Wackelkontakt behoben, verbindet sie automatisch neu und stellt die eingestellten Frequenzen und ON/OFF-Zustände wieder her. Geht die Verbindung im Betrieb verloren (oder verliert der SI5351 kurz die Versorgung), erscheint die Meldung `Connection lost` und die Kanäle zeigen `NO HW`, bis die Verbindung wieder steht.
+
+### Einstellungen werden nicht gespeichert
+
+Ist der Flash-Speicher (NVS) beim Start nicht verfügbar, erscheint ein Dialog und CONFIG zeigt `Not saved`. Schlägt ein Speichervorgang fehl, erscheint ein Dialog und CONFIG zeigt `Save failed`.
 
 ### Kein Ausgangssignal
 

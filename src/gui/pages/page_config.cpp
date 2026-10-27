@@ -86,5 +86,19 @@ void Gui::refreshConfig_() {
     static const char* corrStepLabels[CORRECTION_STEP_COUNT] = {"0.01", "0.1", "1"};
     lv_label_set_text(lv_obj_get_child(w_.corrStep, 0), corrStepLabels[corrStepIdx_]);
 
-    lv_label_set_text(w_.saveState, app_->hasUnsavedChanges() ? "Saving..." : "Saved");
+    refreshSaveState_();
+}
+
+void Gui::refreshSaveState_() {
+    if (!w_.saveState) return;
+    const char* text = "Saved";
+    lv_color_t color = Colors::muted();
+    switch (app_->saveState()) {
+        case SaveState::Saved: break;
+        case SaveState::Pending: text = "Saving..."; break;
+        case SaveState::Failed: text = "Save failed"; color = Colors::error(); break;
+        case SaveState::Unavailable: text = "Not saved"; color = Colors::error(); break;
+    }
+    lv_label_set_text(w_.saveState, text);
+    lv_obj_set_style_text_color(w_.saveState, color, 0);
 }

@@ -3,12 +3,13 @@
 #include <utils/logger.h>
 #include <utils/frequency_utils.h>
 
+static const char* MSG_HW_LOST = "Connection lost. Check the wiring; reconnecting automatically.";
+
 AppController::AppController(SettingsService& settings, SI5351Manager& si5351, BacklightDriver& backlight)
     : settings_(settings), si5351_(si5351), backlight_(backlight) {}
 
 void AppController::begin(const PersistentState& loaded) {
     state_ = loaded;
-    backlight_.setPercent(state_.sys.backlight);
 }
 
 void AppController::applyStoredChannelSettings() {
@@ -17,7 +18,30 @@ void AppController::applyStoredChannelSettings() {
 }
 
 void AppController::update() {
-    settings_.update(state_);
+    if (settings_.update(state_) == SaveResult::Failed) {
+        reportError_("Settings", "Saving to flash (NVS) failed. Changes will be lost at power off.");
+    }
+    superviseHardware_();
+}
+
+void AppController::superviseHardware_() {
+    const uint32_t now = millis();
+    if (now - lastHwCheckMs_ < HW_CHECK_INTERVAL_MS) return;
+    lastHwCheckMs_ = now;
+    if (si5351_.ready()) {
+        if (!si5351_.checkAlive()) reportError_("SI5351", MSG_HW_LOST);
+        return;
+    }
+    if (si5351_.begin(state_.sys.freq_correction)) {
+        Logger::info("APP", "SI5351 connected; restoring outputs");
+        reconfigureOutputs_();
+    }
+}
+
+SaveState AppController::saveState() const {
+    if (!settings_.available()) return SaveState::Unavailable;
+    if (settings_.isDirty()) return SaveState::Pending;
+    return settings_.lastSaveFailed() ? SaveState::Failed : SaveState::Saved;
 }
 
 Channel& AppController::channel_(uint8_t ch) { return (ch == 1) ? state_.ch1 : state_.ch2; }
@@ -28,6 +52,10 @@ void AppController::markChanged_() { settings_.markDirty(); }
 void AppController::reportError_(const char* title, const char* text) {
     Logger::error(title, text);
     if (errorCb_) errorCb_(title, text);
+}
+
+void AppController::reportHardwareError_(const char* text) {
+    reportError_("SI5351", si5351_.ready() ? text : MSG_HW_LOST);
 }
 
 bool AppController::masterEnabled_() const { return state_.ch3.master == 1 ? state_.ch1.enabled : state_.ch2.enabled; }
@@ -48,33 +76,35 @@ Ch3Status AppController::ch3Status() const {
 }
 
 void AppController::configureStandalone_(uint8_t ch) {
+    if (!si5351_.ready()) return;
     const Channel& c = channel_(ch);
     const uint8_t clk = clkForChannel_(ch);
-    if (!si5351_.setupStandalone(clk, pllForChannel_(ch), c.frequency, c.drive_strength)) {
-        reportError_("SI5351", "Frequency set failed");
-        return;
+    if (!si5351_.setupStandalone(clk, pllForChannel_(ch), c.frequency, c.drive_strength) ||
+        !si5351_.enableOutput(clk, c.enabled)) {
+        reportHardwareError_("Frequency set failed");
     }
-    si5351_.enableOutput(clk, c.enabled);
 }
 
 void AppController::configureMasterGroup_() {
     const uint8_t master = state_.ch3.master;
     if (!iqConfigured_()) {
-        si5351_.enableOutput(CLK_CH3, false);
+        // An unused MultiSynth would only add spurs.
+        si5351_.powerDown(CLK_CH3);
         configureStandalone_(master);
         return;
     }
     const uint8_t masterClk = clkForChannel_(master);
     if (!si5351_.setupIQPair(masterClk, CLK_CH3, pllForChannel_(master), masterFrequency_(),
                              channel_(master).drive_strength, state_.ch3.phase)) {
-        reportError_("SI5351", "CH3 IQ setup failed");
+        reportHardwareError_("CH3 IQ setup failed");
         // Keep at least the master running.
-        si5351_.enableOutput(CLK_CH3, false);
+        si5351_.powerDown(CLK_CH3);
         configureStandalone_(master);
         return;
     }
-    si5351_.enableOutput(masterClk, masterEnabled_());
-    si5351_.enableOutput(CLK_CH3, masterEnabled_());
+    if (!si5351_.enableOutput(masterClk, masterEnabled_()) || !si5351_.enableOutput(CLK_CH3, masterEnabled_())) {
+        reportHardwareError_("Output switch failed");
+    }
 }
 
 void AppController::configureChannel_(uint8_t ch) {
@@ -110,8 +140,9 @@ void AppController::setChannelEnabled(uint8_t ch, bool en) {
     if (ch == 1 || ch == 2) {
         channel_(ch).enabled = en;
         if (si5351_.ready()) {
-            si5351_.enableOutput(clkForChannel_(ch), en);
-            if (ch == state_.ch3.master && iqConfigured_()) si5351_.enableOutput(CLK_CH3, en);
+            bool ok = si5351_.enableOutput(clkForChannel_(ch), en);
+            if (ch == state_.ch3.master && iqConfigured_()) ok = ok && si5351_.enableOutput(CLK_CH3, en);
+            if (!ok) reportHardwareError_("Output switch failed");
         }
     } else if (ch == 3) {
         state_.ch3.enabled = en;

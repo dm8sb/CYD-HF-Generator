@@ -37,6 +37,7 @@ bool Gui::begin(AppController& app, TouchDriver& touch) {
     lv_indev_drv_register(&indevDrv_);
 
     lv_theme_default_init(lv_disp_get_default(), lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
+    lastHwReady_ = app.hardwareReady();
     navigate(PageId::Main);
     Logger::info("GUI", "LVGL initialized");
     return true;
@@ -238,11 +239,14 @@ void Gui::refresh_() {
 }
 
 void Gui::update() {
-    // Only the autosave indicator changes without user input.
+    // Without user input only the autosave indicator and the SI5351 connection change.
     if (millis() - lastUpdateMs_ < 300) return;
     lastUpdateMs_ = millis();
-    if (currentPage_ == PageId::Config && w_.saveState) {
-        lv_label_set_text(w_.saveState, app_->hasUnsavedChanges() ? "Saving..." : "Saved");
+    if (app_->hardwareReady() != lastHwReady_) {
+        lastHwReady_ = app_->hardwareReady();
+        refresh_();
+    } else if (currentPage_ == PageId::Config) {
+        refreshSaveState_();
     }
 }
 
@@ -271,6 +275,9 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::FreqDown:
             app.adjustChannelFrequency(channel_, -(int64_t)sys.delta_step);
             break;
+        case Action::FreqTap:
+            handleFreqTap_(obj);
+            return;
         case Action::SetStep:
             app.setDeltaStep(DELTA_STEPS[arg]);
             break;
@@ -313,30 +320,58 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
 }
 
 // ---------------------------------------------------------------------------
-// Message box: one at a time, identical messages are not stacked.
+// Message box: one at a time, further messages wait in a short queue.
 
 void Gui::showMessage(const char* title, const char* text) {
-    if (msgbox_) {
-        const char* current = lv_label_get_text(lv_msgbox_get_text(msgbox_));
-        if (current && strcmp(current, text) == 0) return;
-        lv_obj_t* old = msgbox_;
-        msgbox_ = nullptr;
-        lv_msgbox_close(old);
+    if (!msgbox_) {
+        openMessage_(title, text);
+        return;
     }
+    if (strcmp(msgText_, text) == 0) return;
+    for (uint8_t i = 0; i < msgCount_; ++i) {
+        if (strcmp(msgQueue_[i].text, text) == 0) return;
+    }
+    if (msgCount_ == MSG_QUEUE_LEN) {
+        Logger::error("GUI", "Message queue full");
+        return;
+    }
+    Message& m = msgQueue_[msgCount_++];
+    snprintf(m.title, sizeof(m.title), "%s", title);
+    snprintf(m.text, sizeof(m.text), "%s", text);
+}
+
+void Gui::openMessage_(const char* title, const char* text) {
     static const char* buttons[] = {"OK", ""};
-    msgbox_ = lv_msgbox_create(nullptr, title, text, buttons, false);
+    snprintf(msgText_, sizeof(msgText_), "%s", text);
+    msgbox_ = lv_msgbox_create(nullptr, title, msgText_, buttons, false);
     lv_obj_center(msgbox_);
     lv_obj_add_event_cb(msgbox_, msgboxEventCb_, LV_EVENT_VALUE_CHANGED, nullptr);
     lv_obj_add_event_cb(msgbox_, msgboxEventCb_, LV_EVENT_DELETE, nullptr);
 }
 
+void Gui::nextMessageCb_(void* gui) {
+    Gui* g = static_cast<Gui*>(gui);
+    if (g->msgbox_ || g->msgCount_ == 0) return;
+    const Message m = g->msgQueue_[0];
+    g->msgCount_--;
+    memmove(&g->msgQueue_[0], &g->msgQueue_[1], g->msgCount_ * sizeof(Message));
+    g->openMessage_(m.title, m.text);
+}
+
 void Gui::msgboxEventCb_(lv_event_t* e) {
     lv_obj_t* box = lv_event_get_current_target(e);
-    if (gGui && gGui->msgbox_ == box) gGui->msgbox_ = nullptr;
+    if (!gGui) return;
+    if (gGui->msgbox_ == box) {
+        gGui->msgbox_ = nullptr;
+        gGui->msgText_[0] = '\0';
+    }
     // lv_msgbox footer buttons have no default action in LVGL 8.3.
     if (lv_event_get_code(e) == LV_EVENT_VALUE_CHANGED) {
         // Block a second tap before the async close runs, it would close a deleted box.
         lv_obj_clear_flag(lv_msgbox_get_btns(box), LV_OBJ_FLAG_CLICKABLE);
         lv_msgbox_close_async(box);
+    } else if (gGui->msgCount_ > 0) {
+        // Not inside the delete event of the old box.
+        lv_async_call(nextMessageCb_, gGui);
     }
 }

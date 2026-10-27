@@ -8,11 +8,14 @@
 
 typedef void (*ErrorCallback)(const char* title, const char* text);
 
+enum class SaveState : uint8_t { Saved, Pending, Failed, Unavailable };
+
 class AppController {
 public:
     AppController(SettingsService& settings, SI5351Manager& si5351, BacklightDriver& backlight);
 
     void begin(const PersistentState& loaded);
+    // Autosave and SI5351 supervision (health check, automatic reconnect).
     void update();
     void applyStoredChannelSettings();
 
@@ -36,7 +39,7 @@ public:
     const PersistentState& state() const { return state_; }
 
     bool hardwareReady() const { return si5351_.ready(); }
-    bool hasUnsavedChanges() const { return settings_.isDirty(); }
+    SaveState saveState() const;
     uint64_t ch3Frequency() const { return masterFrequency_(); }
     Ch3Status ch3Status() const;
     // ch 1..3; expected output frequency incl. SI5351 rounding (0 if not configured).
@@ -49,6 +52,9 @@ private:
     SI5351Manager::Pll pllForChannel_(uint8_t ch) const { return ch == 1 ? SI5351Manager::Pll::A : SI5351Manager::Pll::B; }
     void markChanged_();
     void reportError_(const char* title, const char* text);
+    // Reports a lost SI5351 instead of `text` when the failure came from the I2C bus.
+    void reportHardwareError_(const char* text);
+    void superviseHardware_();
     bool iqConfigured_() const;
     void configureStandalone_(uint8_t ch);
     void configureMasterGroup_();
@@ -62,4 +68,5 @@ private:
     BacklightDriver& backlight_;
     PersistentState state_ {};
     ErrorCallback errorCb_ = nullptr;
+    uint32_t lastHwCheckMs_ = 0;
 };

@@ -10,7 +10,8 @@ static constexpr uint8_t BACKLIGHT_LEDC_BITS = 8;
 void BacklightDriver::begin() {
     ledcSetup(BACKLIGHT_LEDC_CHANNEL, BACKLIGHT_LEDC_FREQ, BACKLIGHT_LEDC_BITS);
     ledcAttachPin(PIN_BACKLIGHT, BACKLIGHT_LEDC_CHANNEL);
-    setPercent(DEFAULT_BACKLIGHT_PERCENT);
+    // Stays dark until the first frame is drawn; the panel shows noise before its init.
+    setPercent(0);
     Logger::info("BACKLIGHT", "PWM on GPIO21 initialized");
 }
 
