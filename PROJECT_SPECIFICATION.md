@@ -31,7 +31,11 @@ CH3 always follows the selected master frequency and can apply a phase offset of
 0° / 90° / 180° / 270°
 ```
 
-If a requested frequency or phase cannot be represented safely by the SI5351 configuration, the firmware shall reject or round the value and operate safely.
+CH3 IQ mode is available for master frequencies from 4.730 MHz to 100 MHz; all four phases are valid in that range.
+
+If a requested frequency or phase cannot be represented safely by the SI5351 configuration, the firmware shall reject the value or keep the output safely off and operate safely.
+
+Firmware version described: **1.1.0**. Changes against 1.0.0 and the approved deviations from the original specification are listed in section 40.
 
 ---
 
@@ -139,7 +143,7 @@ Library: PaulStoffregen/XPT2046_Touchscreen v1.4
 
 Runtime touch calibration is currently disabled.
 
-The firmware always uses fixed default calibration values:
+The firmware always uses fixed default calibration values (`TOUCH_CAL_DEFAULT` in `include/constants.h`):
 
 ```text
 x_min = 300
@@ -231,8 +235,10 @@ Backlight is controlled by LEDC PWM.
 User range:
 
 ```text
-0 % to 100 %
+5 % to 100 %
 ```
+
+The minimum of 5 % (`BACKLIGHT_MIN_PERCENT`) prevents a dark, unusable display. A stored value below 5 % is replaced by the default 80 % when settings are loaded.
 
 Internal PWM range:
 
@@ -307,10 +313,12 @@ Input resolution: 1 Hz
   - 90°
   - 180°
   - 270°
+- IQ range: master frequency 4.730 MHz to 100 MHz
 - CH3 output is active only if:
   - CH3 is ON
   - selected master channel is ON
-  - selected phase/frequency combination is valid
+  - master frequency is at least 4.730 MHz
+- The CH3 ON/OFF setting is the user's request. If the conditions are not met, CLK2 stays off but the request is kept; CH3 starts automatically as soon as the conditions are met.
 
 ### 9.3 OFF State
 
@@ -334,8 +342,14 @@ The GUI does not display `High-Z`.
 The project uses:
 
 ```text
-https://github.com/osmanovv/esp32-si5351.git
+https://github.com/osmanovv/esp32-si5351.git#301b87ca2393fefa10099f924606115ac0532e9f
 ```
+
+The library is pinned to this commit because the firmware relies on library internals:
+
+- `si5351_Calc()`, `si5351_CalcIQ()` and `si5351_SetupOutput()` are used as provided.
+- `si5351_SetupPLL()` is **not** used, because it always resets both PLLs. The firmware writes the PLL parameters itself and resets only the affected PLL (register 177: bit 5 = PLL A, bit 7 = PLL B).
+- The frequency correction is set through the library global `si5351Correction`, so a correction change does not re-initialize the chip (`si5351_Init()` would power down all outputs).
 
 ### 10.2 Outputs
 
@@ -379,34 +393,53 @@ When changing frequency, the firmware shall switch safely:
 
 Switching artifacts are allowed.
 
+Only the PLL of the channel being changed is reset, so a frequency change on one channel does not interrupt the channel running on the other PLL:
+
+| Channel | PLL |
+|---|---|
+| CH1 | PLL A |
+| CH2 | PLL B |
+| CH3 | PLL of its master |
+
 ### 10.5 CH3 IQ Mode
 
 CH3 must share the same PLL as its selected master.
 
-When CH3 is enabled:
+When CH3 is enabled and the master frequency is at least 4.730 MHz:
 
-- master and CH3 are configured as an IQ pair
+- master and CH3 are configured as an IQ pair with `si5351_CalcIQ()`
 - same frequency
-- phase offset applied to CH3
+- phase applied to CH3 (see 10.6)
+- the shared PLL is reset after writing the phase offsets, which aligns both outputs
 
-When CH3 is disabled:
+When CH3 is disabled, or enabled but the master is below 4.730 MHz:
 
 - CLK2 is disabled
 - CH1 and CH2 are configured as standalone outputs
 
+Lower limit: below 4.9 MHz `si5351_CalcIQ()` uses the fixed MultiSynth divider 127. The VCO stays within its 600 MHz minimum only from 600 MHz / 127 ≈ 4.725 MHz upwards; the firmware uses `IQ_MIN_HZ = 4 730 000 Hz`.
+
 ### 10.6 Phase Validation
 
-The SI5351 phase offset register is 7-bit.
+The SI5351 phase offset register is 7-bit. One unit is a quarter VCO period, so 90° equals the MultiSynth divider, which is at most 127 in the IQ range.
 
-Therefore not every requested phase is valid at every frequency.
+The phases are realized as:
 
-The firmware validates phase feasibility before applying CH3 IQ mode.
+| Phase | Phase register | CLK2 inverted (CLK_INV) |
+|---|---|---|
+| 0° | 0 | no |
+| 90° | divider | no |
+| 180° | 0 | yes |
+| 270° | divider | yes |
 
-If phase is invalid:
+Therefore all four phases are valid in the whole IQ range of 4.730–100 MHz.
 
-- CH3 is disabled safely
-- error is logged
-- LVGL message box is shown
+If the master frequency is below 4.730 MHz:
+
+- CLK2 is kept disabled
+- the CH3 ON request is kept
+- the GUI shows the state as `WAIT` / "Waiting: CHx below 4.730 MHz"
+- no message box is shown
 
 ---
 
@@ -432,7 +465,10 @@ The GUI uses:
 - colored cards
 - colored channel buttons
 - title/header bars on subpages
-- ON/OFF switch in the title bar on channel pages
+- ON/OFF switch with ON/OFF label in the title bar on channel pages, `MAIN` button at the right
+- a common layout grid (`src/gui/gui_layout.h`: margin 8 px, header 38 px, card padding 6 px) so that no control is clipped, overlaps or makes a page scrollable
+- touch targets of at least about 36 px height for frequently used controls
+- dark text on yellow buttons for contrast
 
 ### 11.3 Color Scheme
 
@@ -480,16 +516,30 @@ The main page provides a quick overview and navigation.
 
 ### 13.2 Main Page Content
 
-The main page displays:
+The main page displays one card per channel:
 
-- CH1 frequency and ON/OFF state
-- CH2 frequency and ON/OFF state
-- CH3 frequency, master, phase and ON/OFF state
+- CH1 frequency and state
+- CH2 frequency and state
+- CH3 frequency, master, phase and state (detail line e.g. `CH1 / 90 deg`, plus the reason when waiting)
 - colored navigation buttons:
   - CH1 red
   - CH2 green
   - CH3 blue
   - CONFIG yellow
+
+Each card:
+
+- is tappable and opens the channel page
+- has its own ON/OFF switch that toggles the output directly
+
+State text below the channel name:
+
+| State | Meaning |
+|---|---|
+| ON | output active |
+| OFF | output off |
+| WAIT | CH3 requested but not active (master off or below 4.730 MHz) |
+| NO HW | SI5351 not found |
 
 The project title header is intentionally removed to maximize available status space.
 
@@ -506,9 +556,10 @@ Control CH1 frequency and output state.
 - Header with CH1 title
 - ON/OFF switch in title row
 - Frequency display
-- Delta-step display
-- `+` button
-- `-` button
+- Info line: `Step <step>  |  Deviation <±x.x> Hz`
+- Step preset buttons: 1, 10, 100, 1k, 10k, 100k, 1M (Hz); the selected step is highlighted
+- `-` button (left)
+- `+` button (right)
 - `NUMPAD` button
 - `MAIN` button
 
@@ -516,8 +567,11 @@ Control CH1 frequency and output state.
 
 - `+` increases CH1 frequency by delta step
 - `-` decreases CH1 frequency by delta step
+- holding `+` / `-` repeats the step (first repeat after 0.4 s, then every 0.1 s)
+- the frequency is clamped to 1–100 MHz
 - `NUMPAD` opens numeric frequency entry
 - ON/OFF switch enables/disables CLK0
+- the requested frequency is stored exactly (1 Hz); "Deviation" is the calculated difference of the synthesized SI5351 frequency from the requested one, assuming the correction is right
 
 ---
 
@@ -542,21 +596,23 @@ Configure CH3 as IQ follower.
 - Header with CH3 IQ title
 - ON/OFF switch in title row
 - read-only frequency display
-- master selection:
+- status line (`Off | follows CHx`, `IQ active, follows CHx`, `Waiting: master CHx is off`, `Waiting: CHx below 4.730 MHz`, `SI5351 not found`)
+- master selection as buttons:
   - CH1
   - CH2
-- phase selection:
+- phase selection as buttons (degrees):
   - 0
   - 90
   - 180
   - 270
+- note line with the IQ range and the drive-strength hint
 
 
 ### 16.3 Behavior
 
 CH3 follows its master frequency.
 
-If CH3 is ON but its master is OFF, CH3 output remains OFF. Displayed as OFF.
+If CH3 is ON but its master is OFF, or the master is below 4.730 MHz, CH3 output remains OFF. The switch stays ON, the state is displayed as WAIT with the reason, and CH3 starts automatically when the condition is resolved.
 
 ---
 
@@ -568,20 +624,25 @@ The CONFIG page contains global device settings.
 
 ### 17.2 Elements
 
-- Global drive-strength dropdown:
+- Backlight slider, 5–100 %, with value label
+- Step controls over the presets 1 Hz … 1 MHz:
+  - x10 (next larger preset)
+  - /10 (next smaller preset)
+- Frequency correction:
+  - value shown in ppm (internal unit 0.01 ppm, see below)
+  - step button cycling 0.01 / 0.1 / 1 ppm
+  - `-` / `+` buttons with hold-to-repeat
+  - range ±50 ppm
+- Global drive-strength dropdown `Drive all`:
   - 2 mA
   - 4 mA
   - 6 mA
   - 8 mA
-- Backlight slider
-- Delta step controls:
-  - x10
-  - /10
-- Frequency correction controls:
-  - +10
-  - +1
-  - -10
-  - -1
+- Autosave indicator: `Saving...` / `Saved`
+
+Correction unit: `freq_correction` is stored in 0.01 ppm, which equals the library's definition "Hz deviation at 100 MHz". Positive means the uncorrected output is too high. Calibration: measure at 10 MHz, deviation in Hz / 10 = ppm (e.g. +97 Hz → +9.70 ppm).
+
+A correction change reconfigures the outputs but does not re-initialize the SI5351.
 
 ### 17.3 Touch Calibration
 
@@ -599,20 +660,33 @@ Numeric frequency input for CH1 and CH2.
 
 ### 18.2 Elements
 
+Layout (4×4 grid, about 44 px per row):
+
+```text
+ 7   8   9   MHz
+ 4   5   6   kHz
+ 1   2   3   Hz
+ .   0   ⌫   C
+```
+
 - numeric buttons `0` to `9`
-- decimal point `.`
-- backspace `<--`
-- `Clear`
-- unit buttons:
+- decimal point `.` (only one allowed)
+- backspace `⌫`
+- `C` (clear)
+- unit buttons (highlighted in channel color):
   - `Hz`
   - `kHz`
   - `MHz`
+- back button `◀` at the top left: returns to the channel page without change
+- input field showing the current frequency as placeholder
 
-There is no separate OK button and no Cancel button. 
+There is no separate OK button.
 
 ### 18.3 Behavior
 
-Pressing a unit button confirms the input immediately.
+Pressing a unit button confirms the input immediately and returns to the channel page.
+
+Invalid input (empty, unparsable, or outside 1–100 MHz) is rejected and not clamped: the field is cleared, the border turns red and the hint `1 - 100 MHz` is shown.
 
 Examples:
 
@@ -657,7 +731,8 @@ Stored values include:
 - delta step
 - frequency correction
 - global drive strength
-- touch calibration
+
+Touch calibration is not stored. Backlight values below 5 % are replaced by 80 %, the step is snapped to the nearest preset and the correction is limited to ±50 ppm when loading.
 
 
 ### 19.3 Autosave
@@ -696,10 +771,12 @@ The firmware logs:
 - SI5351 probe result
 - SI5351 init
 - frequency changes
-- output mask changes
+- correction changes
 - settings save events
 - touch initialization
-- SI5351 phase errors
+- SI5351 setup errors
+
+Verbose SI5351 logs (output mask, phase register, per-CLK setup) are only compiled in with `LOG_DEBUG 1` in `include/config.h`, because blocking serial output slows down the GUI.
 
 ### 20.2 GUI Error Reporting
 
@@ -707,9 +784,15 @@ On important errors, an LVGL message box is shown.
 
 Examples:
 
-- SI5351 not detected
-- invalid CH3 phase/frequency combination
-- SI5351 frequency setup error
+- SI5351 not detected (shown once at boot; afterwards the state is shown as NO HW / "SI5351 not found")
+- SI5351 frequency or IQ setup error
+
+Rules:
+
+- `OK` closes the message box
+- at most one message box is open; a new message replaces the old one
+- an identical message is not shown again while it is open
+- without SI5351 the firmware does not attempt hardware configuration, so no repeated errors are generated
 
 ### 20.3 Safe Operation
 
@@ -792,22 +875,21 @@ cyd_hf_generator/
 |   |   ├── backlight.h
 |   |   ├── si5351_manager.cpp
 |   |   ├── si5351_manager.h
+|   |   ├── status_led.cpp
+|   |   ├── status_led.h
 |   |   ├── touch.cpp
 |   |   └── touch.h
 |   |
 |   ├── gui/
 |   |   ├── gui.cpp
 |   |   ├── gui.h
-|   |   ├── pages/
-|   |   |   ├── page_main.cpp
-|   |   |   ├── page_ch1.cpp
-|   |   |   ├── page_ch2.cpp
-|   |   |   ├── page_ch3.cpp
-|   |   |   ├── page_config.cpp
-|   |   |   └── page_numpad.cpp
-|   |   └── widgets/
-|   |       ├── freq_display.cpp
-|   |       └── freq_display.h
+|   |   ├── gui_layout.h
+|   |   └── pages/
+|   |       ├── page_main.cpp
+|   |       ├── page_channel.cpp
+|   |       ├── page_ch3.cpp
+|   |       ├── page_config.cpp
+|   |       └── page_numpad.cpp
 |   |
 |   ├── hal/
 |   |   ├── i2c_bus.cpp
@@ -851,7 +933,6 @@ The main loop:
 ```cpp
 void loop() {
     lv_timer_handler();
-    touch.process();
     app.update();
     GUI.update();
     delay(5);
@@ -866,7 +947,7 @@ void loop() {
 
 ```cpp
 struct Channel {
-    uint64_t frequency;
+    uint64_t frequency;   // requested frequency in Hz (exact, 1 Hz resolution)
     bool enabled;
     uint8_t drive_strength;
 };
@@ -876,7 +957,7 @@ struct Channel {
 
 ```cpp
 struct Channel3 {
-    bool enabled;
+    bool enabled;       // requested by the user; see Ch3Status
     uint8_t master;     // 1 or 2
     uint16_t phase;     // 0/90/180/270
     uint8_t drive_strength;
@@ -889,11 +970,19 @@ Note: CH3 contains `drive_strength` for internal state compatibility, but the us
 
 ```cpp
 struct SystemSettings {
-    uint32_t delta_step;
-    int32_t freq_correction;
-    uint8_t backlight;
+    uint32_t delta_step;       // one of the presets 1 Hz ... 1 MHz
+    int32_t freq_correction;   // 0.01 ppm, +-5000
+    uint8_t backlight;         // 5-100 %
     uint8_t default_drive_strength;
 };
+```
+
+### 24.4 Ch3Status
+
+Derived (not stored) CH3 output state used by the GUI:
+
+```cpp
+enum class Ch3Status : uint8_t { Off, Active, MasterOff, FreqTooLow, NoDevice };
 ```
 
 ---
@@ -906,9 +995,9 @@ Responsibilities:
 
 - hold current channel state
 - validate channel numbers and settings
-- clamp/round frequency requests
-- coordinate SI5351 reconfiguration
-- coordinate CH3 follow logic
+- clamp frequency requests to 1–100 MHz (stored exactly, no rounding)
+- coordinate SI5351 reconfiguration (skipped without SI5351)
+- coordinate CH3 follow logic and derive `Ch3Status`
 - apply global drive strength
 - update backlight
 - mark settings dirty for autosave
@@ -927,10 +1016,11 @@ Responsibilities:
 - initialize SI5351
 - probe I2C address 0x60
 - configure standalone frequency outputs
-- configure IQ pair for CH3
+- configure IQ pair for CH3 (phase register + CLK_INV)
+- write PLL parameters and reset only the affected PLL
+- set the frequency correction without re-initialization
 - enable/disable outputs
-- cache and apply drive strength
-- validate phase offset
+- report the expected synthesized frequency per CLK (`actualHz()`)
 - log SI5351 operations
 
 ---
@@ -959,7 +1049,7 @@ Runtime calibration is disabled.
 Responsibilities:
 
 - initialize LEDC PWM on GPIO21
-- map 0–100 % to 0–255 PWM duty
+- map 0–100 % to 0–255 PWM duty (the 5 % user minimum is enforced by AppController and SettingsService)
 - apply brightness changes
 
 ---
@@ -1002,11 +1092,14 @@ Logger output format examples:
 
 ```text
 [I2C] Found device at 0x60
-[SI5351] Init OK
-[SI5351] Set Freq CLK0: 10000000
+[SI5351] Init OK; all outputs High-Z
+[APP] CH1 frequency: 10000000
+[SI5351] Correction (0.01 ppm): 970
 [SETTINGS] Saved to NVS
-[ERROR][SI5351] Selected CH3 phase is not valid
+[ERROR][SI5351] Frequency set failed
 ```
+
+`Logger::debug()` / `Logger::debugValue()` are compiled out unless `LOG_DEBUG` is 1.
 
 ---
 
@@ -1015,9 +1108,12 @@ Logger output format examples:
 `FrequencyUtils` provides:
 
 - frequency clamping
-- SI5351-near actual frequency approximation
-- frequency formatting
-- numpad frequency parsing
+- frequency formatting (`10.700 000 MHz`)
+- step formatting (`1 kHz`) and ppm formatting (`+9.70 ppm`)
+- numpad frequency parsing with range check
+- step preset lookup/snapping
+
+The synthesized frequency is no longer approximated here; `SI5351Manager` computes it from the actual PLL/MultiSynth values.
 
 Frequency range:
 
@@ -1044,7 +1140,7 @@ framework = arduino
 TFT_eSPI
 LVGL
 XPT2046_Touchscreen v1.4 from GitHub
-osmanovv/esp32-si5351 from GitHub
+osmanovv/esp32-si5351 from GitHub, pinned to commit 301b87ca2393fefa10099f924606115ac0532e9f
 Preferences built into Arduino-ESP32
 ```
 
@@ -1075,10 +1171,9 @@ Mandatory constraints:
 ## 35. Known Limitations
 
 - Touch calibration is fixed to default values.
-- Exact SI5351 output frequency is approximated based on divider calculations.
-- The external SI5351 library does not expose full I2C write-status details for every register write.
-- Some CH3 phase/frequency combinations are impossible due to the SI5351 7-bit phase register.
-- GUI pages are modularized, but callbacks still use string action identifiers.
+- The displayed deviation assumes that the frequency correction is right; the library applies the correction with integer MHz (`Fclk / 1000000`), which leaves a small residual error below 2 MHz.
+- The external SI5351 library does not expose full I2C write-status details for every register write it performs.
+- CH3 IQ mode is not available below 4.730 MHz.
 
 ---
 
@@ -1090,10 +1185,10 @@ Possible future extensions:
 - sweep mode
 - modulation modes
 - external trigger on GPIO35
-- improved exact SI5351 frequency calculation
-- enum-based GUI action dispatch instead of string callbacks
-- optional compile-time log levels
+- calibration assistant (enter measured frequency, compute correction)
 - optional SI5351 library fork with complete I2C error reporting
+- display flush via DMA and double buffer
+- native unit tests for `FrequencyUtils`
 
 ---
 
@@ -1184,4 +1279,29 @@ The project implements a working modular HF square-wave generator firmware with:
 - serial diagnostics
 - German and English user manuals
 - documented hardware wiring and software architecture
+
+---
+
+## 40. Changes in 1.1.0 and Approved Deviations
+
+Approved deviations from the original specification (approved by the project owner on 2026-10-26):
+
+| Topic | Original specification | Now | Reason |
+|---|---|---|---|
+| Numpad (18) | No Cancel button, small 5-row grid | 4×4 grid with back button `◀` to the channel page, placeholder, input validation | Keys were ~14 px high; `MAIN` discarded the input and jumped one level too far |
+| Frequency correction (17.2) | Buttons ±10 / ±1 without unit | Display in ppm, steps 0.01 / 0.1 / 1 ppm, hold-to-repeat, ±50 ppm | Unit is 0.01 ppm; typical crystal errors needed hundreds of taps |
+| CH3 IQ range and phases (9.2, 10.5, 10.6) | 1–100 MHz, phase register only | 4.730–100 MHz, 180°/270° via CLK_INV | Library clamps IQ to 1.4 MHz and runs the VCO below 600 MHz under 4.725 MHz; 180°/270° were only possible from 14.3 / 21.4 MHz |
+| CH3 state (10.6, 16.3) | CH3 disabled on invalid phase | CH3 request kept, state WAIT, automatic start | The user's choice was lost and CH3 never came back after a frequency change |
+
+Further changes (within the specification):
+
+- layout fixed: header padding, card sizes and widths, no scrollbars or clipped controls
+- main page cards tappable with own switches; ON/OFF/WAIT/NO HW states
+- step presets on the channel pages, hold-to-repeat for +/-, deviation display
+- requested frequency stored exactly instead of the rounded SI5351 value
+- backlight minimum 5 %
+- message boxes close with OK, no stacking, single boot message without SI5351
+- only the affected PLL is reset; correction without SI5351 re-init
+- pages are built once per navigation and updated by `refresh_()`; navigation is deferred with `lv_async_call()`; enum-based action dispatch
+- SI5351 library pinned to a commit; unused LVGL fonts and widgets disabled
 

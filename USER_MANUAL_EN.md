@@ -1,5 +1,7 @@
 # User Manual – CYD HF Generator
 
+Firmware version: 1.1.0
+
 ## 1. Overview
 
 The **CYD HF Generator** is a 3-channel HF square-wave generator based on an ESP32-2432S028R display board and an SI5351 clock generator.
@@ -18,7 +20,7 @@ The three outputs are:
 | CH2 / CLK1 | Freely adjustable frequency |
 | CH3 / CLK2 | IQ follower of CH1 or CH2 |
 
-CH3 always follows the frequency of its selected master and can use a phase offset of 0°, 90°, 180° or 270°, if the selected combination is valid for the SI5351.
+CH3 always follows the frequency of its selected master and can use a phase offset of 0°, 90°, 180° or 270°. IQ operation is available from **4.730 MHz to 100 MHz**; all four phases are available in that range.
 
 ---
 
@@ -26,12 +28,27 @@ CH3 always follows the frequency of its selected master and can use a phase offs
 
 After power-up, the main page is displayed.
 
-The main page shows:
+The main page shows one card per channel with:
 
-- CH1 frequency and ON/OFF state
-- CH2 frequency and ON/OFF state
-- CH3 frequency, master, phase and ON/OFF state
-- Navigation buttons for CH1, CH2, CH3 and CONFIG
+- channel name and status
+- frequency
+- its own ON/OFF switch
+- extra info (CH3: master, phase and, if applicable, the reason for `WAIT`)
+
+Operation on the main page:
+
+- **Tap a card** to open that channel's page.
+- **The switch on a card** turns the output on or off directly, without leaving the page.
+- The buttons at the bottom open CH1, CH2, CH3 and CONFIG.
+
+Status below the channel name:
+
+| Status | Meaning |
+|---|---|
+| `ON` (green) | Output active |
+| `OFF` (gray) | Output off |
+| `WAIT` (orange) | CH3 is switched on but cannot run right now (master off or master frequency below 4.730 MHz) |
+| `NO HW` (red) | SI5351 was not found at startup |
 
 The navigation buttons are color-coded:
 
@@ -42,7 +59,9 @@ The navigation buttons are color-coded:
 | CH3 | Blue |
 | CONFIG | Yellow |
 
-The RGB LED also indicates the active channel page:
+On all subpages the title bar contains the ON/OFF switch (channel pages) with an `ON`/`OFF` state label, and on the right the `MAIN` button to return to the main page.
+
+The RGB LED also shows the channel color on channel pages:
 
 | Page | RGB LED |
 |---|---|
@@ -65,7 +84,7 @@ Examples:
 100.000 000 MHz
 ```
 
-This means:
+Meaning:
 
 | Display | Frequency |
 |---|---:|
@@ -73,6 +92,8 @@ This means:
 | 5.000 000 MHz | 5 MHz |
 | 10.700 000 MHz | 10.7 MHz |
 | 100.000 000 MHz | 100 MHz |
+
+The display and settings hold the **requested frequency** with 1 Hz resolution. The SI5351 cannot synthesize every frequency exactly; the calculated deviation is shown in the info line of the channel page (see section 5).
 
 ---
 
@@ -82,19 +103,21 @@ CH1 and CH2 are freely adjustable frequency outputs.
 
 ### Turning CH1 or CH2 ON
 
-1. On the main page, press `CH1` or `CH2`.
+1. On the main page, tap the card or the `CH1` / `CH2` button.
 2. Turn on the ON/OFF switch in the title bar.
 3. The display changes to `ON`.
-4. A signal is available at the corresponding SI5351 output:
+4. The corresponding SI5351 output is active:
 
 | Channel | SI5351 Output |
 |---|---|
 | CH1 | CLK0 |
 | CH2 | CLK1 |
 
+Alternatively, use the switch on the channel's card on the main page.
+
 ### Turning CH1 or CH2 OFF
 
-1. Open the channel page.
+1. Open the channel page (or use the switch on the main page).
 2. Turn off the ON/OFF switch.
 3. The display changes to `OFF`.
 4. The output is disabled.
@@ -103,23 +126,31 @@ CH1 and CH2 are freely adjustable frequency outputs.
 
 ## 5. Changing Frequency with + and -
 
-On CH1 and CH2 pages there are three buttons:
+The CH1 and CH2 pages contain:
+
+- the frequency card with an info line
+- a row of step buttons: `1`, `10`, `100`, `1k`, `10k`, `100k`, `1M` (in Hz)
+- large `-` (left) and `+` (right) buttons
+- the `NUMPAD` button
+
+The `-` and `+` buttons change the frequency by the selected step. The selected step is highlighted and can be chosen directly on the channel page (or in CONFIG).
+
+**Press and hold:** after about 0.4 s the step repeats automatically about every 0.1 s until the button is released.
+
+The info line shows:
 
 ```text
-+
--
-NUMPAD
+Step 1 kHz  |  Deviation +0.3 Hz
 ```
 
-The `+` and `-` buttons change the frequency by the currently configured delta step.
-
-The delta step is configured on the CONFIG page.
+- `Step` = current step
+- `Deviation` = calculated deviation of the frequency synthesized by the SI5351 from the requested frequency (rounding of PLL/divider values, assuming the frequency correction is right)
 
 Example:
 
 ```text
 Current frequency: 10.000 000 MHz
-Delta: 1 000 Hz
+Step: 1k
 Press +
 New frequency: 10.001 000 MHz
 ```
@@ -128,10 +159,12 @@ Another example:
 
 ```text
 Current frequency: 7.100 000 MHz
-Delta: 10 000 Hz
+Step: 10k
 Press -
 New frequency: 7.090 000 MHz
 ```
+
+The frequency always stays within 1 MHz to 100 MHz.
 
 ---
 
@@ -140,30 +173,42 @@ New frequency: 7.090 000 MHz
 On CH1 or CH2:
 
 1. Press `NUMPAD`.
-2. Enter the number.
-3. Optionally use a decimal point.
-4. Press one unit button:
+2. Enter digits. The current frequency is shown in gray as a placeholder in the input field.
+3. Optionally use a decimal point (only one is possible).
+4. Press a unit button:
    - `Hz`
    - `kHz`
    - `MHz`
 
-The unit button confirms the entry immediately.
+The unit button confirms the entry immediately and returns to the channel page.
 
-There is no separate OK button.
+The `◀` button at the top left returns to the channel page **without changes**.
 
-### Numpad Buttons
+### Keypad
+
+```text
+ 7   8   9   MHz
+ 4   5   6   kHz
+ 1   2   3   Hz
+ .   0   ⌫   C
+```
 
 | Button | Function |
 |---|---|
-| 0–9 | Numeric input |
+| 0–9 | Digit entry |
 | . | Decimal point |
-| `<--` | Delete last character |
-| Clear | Clear input |
+| `⌫` | Delete last character |
+| C | Clear input |
 | Hz | Apply value as Hz |
 | kHz | Apply value as kHz |
 | MHz | Apply value as MHz |
+| `◀` | Back to the channel page without changes |
 
-The input is limited to 9 characters.
+Maximum input length is 9 characters.
+
+### Invalid Input
+
+If the value is outside 1–100 MHz, or the input is empty or invalid, it is **not applied**. The input field is cleared, its border turns red and the hint `1 - 100 MHz` appears. The next key starts a new entry.
 
 ### Example 1: Enter 10 MHz
 
@@ -176,7 +221,7 @@ The input is limited to 9 characters.
 ```
 
 4. Press `MHz`.
-5. CH1 is set to approximately 10 MHz.
+5. CH1 is set to 10 MHz.
 
 Display:
 
@@ -242,30 +287,55 @@ Display:
 
 ## 7. Using CH3 as IQ Follower
 
-CH3 is not an independently adjustable frequency channel. CH3 follows CH1 or CH2.
+CH3 is not a freely adjustable channel. CH3 follows either CH1 or CH2.
 
-On the CH3 page you can select:
+On the CH3 page you can set:
 
-- Master: CH1 or CH2
-- Phase: 0°, 90°, 180° or 270°
-- ON/OFF
+- Master: buttons `CH1` or `CH2`
+- Phase: buttons `0`, `90`, `180` or `270` (degrees)
+- ON/OFF via the switch in the title bar
 
-CH3 always uses the same frequency as its master.
+The selected button is highlighted. The CH3 frequency is always identical to the master frequency.
+
+### Status Line
+
+Below the frequency, the CH3 page shows the current state:
+
+| Display | Meaning |
+|---|---|
+| `Off  \|  follows CHx` | CH3 switched off |
+| `IQ active, follows CHx` | IQ output running |
+| `Waiting: master CHx is off` | CH3 on, master off |
+| `Waiting: CHx below 4.730 MHz` | CH3 on, master frequency too low |
+| `SI5351 not found` | SI5351 missing |
+
+**Important:** If CH3 is switched on but cannot run right now (master off or below 4.730 MHz), the switch stays ON. Output CLK2 stays off until the conditions are met — then CH3 starts **automatically**. No error message is shown.
+
+### Frequency Range and Phases
+
+| Phase | Available |
+|---|---|
+| 0° | 4.730 – 100 MHz |
+| 90° | 4.730 – 100 MHz |
+| 180° | 4.730 – 100 MHz |
+| 270° | 4.730 – 100 MHz |
+
+180° and 270° are produced by inverting the CH3 output (0° or 90° plus inversion). Below 4.730 MHz the SI5351 oscillator (VCO) would run below 600 MHz, outside its specification.
 
 ### Example: CH3 follows CH1 with 90° phase
 
 1. Set CH1 to 10 MHz.
 2. Turn CH1 ON.
 3. Open the CH3 page.
-4. Set Master to `CH1`.
-5. Set Phase to `90`.
+4. Tap master `CH1`.
+5. Tap phase `90`.
 6. Turn CH3 ON.
 
 Result:
 
 ```text
 CH1 / CLK0 = 10 MHz, 0° reference
-CH3 / CLK2 = 10 MHz, 90° phase shifted
+CH3 / CLK2 = 10 MHz, shifted by 90°
 ```
 
 ### Example: CH3 follows CH2 with 180° phase
@@ -273,18 +343,16 @@ CH3 / CLK2 = 10 MHz, 90° phase shifted
 1. Set CH2 to 5 MHz.
 2. Turn CH2 ON.
 3. Open CH3.
-4. Set Master to `CH2`.
-5. Set Phase to `180`.
+4. Tap master `CH2`.
+5. Tap phase `180`.
 6. Turn CH3 ON.
 
 Result:
 
 ```text
 CH2 / CLK1 = 5 MHz
-CH3 / CLK2 = 5 MHz, 180° phase shifted
+CH3 / CLK2 = 5 MHz, shifted by 180°
 ```
-
-Note: Not every phase is technically possible at every frequency. If the SI5351 phase register limit is exceeded, the device shows an error message and safely disables CH3.
 
 ---
 
@@ -294,46 +362,66 @@ The CONFIG page contains global settings.
 
 ### Backlight
 
-The slider controls the display brightness:
+The slider sets the display brightness:
 
 ```text
-0 % to 100 %
+5 % to 100 %
 ```
 
-### Delta Step
+The current value is shown to the right of the slider. The 5 % minimum prevents the display from accidentally going completely dark and becoming unusable. A stored value below 5 % (e.g. from firmware 1.0.0) is reset to 80 % at startup.
 
-The delta step defines how much `+` and `-` change the frequency.
+### Step (Frequency Step)
 
-Buttons:
+The step defines how much `+` and `-` change the frequency. It uses the same presets as the channel pages:
+
+```text
+1 Hz, 10 Hz, 100 Hz, 1 kHz, 10 kHz, 100 kHz, 1 MHz
+```
 
 | Button | Function |
 |---|---|
-| x10 | Multiply delta step by ten |
-| /10 | Divide delta step by ten |
+| x10 | Next larger preset |
+| /10 | Next smaller preset |
 
 Example:
 
 ```text
-Delta: 1 000 Hz
+Step: 1 kHz
 Press x10
-Delta: 10 000 Hz
+Step: 10 kHz
 ```
 
-### Frequency Correction
+### Frequency Correction (Corr.)
 
-The `+10` and `-10` buttons adjust the SI5351 frequency correction value.
+The correction compensates the SI5351 crystal tolerance. It is shown in **ppm**, e.g. `+9.70 ppm`.
 
-This setting is used to calibrate the SI5351 crystal.
+| Element | Function |
+|---|---|
+| Step button (`0.01` / `0.1` / `1`) | Step size in ppm; each tap selects the next one |
+| `-` / `+` | Change the correction by the step size; hold to repeat |
+
+Range: ±50 ppm. A positive value means the output was too high without correction.
+
+The outputs are reconfigured after each change; the SI5351 is not re-initialized.
+
+**Calibration:**
+
+1. Set CH1 to 10 MHz and turn it on.
+2. Measure with a frequency counter.
+3. Deviation in Hz divided by 10 = correction in ppm.
+4. Add this value to the current correction.
 
 Example:
 
-If a frequency counter shows an error at 10 MHz, adjust the correction until the measured frequency is as close as possible to the target value.
+```text
+Measured: 10,000,097 Hz  ->  +97 Hz at 10 MHz  ->  set +9.70 ppm
+```
 
 ### Drive all
 
 Drive strength is global for all channels.
 
-Available values:
+Options:
 
 ```text
 2 mA
@@ -350,26 +438,35 @@ CH2
 CH3
 ```
 
-CH3 has no separate drive-strength setting.
+CH3 has no independent drive strength setting.
+
+### Save Indicator
+
+The right side of the `Drive all` row shows the save state:
+
+| Display | Meaning |
+|---|---|
+| `Saving...` | Change not yet saved (autosave after 5 s) |
+| `Saved` | Everything saved |
 
 ---
 
 ## 9. Saving Settings
 
-Settings are saved automatically.
+Changes are saved automatically.
 
-Process:
+Sequence:
 
 1. Change a setting.
-2. Wait 5 seconds.
-3. The firmware stores the settings in NVS.
-4. The Serial Monitor shows:
+2. Wait 5 seconds (on CONFIG the indicator changes from `Saving...` to `Saved`).
+3. The firmware saves to NVS.
+4. The serial monitor shows:
 
 ```text
 [SETTINGS] Saved to NVS
 ```
 
-Saved settings include:
+Saved values include:
 
 - CH1 frequency
 - CH2 frequency
@@ -379,11 +476,11 @@ Saved settings include:
 - CH3 master
 - CH3 phase
 - Backlight
-- Delta step
+- Frequency step
 - Frequency correction
 - Global drive strength
 
-Touch calibration is not saved. The firmware always uses default values.
+Touch calibration is not saved. Default values are always used.
 
 ---
 
@@ -396,7 +493,7 @@ Touch calibration is not saved. The firmware always uses default values.
 3. Press `NUMPAD`.
 4. Enter `10`.
 5. Press `MHz`.
-6. Turn CH1 `ON`.
+6. Set CH1 to `ON`.
 
 Output:
 
@@ -448,15 +545,15 @@ Procedure:
 1. Set CH1 to 10 MHz.
 2. Turn CH1 ON.
 3. Open CH3.
-4. Set Master = CH1.
-5. Set Phase = 90.
+4. Tap master `CH1`.
+5. Tap phase `90`.
 6. Turn CH3 ON.
 
 Outputs:
 
 ```text
 CLK0 = 10 MHz reference
-CLK2 = 10 MHz, 90° shifted
+CLK2 = 10 MHz, shifted by 90°
 ```
 
 ---
@@ -466,20 +563,28 @@ CLK2 = 10 MHz, 90° shifted
 Goal:
 
 ```text
-All channels use 8 mA drive strength
+All channels with 8 mA drive strength
 ```
 
 Procedure:
 
 1. Open CONFIG.
 2. Select `8 mA` under `Drive all`.
-3. Wait 5 seconds for autosave.
+3. Wait until `Saved` is shown on the right.
 
-This setting now applies to all channels.
+The setting now applies to all channels.
 
 ---
 
 ## 11. Troubleshooting
+
+### Error Messages
+
+Errors are shown as a dialog. `OK` closes it. At most one dialog is open at a time; identical messages are not stacked.
+
+### SI5351 Not Found
+
+If the SI5351 is not found at startup, **one** message is shown. Afterwards the main page shows `NO HW` for the channels and the channel pages show `SI5351 not found`. Settings can still be changed and are saved.
 
 ### No Output Signal
 
@@ -496,42 +601,44 @@ CH3 = CLK2
 
 3. Is the SI5351 detected on I2C?
 
-The Serial Monitor should show:
+The serial monitor should show:
 
 ```text
 [I2C] Found device at 0x60
 ```
 
 4. Is there a common ground?
-5. Is the SI5351 powered from 3.3 V?
-6. If your SI5351 module has an OE pin, is it enabled?
+5. Is the SI5351 powered with 3.3 V?
+6. If the SI5351 module has an OE pin, is it at the active level?
 
 Many SI5351 modules use active-low OE:
 
 ```text
-OE = GND -> outputs enabled
+OE = GND  -> outputs enabled
 OE = HIGH -> outputs disabled
 ```
 
-### CH3 Cannot Be Enabled with a Selected Phase
+### CH3 Shows WAIT / "Waiting"
 
-Possible reason:
+Possible causes:
 
 ```text
-The requested phase is not representable in the SI5351 phase register at this frequency.
+The master is switched off.
+The master frequency is below 4.730 MHz.
 ```
 
 Solution:
 
-- choose another phase
-- choose another frequency
-- turn CH3 ON again
+- turn the master on
+- set the master frequency to at least 4.730 MHz
+
+CH3 then starts automatically; the switch does not need to be operated again.
 
 ---
 
 ## 12. Serial Diagnostics
 
-Open the Serial Monitor:
+Serial monitor:
 
 ```bash
 pio device monitor -b 115200
@@ -541,17 +648,19 @@ Important messages:
 
 ```text
 [I2C] Found device at 0x60
-[SI5351] Init OK
-[SI5351] Set Freq CLK0: ...
-[SI5351] Output mask: ...
+[SI5351] Init OK; all outputs High-Z
+[APP] CH1 frequency: ...
+[SI5351] Correction (0.01 ppm): ...
 [SETTINGS] Saved to NVS
 ```
+
+Detailed SI5351 messages (output mask, phase register, etc.) only appear if the firmware is built with `LOG_DEBUG 1` (in `include/config.h`). They are off in normal use because serial output slows down the user interface.
 
 ---
 
 ## 13. Current Hardware Pinout
 
-For this project, the SI5351 I2C wiring was verified by I2C scan:
+The SI5351 I2C wiring was confirmed for this project by I2C scan:
 
 ```text
 SDA = GPIO22
@@ -565,11 +674,10 @@ Display and touch use separate SPI buses.
 
 ## 14. Safety Note
 
-The SI5351 outputs are digital square-wave outputs. Before connecting them to sensitive RF circuitry, check:
+The SI5351 outputs are digital square-wave signals. Before connecting them to sensitive HF circuits, check:
 
 - signal level
 - load impedance
-- attenuation requirements
+- possible attenuation
 - galvanic connection
-- grounding
-
+- ground routing
