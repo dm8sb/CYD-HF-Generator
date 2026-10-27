@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stdint.h>
 
 struct Channel {
     uint64_t frequency;   // requested frequency in Hz (exact, 1 Hz resolution)

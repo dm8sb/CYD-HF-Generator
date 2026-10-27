@@ -97,6 +97,17 @@ Without `-e`, only the default environment `esp32-2432S028R` is built.
 
 The project uses `huge_app.csv`. A standard 4 MB ESP32 module is sufficient.
 
+## Unit Tests
+
+Host tests run without hardware: frequency helpers, the SI5351 driver against a register model of the chip, and the AppController with settings, supervision and CH3 IQ logic.
+
+```bash
+pio test -e native-win   # Windows, uses the MinGW toolchain bundled with PlatformIO
+pio test -e native       # Linux/macOS/CI, needs gcc in PATH
+```
+
+`test/fakes` replaces the Arduino core, `Wire` (SI5351 register model with fault injection) and `Preferences`. `test/helpers/si5351_model.h` decodes the written registers back into frequencies (AN619), independently of the driver's own arithmetic.
+
 ## Operation
 
 - Main page shows all channel states; tap a card to open the channel, use its switch to toggle the output.

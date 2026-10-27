@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stdint.h>
 #include <types.h>
 
 static constexpr uint16_t SCREEN_WIDTH = 320;
