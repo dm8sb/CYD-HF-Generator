@@ -36,11 +36,20 @@ struct PersistentState {
     SystemSettings sys;
 };
 
+// Actual state of CH1 / CH2; the switch shows the requested state.
+enum class ChannelStatus : uint8_t {
+    Off,
+    On,
+    Error,      // setup failed although the SI5351 answers; retried every HW_CHECK_INTERVAL_MS
+    NoDevice    // SI5351 not found or lost
+};
+
 enum class Ch3Status : uint8_t {
     Off,        // CH3 switched off
     Active,     // IQ output running
     MasterOff,  // CH3 on, but master channel off
     FreqTooLow, // CH3 on, but master below IQ_MIN_HZ
+    Error,      // IQ setup failed; CLK2 is powered down, the master keeps running
     NoDevice    // SI5351 not found
 };
 

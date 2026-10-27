@@ -47,6 +47,7 @@ Status below the channel name:
 |---|---|
 | `ON` (green) | Output active |
 | `OFF` (gray) | Output off |
+| `ERR` (red) | Setting up the output failed although the SI5351 answers; the firmware retries every 2 s. The switch keeps showing the requested state |
 | `WAIT` (orange) | CH3 is switched on but cannot run right now (master off or master frequency below 4.730 MHz) |
 | `NO HW` (red) | SI5351 not found or connection lost; the firmware reconnects automatically |
 

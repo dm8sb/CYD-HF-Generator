@@ -1349,5 +1349,6 @@ Further changes:
 - backlight switched on only after the first frame
 - dialogs for NVS unavailable / save failed, CONFIG indicator `Not saved` / `Save failed`; dialogs are queued instead of replaced
 - channel page: tap a digit to select the step, tap the unit to open the numpad, active digit highlighted
+- output error state: a setup that fails while the SI5351 answers is shown as `ERR` (MAIN card, header label, info line); the switch keeps the requested state; retried every 2 s without a further dialog. Test hook `TEST_FAULT_IQ=1` (config.h) makes the IQ setup fail at 270°
 - `PIN_TFT_*` removed from `pins.h`; the display pins are defined only by the build flags
 - support for the CYD2USB board (ST7789) as a second PlatformIO environment; `default_envs` selects the original CYD

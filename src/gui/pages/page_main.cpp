@@ -54,9 +54,12 @@ void Gui::refreshMain_() {
         const Channel& c = app.channel(ch);
         FrequencyUtils::format(c.frequency, buf, sizeof(buf));
         lv_label_set_text(w_.cardFreq[i], buf);
-        if (!app.hardwareReady()) setState(w_.cardState[i], "NO HW", Colors::error());
-        else if (c.enabled) setState(w_.cardState[i], "ON", Colors::ok());
-        else setState(w_.cardState[i], "OFF", Colors::muted());
+        switch (app.channelStatus(ch)) {
+            case ChannelStatus::Off: setState(w_.cardState[i], "OFF", Colors::muted()); break;
+            case ChannelStatus::On: setState(w_.cardState[i], "ON", Colors::ok()); break;
+            case ChannelStatus::Error: setState(w_.cardState[i], "ERR", Colors::error()); break;
+            case ChannelStatus::NoDevice: setState(w_.cardState[i], "NO HW", Colors::error()); break;
+        }
         const bool iqMaster = app.ch3().master == ch && app.ch3Status() != Ch3Status::Off;
         lv_label_set_text(w_.cardDetail[i], iqMaster ? "IQ master of CH3" : "");
         if (c.enabled) lv_obj_add_state(w_.cardSwitch[i], LV_STATE_CHECKED);
@@ -72,6 +75,7 @@ void Gui::refreshMain_() {
         case Ch3Status::Active: setState(w_.cardState[2], "ON", Colors::ok()); break;
         case Ch3Status::MasterOff: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = " / master off"; break;
         case Ch3Status::FreqTooLow: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = " / < 4.73 MHz"; break;
+        case Ch3Status::Error: setState(w_.cardState[2], "ERR", Colors::error()); reason = " / setup failed"; break;
         case Ch3Status::NoDevice: setState(w_.cardState[2], "NO HW", Colors::error()); break;
     }
     snprintf(buf, sizeof(buf), "CH%u / %u deg%s", c3.master, c3.phase, reason);
