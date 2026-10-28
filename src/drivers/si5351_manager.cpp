@@ -189,6 +189,16 @@ bool SI5351Manager::fail_(Error e) {
     return false;
 }
 
+bool SI5351Manager::setSpread(Spread s) {
+    spread_ = s;
+    return true; // TODO: registers 149-161
+}
+
+bool SI5351Manager::setOffState(OffState s) {
+    offState_ = s;
+    return true; // TODO: register 24
+}
+
 bool SI5351Manager::checkAlive() {
     if (!ready_) return false;
     uint8_t ctrl[3];

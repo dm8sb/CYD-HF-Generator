@@ -11,6 +11,10 @@ AppController::AppController(SettingsService& settings, SI5351Manager& si5351, B
 
 void AppController::begin(const PersistentState& loaded) {
     state_ = loaded;
+    // Before connectHardware(): SI5351Manager::begin() writes spread and off state.
+    si5351_.setTuningMode(state_.sys.tuning_mode);
+    si5351_.setSpread(state_.sys.spread);
+    si5351_.setOffState(state_.sys.off_state);
 }
 
 void AppController::applyStoredChannelSettings() {
@@ -187,7 +191,7 @@ void AppController::configureStandalone_(uint8_t ch) {
     if (!si5351_.ready()) return;
     const Channel& c = channel_(ch);
     const uint8_t clk = clkForChannel_(ch);
-    const bool ok = si5351_.setupStandalone(clk, pllForChannel_(ch), c.frequency, c.drive_strength) &&
+    const bool ok = si5351_.setupStandalone(clk, pllForChannel_(ch), c.frequency, state_.sys.drive_ma) &&
                     si5351_.enableOutput(clk, c.enabled);
     // A lost SI5351 is shown as NO HW, not as an output error.
     fault_[clk] = !ok && si5351_.ready();
@@ -205,7 +209,7 @@ void AppController::configureMasterGroup_() {
     }
     const uint8_t masterClk = clkForChannel_(master);
     if (!si5351_.setupIQPair(masterClk, CLK_CH3, pllForChannel_(master), masterFrequency_(),
-                             channel_(master).drive_strength, state_.ch3.phase)) {
+                             state_.sys.drive_ma, state_.ch3.phase)) {
         fault_[CLK_CH3] = si5351_.ready();
         reportHardwareError_("CH3 IQ setup failed");
         // Keep at least the master running.
@@ -234,7 +238,7 @@ void AppController::reconfigureOutputs_() {
 void AppController::setChannelFrequency(uint8_t ch, uint64_t freq) {
     if (ch < 1 || ch > 2) return;
     channel_(ch).frequency = FrequencyUtils::clamp(freq);
-    Logger::valueU64("APP", ch == 1 ? "CH1 frequency" : "CH2 frequency", channel_(ch).frequency);
+    Logger::debugValue("APP", ch == 1 ? "CH1 frequency" : "CH2 frequency", (int64_t)channel_(ch).frequency);
     configureChannel_(ch);
     markChanged_();
 }
@@ -279,20 +283,62 @@ void AppController::setCH3Phase(uint16_t phase) {
 
 void AppController::setGlobalDriveStrength(uint8_t strength) {
     if (!isValidDrive(strength)) return;
-    state_.sys.default_drive_strength = strength;
-    state_.ch1.drive_strength = strength;
-    state_.ch2.drive_strength = strength;
-    state_.ch3.drive_strength = strength;
+    state_.sys.drive_ma = strength;
     reconfigureOutputs_();
     markChanged_();
 }
 
 void AppController::setBacklight(uint8_t percent) {
-    percent = constrain(percent, BACKLIGHT_MIN_PERCENT, (uint8_t)100);
+    percent = snapBacklight(percent);
+    if (percent == state_.sys.backlight) return;
     state_.sys.backlight = percent;
     backlight_.setPercent(percent);
     markChanged_();
 }
+
+void AppController::stepBacklight(int8_t direction) {
+    setBacklight(snapBacklight(state_.sys.backlight + direction * BACKLIGHT_STEP_PERCENT));
+}
+
+void AppController::setTuningMode(TuningMode mode) {
+    if (mode > TuningMode::Integer || mode == state_.sys.tuning_mode) return;
+    state_.sys.tuning_mode = mode;
+    if (mode == TuningMode::Integer && state_.sys.spread != Spread::Off) {
+        // Spread spectrum needs a fractional PLL A.
+        state_.sys.spread = Spread::Off;
+        si5351_.setSpread(Spread::Off);
+    }
+    si5351_.setTuningMode(mode);
+    reconfigureOutputs_();
+    markChanged_();
+}
+
+void AppController::setSpread(Spread spread) {
+    if (spread > Spread::Center05 || spread == state_.sys.spread) return;
+    if (state_.sys.tuning_mode == TuningMode::Integer) return;
+    state_.sys.spread = spread;
+    if (!si5351_.setSpread(spread)) reportHardwareError_("Spread spectrum setup failed");
+    reconfigureOutputs_();
+    markChanged_();
+}
+
+void AppController::setOffState(OffState offState) {
+    if (offState > OffState::HighZ || offState == state_.sys.off_state) return;
+    state_.sys.off_state = offState;
+    if (!si5351_.setOffState(offState)) reportHardwareError_("Off state setup failed");
+    // The power-down strategy of switched-off outputs depends on the off state.
+    reconfigureOutputs_();
+    markChanged_();
+}
+
+Spread AppController::spreadOf(uint8_t ch) const {
+    const bool pllA = ch == 1 || (ch == 3 && state_.ch3.master == 1);
+    return pllA ? state_.sys.spread : Spread::Off;
+}
+
+int AppController::i2cSdaPin() const { return I2CBus::sdaPin(); }
+int AppController::i2cSclPin() const { return I2CBus::sclPin(); }
+bool AppController::i2cSwapped() const { return I2CBus::map() == I2CMap::Swapped; }
 
 void AppController::setDeltaStep(uint32_t step) {
     state_.sys.delta_step = FrequencyUtils::snapStep(step);

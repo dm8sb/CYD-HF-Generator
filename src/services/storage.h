@@ -6,7 +6,6 @@
 class Storage {
 public:
     bool begin(const char* ns, bool readOnly = false);
-    void end();
 
     uint64_t getU64(const char* key, uint64_t def);
     bool putU64(const char* key, uint64_t value);

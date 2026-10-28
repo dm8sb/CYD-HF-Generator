@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <types.h>
 
 // Register-level driver for the SI5351A (25 MHz crystal, CLK0..CLK2), see Skyworks AN619.
 // Register writes are cached, so repeated setup calls only send what changed.
@@ -28,6 +29,14 @@ public:
     bool checkAlive();
     // Crystal correction in 0.01 ppm, positive = crystal runs fast. Takes effect with the next setup call.
     void setCorrection(int32_t correction) { correction_ = correction; }
+    // CONFIG options. They survive begin(); begin() writes spread and off state to the chip.
+    // The tuning mode takes effect with the next setup call.
+    void setTuningMode(TuningMode m) { tuningMode_ = m; }
+    TuningMode tuningMode() const { return tuningMode_; }
+    // PLL A only (AN619). Written at once if the chip is ready.
+    bool setSpread(Spread s);
+    // Level of disabled outputs (register 24). Written at once if the chip is ready.
+    bool setOffState(OffState s);
     // Below ~110 MHz the PLL stays fixed (900 or 887.5 MHz) and only the MultiSynth changes,
     // so tuning does not interrupt the output. The PLL is reset only when its multiplier changes.
     // Error vs. freq <= 0.5 Hz (assuming the correction is right).
@@ -77,6 +86,9 @@ private:
     bool fail_(Error e);
 
     bool ready_ = false;
+    TuningMode tuningMode_ = TuningMode::Fractional;
+    Spread spread_ = Spread::Off;
+    OffState offState_ = OffState::Low;
     Error lastError_ = Error::None;
     bool idUnverified_ = false;
     uint8_t revId_ = 0;

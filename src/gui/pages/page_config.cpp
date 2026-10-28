@@ -63,7 +63,7 @@ void Gui::createConfig_() {
     lv_obj_align(l, LV_ALIGN_LEFT_MID, 2, 0);
     lv_obj_t* dd = lv_dropdown_create(row);
     lv_dropdown_set_options(dd, "2 mA\n4 mA\n6 mA\n8 mA");
-    lv_dropdown_set_selected(dd, app_->system().default_drive_strength / 2 - 1);
+    lv_dropdown_set_selected(dd, app_->system().drive_ma / 2 - 1);
     lv_obj_set_size(dd, 96, ROW_CONTENT_H);
     lv_obj_align(dd, LV_ALIGN_LEFT_MID, 92, 0);
     on_(dd, LV_EVENT_VALUE_CHANGED, Action::Drive, 0);

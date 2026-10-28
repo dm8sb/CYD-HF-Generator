@@ -16,8 +16,6 @@
 #define LV_USE_PERF_MONITOR 0
 #define LV_USE_MEM_MONITOR 0
 
-#define LV_HOR_RES_MAX 320
-#define LV_VER_RES_MAX 240
 #define LV_DPI_DEF 130
 
 #define LV_USE_THEME_DEFAULT 1

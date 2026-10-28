@@ -22,8 +22,4 @@ void value(const char* tag, const char* label, int64_t value) {
     Serial.printf("[%s] %s: %lld\n", tag, label, (long long)value);
 }
 
-void valueU64(const char* tag, const char* label, uint64_t value) {
-    Serial.printf("[%s] %s: %llu\n", tag, label, (unsigned long long)value);
-}
-
 }

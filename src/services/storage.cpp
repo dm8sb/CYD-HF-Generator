@@ -8,11 +8,6 @@ bool Storage::begin(const char* ns, bool readOnly) {
     return opened_;
 }
 
-void Storage::end() {
-    if (opened_) prefs_.end();
-    opened_ = false;
-}
-
 // Preferences::put*() returns the number of bytes written, 0 on failure.
 uint64_t Storage::getU64(const char* key, uint64_t def) { return prefs_.getULong64(key, def); }
 bool Storage::putU64(const char* key, uint64_t value) { return prefs_.putULong64(key, value) > 0; }
