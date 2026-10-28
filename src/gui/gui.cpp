@@ -9,17 +9,15 @@ lv_color_t Gui::buf1_[SCREEN_WIDTH * 24];
 
 static void* packAction(uint8_t action, uint8_t arg) { return (void*)(uintptr_t)((action << 8) | arg); }
 
-bool Gui::begin(AppController& app, TouchDriver& touch) {
+bool Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
     app_ = &app;
     touch_ = &touch;
+    display_ = &display;
     lastConnections_ = app.connectionCount();
 
     StatusLed::begin();
 
     lv_init();
-    tft_.begin();
-    tft_.setRotation(1);
-    tft_.fillScreen(TFT_BLACK);
 
     lv_disp_draw_buf_init(&drawBuf_, buf1_, nullptr, SCREEN_WIDTH * 24);
     lv_disp_drv_init(&dispDrv_);
@@ -50,12 +48,9 @@ Gui* Gui::from_(lv_obj_t* obj) {
 
 void Gui::flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p) {
     Gui* g = static_cast<Gui*>(disp->user_data);
-    uint32_t w = (area->x2 - area->x1 + 1);
-    uint32_t h = (area->y2 - area->y1 + 1);
-    g->tft_.startWrite();
-    g->tft_.setAddrWindow(area->x1, area->y1, w, h);
-    g->tft_.pushColors((uint16_t*)&color_p->full, w * h, true);
-    g->tft_.endWrite();
+    const int16_t w = area->x2 - area->x1 + 1;
+    const int16_t h = area->y2 - area->y1 + 1;
+    g->display_->flush(area->x1, area->y1, w, h, (uint16_t*)&color_p->full);
     lv_disp_flush_ready(disp);
 }
 

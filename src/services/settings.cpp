@@ -47,6 +47,18 @@ bool SettingsService::save_(const PersistentState& s) {
     return ok;
 }
 
+uint8_t SettingsService::loadDisplayPanel() {
+    if (!available_) return 0;
+    const uint8_t v = storage_.getU8("disp_panel", 0);
+    return v <= 2 ? v : 0;
+}
+
+bool SettingsService::saveDisplayPanel(uint8_t panel) {
+    if (!available_) return false;
+    if (storage_.getU8("disp_panel", 0) == panel) return true;
+    return storage_.putU8("disp_panel", panel);
+}
+
 void SettingsService::markDirty() {
     dirty_ = true;
     lastChange_ = millis();

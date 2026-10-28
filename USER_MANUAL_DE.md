@@ -693,16 +693,18 @@ SI5351 Adresse = 0x60
 
 Display und Touch verwenden separate SPI-Busse.
 
-### Board-Variante und passende Firmware
+### Board-Varianten
 
-Unter der Bezeichnung ESP32-2432S028R werden zwei Boards verkauft, die sich nur im Display-Controller unterscheiden. Für jedes gibt es eine eigene Firmware:
+Unter der Bezeichnung ESP32-2432S028R werden zwei Boards verkauft, die sich nur im Display-Controller unterscheiden. Dieselbe Firmware läuft auf beiden; sie erkennt den Controller beim Einschalten:
 
-| Board | Erkennungsmerkmal | Display-Controller | Firmware (PlatformIO-Umgebung) |
-|---|---|---|---|
-| Original-CYD | nur Micro-USB-Buchse | ILI9341 | `esp32-2432S028R` |
-| CYD2USB | zusätzliche USB-C-Buchse | ST7789 | `esp32-2432S028R-usbc` |
+| Board | Erkennungsmerkmal | Display-Controller |
+|---|---|---|
+| Original-CYD | nur Micro-USB-Buchse | ILI9341 |
+| CYD2USB | zusätzliche USB-C-Buchse | ST7789 |
 
-Zeigt das Display nach dem Flashen nur Störungen oder Rauschen, ist die Firmware der anderen Variante aufgespielt. Dann die passende Firmware flashen (siehe README, Abschnitt „Build and Flash“). Pinbelegung, Touch und Bedienung sind bei beiden Varianten gleich.
+Der Serial Monitor zeigt das Ergebnis, zum Beispiel `[DISPLAY] ST7789 (detected); ...`. Pinbelegung, Touch und Bedienung sind bei beiden Varianten gleich.
+
+**Display zeigt nur Rauschen (Boot-Geste):** Display berühren, Gerät einschalten und gedrückt halten, bis die Beleuchtung zweimal blinkt, dann loslassen. Die Firmware verwendet dann den anderen Controller und merkt sich die Wahl. Eine zweite Boot-Geste schaltet zurück auf die automatische Erkennung. Die Geste wirkt nur, wenn die Berührung schon beim Einschalten besteht und 1,5 s gehalten wird.
 
 ---
 

@@ -7,7 +7,9 @@ Status: `[ ]` offen · `[~]` teilweise · `[?]` wartet auf Rückfrage (Abschnitt
 
 Erledigte Punkte sind entfernt; sie stehen in der Git-Historie dieser Datei. In diesem Review umgesetzt: Host-Unit-Tests (Abschnitt 7), `platformio.ini` mit `[esp32]` + `extends` und den Testumgebungen `native` / `native-win`, `constants.h` / `types.h` / `frequency_utils.h` ohne `Arduino.h`, README-Abschnitt „Unit Tests“, Spezifikation 33.1. Beide Firmware-Varianten bauen weiterhin.
 
-Nachtrag 2026-10-28: Automatische SDA/SCL-Erkennung umgesetzt (Konzept [KONZEPT_AUTOERKENNUNG.md](KONZEPT_AUTOERKENNUNG.md), Spezifikation 42). Dabei behoben: Boot-Hänger nach fehlgeschlagenem `Wire.begin()` (I2C-Scan auf nicht gestartetem Bus). Host-Tests grün, beide Varianten bauen; die Hardwaretests stehen in Abschnitt 10 J.
+Nachtrag 2026-10-28: Automatische SDA/SCL-Erkennung umgesetzt (Spezifikation 42). Dabei behoben: Boot-Hänger nach fehlgeschlagenem `Wire.begin()` (I2C-Scan auf nicht gestartetem Bus). Host-Tests grün, beide Varianten bauen; die Hardwaretests stehen in Abschnitt 10 J.
+
+Nachtrag 2026-10-28: Display-Controller-Erkennung umgesetzt (Spezifikation 43): eine Firmware für beide Boards, Boot-Geste als Rückfallebene, Umgebung `esp32-2432S028R-usbc` entfernt. Voruntersuchung I0 am Gerät erledigt; die Hardwaretests stehen in Abschnitt 10 I.
 
 ---
 
@@ -30,7 +32,6 @@ Die Firmware ist klar geschichtet (Treiber / AppController / GUI / Services). Di
 ## 1. Build, Tests & Hardware-Varianten
 
 - [ ] **P2 CI**: GitHub Action mit `pio test -e native` und `pio run` für beide Firmware-Umgebungen. Die Host-Tests brauchen ≈ 10 s und keine Hardware. `env:native` (Linux, gcc) ist noch nicht ausgeführt worden, nur `env:native-win`.
-- [ ] **P3 Eine Firmware für beide Varianten**: Den Display-Controller beim Start erkennen, statt zwei Build-Umgebungen zu pflegen (Entscheidung 2026-10-27: vorerst zwei Builds). Ausgearbeitetes Konzept: [KONZEPT_AUTOERKENNUNG.md](KONZEPT_AUTOERKENNUNG.md), Abschnitt Display (TFT_eSPI bleibt, Erkennung über RDDID `0x04` vor `tft.init()`, eigene ST7789-Init, Boot-Geste als Rückfallebene; ≈ 1,6 Tage). Vor der Umsetzung den Diagnose-Test I0 auf beiden Boards laufen lassen.
 - [ ] **P3 TFT_eSPI exakt pinnen** (`bodmer/TFT_eSPI@2.5.43` statt `^2.5.43`), wie die anderen Bibliotheken auch.
 - [ ] **P3 Arduino-Core 3.x**: Bei einem Update `ledcSetup` / `ledcAttachPin` umstellen (auch im Fake `test/fakes/Arduino.h`).
 
@@ -88,7 +89,7 @@ Die Firmware ist klar geschichtet (Treiber / AppController / GUI / Services). Di
 
 ## 3. Bedienung (UX)
 
-- [ ] **P3 Info-Zeile in CONFIG**: Firmwareversion, SI5351-Status (gefunden / fehlt, I2C-Pins, PLL eingerastet) und Display-Variante. Erleichtert die Fehlersuche ohne serielle Konsole. Für I2C vorhanden: `AppController::linkState()`, `I2CBus::sdaPin()` / `sclPin()` / `map()` (vertauscht), `SI5351Manager::revId()` / `idUnverified()`.
+- [ ] **P3 Info-Zeile in CONFIG**: Firmwareversion, SI5351-Status (gefunden / fehlt, I2C-Pins, PLL eingerastet) und Display-Variante. Erleichtert die Fehlersuche ohne serielle Konsole. Für das Display vorhanden: `DisplayPanel::panel()` / `probeResult()`. Für I2C vorhanden: `AppController::linkState()`, `I2CBus::sdaPin()` / `sclPin()` / `map()` (vertauscht), `SI5351Manager::revId()` / `idUnverified()`.
 - [ ] **P3 Werksreset** (NVS löschen) in CONFIG, mit Bestätigung.
 - [ ] **P3 Masterfrequenz auf der CH3-Seite verstellen** (`+` / `−` mit der globalen Schrittweite), damit IQ-Versuche ohne Seitenwechsel auskommen.
 - [ ] **P3 Bildschirmsperre** für Messungen: verhindert versehentliche Eingaben und unterdrückt Neuzeichnen (siehe Störquellen 2.1).
@@ -190,7 +191,7 @@ Beantwortet am 2026-10-27: Alle Ausgänge starten aus. Die USB-C-Firmware läuft
 | [ ] | A4 | CH1 und CH3 an (IQ, 270°), SI5351-Versorgung kurz unterbrechen (alt 1c) | wie A3; CH3 läuft danach wieder mit 270° | |
 | [ ] | A5 | Einstellung ändern, > 5 s warten („Saved“), aus- und einschalten (alt 14) | Einstellung erhalten, alle Ausgänge aus | |
 | [ ] | A6 | Einschalten und Display beobachten (alt 14a) | kein weißes oder verrauschtes Bild, Hauptseite erscheint direkt | |
-| [ ] | A7 | Original-CYD mit `pio run -t upload` (ohne `-e`) flashen (alt 17) | nur `esp32-2432S028R` wird geflasht, Display läuft | |
+| [ ] | A7 | Beide Boards mit `pio run -t upload` (ohne `-e`) flashen (alt 17) | nur `esp32-2432S028R` wird gebaut, Display läuft auf beiden | |
 | [ ] | A8 | Build mit `-DTEST_FAULT_IQ=1`: CH1 an, CH3 an, Phase 270° (alt 18b) | CH3 „ERR“ (MAIN, Header, Infozeile), ein Dialog, CH1 läuft weiter; Phase 90° → nach ≤ 2 s „ON“ | |
 | [ ] | A9 | CH1 aus: Pegel an CLK0 DC-gekoppelt, einmal an 1 MΩ, einmal an 50 Ω | dokumentieren; erwartet LOW, nicht hochohmig (2.3) | |
 | [ ] | A10 | CH1 an, ESP32-Reset-Taste bzw. Upload; Scope im Single-Trigger an CLK0 | Ausgang läuft bis zur Initialisierung weiter, dann aus; Dauer notieren (2.3) | |
@@ -277,9 +278,25 @@ Messmethode Phase: beide Ausgänge über gleich lange Kabel an zwei Scope-Kanäl
 | [ ] | H3 | CH3 an, Master von 100 MHz auf 100,000001 MHz stellen (alt 22) | CH3 wechselt auf „WAIT … > 100 MHz“, CLK2 aus, Master läuft weiter | |
 | [ ] | H4 | CH1 = 455 kHz, Spektrum bis 5 MHz | Oberwellen dokumentieren → Tiefpass-Hinweis im Handbuch | |
 
+### I. Display-Erkennung (eine Firmware, beide Boards)
+
+I0 (Diagnose-Sketch, 2026-10-28, beide Boards, je 2 EN-Resets mit 3 Software-Neustarts, 50 Wiederholungen je Lesetakt) ist erledigt; die Messwerte stehen in Spezifikation 43. Nach dem Flashen der Einheitsfirmware: 5/5 EN-Resets je Board richtig erkannt (COM13 Original-CYD: ILI9341, ID 000000; COM7 CYD2USB: ST7789, ID 8181B3).
+
+| OK | Nr. | Test | Erwartung | Messwert |
+|---|---|---|---|---|
+| [x] | I0 | Diagnose: MADCTL-Rücklesen, RDDID, Pull an GPIO12, SPI-Modus 0/3, Schreiben mit 40 MHz | Rücklesen auf beiden Boards ohne Pull; IDs 000000 / 8181B3; MODE0 fehlerfrei | siehe Spez. 43 |
+| [x] | I1 | Original-CYD einschalten | Log „ILI9341 (detected)“; Bild, Farben, Ausrichtung und Touch-Ecken wie 1.2.0 | 2026-10-28: Bild OK, Touch (Dialog „OK“) OK; Ecken siehe B7 |
+| [x] | I2 | CYD2USB einschalten | Log „ST7789 (detected)“; Bild, Farben, Ausrichtung und Touch-Ecken wie mit der früheren `usbc`-Firmware | 2026-10-28: Bild OK, Touch (Dialog „OK“) OK; Ecken siehe B7 |
+| [ ] | I3 | Je Board 20× Kaltstart (Stecker) und 20× EN-Taste | 40/40 richtig erkannt, nie Rauschen | |
+| [ ] | I4 | Boot-Geste auf dem CYD2USB | Beleuchtung blinkt 2×, Rauschen (ILI9341), Log „boot gesture“; zweite Geste: wieder ST7789, `disp_panel` = 0 (Log „detected“) | |
+| [ ] | I5 | Boot-Geste länger als 3 s halten, dann loslassen; außerdem nur 1 s berühren und weiter halten, bis die Hauptseite erscheint | kein Tipp landet in der GUI | |
+| [ ] | I6 | Kurz berühren beim Einschalten (< 1,5 s) | keine Umschaltung | |
+| [ ] | I7 | CYD2USB, 30 min Bedienung (Seitenwechsel, Numpad, `+` halten) | keine Pixelfehler (SPI-Modus 0 mit 40 MHz) | |
+| [ ] | I8 | Testplan A und B sowie Messplan F6 mit der Einheitsfirmware auf beiden Boards | unverändert | |
+
 ### J. SDA/SCL-Erkennung
 
-Gruppe I ist für die Display-Erkennung reserviert (Konzept). Die Identitätsprüfung (Register 0, 183, Rücklesen Register 3) folgt AN619; J7 prüft sie am eigenen Modul und, wenn möglich, an einem Klon (MS5351M). Lehnt J7 ein echtes Modul ab, die harten Prüfungen in `SI5351Manager::begin()` lockern.
+Die Identitätsprüfung (Register 0, 183, Rücklesen Register 3) folgt AN619; J7 prüft sie am eigenen Modul und, wenn möglich, an einem Klon (MS5351M). Lehnt J7 ein echtes Modul ab, die harten Prüfungen in `SI5351Manager::begin()` lockern.
 
 | OK | Nr. | Test | Erwartung | Messwert |
 |---|---|---|---|---|
