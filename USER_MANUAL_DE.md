@@ -592,7 +592,19 @@ Fehler werden als Dialog angezeigt. `OK` schließt den Dialog. Es ist immer höc
 
 Wird der SI5351 beim Start nicht gefunden, erscheint **eine** Meldung. Danach zeigen die Kanäle auf der Hauptseite `NO HW`, die Kanalseiten `SI5351 not found`. Einstellungen lassen sich trotzdem ändern und werden gespeichert.
 
-Die Firmware prüft alle 2 Sekunden, ob der SI5351 antwortet. Wird er nachträglich angeschlossen oder ist ein Wackelkontakt behoben, verbindet sie automatisch neu und stellt die eingestellten Frequenzen und ON/OFF-Zustände wieder her. Geht die Verbindung im Betrieb verloren (oder verliert der SI5351 kurz die Versorgung), erscheint die Meldung `Connection lost` und die Kanäle zeigen `NO HW`, bis die Verbindung wieder steht.
+Die Firmware prüft alle 2 Sekunden, ob der SI5351 antwortet. Wird er nachträglich angeschlossen oder ist ein Wackelkontakt behoben, verbindet sie automatisch neu, stellt die eingestellten Frequenzen und ON/OFF-Zustände wieder her und schließt die Verbindungsmeldung. Geht die Verbindung im Betrieb verloren (oder verliert der SI5351 kurz die Versorgung), erscheint die Meldung `Connection lost` und die Kanäle zeigen `NO HW`, bis die Verbindung wieder steht.
+
+SDA und SCL dürfen an CN1 beliebig angeschlossen sein (GPIO22/GPIO27). Die Firmware probiert beide Zuordnungen, auch nach dem Umstecken im Betrieb. Der Serial Monitor zeigt die gefundene Zuordnung, bei vertauschten Adern mit dem Zusatz `(swapped)`.
+
+Weitere Meldungen beim Verbinden:
+
+| Meldung | Bedeutung |
+|---|---|
+| `SI5351 not found ...` | Kein Gerät auf Adresse 0x60: Kabel, 3,3 V und GND prüfen. Die Suche läuft weiter. |
+| `I2C line stays low ...` | Eine I2C-Leitung liegt dauerhaft auf GND: Kurzschluss, fehlende 3,3 V am Modul oder defektes Modul. Die Suche läuft weiter. |
+| `The device at I2C address 0x60 is not an SI5351 ...` | Auf 0x60 antwortet ein anderes Gerät. Es wird nicht programmiert (höchstens ein Testbyte in Register 3), bis es abgezogen wird. Ein SI5351, der beim Anstecken kurz falsche Werte liefert, wird automatisch erneut geprüft. |
+
+Hinweis: Bleibt ein SI5351-Modul beim Abziehen des Kabels versorgt, laufen seine Ausgänge weiter. Beim Wiederverbinden schaltet die Firmware sie für einige Millisekunden ab und stellt sie dann wieder her.
 
 ### Einstellungen werden nicht gespeichert
 
@@ -616,7 +628,7 @@ CH3 = CLK2
 Im Serial Monitor sollte stehen:
 
 ```text
-[I2C] Found device at 0x60
+[APP] SI5351 at 0x60, SDA=22 SCL=27
 ```
 
 4. Gemeinsame Masse vorhanden?
@@ -659,8 +671,8 @@ pio device monitor -b 115200
 Wichtige Meldungen:
 
 ```text
-[I2C] Found device at 0x60
-[SI5351] Init OK; all outputs High-Z
+[SI5351] Init OK; all outputs off
+[APP] SI5351 at 0x60, SDA=22 SCL=27
 [APP] CH1 frequency: ...
 [SI5351] Correction (0.01 ppm): ...
 [SETTINGS] Saved to NVS
@@ -672,11 +684,10 @@ Ausführliche SI5351-Meldungen (Ausgangsmaske, Phasenregister usw.) erscheinen n
 
 ## 13. Aktuelle Hardware-Pinbelegung
 
-Für dieses Projekt wurde die SI5351-I2C-Belegung per I2C-Scan bestätigt:
+Der SI5351 wird an CN1 angeschlossen. SDA und SCL dürfen vertauscht sein; die Firmware erkennt die Zuordnung:
 
 ```text
-SDA = GPIO22
-SCL = GPIO27
+SDA / SCL = GPIO22 / GPIO27 (beliebig; zuerst probiert: SDA = GPIO22)
 SI5351 Adresse = 0x60
 ```
 

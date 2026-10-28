@@ -43,25 +43,13 @@ Firmware version described: **1.2.0**. Changes against 1.0.0 and the approved de
 
 This project uses the following confirmed wiring.
 
-The original specification listed SI5351 I2C as `SDA=27`, `SCL=22`. During testing on the actual hardware, the working wiring was verified by I2C scan as:
+The original specification listed SI5351 I2C as `SDA=27`, `SCL=22`. During testing on the actual hardware, the working wiring was verified by I2C scan as `SDA=22`, `SCL=27`, SI5351 address `0x60`.
 
-```text
-SDA = GPIO22
-SCL = GPIO27
-SI5351 address = 0x60
-```
-
-The project is therefore configured for:
+Both wirings are supported without a code change: the firmware detects which of the two CN1 pins is SDA (section 42). `include/pins.h` only names the two candidates:
 
 ```cpp
-static constexpr int PIN_I2C_SDA = 22;
-static constexpr int PIN_I2C_SCL = 27;
-```
-
-If a different unit is wired according to the original specification, these two values must be swapped back in:
-
-```text
-include/pins.h
+static constexpr int PIN_I2C_A = 22;   // tried first as SDA (verified wiring)
+static constexpr int PIN_I2C_B = 27;
 ```
 
 ---
@@ -193,22 +181,24 @@ I2C address: 0x60
 
 | SI5351 | ESP32 GPIO |
 |---|---:|
-| SDA | GPIO22 |
-| SCL | GPIO27 |
+| SDA / SCL | GPIO22 / GPIO27 (either order, detected) |
 | VCC | 3.3 V |
 | GND | GND |
 
 I2C clock:
 
 ```text
-400 kHz
+100 kHz during detection, 400 kHz after a successful init
 ```
 
-The bus is scanned during startup. Expected serial output:
+Expected serial output (straight / swapped wiring):
 
 ```text
-[I2C] Found device at 0x60
+[APP] SI5351 at 0x60, SDA=22 SCL=27
+[APP] SI5351 at 0x60, SDA=27 SCL=22 (swapped)
 ```
+
+A full bus scan runs at startup only with `LOG_DEBUG 1`.
 
 ### 6.3 Important SI5351 Hardware Notes
 
@@ -775,8 +765,8 @@ The firmware logs:
 
 - boot status
 - I2C initialization
-- I2C scan results
-- SI5351 probe result
+- I2C scan results (only with `LOG_DEBUG 1`)
+- SI5351 connection state changes with the detected SDA/SCL assignment
 - SI5351 init
 - frequency changes
 - correction changes
@@ -793,11 +783,13 @@ On important errors, an LVGL message box is shown.
 Examples:
 
 - SI5351 not detected (shown once at boot; afterwards the state is shown as NO HW / "SI5351 not found")
+- I2C line stays low, or the device at 0x60 is not an SI5351 (once per state change, also at runtime)
 - SI5351 frequency or IQ setup error
 
 Rules:
 
 - `OK` closes the message box
+- connection dialogs (`SI5351 not found`, `I2C line stays low`, `not an SI5351`, `Connection lost`) close by themselves when the SI5351 is connected again; output error dialogs stay
 - at most one message box is open; a new message replaces the old one
 - an identical message is not shown again while it is open
 - without SI5351 the firmware does not attempt hardware configuration, so no repeated errors are generated
@@ -926,10 +918,10 @@ The firmware initialization order is:
 
 ```text
 1. Serial / Logger
-2. I2C bus initialization and scan
+2. I2C bus initialization (release a line held low, default assignment at 100 kHz; scan only with LOG_DEBUG)
 3. Backlight PWM (backlight off)
 4. Settings load from NVS
-5. SI5351 initialization and probe
+5. SI5351 detection with both SDA/SCL assignments, identity check and init (`app.connectHardware()`)
 6. Touch initialization
 7. LVGL initialization
 8. GUI initialization, boot dialogs (SI5351 missing, NVS unavailable)
@@ -1005,6 +997,7 @@ Responsibilities:
 - hold current channel state
 - validate channel numbers and settings
 - clamp frequency requests to 1–100 MHz (stored exactly, no rounding)
+- connect the SI5351 at boot and every 2 s while it is missing, trying both SDA/SCL assignments (`connect_()`, `LinkState`)
 - coordinate SI5351 reconfiguration (skipped without SI5351)
 - coordinate CH3 follow logic and derive `Ch3Status`
 - apply global drive strength
@@ -1023,7 +1016,8 @@ Only the AppController should call SI5351Manager directly from the business logi
 Responsibilities:
 
 - initialize SI5351
-- probe I2C address 0x60
+- probe I2C address 0x60 and check the identity (registers 0 and 183, read-back of register 3) before any further write
+- never touch `Wire` while the bus is not open (`I2CBus::isOpen()`)
 - configure standalone frequency outputs
 - configure IQ pair for CH3 (phase register + CLK_INV)
 - compute PLL / MultiSynth / R divider values (exact correction, best rational approximation)
@@ -1104,8 +1098,8 @@ Purpose:
 Logger output format examples:
 
 ```text
-[I2C] Found device at 0x60
-[SI5351] Init OK; all outputs High-Z
+[SI5351] Init OK; all outputs off
+[APP] SI5351 at 0x60, SDA=22 SCL=27
 [APP] CH1 frequency: 10000000
 [SI5351] Correction (0.01 ppm): 970
 [SETTINGS] Saved to NVS
@@ -1359,3 +1353,20 @@ Further changes:
 - output error state: a setup that fails while the SI5351 answers is shown as `ERR` (MAIN card, header label, info line); the switch keeps the requested state; retried every 2 s without a further dialog. Test hook `TEST_FAULT_IQ=1` (config.h) makes the IQ setup fail at 270°
 - `PIN_TFT_*` removed from `pins.h`; the display pins are defined only by the build flags
 - support for the CYD2USB board (ST7789) as a second PlatformIO environment; `default_envs` selects the original CYD
+
+## 42. Automatic SDA/SCL Detection
+
+Requested by the project owner on 2026-10-28. Design: `KONZEPT_AUTOERKENNUNG.md`, section "Automatische SDA/SCL-Erkennung".
+
+- The SI5351 cable at CN1 may be connected in either order. `I2CBus` (`hal/i2c_bus.*`) opens one of the two assignments (`I2CMap::Default`: SDA = GPIO22, `Swapped`: SDA = GPIO27); `AppController::connect_()` tries the open assignment first, then the other one.
+- Detection runs at boot and in every supervision cycle while the SI5351 is not ready (hot plug, replugging during operation). While it is ready, the pins are never changed.
+- Per assignment: address probe (0 ACK, 2 NACK, 5 timeout), then `SI5351Manager::begin()` with identity check. A failed init still tries the other assignment, because weak pull-ups can fake an ACK on the wrong one.
+- Identity check, reads only (`SI5351Manager::identify()`): register 0 = 0xFF, register 183 = 0x00 / 0xFF or XTAL_CL = 00 reject the device (`Error::NotSi5351`). Register 183 bits 5:0 other than 010010b and a SYS_INIT that stays set only log a warning (clones). Then register 3 is written with 0xFF and read back; a mismatch rejects the device (`Error::NoReadback`). Init writes stop at the first error.
+- A rejected device is marked for its assignment and not written again. After `NotSi5351` the read-only check is repeated every cycle, so an SI5351 that was still powering up is initialized once it passes. After `NoReadback` the device is left alone until it stops answering (NACK). A successful connection clears the mark.
+- `LinkState`: `NotFound` (silent retry), `Blocked` (line held low), `UnknownDevice` (not programmed again until it stops answering), `Connected`. A dialog appears once per change to `Blocked` / `UnknownDevice`; at boot `main.cpp` shows the dialog for every state other than `Connected`.
+- Detection clock 100 kHz, 400 kHz after a successful init. If the read-only check fails at 400 kHz (weak pull-ups), the connection stays at 100 kHz. `Wire` timeout 20 ms.
+- The GUI closes connection dialogs when `AppController::connectionCount()` changes, so a reconnect between two GUI samples (300 ms) is not missed.
+- At boot, a line held low (SI5351 reset during a read) is released with 9 clocks and a STOP on each pin (open drain with the internal pull-up, 10 µs half period). The debug scan stops at the first timeout.
+- `I2CBus::open()` treats a failed `Wire.end()` as a closed bus: `begin()` would otherwise report success without TX buffer and the next transfer would leak the `Wire` lock.
+- Arduino-ESP32 2.0.x leaks the `Wire` lock on a transfer while the bus is not started; `I2CBus::probe()` and the driver's register access check `I2CBus::isOpen()` first. The startup scan runs only with `LOG_DEBUG` and an open bus.
+- The assignment is kept in RAM only, no NVS key.

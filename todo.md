@@ -7,6 +7,8 @@ Status: `[ ]` offen · `[~]` teilweise · `[?]` wartet auf Rückfrage (Abschnitt
 
 Erledigte Punkte sind entfernt; sie stehen in der Git-Historie dieser Datei. In diesem Review umgesetzt: Host-Unit-Tests (Abschnitt 7), `platformio.ini` mit `[esp32]` + `extends` und den Testumgebungen `native` / `native-win`, `constants.h` / `types.h` / `frequency_utils.h` ohne `Arduino.h`, README-Abschnitt „Unit Tests“, Spezifikation 33.1. Beide Firmware-Varianten bauen weiterhin.
 
+Nachtrag 2026-10-28: Automatische SDA/SCL-Erkennung umgesetzt (Konzept [KONZEPT_AUTOERKENNUNG.md](KONZEPT_AUTOERKENNUNG.md), Spezifikation 42). Dabei behoben: Boot-Hänger nach fehlgeschlagenem `Wire.begin()` (I2C-Scan auf nicht gestartetem Bus). Host-Tests grün, beide Varianten bauen; die Hardwaretests stehen in Abschnitt 10 J.
+
 ---
 
 ## 0. Ergebnis des Reviews (Kurzfassung)
@@ -28,7 +30,7 @@ Die Firmware ist klar geschichtet (Treiber / AppController / GUI / Services). Di
 ## 1. Build, Tests & Hardware-Varianten
 
 - [ ] **P2 CI**: GitHub Action mit `pio test -e native` und `pio run` für beide Firmware-Umgebungen. Die Host-Tests brauchen ≈ 10 s und keine Hardware. `env:native` (Linux, gcc) ist noch nicht ausgeführt worden, nur `env:native-win`.
-- [ ] **P3 Eine Firmware für beide Varianten**: Den Display-Controller beim Start erkennen, statt zwei Build-Umgebungen zu pflegen (Entscheidung 2026-10-27: vorerst zwei Builds). Ansatz: Das ID-Register per SPI lesen (MISO GPIO 12 ist angeschlossen): ILI9341 liefert über `0xD3` die ID `0x9341`, ST7789 über `0x04` die ID `0x85 0x85 0x52`. TFT_eSPI legt den Treiber beim Kompilieren fest, deshalb ist ein Wechsel zu einer Bibliothek mit Laufzeit-Auswahl nötig (z. B. LovyanGFX) oder eine eigene Init-Sequenz je Controller.
+- [ ] **P3 Eine Firmware für beide Varianten**: Den Display-Controller beim Start erkennen, statt zwei Build-Umgebungen zu pflegen (Entscheidung 2026-10-27: vorerst zwei Builds). Ausgearbeitetes Konzept: [KONZEPT_AUTOERKENNUNG.md](KONZEPT_AUTOERKENNUNG.md), Abschnitt Display (TFT_eSPI bleibt, Erkennung über RDDID `0x04` vor `tft.init()`, eigene ST7789-Init, Boot-Geste als Rückfallebene; ≈ 1,6 Tage). Vor der Umsetzung den Diagnose-Test I0 auf beiden Boards laufen lassen.
 - [ ] **P3 TFT_eSPI exakt pinnen** (`bodmer/TFT_eSPI@2.5.43` statt `^2.5.43`), wie die anderen Bibliotheken auch.
 - [ ] **P3 Arduino-Core 3.x**: Bei einem Update `ledcSetup` / `ledcAttachPin` umstellen (auch im Fake `test/fakes/Arduino.h`).
 
@@ -86,7 +88,7 @@ Die Firmware ist klar geschichtet (Treiber / AppController / GUI / Services). Di
 
 ## 3. Bedienung (UX)
 
-- [ ] **P3 Info-Zeile in CONFIG**: Firmwareversion, SI5351-Status (gefunden / fehlt, I2C-Pins, PLL eingerastet) und Display-Variante. Erleichtert die Fehlersuche ohne serielle Konsole.
+- [ ] **P3 Info-Zeile in CONFIG**: Firmwareversion, SI5351-Status (gefunden / fehlt, I2C-Pins, PLL eingerastet) und Display-Variante. Erleichtert die Fehlersuche ohne serielle Konsole. Für I2C vorhanden: `AppController::linkState()`, `I2CBus::sdaPin()` / `sclPin()` / `map()` (vertauscht), `SI5351Manager::revId()` / `idUnverified()`.
 - [ ] **P3 Werksreset** (NVS löschen) in CONFIG, mit Bestätigung.
 - [ ] **P3 Masterfrequenz auf der CH3-Seite verstellen** (`+` / `−` mit der globalen Schrittweite), damit IQ-Versuche ohne Seitenwechsel auskommen.
 - [ ] **P3 Bildschirmsperre** für Messungen: verhindert versehentliche Eingaben und unterdrückt Neuzeichnen (siehe Störquellen 2.1).
@@ -99,7 +101,7 @@ Die Firmware ist klar geschichtet (Treiber / AppController / GUI / Services). Di
 - [ ] **P3 Redundanter Drive-Zustand**: `drive_strength` steht in `Channel`, `Channel3` und `SystemSettings`, ist aber immer gleich (globale Einstellung). Nur `sys.default_drive_strength` behalten.
 - [ ] **P3 Ungenutzter Code**: `BacklightDriver::percent()`, `Storage::end()`, `AppController::ch1()/ch2()/state()`, `Logger::debug()`, `PIN_FREE_INPUT_ONLY` und `LV_HOR_RES_MAX` (ein LVGL-7-Rest in [lv_conf.h](include/lv_conf.h)).
 - [ ] **P3 Feste Koordinaten in den Pages**: Header (158/214), CH3 (114/134/186), CONFIG (92/140/180/236) usw. in [gui_layout.h](src/gui/gui_layout.h) bzw. als lokale Konstanten zusammenfassen, wie in [page_main.cpp](src/gui/pages/page_main.cpp) schon geschehen.
-- [ ] **P3 Logging im Normalbetrieb**: `valueU64` bei jeder Frequenzänderung, I2C-Scan bei jedem Start und `CORE_DEBUG_LEVEL=3` hinter `LOG_DEBUG` bzw. Level 1 legen.
+- [~] **P3 Logging im Normalbetrieb**: `valueU64` bei jeder Frequenzänderung hinter `LOG_DEBUG` legen. Erledigt: I2C-Scan nur mit `LOG_DEBUG`, `CORE_DEBUG_LEVEL=1`.
 - [ ] **P3 Mehrere Anweisungen pro Zeile** in [touch.cpp:22-23](src/drivers/touch.cpp#L22-L23).
 - [ ] **P3 Display-Flush mit DMA und Doppelpuffer.**
 
@@ -182,9 +184,9 @@ Beantwortet am 2026-10-27: Alle Ausgänge starten aus. Die USB-C-Firmware läuft
 
 | OK | Nr. | Test | Erwartung | Messwert |
 |---|---|---|---|---|
-| [ ] | A1 | Booten ohne SI5351 (oder mit getrenntem SDA) (alt 1) | genau **ein** Dialog, „OK“ schließt ihn, Karten zeigen „NO HW“ | |
-| [ ] | A2 | Danach SDA verbinden (alt 1a) | nach ≤ 2 s verschwindet „NO HW“, Kanäle schaltbar | |
-| [ ] | A3 | CH1 an, SDA kurz trennen und wieder verbinden (alt 1b) | Dialog „Connection lost“, „NO HW“, danach läuft CH1 mit gleicher Frequenz | |
+| [ ] | A1 | Booten ohne SI5351 (oder mit getrenntem SDA) (alt 1) | genau **ein** Dialog „SI5351 not found … SDA/SCL may be in either order …“, „OK“ schließt ihn, Karten zeigen „NO HW“ | |
+| [ ] | A2 | Danach SDA verbinden (alt 1a) | nach ≤ 2 s verschwindet „NO HW“, Kanäle schaltbar; ein noch offener SI5351-Dialog schließt sich | |
+| [ ] | A3 | CH1 an, SDA kurz trennen und wieder verbinden (alt 1b) | Dialog „Connection lost. Check the cable; SDA/SCL may be in either order …“, „NO HW“, danach läuft CH1 mit gleicher Frequenz, Dialog schließt sich | |
 | [ ] | A4 | CH1 und CH3 an (IQ, 270°), SI5351-Versorgung kurz unterbrechen (alt 1c) | wie A3; CH3 läuft danach wieder mit 270° | |
 | [ ] | A5 | Einstellung ändern, > 5 s warten („Saved“), aus- und einschalten (alt 14) | Einstellung erhalten, alle Ausgänge aus | |
 | [ ] | A6 | Einschalten und Display beobachten (alt 14a) | kein weißes oder verrauschtes Bild, Hauptseite erscheint direkt | |
@@ -274,3 +276,25 @@ Messmethode Phase: beide Ausgänge über gleich lange Kabel an zwei Scope-Kanäl
 | [ ] | H2 | CH1 = 112,499 996 / 112,500 004 / 120 / 160 MHz, Zähler und Spektrum (alt 21) | Abweichung ≤ 1,5 / 2 / 2 / 3 Hz (2.4), Ausgang vorhanden (Pegel geringer) | |
 | [ ] | H3 | CH3 an, Master von 100 MHz auf 100,000001 MHz stellen (alt 22) | CH3 wechselt auf „WAIT … > 100 MHz“, CLK2 aus, Master läuft weiter | |
 | [ ] | H4 | CH1 = 455 kHz, Spektrum bis 5 MHz | Oberwellen dokumentieren → Tiefpass-Hinweis im Handbuch | |
+
+### J. SDA/SCL-Erkennung
+
+Gruppe I ist für die Display-Erkennung reserviert (Konzept). Die Identitätsprüfung (Register 0, 183, Rücklesen Register 3) folgt AN619; J7 prüft sie am eigenen Modul und, wenn möglich, an einem Klon (MS5351M). Lehnt J7 ein echtes Modul ab, die harten Prüfungen in `SI5351Manager::begin()` lockern.
+
+| OK | Nr. | Test | Erwartung | Messwert |
+|---|---|---|---|---|
+| [ ] | J1 | Kabel gerade (SDA→22) | verbunden, Log „SDA=22 SCL=27“, kein Dialog | |
+| [ ] | J2 | Kabel vertauscht | verbunden, Log „(swapped)“, 10 MHz an CH1 am Zähler | |
+| [ ] | J3 | Boot ohne Modul, dann gerade anstecken; danach Boot ohne Modul, vertauscht anstecken | Dialog schließt sich, Ausgänge ≤ 2,5 s nach dem Anstecken | |
+| [ ] | J4 | CH1 + CH3 IQ 270°, im Betrieb abziehen und vertauscht wieder anstecken | ein Dialog „Connection lost“, danach Phase an 2 Scope-Kanälen korrekt | |
+| [ ] | J5 | Wackelkontakt 30 s | keine Fehlprogrammierung, eine Logzeile pro Zustandswechsel | |
+| [ ] | J6 | SDA nach GND, dann SCL nach GND; Logikanalysator, Rückgabecode im Debug-Log | erwartet Code 5 → Dialog „I2C line stays low“; GUI stockt < 100 ms; nach Entfernen verbunden. Liefert die IDF nicht 5: `Blocked` und `NotFound` zusammenlegen | |
+| [ ] | J7 | Registerdump 0, 3, 183 nach dem Einschalten (eigenes Modul, wenn möglich auch MS5351M) | Werte notieren; Modul wird angenommen, Log ohne „Unexpected reg183“ (sonst Klon-Warnung) | |
+| [ ] | J8 | Modul ohne Pull-ups | Erkennung bei 100 kHz; Betrieb mit 400 kHz stabil oder Log „I2C fails at 400 kHz; staying at 100 kHz“ und Betrieb mit 100 kHz stabil | |
+| [ ] | J9 | 10 min ohne Modul, Heap im Debug-Log | freier Heap konstant (ein `Wire.end()`/`begin()` pro 2 s), keine wiederholten Logzeilen | |
+| [ ] | J10 | CYD2USB: CN1-Belegung prüfen, J1/J2 wiederholen | CN1 führt GPIO22/27, wie J1/J2 | |
+| [ ] | J11 | Logikanalysator bei vertauschtem Kabel | am Chip nur START/STOP und Fragmente, keine Registeränderung | |
+| [ ] | J12 | 3,3 V offen, GND verbunden | „not found“, „line stays low“ oder „not an SI5351“, kein Teilschreiben; nach Verbinden von 3,3 V verbunden (ohne Abziehen) | |
+| [ ] | J13 | GND offen, 3,3 V verbunden | wie J12 | |
+| [ ] | J14 | Debug-Build mit Dauerlesen; während der Lesezugriffe 20× EN-Reset | nach jedem Boot verbunden (Leitungsfreigabe beim Start greift) | |
+| [ ] | J15 | Fremdes I2C-Gerät mit Adresse 0x60 (z. B. anderer Sensor) an CN1 | Dialog „not an SI5351“, höchstens ein Schreibzugriff (Register 3), keine weiteren Dialoge | |

@@ -86,6 +86,8 @@ private:
     void handleNumpadKey_(lv_obj_t* matrix);
     void handleFreqTap_(lv_obj_t* label);
     void openMessage_(const char* title, const char* text);
+    // Closes the open dialog and drops queued ones about the SI5351 connection.
+    void dismissLinkMessages_();
     void requestNavigate_(PageId page);
 
     static Gui* from_(lv_obj_t* obj);
@@ -106,6 +108,7 @@ private:
     uint8_t corrStepIdx_ = 1;   // index into CORRECTION_STEPS
     uint32_t lastUpdateMs_ = 0;
     uint8_t lastHwState_ = 0;
+    uint16_t lastConnections_ = 0;
     char freqText_[24] {};      // plain frequency text on the channel page, for hit testing
     Widgets w_ {};
     lv_obj_t* root_ = nullptr;

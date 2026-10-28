@@ -12,12 +12,13 @@ static constexpr int PIN_TOUCH_SCK  = 25;
 static constexpr int PIN_TOUCH_CS   = 33;
 static constexpr int PIN_TOUCH_IRQ  = 36;
 
-// SI5351 I2C
-// Verified on this build by I2C scan: SI5351 found at 0x60 with SDA=22/SCL=27.
-// If your wiring follows the original spec, swap these back to SDA=27/SCL=22.
-static constexpr int PIN_I2C_SDA = 22;
-static constexpr int PIN_I2C_SCL = 27;
-static constexpr uint32_t I2C_FREQ_HZ = 400000;
+// SI5351 I2C on CN1. The firmware detects which pin is SDA, so the wires may be swapped.
+static constexpr int PIN_I2C_A = 22;              // tried first as SDA (verified wiring)
+static constexpr int PIN_I2C_B = 27;
+static constexpr uint32_t I2C_DETECT_HZ = 100000; // detection tolerates weak pull-ups
+static constexpr uint32_t I2C_FREQ_HZ = 400000;   // after a successful init
+static constexpr uint16_t I2C_TIMEOUT_MS = 20;    // > 13.1 ms ESP32 hardware timeout
+// GPIO21 (backlight, also on P3) is never an I2C candidate.
 
 // Backlight - reserved exclusively for PWM backlight
 static constexpr int PIN_BACKLIGHT = 21;

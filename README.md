@@ -11,7 +11,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 
 - ILI9341 or ST7789 (CYD2USB) 320x240 landscape GUI with LVGL
 - XPT2046 touch on a separate VSPI bus
-- SI5351 clock generator on explicit I2C pins SDA=22 / SCL=27
+- SI5351 clock generator on CN1 (GPIO22 / GPIO27); SDA and SCL are detected automatically, the wires may be swapped
 - CH1 and CH2 independent 1-100 MHz outputs
 - CH3 IQ follower of CH1 or CH2 with selectable 0/90/180/270 degree phase setting (4.730-100 MHz, 180/270 via output inversion)
 - Independent output enable/High-Z control
@@ -39,6 +39,15 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - Dialogs for NVS errors; dialogs are queued
 - Channel page: tap a digit to select the step, tap the unit to open the numpad
 
+## Changes since 1.2.0
+
+- SDA/SCL at CN1 in either order: the firmware tries both assignments at boot and on every reconnect (hot plug, replugging during operation); no pin setting in `pins.h` any more
+- SI5351 identity check (registers 0, 183, read-back of register 3): another device at 0x60 is not programmed
+- New connection messages (`SI5351 not found`, `I2C line stays low`, `not an SI5351`); connection dialogs close by themselves after reconnecting
+- Detection at 100 kHz, then 400 kHz; stays at 100 kHz if the bus does not work at 400 kHz (weak pull-ups)
+- Boot no longer hangs after a failed I2C init; a line held low by the SI5351 after a reset is released at boot
+- Bus scan only with `LOG_DEBUG`, `CORE_DEBUG_LEVEL=1`
+
 ## Pinout
 
 | Function | Bus | GPIO |
@@ -54,8 +63,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 | Touch SCK | VSPI | 25 |
 | Touch CS | VSPI | 33 |
 | Touch IRQ | - | 36 |
-| SI5351 SDA | I2C | 22 |
-| SI5351 SCL | I2C | 27 |
+| SI5351 SDA / SCL (CN1, either order) | I2C | 22 / 27 |
 | Backlight PWM | LEDC | 21 |
 | RGB LED R | active low | 4 |
 | RGB LED G | active low | 16 |
@@ -63,7 +71,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 | Free input only | - | 35 |
 
 
-Note: the original hardware specification listed SDA=27/SCL=22. This project is now set to the wiring that was verified on the actual device by I2C scan: SDA=22/SCL=27, SI5351 at address 0x60.
+Note: the original hardware specification listed SDA=27/SCL=22, the verified device uses SDA=22/SCL=27. The firmware tries SDA=22 first and then the swapped assignment, so both wirings work. The serial log shows the result, e.g. `[APP] SI5351 at 0x60, SDA=27 SCL=22 (swapped)`.
 
 ## Libraries
 
@@ -106,7 +114,7 @@ pio test -e native-win   # Windows, uses the MinGW toolchain bundled with Platfo
 pio test -e native       # Linux/macOS/CI, needs gcc in PATH
 ```
 
-`test/fakes` replaces the Arduino core, `Wire` (SI5351 register model with fault injection) and `Preferences`. `test/helpers/si5351_model.h` decodes the written registers back into frequencies (AN619), independently of the driver's own arithmetic.
+`test/fakes` replaces the Arduino core, `Wire` (SI5351 register model with fault injection, straight or swapped wiring, line held low, foreign device at 0x60) and `Preferences`. `test/helpers/si5351_model.h` decodes the written registers back into frequencies (AN619), independently of the driver's own arithmetic.
 
 ## Operation
 
@@ -133,7 +141,7 @@ The project follows a modular structure:
 - `core/app_controller.*`: single source of truth for runtime state and SI5351 coordination
 - `drivers/*`: SI5351, touch, backlight and RGB status LED drivers
 - `services/*`: Preferences storage and autosave
-- `hal/i2c_bus.*`: explicit I2C setup
+- `hal/i2c_bus.*`: owns `Wire`; opens either SDA/SCL assignment, bus release at boot; the detection itself runs in `AppController::connect_()`
 - `gui/gui.cpp`: LVGL setup, deferred navigation, shared widgets, action dispatch and message box
 - `gui/gui_layout.h`: layout grid and color scheme
 - `gui/pages/*`: page creation and refresh for Main, channel (CH1/CH2), CH3, Config and Numpad pages
