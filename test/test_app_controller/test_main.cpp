@@ -147,7 +147,7 @@ static void test_global_drive_strength() {
     d.app.setGlobalDriveStrength(8);
     for (uint8_t clk = 0; clk < 3; ++clk) TEST_ASSERT_EQUAL_UINT8(8, driveMa(clk));
     d.app.setGlobalDriveStrength(5);
-    TEST_ASSERT_EQUAL_UINT8(8, d.app.system().default_drive_strength);
+    TEST_ASSERT_EQUAL_UINT8(8, d.app.system().drive_ma);
     TEST_ASSERT_EQUAL_UINT8(8, driveMa(0));
 }
 
@@ -344,6 +344,90 @@ static void test_healthy_device_is_not_reconfigured() {
     // Supervision only reads; it never touches a running output.
     TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
     TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+// ---------------------------------------------------------------------------
+// CONFIG options: backlight steps, tuning mode, spread, off state
+
+static void test_backlight_steps() {
+    Device d;
+    d.app.setBacklight(80);
+    d.app.stepBacklight(+1);
+    TEST_ASSERT_EQUAL_UINT8(90, d.app.system().backlight);
+    d.app.stepBacklight(+1);
+    d.app.stepBacklight(+1);
+    TEST_ASSERT_EQUAL_UINT8(100, d.app.system().backlight);
+    for (int i = 0; i < 12; ++i) d.app.stepBacklight(-1);
+    TEST_ASSERT_EQUAL_UINT8(BACKLIGHT_MIN_PERCENT, d.app.system().backlight);
+    d.app.setBacklight(44);
+    TEST_ASSERT_EQUAL_UINT8(40, d.app.system().backlight);
+}
+
+static void test_backlight_from_older_firmware_is_rounded() {
+    Preferences p;
+    p.putUChar("backlight", 35); // 1 % steps before 1.3.0
+    {
+        Device d;
+        TEST_ASSERT_EQUAL_UINT8(40, d.app.system().backlight);
+    }
+    p.putUChar("backlight", 5); // old minimum
+    Device d;
+    TEST_ASSERT_EQUAL_UINT8(BACKLIGHT_MIN_PERCENT, d.app.system().backlight);
+}
+
+static void test_config_options_default_and_persist() {
+    {
+        Device d;
+        TEST_ASSERT_EQUAL(TuningMode::Fractional, d.app.system().tuning_mode);
+        TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
+        TEST_ASSERT_EQUAL(OffState::Low, d.app.system().off_state);
+        d.app.setTuningMode(TuningMode::LowNoise);
+        d.app.setSpread(Spread::Down15);
+        d.app.setOffState(OffState::HighZ);
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+    }
+    Device d;
+    TEST_ASSERT_EQUAL(TuningMode::LowNoise, d.app.system().tuning_mode);
+    TEST_ASSERT_EQUAL(Spread::Down15, d.app.system().spread);
+    TEST_ASSERT_EQUAL(OffState::HighZ, d.app.system().off_state);
+    TEST_ASSERT_EQUAL(TuningMode::LowNoise, d.si.tuningMode());
+}
+
+static void test_config_options_invalid_nvs_values() {
+    Preferences p;
+    p.putUChar("tune", 7);
+    p.putUChar("ssc", 9);
+    p.putUChar("off_st", 3);
+    Device d;
+    TEST_ASSERT_EQUAL(TuningMode::Fractional, d.app.system().tuning_mode);
+    TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
+    TEST_ASSERT_EQUAL(OffState::Low, d.app.system().off_state);
+}
+
+static void test_integer_mode_turns_spread_off() {
+    Device d;
+    d.app.setSpread(Spread::Down05);
+    TEST_ASSERT_EQUAL(Spread::Down05, d.app.spreadOf(1));
+    d.app.setTuningMode(TuningMode::Integer);
+    TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
+    d.app.setSpread(Spread::Down05); // locked in Integer
+    TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
+    // Stored spread with Integer mode (written by hand) is ignored at load.
+    Preferences p;
+    p.putUChar("ssc", 1);
+    p.putUChar("tune", 2);
+    Device d2;
+    TEST_ASSERT_EQUAL(Spread::Off, d2.app.system().spread);
+}
+
+static void test_spread_applies_to_pll_a_only() {
+    Device d;
+    d.app.setSpread(Spread::Center05);
+    TEST_ASSERT_EQUAL(Spread::Center05, d.app.spreadOf(1));
+    TEST_ASSERT_EQUAL(Spread::Off, d.app.spreadOf(2));
+    TEST_ASSERT_EQUAL(Spread::Center05, d.app.spreadOf(3)); // master CH1
+    d.app.setCH3Master(2);
+    TEST_ASSERT_EQUAL(Spread::Off, d.app.spreadOf(3));
 }
 
 // ---------------------------------------------------------------------------
@@ -622,7 +706,7 @@ static void test_settings_survive_reboot_but_outputs_start_off() {
     TEST_ASSERT_EQUAL_UINT8(2, d.app.ch3().master);
     TEST_ASSERT_EQUAL_UINT16(270, d.app.ch3().phase);
     TEST_ASSERT_EQUAL_INT32(-1234, d.app.system().freq_correction);
-    TEST_ASSERT_EQUAL_UINT8(6, d.app.system().default_drive_strength);
+    TEST_ASSERT_EQUAL_UINT8(6, d.app.system().drive_ma);
     TEST_ASSERT_EQUAL_UINT8(50, d.app.system().backlight);
     TEST_ASSERT_EQUAL_UINT32(100, d.app.system().delta_step);
     TEST_ASSERT_FALSE(d.app.channel(1).enabled);
@@ -652,7 +736,7 @@ static void test_settings_load_sanitizes_invalid_values() {
     TEST_ASSERT_EQUAL_UINT8(DEFAULT_BACKLIGHT_PERCENT, d.app.system().backlight);
     TEST_ASSERT_EQUAL_UINT32(1, d.app.system().delta_step);
     TEST_ASSERT_EQUAL_INT32(CORRECTION_MAX, d.app.system().freq_correction);
-    TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().default_drive_strength);
+    TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
     TEST_ASSERT_FALSE(d.app.channel(1).enabled);
     p.putUChar("backlight", 101);
     p.putInt("corr", -99999);
@@ -681,6 +765,12 @@ int main() {
     RUN_TEST(test_power_glitch_reports_once_and_restores);
     RUN_TEST(test_bus_failure_while_tuning_shows_no_hw);
     RUN_TEST(test_healthy_device_is_not_reconfigured);
+    RUN_TEST(test_backlight_steps);
+    RUN_TEST(test_backlight_from_older_firmware_is_rounded);
+    RUN_TEST(test_config_options_default_and_persist);
+    RUN_TEST(test_config_options_invalid_nvs_values);
+    RUN_TEST(test_integer_mode_turns_spread_off);
+    RUN_TEST(test_spread_applies_to_pll_a_only);
     RUN_TEST(test_boot_with_straight_cable);
     RUN_TEST(test_boot_with_swapped_cable);
     RUN_TEST(test_boot_without_module_searches_quietly);

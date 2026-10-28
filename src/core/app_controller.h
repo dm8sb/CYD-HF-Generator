@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <constants.h>
 #include <types.h>
 #include <services/settings.h>
 #include <drivers/si5351_manager.h>
@@ -32,16 +33,20 @@ public:
     void setCH3Master(uint8_t master);
     void setCH3Phase(uint16_t phase);
     void setGlobalDriveStrength(uint8_t strength);
+    // Rounded to BACKLIGHT_STEP_PERCENT within BACKLIGHT_MIN_PERCENT..100.
     void setBacklight(uint8_t percent);
+    void stepBacklight(int8_t direction);
     void setDeltaStep(uint32_t step);
     void setCorrection(int32_t correction);
+    // CONFIG options; each reconfigures the outputs as needed. Spread is ignored (stays Off)
+    // in TuningMode::Integer; switching to Integer turns it off.
+    void setTuningMode(TuningMode mode);
+    void setSpread(Spread spread);
+    void setOffState(OffState state);
 
-    const Channel& ch1() const { return state_.ch1; }
-    const Channel& ch2() const { return state_.ch2; }
     const Channel& channel(uint8_t ch) const { return channel_(ch); }
     const Channel3& ch3() const { return state_.ch3; }
     const SystemSettings& system() const { return state_.sys; }
-    const PersistentState& state() const { return state_; }
 
     bool hardwareReady() const { return si5351_.ready(); }
     LinkState linkState() const;
@@ -56,12 +61,20 @@ public:
     ChannelStatus channelStatus(uint8_t ch) const;
     Ch3Status ch3Status() const;
     // ch 1..3; expected output frequency incl. SI5351 rounding (0 if not configured).
+    // With spread spectrum this is the unmodulated (highest for down spread) frequency.
     double actualHz(uint8_t ch) const { return si5351_.actualHz(ch - 1); }
+    // Spread spectrum that applies to ch 1..3 (PLL A: CH1, CH3 with master CH1).
+    Spread spreadOf(uint8_t ch) const;
+    // Info for CONFIG: I2C pins of the SI5351 link (also while not connected) and identity.
+    int i2cSdaPin() const;
+    int i2cSclPin() const;
+    bool i2cSwapped() const;
+    bool si5351IdUnverified() const { return si5351_.idUnverified(); }
 
 private:
     Channel& channel_(uint8_t ch);
     const Channel& channel_(uint8_t ch) const;
-    uint8_t clkForChannel_(uint8_t ch) const { return ch - 1; }
+    uint8_t clkForChannel_(uint8_t ch) const { return ch == 1 ? CLK_CH1 : CLK_CH2; }
     SI5351Manager::Pll pllForChannel_(uint8_t ch) const { return ch == 1 ? SI5351Manager::Pll::A : SI5351Manager::Pll::B; }
     void markChanged_();
     void reportError_(const char* title, const char* text);

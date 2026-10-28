@@ -28,7 +28,8 @@ static constexpr int32_t CORRECTION_STEPS[] = {1, 10, 100}; // 0.01 / 0.1 / 1 pp
 static constexpr uint8_t CORRECTION_STEP_COUNT = sizeof(CORRECTION_STEPS) / sizeof(CORRECTION_STEPS[0]);
 
 static constexpr uint8_t DEFAULT_BACKLIGHT_PERCENT = 80;
-static constexpr uint8_t BACKLIGHT_MIN_PERCENT = 5; // 0 % would leave the device unusable
+static constexpr uint8_t BACKLIGHT_MIN_PERCENT = 10; // 0 % would leave the device unusable
+static constexpr uint8_t BACKLIGHT_STEP_PERCENT = 10;
 static constexpr uint8_t DEFAULT_DRIVE_MA = 4;
 
 static constexpr uint32_t SETTINGS_AUTOSAVE_MS = 5000;
@@ -45,3 +46,10 @@ static constexpr uint8_t CLK_CH3 = 2;
 
 inline bool isValidDrive(uint8_t ma) { return ma == 2 || ma == 4 || ma == 6 || ma == 8; }
 inline bool isValidPhase(uint16_t deg) { return deg == 0 || deg == 90 || deg == 180 || deg == 270; }
+// Nearest backlight step within BACKLIGHT_MIN_PERCENT..100.
+inline uint8_t snapBacklight(int percent) {
+    int p = (percent + BACKLIGHT_STEP_PERCENT / 2) / BACKLIGHT_STEP_PERCENT * BACKLIGHT_STEP_PERCENT;
+    if (p < BACKLIGHT_MIN_PERCENT) p = BACKLIGHT_MIN_PERCENT;
+    if (p > 100) p = 100;
+    return (uint8_t)p;
+}

@@ -25,8 +25,10 @@ bool TouchDriver::mapPoint(int16_t rx, int16_t ry, lv_coord_t* x, lv_coord_t* y)
     if (cal_.x_max == cal_.x_min || cal_.y_max == cal_.y_min) return false;
     long mx = map(rx, cal_.x_min, cal_.x_max, 0, SCREEN_WIDTH - 1);
     long my = map(ry, cal_.y_min, cal_.y_max, 0, SCREEN_HEIGHT - 1);
-    if (mx < 0) mx = 0; if (mx >= SCREEN_WIDTH) mx = SCREEN_WIDTH - 1;
-    if (my < 0) my = 0; if (my >= SCREEN_HEIGHT) my = SCREEN_HEIGHT - 1;
+    if (mx < 0) mx = 0;
+    if (mx >= SCREEN_WIDTH) mx = SCREEN_WIDTH - 1;
+    if (my < 0) my = 0;
+    if (my >= SCREEN_HEIGHT) my = SCREEN_HEIGHT - 1;
     *x = (lv_coord_t)mx;
     *y = (lv_coord_t)my;
     return true;

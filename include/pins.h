@@ -27,5 +27,3 @@ static constexpr int PIN_BACKLIGHT = 21;
 static constexpr int PIN_LED_R = 4;
 static constexpr int PIN_LED_G = 16;
 static constexpr int PIN_LED_B = 17;
-
-static constexpr int PIN_FREE_INPUT_ONLY = 35;

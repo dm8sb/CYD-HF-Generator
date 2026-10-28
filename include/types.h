@@ -5,21 +5,35 @@
 struct Channel {
     uint64_t frequency;   // requested frequency in Hz (exact, 1 Hz resolution)
     bool enabled;
-    uint8_t drive_strength; // mA: 2, 4, 6, 8
 };
 
 struct Channel3 {
     bool enabled;       // requested by the user; see Ch3Status for the actual output state
     uint8_t master;     // 1 or 2
     uint16_t phase;     // 0/90/180/270
-    uint8_t drive_strength; // mA: 2, 4, 6, 8
 };
+
+// SI5351 divider strategy (CONFIG "Tuning"). Values are stored in NVS.
+enum class TuningMode : uint8_t {
+    Fractional = 0, // fixed PLL, fractional MultiSynth: finest steps, tuning without dropouts
+    LowNoise = 1,   // even integer MultiSynth, fractional PLL
+    Integer = 2     // integer PLL and MultiSynth: frequency on a raster
+};
+
+// Spread spectrum on PLL A, i.e. CH1 and CH3 with master CH1 (CONFIG "Spread CH1"). Stored in NVS.
+enum class Spread : uint8_t { Off = 0, Down05 = 1, Down15 = 2, Center05 = 3 };
+
+// Level of a switched-off output (CONFIG "Off state", SI5351 register 24). Stored in NVS.
+enum class OffState : uint8_t { Low = 0, High = 1, HighZ = 2 };
 
 struct SystemSettings {
     uint32_t delta_step;
     int32_t freq_correction; // 0.01 ppm
-    uint8_t backlight;  // BACKLIGHT_MIN_PERCENT-100 %
-    uint8_t default_drive_strength;
+    uint8_t backlight;  // BACKLIGHT_MIN_PERCENT-100 % in BACKLIGHT_STEP_PERCENT steps
+    uint8_t drive_ma;   // all outputs: 2, 4, 6, 8
+    TuningMode tuning_mode;
+    Spread spread;      // always Off in TuningMode::Integer
+    OffState off_state;
 };
 
 struct TouchCalibration {

@@ -19,17 +19,23 @@ void SettingsService::load(PersistentState& s) {
     if (s.ch3.master != 1 && s.ch3.master != 2) s.ch3.master = 1;
     s.ch3.phase = storage_.getU32("ch3_phase", 90);
     if (!isValidPhase(s.ch3.phase)) s.ch3.phase = 90;
-    s.sys.backlight = storage_.getU8("backlight", DEFAULT_BACKLIGHT_PERCENT);
-    // Values below the minimum (e.g. 0 % from firmware 1.0.0) would leave the screen dark.
-    if (s.sys.backlight > 100 || s.sys.backlight < BACKLIGHT_MIN_PERCENT) s.sys.backlight = DEFAULT_BACKLIGHT_PERCENT;
+    // Values below 5 % (e.g. 0 % from firmware 1.0.0) would leave the screen dark; older
+    // firmware used 1 % steps, they are rounded to the current steps.
+    const uint8_t bl = storage_.getU8("backlight", DEFAULT_BACKLIGHT_PERCENT);
+    s.sys.backlight = (bl > 100 || bl < 5) ? DEFAULT_BACKLIGHT_PERCENT : snapBacklight(bl);
     s.sys.delta_step = FrequencyUtils::snapStep(storage_.getU32("delta", DEFAULT_DELTA_STEP));
     s.sys.freq_correction = constrain(storage_.getI32("corr", 0), -CORRECTION_MAX, CORRECTION_MAX);
-    s.sys.default_drive_strength = storage_.getU8("drv_def", DEFAULT_DRIVE_MA);
-    if (!isValidDrive(s.sys.default_drive_strength)) s.sys.default_drive_strength = DEFAULT_DRIVE_MA;
     // One global drive setting from CONFIG applies to all channels.
-    s.ch1.drive_strength = s.sys.default_drive_strength;
-    s.ch2.drive_strength = s.sys.default_drive_strength;
-    s.ch3.drive_strength = s.sys.default_drive_strength;
+    s.sys.drive_ma = storage_.getU8("drv_def", DEFAULT_DRIVE_MA);
+    if (!isValidDrive(s.sys.drive_ma)) s.sys.drive_ma = DEFAULT_DRIVE_MA;
+    // Missing keys (NVS from 1.2.0) give the behavior of 1.2.0.
+    const uint8_t tune = storage_.getU8("tune", 0);
+    s.sys.tuning_mode = tune <= (uint8_t)TuningMode::Integer ? (TuningMode)tune : TuningMode::Fractional;
+    const uint8_t ssc = storage_.getU8("ssc", 0);
+    s.sys.spread = ssc <= (uint8_t)Spread::Center05 ? (Spread)ssc : Spread::Off;
+    if (s.sys.tuning_mode == TuningMode::Integer) s.sys.spread = Spread::Off;
+    const uint8_t off = storage_.getU8("off_st", 0);
+    s.sys.off_state = off <= (uint8_t)OffState::HighZ ? (OffState)off : OffState::Low;
     Logger::info("SETTINGS", available_ ? "Loaded from NVS" : "NVS unavailable; defaults loaded");
 }
 
@@ -41,7 +47,10 @@ bool SettingsService::save_(const PersistentState& s) {
     ok &= storage_.putU8("backlight", s.sys.backlight);
     ok &= storage_.putU32("delta", s.sys.delta_step);
     ok &= storage_.putI32("corr", s.sys.freq_correction);
-    ok &= storage_.putU8("drv_def", s.sys.default_drive_strength);
+    ok &= storage_.putU8("drv_def", s.sys.drive_ma);
+    ok &= storage_.putU8("tune", (uint8_t)s.sys.tuning_mode);
+    ok &= storage_.putU8("ssc", (uint8_t)s.sys.spread);
+    ok &= storage_.putU8("off_st", (uint8_t)s.sys.off_state);
     if (ok) Logger::info("SETTINGS", "Saved to NVS");
     else Logger::error("SETTINGS", "Saving to NVS failed");
     return ok;
