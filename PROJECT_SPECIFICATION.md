@@ -93,7 +93,7 @@ Two boards are sold as ESP32-2432S028R. They differ only in the display controll
 | Original CYD | micro-USB port only | ILI9341 |
 | CYD2USB | additional USB-C port | ST7789 |
 
-Pinout, touch, backlight and SI5351 wiring are identical. Firmware built for the other controller shows only noise.
+Pinout, touch, backlight and SI5351 wiring are identical. One firmware serves both; it detects the controller at boot (section 43).
 
 ### 4.2 Display Pinout
 
@@ -112,14 +112,7 @@ Pinout, touch, backlight and SI5351 wiring are identical. Firmware built for the
 TFT_eSPI
 ```
 
-The display is configured through PlatformIO build flags, not by editing the library files. TFT_eSPI selects the controller at compile time, so each board variant has its own PlatformIO environment (see 33.1):
-
-| Environment | Controller flags |
-|---|---|
-| `esp32-2432S028R` | `-DILI9341_DRIVER=1` |
-| `esp32-2432S028R-usbc` | `-DST7789_DRIVER=1`, `-DTFT_RGB_ORDER=TFT_BGR`, `-DTFT_INVERSION_OFF` |
-
-All other display flags (pins, HSPI, SPI frequency, fonts) are shared.
+The display is configured through PlatformIO build flags, not by editing the library files. TFT_eSPI selects the controller at compile time; it is built for the ILI9341 (`-DILI9341_DRIVER=1`, SPI mode 0). `DisplayPanel` (`drivers/display_panel.*`) detects the controller at boot and, on the ST7789, replaces the init sequence and the MADCTL values (section 43). TFT_eSPI is pinned to 2.5.43 because the ST7789 init sequence is copied from it.
 
 ---
 
@@ -923,8 +916,8 @@ The firmware initialization order is:
 4. Settings load from NVS
 5. SI5351 detection with both SDA/SCL assignments, identity check and init (`app.connectHardware()`)
 6. Touch initialization
-7. LVGL initialization
-8. GUI initialization, boot dialogs (SI5351 missing, NVS unavailable)
+7. Display: boot gesture check, controller detection, init (ILI9341 sequence, then ST7789 sequence if needed), landscape, black
+8. LVGL and GUI initialization, boot dialogs (SI5351 missing, NVS unavailable)
 9. First frame rendered, then backlight on (the uninitialized panel would show noise)
 10. Program stored frequencies; all outputs off
 ```
@@ -1147,21 +1140,17 @@ framework = arduino
 ; lib_deps, shared build_flags, partitions
 test_ignore = *              ; the tests run on the host only
 
-[env:esp32-2432S028R]        ; original CYD, ILI9341
+[env:esp32-2432S028R]        ; both boards, display controller detected at boot
 extends = esp32
 build_flags = ${esp32.build_flags} -DILI9341_DRIVER=1
-
-[env:esp32-2432S028R-usbc]   ; CYD2USB, ST7789
-extends = esp32
-build_flags = ${esp32.build_flags} -DST7789_DRIVER=1 -DTFT_RGB_ORDER=TFT_BGR -DTFT_INVERSION_OFF
 
 [env:native]                 ; host tests, gcc in PATH (Linux/macOS/CI)
 [env:native-win]             ; host tests, PlatformIO's bundled MinGW (Windows)
 ```
 
-The host environments compile only the hardware-independent sources (`AppController`, `SI5351Manager`, settings, storage, backlight, frequency utilities, logger) against the fakes in `test/fakes`; `include/constants.h`, `include/types.h` and `utils/frequency_utils.h` therefore must not include `Arduino.h`.
+The host environments compile only the hardware-independent sources (`AppController`, `SI5351Manager`, `I2CBus`, display detection, settings, storage, backlight, frequency utilities, logger) against the fakes in `test/fakes`; `include/constants.h`, `include/types.h` and `utils/frequency_utils.h` therefore must not include `Arduino.h`.
 
-`default_envs` is required: without it, `pio run -t upload` builds and flashes every environment in turn and leaves the last one on the board. Flash a specific variant with `pio run -e <environment> -t upload`.
+`default_envs` is required: without it, `pio run -t upload` would also try the host environments.
 
 ### 33.2 Required Libraries
 
@@ -1356,7 +1345,7 @@ Further changes:
 
 ## 42. Automatic SDA/SCL Detection
 
-Requested by the project owner on 2026-10-28. Design: `KONZEPT_AUTOERKENNUNG.md`, section "Automatische SDA/SCL-Erkennung".
+Requested by the project owner on 2026-10-28.
 
 - The SI5351 cable at CN1 may be connected in either order. `I2CBus` (`hal/i2c_bus.*`) opens one of the two assignments (`I2CMap::Default`: SDA = GPIO22, `Swapped`: SDA = GPIO27); `AppController::connect_()` tries the open assignment first, then the other one.
 - Detection runs at boot and in every supervision cycle while the SI5351 is not ready (hot plug, replugging during operation). While it is ready, the pins are never changed.
@@ -1370,3 +1359,43 @@ Requested by the project owner on 2026-10-28. Design: `KONZEPT_AUTOERKENNUNG.md`
 - `I2CBus::open()` treats a failed `Wire.end()` as a closed bus: `begin()` would otherwise report success without TX buffer and the next transfer would leak the `Wire` lock.
 - Arduino-ESP32 2.0.x leaks the `Wire` lock on a transfer while the bus is not started; `I2CBus::probe()` and the driver's register access check `I2CBus::isOpen()` first. The startup scan runs only with `LOG_DEBUG` and an open bus.
 - The assignment is kept in RAM only, no NVS key.
+
+## 43. Display Controller Detection
+
+Requested by the project owner on 2026-10-28. One firmware for both boards; the `esp32-2432S028R-usbc` environment is removed.
+
+Measured on both boards (diagnostic sketch, 2026-10-28):
+
+| | Original CYD | CYD2USB |
+|---|---|---|
+| MADCTL read-back (0Bh after writing A8h / 54h) | exact, no dummy bit | exact, no dummy bit |
+| RDDID (04h, one dummy bit) | `00 00 00` | `81 81 B3` (not the ST7789V datasheet value `85 85 52`) |
+| RDID4 (D3h) without the 0xD9 index trick | not driven | not driven |
+| MISO with internal pull-up / pull-down | data stays valid | the pull overrides the panel completely |
+| Error-free read clock | up to 16 MHz | up to 8 MHz |
+| Writes at 40 MHz, SPI mode 0 and 3 | error-free | error-free |
+
+After the ILI9341 init sequence the ST7789 reports ID1 = 0x10 (C1h is IDSET there); SWRESET restores it.
+
+Detection (`DisplayDetect::probe()`, before `tft.init()`, HSPI 1 MHz, mode 0, GPIO12 without pull):
+
+1. SWRESET, 10 ms.
+2. Write MADCTL A8h, read 0Bh; write MADCTL 54h, read 0Bh. The XOR of both reads must show FCh in bits 7:2 (shift 0 or 1). A floating or stuck MISO fails here.
+3. Read RDDID twice; both reads must match. ID = 24 bits after the dummy bit.
+4. ID `000000` → ILI9341; ID `FFFFFF` → unknown; any other ID → ST7789 (unknown IDs are logged as an error).
+5. MADCTL back to 00h.
+
+Without a result (step 2 or 3 failed, or ID `FFFFFF`) the probe is repeated, at most 3 attempts (about 20 ms each); the log shows the number of attempts.
+
+Decision (`DisplayDetect::decide()`), in this order:
+
+1. Build flag `DISPLAY_FORCE_PANEL` = 1 (ILI9341) or 2 (ST7789): used as is, nothing stored.
+2. NVS key `disp_panel` (namespace `hfgen`, 0 = automatic, 1 = ILI9341, 2 = ST7789) set: stored choice.
+3. Otherwise the detection; ILI9341 if nothing was detected.
+4. Boot gesture (touch pressed at power-on and held for 1.5 s, ≥ 90 % of 20 ms samples): the other controller. It is stored; if it equals the automatic result, `disp_panel` is reset to 0. The backlight blinks twice (not with `DISPLAY_FORCE_PANEL`). Only presses with a plausible raw position count (`TouchDriver::pressed()`), so a missing or defective touch controller with saturated readings does not trigger the gesture on every boot.
+
+After any touch at power-on, gesture or not, the firmware waits until the finger has been lifted for 200 ms (max. 10 s), so the touch does not reach LVGL as the first tap.
+
+A wrong stored choice can always be undone with a second gesture, which works without a readable screen. `disp_panel` is written only after a gesture and only when it changes.
+
+Init: TFT_eSPI sends its ILI9341 sequence on both boards. On the ST7789 `DisplayDetect::postInit()` then sends SWRESET, 150 ms, and `ST7789_INIT` (TFT_eSPI 2.5.43 `ST7789_Init.h` as built before with `TFT_RGB_ORDER=TFT_BGR`, `TFT_INVERSION_OFF`: without `fillScreen()`, INVOFF). After `setRotation()` the ST7789 gets its own MADCTL (`08 68 C8 A8` for rotation 0..3 instead of `48 28 88 E8`). CASET, RASET, RAMWR and the 16-bit color format are the same on both controllers; `setRotation()`, `readPixel()` and `readRect()` must not be called on TFT_eSPI directly.

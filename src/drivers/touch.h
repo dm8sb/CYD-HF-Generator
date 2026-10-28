@@ -11,6 +11,9 @@ public:
     TouchDriver();
     bool begin(const TouchCalibration& cal);
     bool readLvgl(lv_indev_drv_t* drv, lv_indev_data_t* data);
+    // Pressed with a plausible raw position, e.g. for the boot gesture. A missing or defective
+    // touch controller reads saturated values that would look like a permanent press.
+    bool pressed();
 
 private:
     bool mapPoint(int16_t rx, int16_t ry, lv_coord_t* x, lv_coord_t* y);

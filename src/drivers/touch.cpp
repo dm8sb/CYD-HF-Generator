@@ -15,6 +15,12 @@ bool TouchDriver::begin(const TouchCalibration& cal) {
     return ok;
 }
 
+bool TouchDriver::pressed() {
+    if (!touch_.touched()) return false;
+    const TS_Point p = touch_.getPoint();
+    return p.x > 0 && p.x < 4095 && p.y > 0 && p.y < 4095;
+}
+
 bool TouchDriver::mapPoint(int16_t rx, int16_t ry, lv_coord_t* x, lv_coord_t* y) {
     if (cal_.x_max == cal_.x_min || cal_.y_max == cal_.y_min) return false;
     long mx = map(rx, cal_.x_min, cal_.x_max, 0, SCREEN_WIDTH - 1);

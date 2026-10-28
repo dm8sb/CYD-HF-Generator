@@ -17,6 +17,10 @@ public:
     SaveResult update(const PersistentState& state);
     bool isDirty() const { return dirty_; }
     bool lastSaveFailed() const { return saveFailed_; }
+    // Display controller chosen with the boot gesture (0 = automatic, see PanelType).
+    // Outside PersistentState: read once before the display starts, written at once.
+    uint8_t loadDisplayPanel();
+    bool saveDisplayPanel(uint8_t panel);
 
 private:
     bool save_(const PersistentState& state);

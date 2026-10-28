@@ -2,16 +2,17 @@
 
 #include <Arduino.h>
 #include <lvgl.h>
-#include <TFT_eSPI.h>
 #include <constants.h>
 #include <core/app_controller.h>
+#include <drivers/display_panel.h>
 #include <drivers/touch.h>
 
 // Pages are built once per navigation. Actions change the AppController state and then
 // refresh_() updates the existing widgets, so no widget is deleted inside its own event.
 class Gui {
 public:
-    bool begin(AppController& app, TouchDriver& touch);
+    // The display must already be initialized (DisplayPanel::begin()).
+    bool begin(AppController& app, TouchDriver& touch, DisplayPanel& display);
     void update();
     // One dialog at a time; further messages are queued, identical ones dropped.
     void showMessage(const char* title, const char* text);
@@ -98,7 +99,7 @@ private:
     static void flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p);
     static void touchCb_(lv_indev_drv_t* drv, lv_indev_data_t* data);
 
-    TFT_eSPI tft_;
+    DisplayPanel* display_ = nullptr;
     TouchDriver* touch_ = nullptr;
     AppController* app_ = nullptr;
     PageId currentPage_ = PageId::Main;

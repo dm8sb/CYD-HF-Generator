@@ -9,7 +9,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 
 ## Features
 
-- ILI9341 or ST7789 (CYD2USB) 320x240 landscape GUI with LVGL
+- ILI9341 (original CYD) or ST7789 (CYD2USB) 320x240 landscape GUI with LVGL; one firmware, the display controller is detected at boot
 - XPT2046 touch on a separate VSPI bus
 - SI5351 clock generator on CN1 (GPIO22 / GPIO27); SDA and SCL are detected automatically, the wires may be swapped
 - CH1 and CH2 independent 1-100 MHz outputs
@@ -47,6 +47,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - Detection at 100 kHz, then 400 kHz; stays at 100 kHz if the bus does not work at 400 kHz (weak pull-ups)
 - Boot no longer hangs after a failed I2C init; a line held low by the SI5351 after a reset is released at boot
 - Bus scan only with `LOG_DEBUG`, `CORE_DEBUG_LEVEL=1`
+- One firmware for both boards: the display controller (ILI9341 / ST7789) is detected at boot; boot gesture as fallback; the `esp32-2432S028R-usbc` environment is gone
 
 ## Pinout
 
@@ -85,29 +86,26 @@ Pinned or requested by `platformio.ini`:
 
 ## Build and Flash
 
-Two board variants are sold as ESP32-2432S028R. They differ only in the display controller:
+Two board variants are sold as ESP32-2432S028R. They differ only in the display controller, and the same firmware runs on both:
 
-| Board | Display controller | PlatformIO environment |
+| Board | Display controller | Detected by (RDDID, command 04h) |
 |---|---|---|
-| Original CYD, micro-USB only | ILI9341 | `esp32-2432S028R` (default) |
-| CYD2USB, additional USB-C port | ST7789 | `esp32-2432S028R-usbc` |
-
-Flashing the wrong variant leaves the display showing only noise.
+| Original CYD, micro-USB only | ILI9341 | ID `00 00 00` |
+| CYD2USB, additional USB-C port | ST7789 type | any other ID (measured `81 81 B3`, datasheet `85 85 52`) |
 
 ```bash
 cd CYD-HF-Generator
-pio run -e esp32-2432S028R -t upload        # original CYD
-pio run -e esp32-2432S028R-usbc -t upload   # CYD with USB-C port
+pio run -t upload            # both boards
 pio device monitor -b 115200
 ```
 
-Without `-e`, only the default environment `esp32-2432S028R` is built.
+At boot the firmware reads the controller over SPI (MISO GPIO12) before the display is initialized and logs the result, e.g. `[DISPLAY] ST7789 (detected); detected ST7789: ID 8181B3, ...`. If the display still shows only noise, hold the touch screen while switching on until the backlight blinks twice (boot gesture): the firmware uses the other controller and stores the choice; a second gesture returns to automatic detection. Developers can skip the detection with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789).
 
 The project uses `huge_app.csv`. A standard 4 MB ESP32 module is sufficient.
 
 ## Unit Tests
 
-Host tests run without hardware: frequency helpers, the SI5351 driver against a register model of the chip, and the AppController with settings, supervision and CH3 IQ logic.
+Host tests run without hardware: frequency helpers, the SI5351 driver against a register model of the chip, the AppController with settings, supervision and CH3 IQ logic, and the display detection against a panel model (`test/helpers/panel_model.h`, read behavior as measured on both boards).
 
 ```bash
 pio test -e native-win   # Windows, uses the MinGW toolchain bundled with PlatformIO
@@ -139,7 +137,7 @@ The project follows a modular structure:
 
 - `main.cpp`: initialization order and loop
 - `core/app_controller.*`: single source of truth for runtime state and SI5351 coordination
-- `drivers/*`: SI5351, touch, backlight and RGB status LED drivers
+- `drivers/*`: SI5351, display (`display_detect.*`: controller detection, host-testable; `display_panel.*`: TFT_eSPI, ST7789 init), touch, backlight and RGB status LED drivers
 - `services/*`: Preferences storage and autosave
 - `hal/i2c_bus.*`: owns `Wire`; opens either SDA/SCL assignment, bus release at boot; the detection itself runs in `AppController::connect_()`
 - `gui/gui.cpp`: LVGL setup, deferred navigation, shared widgets, action dispatch and message box

@@ -5,6 +5,7 @@
 #include <types.h>
 #include <hal/i2c_bus.h>
 #include <drivers/backlight.h>
+#include <drivers/display_panel.h>
 #include <drivers/si5351_manager.h>
 #include <drivers/touch.h>
 #include <services/settings.h>
@@ -16,12 +17,45 @@ static SettingsService settings;
 static BacklightDriver backlight;
 static SI5351Manager si5351;
 static TouchDriver touch;
+static DisplayPanel display;
 static AppController app(settings, si5351, backlight);
 static Gui gui;
 static PersistentState loadedState;
 
 static void showError(const char* title, const char* text) {
     gui.showMessage(title, text);
+}
+
+// Touch held from power-on for 1.5 s: use the other display controller. Works without a
+// readable screen, so it helps when the display shows only noise.
+static bool bootGesture() {
+    if (!touch.pressed()) return false;
+    uint8_t held = 0;
+    for (uint8_t i = 0; i < 75; ++i) {
+        held += touch.pressed() ? 1 : 0;
+        delay(20);
+    }
+    return held >= 68; // 90 %
+}
+
+static void blinkBacklight(uint8_t times) {
+    for (uint8_t i = 0; i < times; ++i) {
+        backlight.setPercent(100);
+        delay(150);
+        backlight.setPercent(0);
+        delay(150);
+    }
+}
+
+// A finger on the screen at boot must not reach LVGL as the first tap. The pressure
+// reading flickers, so released means 200 ms without touch (at most 10 s).
+static void waitForRelease() {
+    const uint32_t t0 = millis();
+    uint8_t free = 0;
+    while (free < 10 && millis() - t0 < 10000) {
+        free = touch.pressed() ? 0 : free + 1;
+        delay(20);
+    }
 }
 
 void setup() {
@@ -54,8 +88,19 @@ void setup() {
         Logger::error("BOOT", "Touch init failed");
     }
 
-    // 7-8. LVGL and GUI init
-    gui.begin(app, touch);
+    // 7. Display: detect the controller (ILI9341 / ST7789), boot gesture overrides
+    const bool touchedAtBoot = touch.pressed();
+    const bool gesture = touchedAtBoot && bootGesture();
+    const PanelDecision panel = display.begin((PanelType)settings.loadDisplayPanel(), gesture);
+    if (panel.save && !settings.saveDisplayPanel((uint8_t)panel.saveValue)) {
+        Logger::error("DISPLAY", "Saving the display choice failed");
+    }
+    // Two blinks: the boot gesture switched the controller (ignored with DISPLAY_FORCE_PANEL).
+    if (panel.source == PanelSource::Gesture) blinkBacklight(2);
+    if (touchedAtBoot) waitForRelease();
+
+    // 8. LVGL and GUI init
+    gui.begin(app, touch, display);
     app.setErrorCallback(showError);
     if (!si5351Ok) {
         gui.showMessage("SI5351", AppController::linkText(app.linkState()));

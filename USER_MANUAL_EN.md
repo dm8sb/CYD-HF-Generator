@@ -693,16 +693,18 @@ SI5351 address = 0x60
 
 Display and touch use separate SPI buses.
 
-### Board Variant and Matching Firmware
+### Board Variants
 
-Two boards are sold as ESP32-2432S028R. They differ only in the display controller, and each needs its own firmware:
+Two boards are sold as ESP32-2432S028R. They differ only in the display controller. The same firmware runs on both; it detects the controller at power-on:
 
-| Board | How to recognize it | Display controller | Firmware (PlatformIO environment) |
-|---|---|---|---|
-| Original CYD | micro-USB port only | ILI9341 | `esp32-2432S028R` |
-| CYD2USB | additional USB-C port | ST7789 | `esp32-2432S028R-usbc` |
+| Board | How to recognize it | Display controller |
+|---|---|---|
+| Original CYD | micro-USB port only | ILI9341 |
+| CYD2USB | additional USB-C port | ST7789 |
 
-If the display shows only noise after flashing, the firmware of the other variant is installed. Flash the matching firmware (see README, section "Build and Flash"). Pinout, touch and operation are the same on both variants.
+The serial monitor shows the result, e.g. `[DISPLAY] ST7789 (detected); ...`. Pinout, touch and operation are the same on both variants.
+
+**Display shows only noise (boot gesture):** touch the display, switch the device on and keep touching until the backlight blinks twice, then let go. The firmware then uses the other controller and remembers the choice. A second boot gesture returns to automatic detection. The gesture only works if the touch is already there at power-on and held for 1.5 s.
 
 ---
 
