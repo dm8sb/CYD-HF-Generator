@@ -12,6 +12,7 @@ static void* packAction(uint8_t action, uint8_t arg) { return (void*)(uintptr_t)
 bool Gui::begin(AppController& app, TouchDriver& touch) {
     app_ = &app;
     touch_ = &touch;
+    lastConnections_ = app.connectionCount();
 
     StatusLed::begin();
 
@@ -249,6 +250,11 @@ void Gui::update() {
     // output errors (cleared by the periodic retry) change.
     if (millis() - lastUpdateMs_ < 300) return;
     lastUpdateMs_ = millis();
+    // SI5351 reconnected (possibly between two samples): connection dialogs are outdated.
+    if (app_->connectionCount() != lastConnections_) {
+        lastConnections_ = app_->connectionCount();
+        if (app_->hardwareReady()) dismissLinkMessages_();
+    }
     const uint8_t hwState = hardwareState_();
     if (hwState != lastHwState_) {
         lastHwState_ = hwState;
@@ -366,6 +372,16 @@ void Gui::openMessage_(const char* title, const char* text) {
     lv_obj_center(msgbox_);
     lv_obj_add_event_cb(msgbox_, msgboxEventCb_, LV_EVENT_VALUE_CHANGED, nullptr);
     lv_obj_add_event_cb(msgbox_, msgboxEventCb_, LV_EVENT_DELETE, nullptr);
+}
+
+void Gui::dismissLinkMessages_() {
+    uint8_t kept = 0;
+    for (uint8_t i = 0; i < msgCount_; ++i) {
+        if (!AppController::isLinkText(msgQueue_[i].text)) msgQueue_[kept++] = msgQueue_[i];
+    }
+    msgCount_ = kept;
+    // Output errors from the restore stay. The delete event clears msgbox_ and opens the next message.
+    if (msgbox_ && AppController::isLinkText(msgText_)) lv_msgbox_close(msgbox_);
 }
 
 void Gui::nextMessageCb_(void* gui) {

@@ -48,6 +48,36 @@ inline SerialLog& serialLog() {
 
 inline uint32_t millis() { return Fake::clockMs(); }
 inline void delay(uint32_t ms) { Fake::advanceMs(ms); }
+inline void delayMicroseconds(uint32_t) {}
+
+// GPIO: pins in lowMask read LOW (e.g. an I2C line held by a device). Writes and
+// falling edges (written LOW after HIGH or for the first time) are counted.
+#define LOW 0
+#define HIGH 1
+#define PULLUP 0x04
+#define INPUT_PULLUP 0x05
+#define OUTPUT_OPEN_DRAIN 0x13
+namespace Fake {
+struct Gpio {
+    uint32_t lowMask;
+    unsigned writes;
+    uint32_t drivenLow;
+    unsigned falls[40];
+};
+inline Gpio& gpio() {
+    static Gpio g {};
+    return g;
+}
+} // namespace Fake
+inline void pinMode(int, uint8_t) {}
+inline int digitalRead(int pin) { return (Fake::gpio().lowMask >> pin) & 1 ? LOW : HIGH; }
+inline void digitalWrite(int pin, uint8_t level) {
+    Fake::Gpio& g = Fake::gpio();
+    ++g.writes;
+    const uint32_t bit = 1u << pin;
+    if (level == LOW && !(g.drivenLow & bit)) ++g.falls[pin];
+    g.drivenLow = level == LOW ? (g.drivenLow | bit) : (g.drivenLow & ~bit);
+}
 
 class FakeSerial {
 public:

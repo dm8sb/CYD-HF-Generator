@@ -1,9 +1,10 @@
 #include "app_controller.h"
 #include <constants.h>
+#include <hal/i2c_bus.h>
 #include <utils/logger.h>
 #include <utils/frequency_utils.h>
 
-static const char* MSG_HW_LOST = "Connection lost. Check the wiring; reconnecting automatically.";
+static const char* MSG_HW_LOST = "Connection lost. Check the cable; SDA/SCL may be in either order. Reconnecting automatically.";
 
 AppController::AppController(SettingsService& settings, SI5351Manager& si5351, BacklightDriver& backlight)
     : settings_(settings), si5351_(si5351), backlight_(backlight) {}
@@ -30,6 +31,7 @@ void AppController::superviseHardware_() {
     lastHwCheckMs_ = now;
     if (si5351_.ready()) {
         if (!si5351_.checkAlive()) {
+            link_ = LinkState::NotFound;
             reportError_("SI5351", MSG_HW_LOST);
         } else if (anyFault_()) {
             quietRetry_ = true;
@@ -39,9 +41,100 @@ void AppController::superviseHardware_() {
         }
         return;
     }
-    if (si5351_.begin(state_.sys.freq_correction)) {
-        Logger::info("APP", "SI5351 connected; restoring outputs");
+    if (connect_()) {
+        Logger::info("APP", "Restoring outputs");
         reconfigureOutputs_();
+    }
+}
+
+bool AppController::connect_() {
+    bool timeout = false;
+    bool foreign = false;
+    const I2CMap first = I2CBus::map();
+    for (uint8_t i = 0; i < 2; ++i) {
+        const I2CMap m = i == 0 ? first : (first == I2CMap::Default ? I2CMap::Swapped : I2CMap::Default);
+        if (!I2CBus::open(m)) continue;
+        const uint8_t r = I2CBus::probe(SI5351Manager::I2C_ADDR);
+        if (r == 5) {
+            timeout = true;
+            continue;
+        }
+        if (r != 0) {
+            if (foreignOn_ == (int8_t)m) foreignOn_ = -1; // removed
+            continue;
+        }
+        if (foreignOn_ == (int8_t)m) {
+            // Not written again. A device that failed the read-only check gets another
+            // chance once it passes it, e.g. an SI5351 that was still powering up.
+            if (foreignKeptNoWrite_ || !si5351_.identify()) {
+                foreign = true;
+                continue;
+            }
+            foreignOn_ = -1;
+        }
+        // On failure the other assignment is still tried: weak pull-ups can fake an ACK.
+        if (si5351_.begin(state_.sys.freq_correction)) {
+            // A mark from a fake ACK on the other assignment must not outlive a rewiring.
+            foreignOn_ = -1;
+            I2CBus::setRunClock();
+            // Weak pull-ups can pass at the detection clock but not at 400 kHz.
+            if (!si5351_.identify()) {
+                Logger::error("APP", "I2C fails at 400 kHz; staying at 100 kHz");
+                I2CBus::open(m);
+            }
+            ++connections_;
+            setLinkState_(LinkState::Connected);
+            return true;
+        }
+        const SI5351Manager::Error e = si5351_.lastError();
+        if (e == SI5351Manager::Error::NotSi5351 || e == SI5351Manager::Error::NoReadback) {
+            foreignOn_ = (int8_t)m;
+            foreignKeptNoWrite_ = e == SI5351Manager::Error::NoReadback;
+            foreign = true;
+        }
+    }
+    setLinkState_(foreign ? LinkState::UnknownDevice : timeout ? LinkState::Blocked : LinkState::NotFound);
+    return false;
+}
+
+void AppController::setLinkState_(LinkState s) {
+    if (s == link_) return;
+    link_ = s;
+    if (s == LinkState::Connected) {
+        char line[64];
+        snprintf(line, sizeof(line), "SI5351 at 0x60, SDA=%d SCL=%d%s", I2CBus::sdaPin(), I2CBus::sclPin(),
+                 I2CBus::map() == I2CMap::Swapped ? " (swapped)" : "");
+        Logger::info("APP", line);
+    } else if (s == LinkState::NotFound) {
+        Logger::info("APP", "SI5351 not found");
+    } else {
+        reportError_("SI5351", linkText(s));
+    }
+}
+
+LinkState AppController::linkState() const {
+    if (si5351_.ready()) return LinkState::Connected;
+    return link_ == LinkState::Connected ? LinkState::NotFound : link_;
+}
+
+bool AppController::isLinkText(const char* text) {
+    const LinkState states[] = {LinkState::NotFound, LinkState::Blocked, LinkState::UnknownDevice};
+    for (LinkState s : states) {
+        if (strcmp(text, linkText(s)) == 0) return true;
+    }
+    return strcmp(text, MSG_HW_LOST) == 0;
+}
+
+const char* AppController::linkText(LinkState s) {
+    switch (s) {
+        case LinkState::Blocked:
+            return "I2C line stays low: short, missing 3.3 V or defective module. Check the cable at CN1. "
+                   "Searching automatically.";
+        case LinkState::UnknownDevice:
+            return "The device at I2C address 0x60 is not an SI5351. It is not programmed. Check the module.";
+        default:
+            return "SI5351 not found. Check the cable at CN1, 3.3 V and GND. SDA/SCL may be in either order. "
+                   "Searching automatically.";
     }
 }
 

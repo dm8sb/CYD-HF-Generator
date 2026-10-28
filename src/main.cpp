@@ -29,7 +29,7 @@ void setup() {
     Logger::begin(APP_SERIAL_BAUD);
     Logger::info("BOOT", APP_NAME " " APP_VERSION);
 
-    // 2. I2C explicit pins from include/pins.h @ 400kHz
+    // 2. I2C on CN1; which pin is SDA is detected in step 5
     I2CBus::begin();
 
     // 3. Backlight on GPIO21 PWM only; dark until the first frame
@@ -43,8 +43,8 @@ void setup() {
     settings.load(loadedState);
     app.begin(loadedState);
 
-    // 5. SI5351 init
-    bool si5351Ok = si5351.begin(loadedState.sys.freq_correction);
+    // 5. SI5351 init, SDA/SCL in either order
+    const bool si5351Ok = app.connectHardware();
     if (!si5351Ok) {
         Logger::error("BOOT", "SI5351 init failed");
     }
@@ -58,8 +58,7 @@ void setup() {
     gui.begin(app, touch);
     app.setErrorCallback(showError);
     if (!si5351Ok) {
-        gui.showMessage("SI5351", "No I2C ACK at 0x60. Check SDA/SCL pins, VCC, GND, OE pin and pullups. "
-                                  "Reconnecting automatically.");
+        gui.showMessage("SI5351", AppController::linkText(app.linkState()));
     }
     if (!settingsOk) {
         gui.showMessage("Settings", "Flash storage (NVS) unavailable. Settings will not be saved.");

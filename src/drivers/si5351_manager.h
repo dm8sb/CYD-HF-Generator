@@ -7,10 +7,22 @@
 class SI5351Manager {
 public:
     enum class Pll : uint8_t { A = 0, B = 1 };
+    // Why the last begin() failed. NotSi5351: something answers at 0x60 but fails the
+    // read-only identity check (no write). NoReadback: it passed, but did not keep the
+    // output enable register (the only write it received).
+    enum class Error : uint8_t { None, NoAck, NotSi5351, NoReadback, Io };
+    static constexpr uint8_t I2C_ADDR = 0x60;
 
-    // Probes and initializes the chip with all outputs off. Call again to reconnect.
+    // Probes, checks the identity and initializes the chip with all outputs off.
+    // Call again to reconnect. Needs an open bus (I2CBus).
     bool begin(int32_t correction);
     bool ready() const { return ready_; }
+    // Read-only part of the identity check (registers 0 and 183), no write.
+    bool identify();
+    Error lastError() const { return lastError_; }
+    // Register 183 bits 5:0 differ from the documented reset value (e.g. a clone).
+    bool idUnverified() const { return idUnverified_; }
+    uint8_t revId() const { return revId_; }
     // Reads back the output registers. Returns false and drops ready() if the chip
     // does not answer or lost its configuration (e.g. after a power interruption).
     bool checkAlive();
@@ -61,7 +73,13 @@ private:
     // Marks the chip as lost after a failed I2C transfer; returns ok.
     bool finish_(bool ok);
 
+    bool identify_(uint8_t& status);
+    bool fail_(Error e);
+
     bool ready_ = false;
+    Error lastError_ = Error::None;
+    bool idUnverified_ = false;
+    uint8_t revId_ = 0;
     int32_t correction_ = 0;
     uint8_t outputMask_ = 0;
     OutputCache out_[3] {};

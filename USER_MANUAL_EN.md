@@ -592,7 +592,19 @@ Errors are shown as a dialog. `OK` closes it. At most one dialog is open at a ti
 
 If the SI5351 is not found at startup, **one** message is shown. Afterwards the main page shows `NO HW` for the channels and the channel pages show `SI5351 not found`. Settings can still be changed and are saved.
 
-The firmware checks every 2 seconds whether the SI5351 answers. When it is connected later or a loose contact is fixed, the firmware reconnects automatically and restores the set frequencies and ON/OFF states. If the connection is lost during operation (or the SI5351 briefly loses power), the message `Connection lost` is shown and the channels show `NO HW` until the connection is back.
+The firmware checks every 2 seconds whether the SI5351 answers. When it is connected later or a loose contact is fixed, the firmware reconnects automatically, restores the set frequencies and ON/OFF states and closes the connection message. If the connection is lost during operation (or the SI5351 briefly loses power), the message `Connection lost` is shown and the channels show `NO HW` until the connection is back.
+
+SDA and SCL may be connected to CN1 in either order (GPIO22/GPIO27). The firmware tries both assignments, also after replugging during operation. The serial monitor shows the assignment found, with `(swapped)` for reversed wires.
+
+Further messages when connecting:
+
+| Message | Meaning |
+|---|---|
+| `SI5351 not found ...` | No device at address 0x60: check the cable, 3.3 V and GND. The search continues. |
+| `I2C line stays low ...` | An I2C line is held at GND: short circuit, missing 3.3 V at the module or defective module. The search continues. |
+| `The device at I2C address 0x60 is not an SI5351 ...` | Another device answers at 0x60. It is not programmed (at most one test byte in register 3) until it is unplugged. An SI5351 that briefly returns wrong values while being plugged in is checked again automatically. |
+
+Note: if an SI5351 module stays powered while its cable is unplugged, its outputs keep running. On reconnect the firmware switches them off for a few milliseconds and then restores them.
 
 ### Settings Are Not Saved
 
@@ -616,7 +628,7 @@ CH3 = CLK2
 The serial monitor should show:
 
 ```text
-[I2C] Found device at 0x60
+[APP] SI5351 at 0x60, SDA=22 SCL=27
 ```
 
 4. Is there a common ground?
@@ -659,8 +671,8 @@ pio device monitor -b 115200
 Important messages:
 
 ```text
-[I2C] Found device at 0x60
-[SI5351] Init OK; all outputs High-Z
+[SI5351] Init OK; all outputs off
+[APP] SI5351 at 0x60, SDA=22 SCL=27
 [APP] CH1 frequency: ...
 [SI5351] Correction (0.01 ppm): ...
 [SETTINGS] Saved to NVS
@@ -672,11 +684,10 @@ Detailed SI5351 messages (output mask, phase register, etc.) only appear if the 
 
 ## 13. Current Hardware Pinout
 
-The SI5351 I2C wiring was confirmed for this project by I2C scan:
+The SI5351 is connected to CN1. SDA and SCL may be swapped; the firmware detects the assignment:
 
 ```text
-SDA = GPIO22
-SCL = GPIO27
+SDA / SCL = GPIO22 / GPIO27 (either order; tried first: SDA = GPIO22)
 SI5351 address = 0x60
 ```
 

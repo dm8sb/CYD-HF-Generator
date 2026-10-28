@@ -6,6 +6,7 @@
 #include <Wire.h>
 #include <constants.h>
 #include <core/app_controller.h>
+#include <hal/i2c_bus.h>
 #include <helpers/si5351_model.h>
 #include <string.h>
 
@@ -24,7 +25,7 @@ static void onError(const char* title, const char* text) {
     snprintf(lastErrorText, sizeof(lastErrorText), "%s", text);
 }
 
-// Boots like main.cpp: settings, SI5351, backlight, stored channel settings.
+// Boots like main.cpp: I2C, settings, SI5351, backlight, stored channel settings.
 struct Device {
     SettingsService settings;
     SI5351Manager si;
@@ -32,12 +33,13 @@ struct Device {
     AppController app;
 
     Device() : app(settings, si, backlight) {
+        I2CBus::begin();
         settings.begin();
         PersistentState loaded;
         settings.load(loaded);
         app.begin(loaded);
         backlight.begin();
-        si.begin(loaded.sys.freq_correction);
+        app.connectHardware();
         app.setErrorCallback(onError);
         backlight.setPercent(loaded.sys.backlight);
         app.applyStoredChannelSettings();
@@ -58,8 +60,12 @@ void setUp() {
     Fake::clockMs() = 0;
     errorCount = 0;
     lastErrorTitle[0] = lastErrorText[0] = '\0';
+    Fake::wireMisuse() = false;
+    Fake::gpio() = Fake::Gpio {};
+    Wire.failBegin = false;
+    Wire.resetCounters();
 }
-void tearDown() {}
+void tearDown() { TEST_ASSERT_FALSE(Fake::wireMisuse()); }
 
 static void assertHz(uint8_t clk, uint64_t expected, int32_t corr = 0) {
     TEST_ASSERT_NULL(limitViolation(clk, corr));
@@ -341,6 +347,210 @@ static void test_healthy_device_is_not_reconfigured() {
 }
 
 // ---------------------------------------------------------------------------
+// SDA/SCL detection: the cable at CN1 may be swapped
+
+static void test_boot_with_straight_cable() {
+    Device d;
+    TEST_ASSERT_EQUAL(LinkState::Connected, d.app.linkState());
+    TEST_ASSERT_EQUAL(I2CMap::Default, I2CBus::map());
+    TEST_ASSERT_EQUAL_INT(PIN_I2C_A, I2CBus::sdaPin());
+    TEST_ASSERT_EQUAL_UINT(1, Wire.beginCalls);
+    TEST_ASSERT_EQUAL_UINT32(I2C_FREQ_HZ, Wire.clockHz);
+    TEST_ASSERT_EQUAL_UINT16(I2C_TIMEOUT_MS, Wire.timeOutMs);
+}
+
+static void test_boot_with_swapped_cable() {
+    chip.swapWires();
+    Device d;
+    TEST_ASSERT_EQUAL(LinkState::Connected, d.app.linkState());
+    TEST_ASSERT_EQUAL(I2CMap::Swapped, I2CBus::map());
+    TEST_ASSERT_EQUAL_INT(PIN_I2C_B, I2CBus::sdaPin());
+    TEST_ASSERT_EQUAL_UINT32(I2C_FREQ_HZ, Wire.clockHz);
+    assertHz(0, DEFAULT_FREQ_CH1);
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_boot_without_module_searches_quietly() {
+    chip.present = false;
+    Device d;
+    TEST_ASSERT_EQUAL(LinkState::NotFound, d.app.linkState());
+    Wire.resetCounters();
+    d.run(10 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    TEST_ASSERT_TRUE(Wire.beginCalls <= 10); // at most one re-init per cycle
+}
+
+static void test_hot_plug_straight_then_swapped() {
+    chip.present = false;
+    Device d;
+    chip.present = true;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    chip.present = false;
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "either order"));
+    chip.powerOn();
+    chip.swapWires();
+    chip.present = true;
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(I2CMap::Swapped, I2CBus::map());
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+}
+
+static void test_rewiring_while_running_restores_iq() {
+    Device d;
+    d.app.setChannelFrequency(1, 7100000);
+    startIQ(d);
+    d.app.setCH3Phase(270);
+    chip.powerOn(); // unplugged, cable turned around, plugged in again
+    chip.swapWires();
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+    assertHz(0, 7100000);
+    TEST_ASSERT_TRUE(inverted(2));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)ms(0).ratio(), phase(2));
+}
+
+static void test_dropout_reconnects_on_same_assignment() {
+    Device d;
+    Wire.resetCounters();
+    chip.failAfter = 0;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_FALSE(d.app.hardwareReady());
+    chip.failAfter = -1;
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT(0, Wire.endCalls);
+    TEST_ASSERT_EQUAL(I2CMap::Default, I2CBus::map());
+}
+
+static void test_healthy_link_leaves_bus_setup_alone() {
+    Device d;
+    startIQ(d);
+    Wire.resetCounters();
+    d.run(100 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(0, Wire.beginCalls);
+    TEST_ASSERT_EQUAL_UINT(0, Wire.endCalls);
+    TEST_ASSERT_EQUAL_UINT(0, Wire.setClockCalls);
+}
+
+static void test_fake_ack_on_wrong_assignment_is_skipped() {
+    chip.swapWires();
+    chip.ghostOnWrongPins = true;
+    Device d;
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(I2CMap::Swapped, I2CBus::map());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    // Rewired straight later with another cable: the default assignment must not stay
+    // marked as foreign.
+    chip.powerOn();
+    chip.swapWires();
+    chip.ghostOnWrongPins = false;
+    d.run(2 * HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(I2CMap::Default, I2CBus::map());
+}
+
+static void test_foreign_device_is_not_programmed() {
+    chip.foreign = true;
+    chip.foreignValue = 0x5A; // passes the read-only checks, keeps no register
+    Device d;
+    TEST_ASSERT_EQUAL(LinkState::UnknownDevice, d.app.linkState());
+    d.run(10 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(1, chip.writes.size());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount); // main.cpp shows the boot dialog
+    // Replaced by an SI5351.
+    chip.present = false;
+    d.run(HW_CHECK_INTERVAL_MS);
+    chip.foreign = false;
+    chip.present = true;
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_si5351_powering_up_is_retried_while_present() {
+    chip.foreign = true; // still powering up: reads 0x00
+    Device d;
+    TEST_ASSERT_EQUAL(LinkState::UnknownDevice, d.app.linkState());
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+    chip.foreign = false;
+    chip.powerOn();
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_bus_too_weak_for_400_khz_stays_at_100_khz() {
+    chip.maxClockHz = I2C_DETECT_HZ;
+    Device d;
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT32(I2C_DETECT_HZ, Wire.clockHz);
+    d.app.setChannelEnabled(1, true);
+    d.run(10 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(ChannelStatus::On, d.app.channelStatus(1));
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    TEST_ASSERT_EQUAL_UINT16(1, d.app.connectionCount());
+}
+
+static void test_link_texts_are_recognized() {
+    TEST_ASSERT_TRUE(AppController::isLinkText(AppController::linkText(LinkState::Blocked)));
+    TEST_ASSERT_FALSE(AppController::isLinkText("CH3 IQ setup failed"));
+    Device d;
+    chip.present = false;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(AppController::isLinkText(lastErrorText)); // "Connection lost"
+}
+
+static void test_line_held_low_reports_blocked() {
+    Device d;
+    chip.lineLow = Fake::Si5351Chip::Line::Scl;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount); // connection lost
+    Fake::advanceMs(HW_CHECK_INTERVAL_MS);
+    const uint32_t t0 = Fake::clockMs();
+    d.app.update();
+    TEST_ASSERT_TRUE(Fake::clockMs() - t0 <= 2 * I2C_TIMEOUT_MS);
+    TEST_ASSERT_EQUAL(LinkState::Blocked, d.app.linkState());
+    TEST_ASSERT_EQUAL_UINT(2, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "stays low"));
+    d.run(3 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(2, errorCount); // one dialog per change
+    chip.lineLow = Fake::Si5351Chip::Line::None;
+    chip.powerOn();
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+}
+
+static void test_boot_releases_line_held_low() {
+    Fake::gpio().lowMask = 1u << PIN_I2C_A;
+    TEST_ASSERT_TRUE(I2CBus::begin());
+    // As SCL: 9 clocks + low before STOP; as SDA: low for the STOP.
+    TEST_ASSERT_EQUAL_UINT(11, Fake::gpio().falls[PIN_I2C_A]);
+    TEST_ASSERT_EQUAL_UINT(11, Fake::gpio().falls[PIN_I2C_B]);
+    Fake::gpio() = Fake::Gpio {};
+    TEST_ASSERT_TRUE(I2CBus::begin());
+    TEST_ASSERT_EQUAL_UINT(0, Fake::gpio().writes);
+}
+
+static void test_link_texts_fit_the_dialog() {
+    const LinkState states[] = {LinkState::NotFound, LinkState::Blocked, LinkState::UnknownDevice};
+    for (LinkState s : states) TEST_ASSERT_TRUE(strlen(AppController::linkText(s)) < 160);
+    Device d;
+    chip.present = false;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Reconnecting automatically.")); // not truncated
+}
+
+// ---------------------------------------------------------------------------
 // Persistence
 
 static void test_autosave_after_quiet_period() {
@@ -471,6 +681,21 @@ int main() {
     RUN_TEST(test_power_glitch_reports_once_and_restores);
     RUN_TEST(test_bus_failure_while_tuning_shows_no_hw);
     RUN_TEST(test_healthy_device_is_not_reconfigured);
+    RUN_TEST(test_boot_with_straight_cable);
+    RUN_TEST(test_boot_with_swapped_cable);
+    RUN_TEST(test_boot_without_module_searches_quietly);
+    RUN_TEST(test_hot_plug_straight_then_swapped);
+    RUN_TEST(test_rewiring_while_running_restores_iq);
+    RUN_TEST(test_dropout_reconnects_on_same_assignment);
+    RUN_TEST(test_healthy_link_leaves_bus_setup_alone);
+    RUN_TEST(test_fake_ack_on_wrong_assignment_is_skipped);
+    RUN_TEST(test_foreign_device_is_not_programmed);
+    RUN_TEST(test_si5351_powering_up_is_retried_while_present);
+    RUN_TEST(test_bus_too_weak_for_400_khz_stays_at_100_khz);
+    RUN_TEST(test_link_texts_are_recognized);
+    RUN_TEST(test_line_held_low_reports_blocked);
+    RUN_TEST(test_boot_releases_line_held_low);
+    RUN_TEST(test_link_texts_fit_the_dialog);
     RUN_TEST(test_autosave_after_quiet_period);
     RUN_TEST(test_save_failure_is_reported);
     RUN_TEST(test_nvs_unavailable);

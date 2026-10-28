@@ -9,12 +9,17 @@
 typedef void (*ErrorCallback)(const char* title, const char* text);
 
 enum class SaveState : uint8_t { Saved, Pending, Failed, Unavailable };
+// SI5351 connection. Blocked: an I2C line stays low. UnknownDevice: something at 0x60 fails
+// the identity check and is not programmed until it is unplugged.
+enum class LinkState : uint8_t { NotFound, Blocked, UnknownDevice, Connected };
 
 class AppController {
 public:
     AppController(SettingsService& settings, SI5351Manager& si5351, BacklightDriver& backlight);
 
     void begin(const PersistentState& loaded);
+    // Finds the SI5351 with either SDA/SCL assignment and initializes it (boot).
+    bool connectHardware() { return connect_(); }
     // Autosave and SI5351 supervision (health check, automatic reconnect).
     void update();
     void applyStoredChannelSettings();
@@ -39,6 +44,13 @@ public:
     const PersistentState& state() const { return state_; }
 
     bool hardwareReady() const { return si5351_.ready(); }
+    LinkState linkState() const;
+    // Counts successful connections; the GUI closes outdated connection dialogs when it changes.
+    uint16_t connectionCount() const { return connections_; }
+    // Dialog text for a state other than Connected.
+    static const char* linkText(LinkState s);
+    // True for linkText() and the "Connection lost" text.
+    static bool isLinkText(const char* text);
     SaveState saveState() const;
     uint64_t ch3Frequency() const { return masterFrequency_(); }
     ChannelStatus channelStatus(uint8_t ch) const;
@@ -56,6 +68,9 @@ private:
     // Reports a lost SI5351 instead of `text` when the failure came from the I2C bus.
     void reportHardwareError_(const char* text);
     void superviseHardware_();
+    // Tries the open SDA/SCL assignment first, then the other one.
+    bool connect_();
+    void setLinkState_(LinkState s);
     bool anyFault_() const { return fault_[0] || fault_[1] || fault_[2]; }
     bool iqConfigured_() const;
     void configureStandalone_(uint8_t ch);
@@ -71,6 +86,13 @@ private:
     PersistentState state_ {};
     ErrorCallback errorCb_ = nullptr;
     uint32_t lastHwCheckMs_ = 0;
+    // Starts as Connected so the first result is logged as a change.
+    LinkState link_ = LinkState::Connected;
+    // Assignment (I2CMap) with a device at 0x60 that is no SI5351, -1 = none.
+    int8_t foreignOn_ = -1;
+    // The marked device passed the read-only check but kept no register: never retried.
+    bool foreignKeptNoWrite_ = false;
+    uint16_t connections_ = 0;
     // Per CLK: last setup failed while the SI5351 answered. Cleared by the next successful setup.
     bool fault_[3] {};
     // Periodic retries of failed setups report to the log only, not as a dialog.

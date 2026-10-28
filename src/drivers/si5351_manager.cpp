@@ -1,5 +1,6 @@
 #include "si5351_manager.h"
 #include <Wire.h>
+#include <hal/i2c_bus.h>
 #include <config.h>
 #include <constants.h>
 #include <utils/logger.h>
@@ -7,8 +8,6 @@
 #include <math.h>
 
 using Ratio = SI5351Manager::Ratio;
-
-static constexpr uint8_t SI5351_ADDR = 0x60;
 
 // Register map (AN619).
 static constexpr uint8_t REG_STATUS = 0;
@@ -126,6 +125,7 @@ static uint8_t control(SI5351Manager::Pll pll, uint8_t driveMa, bool msInt, bool
 bool SI5351Manager::begin(int32_t correction) {
     correction_ = correction;
     ready_ = false;
+    idUnverified_ = false;
     outputMask_ = 0;
     for (uint8_t i = 0; i < 3; ++i) {
         out_[i] = OutputCache {CTRL_PDN, {}, 0, false};
@@ -133,28 +133,60 @@ bool SI5351Manager::begin(int32_t correction) {
     }
     pll_[0].valid = pll_[1].valid = false;
 
-    if (!probe_()) return false;
+    if (!probe_()) return fail_(Error::NoAck);
+    uint8_t status = 0;
+    if (!identify_(status)) return false;
 
-    // Wait until the chip has finished its power-up initialization.
-    uint8_t status = STATUS_SYS_INIT;
+    // Wait until the chip has finished its power-up initialization. Clones may keep
+    // SYS_INIT set; the output enable read-back below decides.
     for (uint8_t i = 0; i < 20 && (status & STATUS_SYS_INIT); ++i) {
-        if (!readRegs_(REG_STATUS, &status, 1)) return false;
-        if (status & STATUS_SYS_INIT) delay(1);
+        delay(1);
+        if (!readRegs_(REG_STATUS, &status, 1)) return fail_(Error::Io);
     }
+    if (status & STATUS_SYS_INIT) Logger::error("SI5351", "SYS_INIT still set; continuing");
+    if (idUnverified_) Logger::error("SI5351", "Unexpected register 183 (clone?); continuing");
 
-    bool ok = writeReg_(REG_OUTPUT_ENABLE, 0xFF);
-    for (uint8_t clk = 0; clk < 8; ++clk) ok &= writeReg_(REG_CLK0_CONTROL + clk, CTRL_PDN);
-    ok &= writeReg_(REG_PLL_SOURCE, 0x00);   // both PLLs from the crystal
-    ok &= writeReg_(REG_XTAL_LOAD, XTAL_LOAD_10PF);
-    if (!ok) {
-        Logger::error("SI5351", "Init write failed");
-        return false;
-    }
+    // A register that keeps what was written. Outputs off is the first init write anyway.
+    uint8_t oe = 0;
+    if (!writeReg_(REG_OUTPUT_ENABLE, 0xFF) || !readRegs_(REG_OUTPUT_ENABLE, &oe, 1)) return fail_(Error::Io);
+    if (oe != 0xFF) return fail_(Error::NoReadback);
+
+    bool ok = true;
+    for (uint8_t clk = 0; clk < 8 && ok; ++clk) ok = writeReg_(REG_CLK0_CONTROL + clk, CTRL_PDN);
+    ok = ok && writeReg_(REG_PLL_SOURCE, 0x00);   // both PLLs from the crystal
+    ok = ok && writeReg_(REG_XTAL_LOAD, XTAL_LOAD_10PF);
+    if (!ok) return fail_(Error::Io);
 
     ready_ = true;
+    lastError_ = Error::None;
+    revId_ = status & 0x03;
     Logger::debugValue("SI5351", "Device status reg0", status);
     Logger::info("SI5351", "Init OK; all outputs off");
     return true;
+}
+
+bool SI5351Manager::identify() {
+    uint8_t status = 0;
+    return identify_(status);
+}
+
+// Reads only: an open bus or another device reads 0x00 / 0xFF. A status of 0xFF also
+// has SYS_INIT set and would only run into the wait in begin().
+bool SI5351Manager::identify_(uint8_t& status) {
+    if (!readRegs_(REG_STATUS, &status, 1)) return fail_(Error::Io);
+    if (status == 0xFF) return fail_(Error::NotSi5351);
+    // XTAL_CL (bits 7:6) 00 is reserved (AN619), reset value 11.
+    uint8_t xtal = 0;
+    if (!readRegs_(REG_XTAL_LOAD, &xtal, 1)) return fail_(Error::Io);
+    if (xtal == 0x00 || xtal == 0xFF || (xtal & 0xC0) == 0) return fail_(Error::NotSi5351);
+    idUnverified_ = (xtal & 0x3F) != (XTAL_LOAD_10PF & 0x3F);
+    return true;
+}
+
+bool SI5351Manager::fail_(Error e) {
+    lastError_ = e;
+    Logger::debugValue("SI5351", "Init failed, error", (int64_t)e);
+    return false;
 }
 
 bool SI5351Manager::checkAlive() {
@@ -362,8 +394,7 @@ bool SI5351Manager::finish_(bool ok) {
 }
 
 bool SI5351Manager::probe_() {
-    Wire.beginTransmission(SI5351_ADDR);
-    return Wire.endTransmission(true) == 0;
+    return I2CBus::probe(I2C_ADDR) == 0;
 }
 
 bool SI5351Manager::writeReg_(uint8_t reg, uint8_t value) {
@@ -371,17 +402,19 @@ bool SI5351Manager::writeReg_(uint8_t reg, uint8_t value) {
 }
 
 bool SI5351Manager::writeRegs_(uint8_t reg, const uint8_t* data, uint8_t len) {
-    Wire.beginTransmission(SI5351_ADDR);
+    if (!I2CBus::isOpen()) return false;
+    Wire.beginTransmission(I2C_ADDR);
     Wire.write(reg);
     Wire.write(data, len);
     return Wire.endTransmission(true) == 0;
 }
 
 bool SI5351Manager::readRegs_(uint8_t reg, uint8_t* data, uint8_t len) {
-    Wire.beginTransmission(SI5351_ADDR);
+    if (!I2CBus::isOpen()) return false;
+    Wire.beginTransmission(I2C_ADDR);
     Wire.write(reg);
     if (Wire.endTransmission(false) != 0) return false;
-    if (Wire.requestFrom(SI5351_ADDR, len, (uint8_t)true) != len) return false;
+    if (Wire.requestFrom(I2C_ADDR, len, (uint8_t)true) != len) return false;
     for (uint8_t i = 0; i < len; ++i) data[i] = (uint8_t)Wire.read();
     return true;
 }

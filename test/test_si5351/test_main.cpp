@@ -5,6 +5,7 @@
 #include <Wire.h>
 #include <constants.h>
 #include <drivers/si5351_manager.h>
+#include <hal/i2c_bus.h>
 #include <helpers/si5351_model.h>
 #include <stdio.h>
 
@@ -23,10 +24,13 @@ static char msg[160];
 void setUp() {
     chip.reset();
     Fake::clockMs() = 0;
+    Fake::wireMisuse() = false;
+    Wire.failBegin = false;
+    TEST_ASSERT_TRUE(I2CBus::begin());
     TEST_ASSERT_TRUE(si.begin(0));
     chip.clearLog();
 }
-void tearDown() {}
+void tearDown() { TEST_ASSERT_FALSE(Fake::wireMisuse()); }
 
 // Deterministic pseudo-random frequencies.
 static uint32_t lcgState = 1;
@@ -87,6 +91,91 @@ static void test_begin_leaves_all_outputs_off() {
     for (uint8_t i = 16; i <= 23; ++i) TEST_ASSERT_EQUAL_HEX8(0x80, chip.regs[i]);
     TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[15]);
     TEST_ASSERT_EQUAL_HEX8(0xD2, chip.regs[183]);
+}
+
+// ---------------------------------------------------------------------------
+// Identity check: something else at 0x60 gets at most one write
+
+static void test_begin_on_closed_bus_does_not_touch_wire() {
+    Wire.failBegin = true;
+    TEST_ASSERT_FALSE(I2CBus::open(I2CMap::Swapped));
+    TEST_ASSERT_FALSE(si.begin(0));
+    TEST_ASSERT_EQUAL(SI5351Manager::Error::NoAck, si.lastError());
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+}
+
+static void test_begin_accepts_reset_state() {
+    chip.reset();
+    TEST_ASSERT_TRUE(si.begin(0));
+    TEST_ASSERT_FALSE(si.idUnverified());
+    TEST_ASSERT_EQUAL(SI5351Manager::Error::None, si.lastError());
+}
+
+static void test_begin_accepts_unexpected_reg183_with_warning() {
+    chip.reset();
+    chip.regs[183] = 0xC0; // XTAL_CL valid, bits 5:0 differ (clone)
+    TEST_ASSERT_TRUE(si.begin(0));
+    TEST_ASSERT_TRUE(si.idUnverified());
+}
+
+static void test_begin_rejects_device_reading_zero() {
+    chip.reset();
+    chip.foreign = true;
+    chip.foreignValue = 0x00;
+    TEST_ASSERT_FALSE(si.begin(0));
+    TEST_ASSERT_EQUAL(SI5351Manager::Error::NotSi5351, si.lastError());
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+}
+
+static void test_begin_rejects_device_reading_ff_without_waiting() {
+    chip.reset();
+    chip.foreign = true;
+    chip.foreignValue = 0xFF;
+    const uint32_t t0 = Fake::clockMs();
+    TEST_ASSERT_FALSE(si.begin(0));
+    TEST_ASSERT_EQUAL(SI5351Manager::Error::NotSi5351, si.lastError());
+    TEST_ASSERT_EQUAL_UINT32(t0, Fake::clockMs());
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+}
+
+static void test_begin_rejects_device_without_register_readback() {
+    chip.reset();
+    chip.foreign = true;
+    chip.foreignValue = 0x5A; // plausible status and reg183, but keeps nothing
+    TEST_ASSERT_FALSE(si.begin(0));
+    TEST_ASSERT_EQUAL(SI5351Manager::Error::NoReadback, si.lastError());
+    TEST_ASSERT_EQUAL_UINT(1, chip.writes.size());
+    TEST_ASSERT_EQUAL_UINT8(3, chip.writes[0].reg);
+    // The read-only check alone cannot tell it from an SI5351.
+    TEST_ASSERT_TRUE(si.identify());
+    TEST_ASSERT_EQUAL_UINT(1, chip.writes.size());
+}
+
+static void test_begin_tolerates_sys_init_stuck() {
+    chip.reset();
+    chip.initReads = 100;
+    TEST_ASSERT_TRUE(si.begin(0));
+}
+
+static void test_begin_stops_at_first_io_error() {
+    chip.reset();
+    chip.initReads = 0;
+    // Probe 1, status 2-3, reg183 4-5, OE write 6, OE read-back 7-8: the first control write fails.
+    chip.failAfter = 8;
+    TEST_ASSERT_FALSE(si.begin(0));
+    TEST_ASSERT_EQUAL(SI5351Manager::Error::Io, si.lastError());
+    TEST_ASSERT_EQUAL_UINT(1, chip.writes.size()); // only the output enable
+    TEST_ASSERT_EQUAL_UINT(1, chip.failedTransfers);
+}
+
+static void test_register_access_on_closed_bus_does_not_touch_wire() {
+    Wire.failBegin = true;
+    TEST_ASSERT_FALSE(I2CBus::open(I2CMap::Swapped));
+    TEST_ASSERT_FALSE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    TEST_ASSERT_FALSE(si.ready());
+    TEST_ASSERT_FALSE(si.checkAlive());
+    TEST_ASSERT_FALSE(si.identify());
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
 }
 
 static void test_check_alive_detects_power_cycle() {
@@ -411,6 +500,15 @@ int main() {
     UNITY_BEGIN();
     RUN_TEST(test_begin_without_device_fails);
     RUN_TEST(test_begin_leaves_all_outputs_off);
+    RUN_TEST(test_begin_on_closed_bus_does_not_touch_wire);
+    RUN_TEST(test_begin_accepts_reset_state);
+    RUN_TEST(test_begin_accepts_unexpected_reg183_with_warning);
+    RUN_TEST(test_begin_rejects_device_reading_zero);
+    RUN_TEST(test_begin_rejects_device_reading_ff_without_waiting);
+    RUN_TEST(test_begin_rejects_device_without_register_readback);
+    RUN_TEST(test_begin_tolerates_sys_init_stuck);
+    RUN_TEST(test_begin_stops_at_first_io_error);
+    RUN_TEST(test_register_access_on_closed_bus_does_not_touch_wire);
     RUN_TEST(test_check_alive_detects_power_cycle);
     RUN_TEST(test_check_alive_detects_bus_failure);
     RUN_TEST(test_failed_transfer_marks_device_lost_and_begin_recovers);
