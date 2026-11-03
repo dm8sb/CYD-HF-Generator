@@ -34,8 +34,10 @@ public:
     // spectrum follows with the first PLL A setup. The tuning mode takes effect with the next setup call.
     void setTuningMode(TuningMode m) { tuningMode_ = m; }
     TuningMode tuningMode() const { return tuningMode_; }
-    // PLL A only (AN619): CH1 and CH3 with master CH1. If PLL A is configured, the parameters
-    // are written at once and PLL A is reset (short dropout). FBA_INT stays 0 while it is on.
+    // PLL A only (AN619): CH1 and CH3 with master CH1. Takes effect with the next setup call on
+    // PLL A: it plans PLL A so that the modulated VCO stays within 600..900 MHz (see si5351_plan.h),
+    // writes the parameters and resets PLL A (short dropout, an IQ pair is realigned). FBA_INT
+    // stays 0 while it is on. Always true; I2C errors show up in the setup call.
     bool setSpread(Spread s);
     // Level of disabled outputs (register 24). Written at once if the chip is ready; running
     // outputs are not touched. powerDown() depends on it.
@@ -78,6 +80,9 @@ private:
     };
 
     uint64_t xtalQuarterHz_() const;
+    // Spread spectrum that applies to a PLL, and whether the chip runs another option on it.
+    Spread spreadOn_(Pll pll) const { return pll == Pll::A ? spread_ : Spread::Off; }
+    bool spreadChanges_(Pll pll) const { return pll == Pll::A && sscApplied_ != spread_; }
     bool pllDiffers_(Pll pll, const uint8_t* regs) const;
     bool msDiffers_(uint8_t clk, const uint8_t* ms, uint8_t phase) const;
     // PLL parameters, FBx_INT and (PLL A) spread spectrum. No reset.
@@ -99,6 +104,7 @@ private:
     bool ready_ = false;
     TuningMode tuningMode_ = TuningMode::Fractional;
     Spread spread_ = Spread::Off;
+    Spread sscApplied_ = Spread::Off; // option in registers 149..161
     OffState offState_ = OffState::Low;
     Error lastError_ = Error::None;
     bool idUnverified_ = false;

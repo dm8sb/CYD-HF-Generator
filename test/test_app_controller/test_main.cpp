@@ -493,6 +493,29 @@ static void test_iq_in_all_tuning_modes() {
     TEST_ASSERT_EQUAL_UINT(0, errorCount);
 }
 
+static void test_spread_with_iq_on_master_ch1() {
+    Device d;
+    startIQ(d);
+    const TuningMode modes[] = {TuningMode::Fractional, TuningMode::LowNoise};
+    const Spread spreads[] = {Spread::Down05, Spread::Down15, Spread::Center05, Spread::Off};
+    for (TuningMode m : modes) {
+        d.app.setTuningMode(m);
+        for (Spread s : spreads) {
+            d.app.setSpread(s);
+            // Realigned after the PLL A reset; limitViolation() includes the modulated VCO.
+            TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+            TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+            TEST_ASSERT_EQUAL(s != Spread::Off, spreadSpectrum().enabled);
+            assertHz(0, DEFAULT_FREQ_CH1);
+            assertHz(2, DEFAULT_FREQ_CH1);
+            TEST_ASSERT_EQUAL_UINT8((uint8_t)ms(0).ratio(), phase(2));
+            // 10 MHz: divider 90 (900 MHz), with center spread 89 (890 MHz).
+            TEST_ASSERT_EQUAL_DOUBLE(s == Spread::Center05 ? 89.0 : 90.0, ms(0).ratio());
+        }
+    }
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
 static void test_spread_and_off_state_reach_the_chip() {
     Device d;
     d.app.setChannelEnabled(1, true);
@@ -858,6 +881,7 @@ int main() {
     RUN_TEST(test_spread_applies_to_pll_a_only);
     RUN_TEST(test_tuning_mode_change_reconfigures_all_outputs);
     RUN_TEST(test_iq_in_all_tuning_modes);
+    RUN_TEST(test_spread_with_iq_on_master_ch1);
     RUN_TEST(test_spread_and_off_state_reach_the_chip);
     RUN_TEST(test_boot_with_straight_cable);
     RUN_TEST(test_boot_with_swapped_cable);
