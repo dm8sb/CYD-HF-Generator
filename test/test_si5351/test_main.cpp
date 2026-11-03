@@ -27,6 +27,10 @@ void setUp() {
     Fake::wireMisuse() = false;
     Wire.failBegin = false;
     TEST_ASSERT_TRUE(I2CBus::begin());
+    // The CONFIG options survive begin(): back to the defaults.
+    si.setTuningMode(TuningMode::Fractional);
+    si.setSpread(Spread::Off);
+    si.setOffState(OffState::Low);
     TEST_ASSERT_TRUE(si.begin(0));
     chip.clearLog();
 }
@@ -160,7 +164,7 @@ static void test_begin_tolerates_sys_init_stuck() {
 static void test_begin_stops_at_first_io_error() {
     chip.reset();
     chip.initReads = 0;
-    // Probe 1, status 2-3, reg183 4-5, OE write 6, OE read-back 7-8: the first control write fails.
+    // Probe 1, status 2-3, reg183 4-5, OE write 6, OE read-back 7-8: the off state write fails.
     chip.failAfter = 8;
     TEST_ASSERT_FALSE(si.begin(0));
     TEST_ASSERT_EQUAL(SI5351Manager::Error::Io, si.lastError());
@@ -496,6 +500,574 @@ static void test_iq_vco_stays_in_range_at_iq_limits() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// FBx_INT
+
+static void test_fb_int_follows_even_integer_pll() {
+    // Fractional at 10 MHz: PLL A fixed at 36 x 25 MHz.
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    TEST_ASSERT_EQUAL_DOUBLE(36.0, pll(0).ratio());
+    TEST_ASSERT_TRUE(pllIntMode(0));
+    TEST_ASSERT_EQUAL_HEX8(0xC0, chip.regs[22]); // CLK6 stays powered down
+    TEST_ASSERT_FALSE(chip.regs[23] & 0x40);
+    // Low noise at 7.1 MHz: fractional PLL. FBA_INT is cleared before the PLL parameters.
+    si.setTuningMode(TuningMode::LowNoise);
+    chip.clearLog();
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 7100000, 8));
+    TEST_ASSERT_FALSE(pll(0).integer());
+    TEST_ASSERT_FALSE(pllIntMode(0));
+    TEST_ASSERT_TRUE(chip.firstWriteTo(22) < chip.firstWriteTo(26));
+    // Back to 900 MHz: set after the parameters.
+    chip.clearLog();
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    TEST_ASSERT_TRUE(pllIntMode(0));
+    TEST_ASSERT_TRUE(chip.firstWriteTo(22) > chip.firstWriteTo(26));
+    // PLL B has its own bit.
+    TEST_ASSERT_TRUE(si.setupStandalone(1, Pll::B, 12500000, 8)); // divider 72, 900 MHz
+    TEST_ASSERT_TRUE(pllIntMode(1));
+    TEST_ASSERT_EQUAL_HEX8(0xC0, chip.regs[23]);
+    TEST_ASSERT_NULL(limitViolation(0));
+    TEST_ASSERT_NULL(limitViolation(1));
+}
+
+// ---------------------------------------------------------------------------
+// Low noise: even integer MultiSynth, fractional PLL
+
+// Worst case of the 20-bit PLL fraction: half a step, 25 MHz / (2 * 1048575), at the VCO.
+static double lowNoiseMaxErr(double divider) { return 25e6 * (1 + 6e-5) / (2.0 * 1048575) / divider; }
+static constexpr double LOW_NOISE_MAX_ERR_HZ = 1.5; // divider >= 8 up to 100 MHz
+
+static void assertLowNoise(uint8_t clk, uint64_t freq, int32_t corr, double maxErr) {
+    assertOutput(clk, freq, corr, maxErr);
+    const Block m = ms(clk);
+    const double vco = vcoHz(clk, corr);
+    snprintf(msg, sizeof(msg), "CLK%u %llu Hz corr %ld: MultiSynth %.6f, VCO %.1f Hz", clk, (unsigned long long)freq,
+             (long)corr, m.ratio(), vco);
+    TEST_ASSERT_TRUE_MESSAGE(m.integer() && fmod(m.ratio(), 2.0) == 0.0, msg);
+    TEST_ASSERT_TRUE_MESSAGE(ctrl(clk) & CTRL_MS_INT, msg);
+    // The PLL takes the correction: the VCO is divider x frequency.
+    TEST_ASSERT_TRUE_MESSAGE(vco >= 600e6 - 15 && vco <= 900e6 + 15, msg);
+}
+
+static void checkLowNoise(uint64_t freq, int32_t corr, double maxErr = LOW_NOISE_MAX_ERR_HZ) {
+    snprintf(msg, sizeof(msg), "setupStandalone %llu Hz", (unsigned long long)freq);
+    TEST_ASSERT_TRUE_MESSAGE(si.setupStandalone(0, Pll::A, freq, 8), msg);
+    assertLowNoise(0, freq, corr, maxErr);
+    chip.writes.clear();
+}
+
+static void test_low_noise_accuracy_1_to_100_mhz() {
+    for (int32_t corr : CORRECTIONS) {
+        TEST_ASSERT_TRUE(si.begin(corr));
+        si.setTuningMode(TuningMode::LowNoise);
+        lcgState = 19;
+        for (int i = 0; i < 4000; ++i) checkLowNoise(randomHz(FREQ_MIN_HZ, FREQ_MAX_HZ), corr);
+        checkLowNoise(FREQ_MIN_HZ, corr);
+        checkLowNoise(FREQ_MAX_HZ, corr);
+        // Next to k * 25 MHz / divider the PLL fraction is close to an integer.
+        for (int div = 8; div <= 128; div += 2) {
+            for (int k = 24; k <= 36; ++k) {
+                for (int d = -3; d <= 3; ++d) {
+                    const uint64_t f = (uint64_t)llround(k * 25e6 / div) + d;
+                    if (f >= FREQ_MIN_HZ && f <= FREQ_MAX_HZ) checkLowNoise(f, corr);
+                }
+            }
+        }
+    }
+}
+
+static void test_low_noise_below_1_mhz_and_above_100_mhz() {
+    for (int32_t corr : CORRECTIONS) {
+        TEST_ASSERT_TRUE(si.begin(corr));
+        si.setTuningMode(TuningMode::LowNoise);
+        lcgState = 23;
+        for (int i = 0; i < 500; ++i) checkLowNoise(randomHz(8000, FREQ_MIN_HZ - 1), corr);
+        // 8, 6 or 4 (DIVBY4); a kept divider may be smaller than a new one.
+        for (int i = 0; i < 1000; ++i) {
+            const uint64_t f = randomHz(FREQ_MAX_HZ + 1, 160000000ULL);
+            TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, f, 8));
+            assertLowNoise(0, f, corr, lowNoiseMaxErr(ms(0).ratio()));
+        }
+    }
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 8000, 8));
+    TEST_ASSERT_EQUAL_UINT8(7, ms(0).rLog2);
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 155000000, 8));
+    TEST_ASSERT_TRUE(ms(0).divBy4);
+    TEST_ASSERT_NULL(limitViolation(0));
+}
+
+static void test_low_noise_resets_pll_only_when_the_divider_changes() {
+    struct Sweep {
+        uint64_t start;
+        int32_t step;
+        unsigned count;
+    };
+    const Sweep sweeps[] = {{7000000, 1, 2000},     {9999000, 1, 2000},      {7000000, 1000, 2000},
+                            {28000000, 100, 3000},  {50000000, 1000, 3000},  {99000000, -1000, 5000},
+                            {1000000, 1000, 9000},  {10000000, 1000000, 90}, {100000000, -1000000, 99}};
+    for (int32_t corr : {0, 970}) {
+        for (const Sweep& s : sweeps) {
+            TEST_ASSERT_TRUE(si.begin(corr));
+            si.setTuningMode(TuningMode::LowNoise);
+            TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, s.start, 8));
+            TEST_ASSERT_TRUE(si.enableOutput(0, true));
+            chip.clearLog();
+            for (unsigned i = 1; i <= s.count; ++i) {
+                const uint64_t f = s.start + (int64_t)i * s.step;
+                const double divider = ms(0).ratio();
+                const unsigned resets = chip.pllResets[0];
+                TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, f, 8));
+                snprintf(msg, sizeof(msg), "%llu Hz, corr %ld: divider %.0f -> %.0f", (unsigned long long)f, (long)corr,
+                         divider, ms(0).ratio());
+                TEST_ASSERT_EQUAL_UINT_MESSAGE(ms(0).ratio() != divider ? 1 : 0, chip.pllResets[0] - resets, msg);
+                TEST_ASSERT_EQUAL_UINT_MESSAGE(0, chip.writesTo(3), msg);
+                assertOutput(0, f, corr, LOW_NOISE_MAX_ERR_HZ);
+                chip.writes.clear();
+            }
+            TEST_ASSERT_TRUE(enabled(0));
+        }
+    }
+}
+
+static void test_low_noise_keeps_divider_over_its_vco_range() {
+    si.setTuningMode(TuningMode::LowNoise);
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    TEST_ASSERT_EQUAL_DOUBLE(90.0, ms(0).ratio()); // largest even divider, VCO 900 MHz
+    TEST_ASSERT_EQUAL_UINT(1, chip.pllResets[0]);
+    chip.clearLog();
+    // Divider 90 covers 6.667-10 MHz.
+    for (uint64_t f = 9999000; f >= 6667000; f -= 1000) {
+        TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, f, 8));
+        TEST_ASSERT_EQUAL_DOUBLE(90.0, ms(0).ratio());
+    }
+    TEST_ASSERT_EQUAL_UINT(0, chip.totalPllResets());
+    for (const Fake::RegWrite& w : chip.writes) TEST_ASSERT_FALSE(w.reg >= 42 && w.reg <= 49); // MultiSynth untouched
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 6666000, 8));
+    TEST_ASSERT_EQUAL_DOUBLE(134.0, ms(0).ratio());
+    TEST_ASSERT_EQUAL_UINT(1, chip.pllResets[0]);
+}
+
+static void test_low_noise_after_fractional_keeps_an_even_divider() {
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8)); // fixed 900 MHz / 90
+    chip.clearLog();
+    si.setTuningMode(TuningMode::LowNoise);
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+    // A fractional divider is replaced, with a reset.
+    si.setTuningMode(TuningMode::Fractional);
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 7100000, 8));
+    chip.clearLog();
+    si.setTuningMode(TuningMode::LowNoise);
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 7100000, 8));
+    TEST_ASSERT_EQUAL_DOUBLE(126.0, ms(0).ratio());
+    TEST_ASSERT_EQUAL_UINT(1, chip.pllResets[0]);
+}
+
+// ---------------------------------------------------------------------------
+// Integer: integer PLL and MultiSynth, frequency on a raster
+
+// Distance of freq to the nearest point crystal * a / (div * 2^rLog2), a = 24..36, by brute force.
+static double rasterErr(uint64_t freq, int32_t corr, uint8_t rLog2, int divMin, int divMax, int divStep) {
+    double best = 1e18;
+    for (int a = 24; a <= 36; ++a) {
+        for (int div = divMin; div <= divMax; div += divStep) {
+            best = fmin(best, fabs(xtalHz(corr) * a / div / (double)(1U << rLog2) - (double)freq));
+        }
+    }
+    return best;
+}
+
+static void assertRasterPoint(uint8_t clk, uint64_t freq, int32_t corr, int divMin, int divMax, int divStep) {
+    const char* violation = limitViolation(clk, corr);
+    snprintf(msg, sizeof(msg), "CLK%u %llu Hz corr %ld: %s", clk, (unsigned long long)freq, (long)corr,
+             violation ? violation : "");
+    TEST_ASSERT_NULL_MESSAGE(violation, msg);
+    const Block p = pll(clk);
+    TEST_ASSERT_TRUE_MESSAGE(p.integer() && p.ratio() >= 24.0 && p.ratio() <= 36.0, msg);
+    TEST_ASSERT_TRUE_MESSAGE(ms(clk).integer(), msg);
+    TEST_ASSERT_EQUAL_MESSAGE(fmod(p.ratio(), 2.0) == 0.0, pllIntMode(clk), msg);
+    // The shown frequency is the raster point itself.
+    TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-6, outputHz(clk, corr), si.actualHz(clk), msg);
+    const double err = fabs(outputHz(clk, corr) - (double)freq);
+    TEST_ASSERT_TRUE_MESSAGE(err <= rasterErr(freq, corr, ms(clk).rLog2, divMin, divMax, divStep) + 1e-6, msg);
+}
+
+static void test_integer_nearest_raster_point() {
+    for (int32_t corr : CORRECTIONS) {
+        TEST_ASSERT_TRUE(si.begin(corr));
+        si.setTuningMode(TuningMode::Integer);
+        lcgState = 29;
+        for (int i = 0; i < 300; ++i) {
+            const uint64_t f = i < 250 ? randomHz(FREQ_MIN_HZ, FREQ_MAX_HZ) : randomHz(8000, 160000000ULL);
+            const Block before = pll(0);
+            const unsigned resets = chip.pllResets[0];
+            TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, f, 8));
+            assertRasterPoint(0, f, corr, 4, 2048, 2);
+            TEST_ASSERT_TRUE_MESSAGE(fmod(ms(0).ratio(), 2.0) == 0.0 && (ctrl(0) & CTRL_MS_INT), msg);
+            // A new PLL multiplier comes with a reset.
+            TEST_ASSERT_EQUAL_UINT_MESSAGE(pll(0).ratio() != before.ratio() ? 1 : 0, chip.pllResets[0] - resets, msg);
+        }
+    }
+}
+
+static void test_integer_example_7_1_mhz() {
+    si.setTuningMode(TuningMode::Integer);
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 7100000, 8));
+    TEST_ASSERT_EQUAL_DOUBLE(25.0, pll(0).ratio()); // 25 MHz x 25 / 88
+    TEST_ASSERT_EQUAL_DOUBLE(88.0, ms(0).ratio());
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 25e6 * 25 / 88, si.actualHz(0));
+    TEST_ASSERT_FALSE(pllIntMode(0)); // odd: FBA_INT only for even ratios
+    // 14 MHz = 25 MHz x 28 / 50 exactly, even PLL ratio.
+    TEST_ASSERT_TRUE(si.setupStandalone(1, Pll::B, 14000000, 8));
+    TEST_ASSERT_EQUAL_DOUBLE(14e6, si.actualHz(1));
+    TEST_ASSERT_TRUE(pllIntMode(1));
+    // The correction moves the raster, not the PLL: the shown frequency follows it.
+    TEST_ASSERT_TRUE(si.begin(CORRECTION_MAX));
+    si.setTuningMode(TuningMode::Integer);
+    TEST_ASSERT_TRUE(si.setupStandalone(1, Pll::B, 14000000, 8));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, 14e6 * (1 + 5e-5), si.actualHz(1));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, outputHz(1, CORRECTION_MAX), si.actualHz(1));
+}
+
+// ---------------------------------------------------------------------------
+// IQ in all tuning modes
+
+static void test_iq_in_all_tuning_modes() {
+    const TuningMode modes[] = {TuningMode::Fractional, TuningMode::LowNoise, TuningMode::Integer};
+    for (TuningMode mode : modes) {
+        for (int32_t corr : CORRECTIONS) {
+            TEST_ASSERT_TRUE(si.begin(corr));
+            si.setTuningMode(mode);
+            lcgState = 31;
+            for (int i = 0; i < 300; ++i) {
+                const uint64_t f = i == 0 ? IQ_MIN_HZ : i == 1 ? IQ_MAX_HZ : randomHz(IQ_MIN_HZ, IQ_MAX_HZ);
+                const uint16_t ph = (uint16_t)(90 * (i % 4));
+                snprintf(msg, sizeof(msg), "mode %u: setupIQPair %llu Hz %u deg", (unsigned)mode,
+                         (unsigned long long)f, ph);
+                TEST_ASSERT_TRUE_MESSAGE(si.setupIQPair(0, 2, Pll::A, f, 8, ph), msg);
+                TEST_ASSERT_EQUAL_MEMORY_MESSAGE(chip.regs + 42, chip.regs + 58, 8, msg);
+                const Block m = ms(0);
+                TEST_ASSERT_TRUE_MESSAGE(m.integer() && m.ratio() >= 9.0 && m.ratio() <= 127.0, msg);
+                TEST_ASSERT_FALSE_MESSAGE((ctrl(0) | ctrl(2)) & CTRL_MS_INT, msg);
+                TEST_ASSERT_EQUAL_UINT8_MESSAGE((ph == 90 || ph == 270) ? (uint8_t)m.ratio() : 0, phase(2), msg);
+                TEST_ASSERT_EQUAL_MESSAGE(ph >= 180, inverted(2), msg);
+                if (mode == TuningMode::Integer) {
+                    assertRasterPoint(0, f, corr, 9, 127, 1);
+                    assertRasterPoint(2, f, corr, 9, 127, 1);
+                } else {
+                    assertOutput(0, f, corr, IQ_MAX_ERR_HZ);
+                    assertOutput(2, f, corr, IQ_MAX_ERR_HZ);
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Spread spectrum (PLL A)
+
+static void assertSpread(Spread s) {
+    const SpreadSpectrum ss = spreadSpectrum();
+    TEST_ASSERT_TRUE(ss.enabled);
+    TEST_ASSERT_EQUAL(s == Spread::Center05, ss.center);
+    TEST_ASSERT_EQUAL_UINT8(0, ss.nclk);
+    TEST_ASSERT_EQUAL_UINT32(32767, ss.dnP3);
+    TEST_ASSERT_DOUBLE_WITHIN(500.0, 31500.0, spreadModulationHz());
+    const double amp = s == Spread::Down15 ? 0.015 : 0.005;
+    TEST_ASSERT_DOUBLE_WITHIN(1e-5, amp, spreadDownAmp());
+    if (ss.center) {
+        TEST_ASSERT_EQUAL_UINT32(32767, ss.upP3);
+        TEST_ASSERT_DOUBLE_WITHIN(1e-5, amp, spreadUpAmp());
+    } else {
+        TEST_ASSERT_EQUAL_DOUBLE(0.0, ss.up());
+    }
+    // Spread spectrum needs the fractional PLL mode.
+    TEST_ASSERT_FALSE(regs()[22] & 0x40);
+}
+
+static void test_begin_switches_spread_spectrum_off() {
+    chip.reset();
+    chip.regs[149] = 0x92; // NVM with spread spectrum on
+    chip.regs[161] = 0xF0;
+    TEST_ASSERT_TRUE(si.begin(0));
+    TEST_ASSERT_FALSE(spreadSpectrum().enabled);
+    TEST_ASSERT_EQUAL_UINT8(0, spreadSpectrum().nclk);
+    // Also with spread spectrum selected: it starts with the first PLL A setup.
+    TEST_ASSERT_TRUE(si.setSpread(Spread::Down05));
+    TEST_ASSERT_TRUE(si.begin(0));
+    TEST_ASSERT_FALSE(spreadSpectrum().enabled);
+    chip.clearLog();
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    assertSpread(Spread::Down05);
+    TEST_ASSERT_EQUAL_UINT(1, chip.pllResets[0]);
+    TEST_ASSERT_NULL(limitViolation(0));
+}
+
+static void test_spread_spectrum_parameters() {
+    const Spread options[] = {Spread::Down05, Spread::Down15, Spread::Center05};
+    for (Spread s : options) {
+        TEST_ASSERT_TRUE(si.setSpread(Spread::Off));
+        TEST_ASSERT_TRUE(si.begin(0));
+        TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8)); // 900 MHz, FBA_INT
+        TEST_ASSERT_TRUE(pllIntMode(0));
+        // Only stored: the next PLL A setup applies it, with a reset.
+        chip.clearLog();
+        TEST_ASSERT_TRUE(si.setSpread(s));
+        TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+        TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+        assertSpread(s);
+        TEST_ASSERT_EQUAL_UINT(1, chip.pllResets[0]);
+        TEST_ASSERT_TRUE(chip.firstWriteTo(22) < chip.firstWriteTo(149)); // FBA_INT off first
+        // Center spread needs a VCO <= 900 MHz / 1.005: 887.5 instead of 900 MHz.
+        TEST_ASSERT_EQUAL_DOUBLE(s == Spread::Center05 ? 35.5 : 36.0, pll(0).ratio());
+        // The unmodulated frequency is unchanged.
+        assertOutput(0, 10000000, 0, STANDALONE_MAX_ERR_HZ);
+        // Off again, with a reset. FBA_INT only after the modulation has stopped; Fractional keeps 887.5 MHz.
+        chip.clearLog();
+        TEST_ASSERT_TRUE(si.setSpread(Spread::Off));
+        TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+        TEST_ASSERT_FALSE(spreadSpectrum().enabled);
+        TEST_ASSERT_EQUAL_UINT(1, chip.pllResets[0]);
+        TEST_ASSERT_EQUAL(s != Spread::Center05, pllIntMode(0));
+        if (s != Spread::Center05) TEST_ASSERT_TRUE(chip.firstWriteTo(149) < chip.firstWriteTo(22));
+        // Unchanged: nothing written.
+        chip.clearLog();
+        TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+        TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+    }
+}
+
+static void test_spread_spectrum_follows_pll_a() {
+    for (int32_t corr : {0, -CORRECTION_MAX}) {
+        TEST_ASSERT_TRUE(si.begin(corr));
+        si.setTuningMode(TuningMode::LowNoise);
+        TEST_ASSERT_TRUE(si.setSpread(Spread::Center05));
+        TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 6900000, 8));
+        // 100 kHz steps change the PLL A ratio by up to 1.5 %: stale parameters would show.
+        for (uint64_t f = 7000000; f <= 9000000; f += 100000) {
+            const double divider = ms(0).ratio();
+            chip.clearLog();
+            TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, f, 8));
+            assertSpread(Spread::Center05);
+            TEST_ASSERT_TRUE(chip.writesTo(149) >= 1);
+            TEST_ASSERT_EQUAL_UINT(ms(0).ratio() != divider ? 1 : 0, chip.pllResets[0]);
+            assertLowNoise(0, f, corr, LOW_NOISE_MAX_ERR_HZ);
+        }
+        // Integer mode never runs FBA_INT together with spread spectrum.
+        si.setTuningMode(TuningMode::Integer);
+        TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 12500000, 8)); // even PLL ratio
+        TEST_ASSERT_TRUE(fmod(pll(0).ratio(), 2.0) == 0.0);
+        assertSpread(Spread::Center05);
+        TEST_ASSERT_NULL(limitViolation(0, corr));
+    }
+}
+
+static void test_spread_spectrum_never_touches_pll_b() {
+    TEST_ASSERT_TRUE(si.setupStandalone(1, Pll::B, 14000000, 8));
+    chip.clearLog();
+    // PLL A not configured yet: only stored.
+    TEST_ASSERT_TRUE(si.setSpread(Spread::Down15));
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    assertSpread(Spread::Down15);
+    // CH2 and an IQ pair on PLL B: no spread spectrum register, FBB_INT stays allowed.
+    chip.clearLog();
+    TEST_ASSERT_TRUE(si.setupStandalone(1, Pll::B, 7100000, 8));
+    TEST_ASSERT_TRUE(si.setupIQPair(1, 2, Pll::B, 12500000, 8, 90)); // divider 72, 900 MHz
+    TEST_ASSERT_TRUE(pllIntMode(1));
+    for (const Fake::RegWrite& w : chip.writes) TEST_ASSERT_FALSE(w.reg >= 149 && w.reg <= 161);
+    TEST_ASSERT_EQUAL_UINT(0, chip.pllResets[0]);
+    // Changing the option touches neither PLL B nor FBB_INT.
+    chip.clearLog();
+    for (Spread s : {Spread::Center05, Spread::Off}) {
+        TEST_ASSERT_TRUE(si.setSpread(s));
+        TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    }
+    for (const Fake::RegWrite& w : chip.writes) {
+        TEST_ASSERT_FALSE(w.reg >= 34 && w.reg <= 41);
+        TEST_ASSERT_NOT_EQUAL(23, w.reg);
+    }
+    TEST_ASSERT_EQUAL_UINT(0, chip.pllResets[1]);
+    TEST_ASSERT_EQUAL_UINT(2, chip.pllResets[0]);
+    TEST_ASSERT_TRUE(pllIntMode(1));
+}
+
+// ---------------------------------------------------------------------------
+// Spread spectrum: the modulated VCO stays within 600..900 MHz
+
+static const Spread SPREADS[] = {Spread::Down05, Spread::Down15, Spread::Center05};
+static const TuningMode MODES[] = {TuningMode::Fractional, TuningMode::LowNoise, TuningMode::Integer};
+
+// Down to vco * (1 - amp), up to vco * (1 + amp) with center spread, amplitudes from the registers.
+// A fixed PLL ratio carries the crystal deviation on top, as without spread spectrum.
+static void assertModulatedVco(uint8_t clk, int32_t corr) {
+    const SpreadSpectrum s = spreadSpectrum();
+    const double vco = vcoHz(clk, corr);
+    const double lo = vco * (1 - spreadDownAmp());
+    const double hi = vco * (1 + (s.center ? spreadUpAmp() : 0.0));
+    const double tol = 20.0 + fabs(corr * 1e-8) * 900e6;
+    snprintf(msg, sizeof(msg), "CLK%u corr %ld: VCO %.0f Hz, modulated %.0f..%.0f Hz", clk, (long)corr, vco, lo, hi);
+    TEST_ASSERT_TRUE_MESSAGE(s.enabled, msg);
+    TEST_ASSERT_TRUE_MESSAGE(lo >= 600e6 - tol && hi <= 900e6 + tol, msg);
+}
+
+static void test_spread_keeps_modulated_vco_in_range() {
+    for (Spread s : SPREADS) {
+        for (TuningMode mode : MODES) {
+            for (int32_t corr : CORRECTIONS) {
+                TEST_ASSERT_TRUE(si.setSpread(s));
+                TEST_ASSERT_TRUE(si.begin(corr));
+                si.setTuningMode(mode);
+                lcgState = 37;
+                for (int i = 0; i < 400; ++i) {
+                    const uint64_t f = i == 0 ? FREQ_MIN_HZ : i == 1 ? FREQ_MAX_HZ : randomHz(FREQ_MIN_HZ, FREQ_MAX_HZ);
+                    snprintf(msg, sizeof(msg), "spread %u mode %u corr %ld: %llu Hz", (unsigned)s, (unsigned)mode,
+                             (long)corr, (unsigned long long)f);
+                    TEST_ASSERT_TRUE_MESSAGE(si.setupStandalone(0, Pll::A, f, 8), msg);
+                    assertModulatedVco(0, corr);
+                    if (mode == TuningMode::Integer) {
+                        TEST_ASSERT_NULL(limitViolation(0, corr));
+                        TEST_ASSERT_DOUBLE_WITHIN(1e-6, outputHz(0, corr), si.actualHz(0));
+                    } else {
+                        assertOutput(0, f, corr, mode == TuningMode::Fractional ? STANDALONE_MAX_ERR_HZ : LOW_NOISE_MAX_ERR_HZ);
+                    }
+                    chip.writes.clear();
+                }
+            }
+        }
+    }
+}
+
+static void test_center_spread_fractional_accuracy_at_weak_spots() {
+    // 900 MHz is out of range: 887.5 and 875 MHz, each next to the weak spots of the other.
+    for (int32_t corr : CORRECTIONS) {
+        TEST_ASSERT_TRUE(si.setSpread(Spread::Center05));
+        TEST_ASSERT_TRUE(si.begin(corr));
+        for (int n = 9; n <= 900; ++n) {
+            for (double vco : {900e6, 887.5e6, 875e6}) {
+                for (int d = -3; d <= 3; ++d) {
+                    const uint64_t f = (uint64_t)llround(vco / n) + d;
+                    if (f < FREQ_MIN_HZ || f > FREQ_MAX_HZ) continue;
+                    checkStandalone(f, corr, STANDALONE_MAX_ERR_HZ);
+                    TEST_ASSERT_TRUE(pll(0).ratio() == 35.5 || pll(0).ratio() == 35.0);
+                }
+            }
+        }
+    }
+}
+
+static void test_spread_keeps_modulated_vco_in_range_iq() {
+    for (Spread s : SPREADS) {
+        // Divider 127 needs >= 600 MHz / (1 - amp), divider 9 <= 900 MHz / (1 + amp) with center spread.
+        const double amp = spreadAmplitude(s);
+        const double lo = 600e6 / (1 - amp) / 127;
+        const double hi = isCenterSpread(s) ? 900e6 / (1 + amp) / 9 : (double)IQ_MAX_HZ;
+        const uint64_t edges[] = {(uint64_t)ceil(lo), (uint64_t)ceil(lo) - 1, (uint64_t)floor(hi), (uint64_t)floor(hi) + 1};
+        for (TuningMode mode : MODES) {
+            for (int32_t corr : CORRECTIONS) {
+                TEST_ASSERT_TRUE(si.setSpread(s));
+                TEST_ASSERT_TRUE(si.begin(corr));
+                si.setTuningMode(mode);
+                lcgState = 41;
+                for (int i = 0; i < 300; ++i) {
+                    const uint64_t f = i < 4 ? edges[i] : i == 4 ? IQ_MIN_HZ : randomHz(IQ_MIN_HZ, IQ_MAX_HZ);
+                    if (f > IQ_MAX_HZ) continue;
+                    snprintf(msg, sizeof(msg), "spread %u mode %u corr %ld: IQ %llu Hz", (unsigned)s, (unsigned)mode,
+                             (long)corr, (unsigned long long)f);
+                    const bool ok = si.setupIQPair(0, 2, Pll::A, f, 8, 90);
+                    // Integer always finds a raster point; the others reject frequencies outside the range.
+                    TEST_ASSERT_EQUAL_MESSAGE(mode == TuningMode::Integer || (f >= lo && f <= hi), ok, msg);
+                    TEST_ASSERT_TRUE(si.ready());
+                    if (!ok) continue;
+                    assertModulatedVco(0, corr);
+                    TEST_ASSERT_EQUAL_UINT8_MESSAGE((uint8_t)ms(0).ratio(), phase(2), msg);
+                    if (mode == TuningMode::Integer) {
+                        TEST_ASSERT_NULL(limitViolation(0, corr));
+                        TEST_ASSERT_NULL(limitViolation(2, corr));
+                        TEST_ASSERT_DOUBLE_WITHIN(1e-6, outputHz(2, corr), si.actualHz(2));
+                    } else {
+                        assertOutput(0, f, corr, IQ_MAX_ERR_HZ);
+                        assertOutput(2, f, corr, IQ_MAX_ERR_HZ);
+                    }
+                    chip.writes.clear();
+                }
+            }
+        }
+        // PLL B is not limited: an IQ pair with master CH2 at 100 MHz keeps divider 9 (900 MHz).
+        TEST_ASSERT_TRUE(si.setupIQPair(1, 2, Pll::B, IQ_MAX_HZ, 8, 90));
+        TEST_ASSERT_EQUAL_DOUBLE(9.0, ms(1).ratio());
+        TEST_ASSERT_NULL(limitViolation(1, CORRECTION_MAX));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Off state (register 24) and power down
+
+static void test_begin_writes_off_state_before_outputs() {
+    const OffState states[] = {OffState::Low, OffState::High, OffState::HighZ};
+    const uint8_t expected[] = {0x00, 0x15, 0x2A};
+    for (uint8_t i = 0; i < 3; ++i) {
+        si.setOffState(states[i]);
+        chip.reset();
+        chip.regs[24] = 0xFF;
+        TEST_ASSERT_TRUE(si.begin(0));
+        TEST_ASSERT_EQUAL_HEX8(expected[i], chip.regs[24]);
+        for (uint8_t clk = 0; clk < 3; ++clk) TEST_ASSERT_EQUAL_UINT8((uint8_t)states[i], disableState(clk));
+        // Right after the output enable read-back, before any control register.
+        TEST_ASSERT_EQUAL_UINT8(3, chip.writes[0].reg);
+        TEST_ASSERT_EQUAL_UINT8(24, chip.writes[1].reg);
+    }
+}
+
+static void test_set_off_state_writes_at_once() {
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    TEST_ASSERT_TRUE(si.enableOutput(0, true));
+    chip.clearLog();
+    TEST_ASSERT_TRUE(si.setOffState(OffState::HighZ));
+    TEST_ASSERT_EQUAL_HEX8(0x2A, chip.regs[24]);
+    TEST_ASSERT_EQUAL_UINT(1, chip.writes.size()); // running outputs untouched
+    TEST_ASSERT_TRUE(si.setOffState(OffState::High));
+    TEST_ASSERT_EQUAL_HEX8(0x15, chip.regs[24]);
+    TEST_ASSERT_TRUE(si.setOffState(OffState::Low));
+    TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[24]);
+    TEST_ASSERT_TRUE(enabled(0));
+    // Not connected: stored, begin() writes it.
+    chip.present = false;
+    TEST_ASSERT_FALSE(si.checkAlive());
+    chip.clearLog();
+    TEST_ASSERT_TRUE(si.setOffState(OffState::High));
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+    chip.present = true;
+    TEST_ASSERT_TRUE(si.begin(0));
+    TEST_ASSERT_EQUAL_HEX8(0x15, chip.regs[24]);
+}
+
+static void test_power_down_keeps_driver_for_high_and_high_z() {
+    for (OffState s : {OffState::High, OffState::HighZ}) {
+        TEST_ASSERT_TRUE(si.setOffState(s));
+        TEST_ASSERT_TRUE(si.begin(0));
+        TEST_ASSERT_TRUE(si.setupStandalone(2, Pll::A, 10000000, 8));
+        TEST_ASSERT_TRUE(si.enableOutput(2, true));
+        const uint8_t running = ctrl(2);
+        TEST_ASSERT_TRUE(si.powerDown(2));
+        TEST_ASSERT_TRUE(chip.regs[3] & 0x04); // disabled: register 24 sets the level
+        TEST_ASSERT_EQUAL_HEX8(running, ctrl(2));
+        TEST_ASSERT_EQUAL_DOUBLE(0.0, si.actualHz(2));
+        // A never configured output gets its driver powered, with the crystal as source.
+        TEST_ASSERT_TRUE(poweredDown(1));
+        TEST_ASSERT_TRUE(si.powerDown(1));
+        TEST_ASSERT_EQUAL_HEX8(0x00, ctrl(1));
+        TEST_ASSERT_TRUE(chip.regs[3] & 0x02);
+        TEST_ASSERT_TRUE(si.checkAlive());
+        // Back to Low: CLKx_PDN.
+        TEST_ASSERT_TRUE(si.setOffState(OffState::Low));
+        TEST_ASSERT_TRUE(si.powerDown(2));
+        TEST_ASSERT_TRUE(si.powerDown(1));
+        TEST_ASSERT_TRUE(poweredDown(2) && poweredDown(1));
+        TEST_ASSERT_TRUE(si.checkAlive());
+    }
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_begin_without_device_fails);
@@ -532,5 +1104,24 @@ int main() {
     RUN_TEST(test_iq_drive_or_inversion_change_keeps_alignment);
     RUN_TEST(test_iq_rejects_invalid_arguments);
     RUN_TEST(test_iq_vco_stays_in_range_at_iq_limits);
+    RUN_TEST(test_fb_int_follows_even_integer_pll);
+    RUN_TEST(test_low_noise_accuracy_1_to_100_mhz);
+    RUN_TEST(test_low_noise_below_1_mhz_and_above_100_mhz);
+    RUN_TEST(test_low_noise_resets_pll_only_when_the_divider_changes);
+    RUN_TEST(test_low_noise_keeps_divider_over_its_vco_range);
+    RUN_TEST(test_low_noise_after_fractional_keeps_an_even_divider);
+    RUN_TEST(test_integer_nearest_raster_point);
+    RUN_TEST(test_integer_example_7_1_mhz);
+    RUN_TEST(test_iq_in_all_tuning_modes);
+    RUN_TEST(test_begin_switches_spread_spectrum_off);
+    RUN_TEST(test_spread_spectrum_parameters);
+    RUN_TEST(test_spread_spectrum_follows_pll_a);
+    RUN_TEST(test_spread_spectrum_never_touches_pll_b);
+    RUN_TEST(test_spread_keeps_modulated_vco_in_range);
+    RUN_TEST(test_center_spread_fractional_accuracy_at_weak_spots);
+    RUN_TEST(test_spread_keeps_modulated_vco_in_range_iq);
+    RUN_TEST(test_begin_writes_off_state_before_outputs);
+    RUN_TEST(test_set_off_state_writes_at_once);
+    RUN_TEST(test_power_down_keeps_driver_for_high_and_high_z);
     return UNITY_END();
 }
