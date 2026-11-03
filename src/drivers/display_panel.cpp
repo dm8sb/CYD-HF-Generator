@@ -63,6 +63,7 @@ PanelDecision DisplayPanel::begin(PanelType stored, bool gesture) {
     } while (probe_.panel == PanelType::Unknown && ++attempts < 3);
     const PanelDecision d = DisplayDetect::decide(probe_, stored, gesture, DISPLAY_FORCE_PANEL);
     panel_ = d.panel;
+    source_ = d.source;
 
     tft_.init(); // ILI9341 sequence
     DisplayDetect::postInit(bus, panel_);

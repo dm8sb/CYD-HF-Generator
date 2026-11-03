@@ -11,6 +11,7 @@
 #include <services/settings.h>
 #include <core/app_controller.h>
 #include <gui/gui.h>
+#include <utils/build_info.h>
 #include <utils/logger.h>
 
 static SettingsService settings;
@@ -61,7 +62,10 @@ static void waitForRelease() {
 void setup() {
     // 1. Serial / Logger
     Logger::begin(APP_SERIAL_BAUD);
-    Logger::info("BOOT", APP_NAME " " APP_VERSION);
+    char line[128];
+    snprintf(line, sizeof(line), "%s %s (%s %s, %s)", APP_NAME, BuildInfo::version(), BuildInfo::branch(),
+             BuildInfo::commit(), BuildInfo::time());
+    Logger::info("BOOT", line);
 
     // 2. I2C on CN1; which pin is SDA is detected in step 5
     I2CBus::begin();
