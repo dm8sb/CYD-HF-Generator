@@ -1,7 +1,6 @@
 #include "../gui.h"
 #include "../gui_layout.h"
 #include <utils/frequency_utils.h>
-#include <math.h>
 #include <ctype.h>
 #include <cstring>
 
@@ -40,7 +39,6 @@ void Gui::refreshChannel_() {
     const AppController& app = *app_;
     const Channel& c = app.channel(channel_);
     char buf[64];
-    char step[16];
 
     const ChannelStatus status = app.channelStatus(channel_);
     setHeaderState_(c.enabled, status == ChannelStatus::Error);
@@ -59,21 +57,14 @@ void Gui::refreshChannel_() {
     buf[n] = '\0';
     lv_label_set_text(w_.freq, buf);
 
-    FrequencyUtils::formatStep(app.system().delta_step, step, sizeof(step));
-    if (status == ChannelStatus::NoDevice) {
-        snprintf(buf, sizeof(buf), "Step %s  |  SI5351 not found", step);
-        lv_obj_set_style_text_color(w_.info, Colors::error(), 0);
-    } else if (status == ChannelStatus::Error) {
-        snprintf(buf, sizeof(buf), "Step %s  |  Output error, retrying", step);
+    // The step is visible through the colored digit and the chips; the info line shows the
+    // actual output frequency.
+    if (status == ChannelStatus::NoDevice || status == ChannelStatus::Error) {
+        lv_label_set_text(w_.info, status == ChannelStatus::NoDevice ? "SI5351 not found" : "Output error, retrying");
         lv_obj_set_style_text_color(w_.info, Colors::error(), 0);
     } else {
-        // Deviation of the synthesized frequency from the requested one (SI5351 resolution).
-        double dev = app.actualHz(channel_) - (double)c.frequency;
-        if (fabs(dev) < 0.05) dev = 0.0;
-        snprintf(buf, sizeof(buf), "Step %s  |  Deviation %+.1f Hz", step, dev);
-        lv_obj_set_style_text_color(w_.info, Colors::muted(), 0);
+        showOutput_(channel_, c.frequency);
     }
-    lv_label_set_text(w_.info, buf);
 
     const uint8_t sel = FrequencyUtils::stepIndex(app.system().delta_step);
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) {

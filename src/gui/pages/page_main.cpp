@@ -1,10 +1,12 @@
 #include "../gui.h"
 #include "../gui_layout.h"
 #include <utils/frequency_utils.h>
+#include <math.h>
 
 using namespace Layout;
 
 static constexpr int CARD_H = 58;
+static constexpr int FREQ_X = 58;
 static constexpr int NAV_Y = 194;
 static constexpr int NAV_H = 42;
 static constexpr int NAV_W = 72;
@@ -25,8 +27,8 @@ void Gui::createMain_() {
 
         addLabel_(card, names[i], &lv_font_montserrat_20, color, 0, 0);
         w_.cardState[i] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 0, 26);
-        w_.cardFreq[i] = addLabel_(card, "", &lv_font_montserrat_20, Colors::text(), 58, 0);
-        w_.cardDetail[i] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 58, 26);
+        w_.cardFreq[i] = addLabel_(card, "", &lv_font_montserrat_20, Colors::text(), FREQ_X, 0);
+        w_.cardDetail[i] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), FREQ_X, 26);
         // Keep the detail line clear of the switch (50 px at the right edge).
         lv_obj_set_width(w_.cardDetail[i], 172);
         lv_label_set_long_mode(w_.cardDetail[i], LV_LABEL_LONG_DOT);
@@ -45,6 +47,20 @@ static void setState(lv_obj_t* label, const char* text, lv_color_t color) {
     lv_obj_set_style_text_color(label, color, 0);
 }
 
+// The requested frequency of a card. In Integer mode the output lies on a raster; "~" marks
+// a deviation from 1 Hz on. It sits left of the digits, which stay aligned with the other cards.
+static void setCardFrequency(lv_obj_t* label, const AppController& app, uint8_t ch, uint64_t requested) {
+    const double actual = app.actualHz(ch);
+    const bool approx = app.system().tuning_mode == TuningMode::Integer && app.hardwareReady() && actual > 0 &&
+                        fabs(FrequencyUtils::deviation(actual, requested)) >= FrequencyUtils::DEVIATION_WARN_HZ;
+    char buf[24];
+    buf[0] = '~';
+    FrequencyUtils::format(requested, buf + 1, sizeof(buf) - 1);
+    lv_label_set_text(label, approx ? buf : buf + 1);
+    const lv_font_t* font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
+    lv_obj_set_x(label, FREQ_X - (approx ? lv_txt_get_width("~", 1, font, 0, LV_TEXT_FLAG_NONE) : 0));
+}
+
 void Gui::refreshMain_() {
     const AppController& app = *app_;
     char buf[48];
@@ -52,8 +68,7 @@ void Gui::refreshMain_() {
     for (uint8_t ch = 1; ch <= 2; ++ch) {
         const uint8_t i = ch - 1;
         const Channel& c = app.channel(ch);
-        FrequencyUtils::format(c.frequency, buf, sizeof(buf));
-        lv_label_set_text(w_.cardFreq[i], buf);
+        setCardFrequency(w_.cardFreq[i], app, ch, c.frequency);
         switch (app.channelStatus(ch)) {
             case ChannelStatus::Off: setState(w_.cardState[i], "OFF", Colors::muted()); break;
             case ChannelStatus::On: setState(w_.cardState[i], "ON", Colors::ok()); break;
@@ -67,14 +82,17 @@ void Gui::refreshMain_() {
     }
 
     const Channel3& c3 = app.ch3();
-    FrequencyUtils::format(app.ch3Frequency(), buf, sizeof(buf));
-    lv_label_set_text(w_.cardFreq[2], buf);
+    // CLK2 has an actual frequency only while IQ runs.
+    setCardFrequency(w_.cardFreq[2], app, 3, app.ch3Frequency());
+    char iqMin[12], tooLow[24];
+    FrequencyUtils::formatMHz(IQ_MIN_HZ, 2, iqMin, sizeof(iqMin));
+    snprintf(tooLow, sizeof(tooLow), " / < %s MHz", iqMin);
     const char* reason = "";
     switch (app.ch3Status()) {
         case Ch3Status::Off: setState(w_.cardState[2], "OFF", Colors::muted()); break;
         case Ch3Status::Active: setState(w_.cardState[2], "ON", Colors::ok()); break;
         case Ch3Status::MasterOff: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = " / master off"; break;
-        case Ch3Status::FreqTooLow: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = " / < 4.73 MHz"; break;
+        case Ch3Status::FreqTooLow: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = tooLow; break;
         case Ch3Status::Error: setState(w_.cardState[2], "ERR", Colors::error()); reason = " / setup failed"; break;
         case Ch3Status::NoDevice: setState(w_.cardState[2], "NO HW", Colors::error()); break;
     }

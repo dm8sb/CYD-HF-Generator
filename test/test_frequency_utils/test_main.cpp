@@ -1,6 +1,7 @@
 #include <unity.h>
 #include <constants.h>
 #include <utils/frequency_utils.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -53,6 +54,73 @@ static void test_format_ppm() {
     TEST_ASSERT_EQUAL_STRING("+0.00 ppm", buf);
     formatPpm(-CORRECTION_MAX, buf, sizeof(buf));
     TEST_ASSERT_EQUAL_STRING("-50.00 ppm", buf);
+}
+
+static void test_format_mhz() {
+    char buf[16];
+    formatMHz(IQ_MIN_HZ, 3, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("4.730", buf);
+    formatMHz(IQ_MIN_HZ, 2, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("4.73", buf);
+    formatMHz(IQ_MAX_HZ, 0, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("100", buf);
+    formatMHz(14074001ULL, 6, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("14.074001", buf);
+    formatMHz(4730500ULL, 3, buf, sizeof(buf)); // rounded
+    TEST_ASSERT_EQUAL_STRING("4.731", buf);
+    formatMHz(999999ULL, 2, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("1.00", buf);
+}
+
+static void test_spread_label() {
+    TEST_ASSERT_EQUAL_STRING("Off", spreadLabel(Spread::Off));
+    TEST_ASSERT_EQUAL_STRING("-0.5 %", spreadLabel(Spread::Down05));
+    TEST_ASSERT_EQUAL_STRING("-1.5 %", spreadLabel(Spread::Down15));
+    TEST_ASSERT_EQUAL_STRING("+/-0.5 %", spreadLabel(Spread::Center05));
+}
+
+static void test_deviation_rounds_to_tenth() {
+    TEST_ASSERT_EQUAL_DOUBLE(0.3, deviation(10000000.3, 10000000ULL));
+    TEST_ASSERT_EQUAL_DOUBLE(-1.4, deviation(9999998.62, 10000000ULL));
+    TEST_ASSERT_EQUAL_DOUBLE(2272.7, deviation(7102272.73, 7100000ULL));
+    // No "-0.0" for a tiny negative deviation.
+    const double d = deviation(9999999.98, 10000000ULL);
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, d);
+    TEST_ASSERT_FALSE(signbit(d));
+}
+
+static void assertOutput(double actual, uint64_t requested, Spread spread, const char* expected, double expectedDev) {
+    char buf[48];
+    const double dev = formatOutput(actual, requested, spread, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING(expected, buf);
+    TEST_ASSERT_EQUAL_DOUBLE(expectedDev, dev);
+}
+
+static void test_format_output() {
+    assertOutput(10000000.3, 10000000ULL, Spread::Off, "Out 10.000 000 MHz (+0.3 Hz)", 0.3);
+    assertOutput(10000000.0, 10000000ULL, Spread::Off, "Out 10.000 000 MHz (+0.0 Hz)", 0.0);
+    assertOutput(9999999.98, 10000000ULL, Spread::Off, "Out 10.000 000 MHz (+0.0 Hz)", 0.0);
+    // Rounded to 1 Hz; the deviation keeps 0.1 Hz.
+    assertOutput(9999998.62, 10000000ULL, Spread::Off, "Out 9.999 999 MHz (-1.4 Hz)", -1.4);
+    // Integer raster (concept example: 25 MHz x 25 / 88).
+    assertOutput(7102272.73, 7100000ULL, Spread::Off, "Out 7.102 273 MHz (+2272.7 Hz)", 2272.7);
+    assertOutput(100000000.0, 100000000ULL, Spread::Off, "Out 100.000 000 MHz (+0.0 Hz)", 0.0);
+}
+
+static void test_format_output_with_spread() {
+    // Mean of a down spread = actual x (1 - amplitude / 2); center spread = actual.
+    assertOutput(10000000.0, 10000000ULL, Spread::Down05, "Out 9.975 000 MHz mean, SSC -0.5 %", 0.0);
+    assertOutput(10000000.0, 10000000ULL, Spread::Down15, "Out 9.925 000 MHz mean, SSC -1.5 %", 0.0);
+    assertOutput(10000000.4, 10000000ULL, Spread::Center05, "Out 10.000 000 MHz mean, SSC +/-0.5 %", 0.0);
+    assertOutput(7000000.0, 7000000ULL, Spread::Down05, "Out 6.982 500 MHz mean, SSC -0.5 %", 0.0);
+}
+
+static void test_format_output_without_actual() {
+    assertOutput(0.0, 10000000ULL, Spread::Off, "Out -", 0.0);
+    assertOutput(0.0, 10000000ULL, Spread::Down05, "Out -", 0.0);
+    char buf[8];
+    formatOutput(10000000.3, 10000000ULL, Spread::Off, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("Out 10.", buf); // truncated, terminated
 }
 
 static void assertParse(const char* text, const char* unit, uint64_t expected) {
@@ -175,6 +243,12 @@ int main() {
     RUN_TEST(test_format_truncates_to_buffer);
     RUN_TEST(test_format_step);
     RUN_TEST(test_format_ppm);
+    RUN_TEST(test_format_mhz);
+    RUN_TEST(test_spread_label);
+    RUN_TEST(test_deviation_rounds_to_tenth);
+    RUN_TEST(test_format_output);
+    RUN_TEST(test_format_output_with_spread);
+    RUN_TEST(test_format_output_without_actual);
     RUN_TEST(test_parse_units);
     RUN_TEST(test_parse_limits);
     RUN_TEST(test_parse_rounds_to_hz);

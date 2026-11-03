@@ -33,8 +33,12 @@ private:
         CorrUp,
         CorrDown,
         CorrStepCycle,
-        Backlight,
-        Drive,
+        BacklightDown,
+        BacklightUp,
+        Drive,          // dropdowns: the selected index is the value
+        Tuning,
+        Spread,
+        OffState,
         NumpadKey
     };
 
@@ -49,10 +53,16 @@ private:
         lv_obj_t* cardState[3];
         lv_obj_t* cardDetail[3];
         lv_obj_t* cardSwitch[3];
+        lv_obj_t* cfgList;      // scroll container of the CONFIG rows
         lv_obj_t* blValue;
         lv_obj_t* stepValue;
         lv_obj_t* corrValue;
         lv_obj_t* corrStep;
+        lv_obj_t* driveDd;
+        lv_obj_t* tuningDd;
+        lv_obj_t* spreadDd;
+        lv_obj_t* offStateDd;
+        lv_obj_t* si5351Info;
         lv_obj_t* saveState;
         lv_obj_t* ta;
     };
@@ -71,9 +81,15 @@ private:
     void refreshSaveState_();
     uint8_t hardwareState_() const;
 
-    void createHeader_(const char* title, lv_color_t color, uint8_t switchChannel);
+    // Returns the header bar for page-specific additions.
+    lv_obj_t* createHeader_(const char* title, lv_color_t color, uint8_t switchChannel);
     // Switch = requested state; the label shows ERR in red when the output failed.
     void setHeaderState_(bool on, bool error);
+    // w_.info = actual output frequency of ch 1..3; deviations from 1 Hz on in the warning color.
+    void showOutput_(uint8_t ch, uint64_t requested);
+    // CONFIG: a row card at position `index` of the list (title optional), and a row with a dropdown.
+    lv_obj_t* addConfigRow_(lv_obj_t* list, uint8_t index, int h, const char* title);
+    lv_obj_t* addOptionRow_(lv_obj_t* list, uint8_t index, const char* title, const char* options, Action action);
     lv_obj_t* addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w, int h, lv_color_t color,
                          Action action, uint8_t arg = 0, bool repeat = false);
     lv_obj_t* addChip_(lv_obj_t* parent, const char* txt, int x, int y, int w, int h, lv_color_t color,
@@ -107,6 +123,7 @@ private:
     bool navPending_ = false;
     uint8_t channel_ = 1;       // channel shown on the CH1/CH2 page and edited by the numpad
     uint8_t corrStepIdx_ = 1;   // index into CORRECTION_STEPS
+    lv_coord_t configScrollY_ = 0; // CONFIG is rebuilt on every visit; RAM only
     uint32_t lastUpdateMs_ = 0;
     uint8_t lastHwState_ = 0;
     uint16_t lastConnections_ = 0;

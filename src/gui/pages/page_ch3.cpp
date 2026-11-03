@@ -23,9 +23,12 @@ void Gui::createCH3_() {
         w_.chips[i] = addChip_(root_, PHASE_LABELS[i], 150 + i * 41, 134, 39, 40, color, Action::Ch3Phase, i);
     }
 
-    lv_obj_t* note = addLabel_(root_, "IQ range 4.730 - 100 MHz. 180/270 deg use output inversion. "
-                                      "Drive strength is set globally in CONFIG.",
-                               &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, 186);
+    char lo[12], hi[12], text[128];
+    FrequencyUtils::formatMHz(IQ_MIN_HZ, 3, lo, sizeof(lo));
+    FrequencyUtils::formatMHz(IQ_MAX_HZ, 0, hi, sizeof(hi));
+    snprintf(text, sizeof(text), "IQ range %s - %s MHz. 180/270 deg use output inversion. "
+                                 "Drive strength is set globally in CONFIG.", lo, hi);
+    lv_obj_t* note = addLabel_(root_, text, &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, 186);
     lv_obj_set_width(note, CONTENT_W - 4);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
 }
@@ -41,20 +44,22 @@ void Gui::refreshCH3_() {
     lv_label_set_text(w_.freq, buf);
 
     lv_color_t infoColor = Colors::muted();
+    char iqMin[12];
+    FrequencyUtils::formatMHz(IQ_MIN_HZ, 3, iqMin, sizeof(iqMin));
     switch (status) {
         case Ch3Status::Off:
             snprintf(buf, sizeof(buf), "Off  |  follows CH%u", c3.master);
             break;
         case Ch3Status::Active:
-            snprintf(buf, sizeof(buf), "IQ active, follows CH%u", c3.master);
-            infoColor = Colors::ok();
+            // Actual frequency of CLK2 instead of a status text; the header shows ON.
+            showOutput_(3, app.ch3Frequency());
             break;
         case Ch3Status::MasterOff:
             snprintf(buf, sizeof(buf), "Waiting: master CH%u is off", c3.master);
             infoColor = Colors::warn();
             break;
         case Ch3Status::FreqTooLow:
-            snprintf(buf, sizeof(buf), "Waiting: CH%u below 4.730 MHz", c3.master);
+            snprintf(buf, sizeof(buf), "Waiting: CH%u below %s MHz", c3.master, iqMin);
             infoColor = Colors::warn();
             break;
         case Ch3Status::Error:
@@ -66,8 +71,10 @@ void Gui::refreshCH3_() {
             infoColor = Colors::error();
             break;
     }
-    lv_label_set_text(w_.info, buf);
-    lv_obj_set_style_text_color(w_.info, infoColor, 0);
+    if (status != Ch3Status::Active) {
+        lv_label_set_text(w_.info, buf);
+        lv_obj_set_style_text_color(w_.info, infoColor, 0);
+    }
 
     for (uint8_t i = 0; i < 2; ++i) {
         if (c3.master == i + 1) lv_obj_add_state(w_.masterChips[i], LV_STATE_CHECKED);

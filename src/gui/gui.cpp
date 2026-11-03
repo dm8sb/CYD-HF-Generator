@@ -4,6 +4,7 @@
 #include <utils/frequency_utils.h>
 #include <utils/logger.h>
 #include <cstring>
+#include <math.h>
 
 lv_color_t Gui::buf1_[SCREEN_WIDTH * 24];
 
@@ -90,6 +91,8 @@ lv_obj_t* Gui::addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w
     lv_obj_set_style_text_font(l, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l, lv_color_brightness(color) > 170 ? Colors::textDark() : Colors::text(), 0);
     lv_obj_center(l);
+    // A press that starts scrolling a parent (CONFIG) triggers nothing: once scrolling, LVGL 8.3
+    // sends neither CLICKED / SHORT_CLICKED nor LONG_PRESSED(_REPEAT), only RELEASED.
     if (repeat) {
         // Single tap = one step on release; holding repeats every LV_INDEV_DEF_LONG_PRESS_REP_TIME.
         on_(b, LV_EVENT_SHORT_CLICKED, action, arg);
@@ -145,7 +148,7 @@ lv_obj_t* Gui::addSwitch_(lv_obj_t* parent, uint8_t ch, lv_color_t color) {
     return sw;
 }
 
-void Gui::createHeader_(const char* title, lv_color_t color, uint8_t switchChannel) {
+lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switchChannel) {
     lv_obj_t* bar = lv_obj_create(root_);
     lv_obj_set_pos(bar, 0, 0);
     lv_obj_set_size(bar, SCREEN_WIDTH, Layout::HEADER_H);
@@ -176,6 +179,7 @@ void Gui::createHeader_(const char* title, lv_color_t color, uint8_t switchChann
     }
 
     addButton_(bar, "MAIN", SCREEN_WIDTH - 66, 4, 62, Layout::HEADER_H - 8, Colors::gray(), Action::Navigate, (uint8_t)PageId::Main);
+    return bar;
 }
 
 void Gui::setHeaderState_(bool on, bool error) {
@@ -186,10 +190,26 @@ void Gui::setHeaderState_(bool on, bool error) {
     lv_obj_set_style_text_color(w_.hdrState, error ? Colors::error() : Colors::text(), 0);
 }
 
+// Includes SI5351 rounding, the Integer raster and spread spectrum; assumes a correct
+// frequency correction.
+void Gui::showOutput_(uint8_t ch, uint64_t requested) {
+    char buf[64];
+    const double dev = FrequencyUtils::formatOutput(app_->actualHz(ch), requested, app_->spreadOf(ch), buf, sizeof(buf));
+    lv_label_set_text(w_.info, buf);
+    const bool warn = fabs(dev) >= FrequencyUtils::DEVIATION_WARN_HZ;
+    lv_obj_set_style_text_color(w_.info, warn ? Colors::warn() : Colors::muted(), 0);
+}
+
 // ---------------------------------------------------------------------------
 // Navigation and refresh
 
 void Gui::navigate(PageId page) {
+    if (currentPage_ == PageId::Config && w_.cfgList) {
+        // Where a running snap animation ends, so the restored position is a row top.
+        lv_point_t end;
+        lv_obj_get_scroll_end(w_.cfgList, &end);
+        configScrollY_ = end.y;
+    }
     currentPage_ = page;
     if (page == PageId::CH1) channel_ = 1;
     else if (page == PageId::CH2) channel_ = 2;
@@ -326,11 +346,25 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::CorrStepCycle:
             corrStepIdx_ = (corrStepIdx_ + 1) % CORRECTION_STEP_COUNT;
             break;
-        case Action::Backlight:
-            app.setBacklight((uint8_t)lv_slider_get_value(obj));
+        case Action::BacklightDown:
+            app.stepBacklight(-1);
+            break;
+        case Action::BacklightUp:
+            app.stepBacklight(1);
             break;
         case Action::Drive:
             app.setGlobalDriveStrength((lv_dropdown_get_selected(obj) + 1) * 2);
+            break;
+        // The dropdown options are in enum order. refresh_() shows the resulting state, e.g.
+        // spread spectrum turned off by the Integer mode.
+        case Action::Tuning:
+            app.setTuningMode((TuningMode)lv_dropdown_get_selected(obj));
+            break;
+        case Action::Spread:
+            app.setSpread((Spread)lv_dropdown_get_selected(obj));
+            break;
+        case Action::OffState:
+            app.setOffState((OffState)lv_dropdown_get_selected(obj));
             break;
         case Action::NumpadKey:
             handleNumpadKey_(obj);
