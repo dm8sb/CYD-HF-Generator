@@ -15,6 +15,8 @@ public:
     PanelDecision begin(PanelType stored, bool gesture);
     void flush(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels);
     PanelType panel() const { return panel_; }
+    // How begin() chose the panel (DisplayDetect::sourceName() for the text).
+    PanelSource source() const { return source_; }
     const ProbeResult& probeResult() const { return probe_; }
 
 private:
@@ -22,5 +24,6 @@ private:
 
     TFT_eSPI tft_;
     PanelType panel_ = PanelType::ILI9341;
+    PanelSource source_ = PanelSource::Default;
     ProbeResult probe_ {};
 };

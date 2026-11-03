@@ -1,79 +1,184 @@
 #include "../gui.h"
 #include "../gui_layout.h"
+#include <utils/build_info.h>
 #include <utils/frequency_utils.h>
 
 using namespace Layout;
 
+// CONFIG is the only page that scrolls: below the fixed header the rows sit in a list that
+// snaps to row tops, the settings used most first.
 static constexpr int ROW_H = 44;
 static constexpr int ROW_PITCH = ROW_H + 4;
-static constexpr int ROW_CONTENT_H = ROW_H - 2 * 4 - 2; // pad 4, border 1
+static constexpr int ROW_PAD = 4;
+static constexpr int ROW_CONTENT_W = CONTENT_W - 2 * ROW_PAD - 2; // border 1
+static constexpr int ROW_CONTENT_H = ROW_H - 2 * ROW_PAD - 2;
+static constexpr uint8_t ROW_COUNT = 7;                            // setting rows above the info card
+static constexpr uint8_t INFO_LINES = 4;
+static constexpr int INFO_LINE_H = 15;                             // montserrat 12
+static constexpr int INFO_H = INFO_LINES * INFO_LINE_H + 2 * ROW_PAD + 2;
+static constexpr int VALUE_X = 92;                                 // values and dropdowns
+static constexpr int BTN_W = 52;
+static constexpr int BTN_RIGHT_X = 236;                            // right button of a row
+static constexpr int DROPDOWN_W = 140;
+static constexpr int DROPDOWN_LINE_SPACE = 10;                     // opened list: 26 px per entry
+static constexpr int DROPDOWN_LIST_PAD = 4;
+static constexpr int LIST_PAD = 4;                                 // above the first and below the last card
+static constexpr int LIST_HEIGHT = SCREEN_HEIGHT - HEADER_H;
+// Largest scroll position: the info card at the bottom.
+static constexpr int SCROLL_MAX = LIST_PAD + ROW_COUNT * ROW_PITCH + INFO_H + LIST_PAD - LIST_HEIGHT;
+static constexpr int SAVE_STATE_X = 116;                           // header, between title and MAIN
+static_assert(LIST_PAD == CONTENT_Y - HEADER_H, "first row on the content grid of the other pages");
+static_assert(SCROLL_MAX > 0, "the rows fit on one screen");
 
-// Settings rows are slimmer cards than the default ones.
-static lv_obj_t* asRow(lv_obj_t* card) {
-    lv_obj_set_style_pad_all(card, 4, 0);
-    lv_obj_set_style_border_width(card, 1, 0);
-    return card;
+// LVGL keeps the touched button pressed while the finger scrolls the list (no click follows);
+// show it released as soon as the list moves.
+static void scrollBeginCb(lv_event_t* e) {
+    lv_indev_t* indev = lv_indev_get_act();
+    if (!indev || lv_indev_get_scroll_obj(indev) != lv_event_get_current_target(e)) return;
+    lv_obj_t* pressed = lv_indev_get_obj_act();
+    if (pressed) lv_obj_clear_state(pressed, LV_STATE_PRESSED);
+}
+
+// LVGL scrolls a tapped button or dropdown into view, and with snapping it moves the row to
+// the top on every tap. The rows only move by swiping.
+static void noScrollOnFocus(lv_obj_t* obj) {
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    const uint32_t n = lv_obj_get_child_cnt(obj);
+    for (uint32_t i = 0; i < n; ++i) noScrollOnFocus(lv_obj_get_child(obj, i));
+}
+
+static void setSelected(lv_obj_t* dd, uint16_t index) {
+    if (lv_dropdown_get_selected(dd) != index) lv_dropdown_set_selected(dd, index);
+}
+
+lv_obj_t* Gui::addConfigRow_(lv_obj_t* list, uint8_t index, int h, const char* title) {
+    const int y = index * ROW_PITCH;
+    // Settings rows are slimmer cards than the default ones.
+    lv_obj_t* row = addCard_(list, MARGIN, y, CONTENT_W, h, Colors::config());
+    lv_obj_set_style_pad_all(row, ROW_PAD, 0);
+    lv_obj_set_style_border_width(row, 1, 0);
+    // A row that cannot reach the top would make the snap scroll past the end (end stop below).
+    if (y > SCROLL_MAX) lv_obj_clear_flag(row, LV_OBJ_FLAG_SNAPPABLE);
+    if (title) {
+        lv_obj_t* l = addLabel_(row, title, &lv_font_montserrat_14, Colors::text(), 0, 0);
+        lv_obj_align(l, LV_ALIGN_LEFT_MID, 2, 0);
+    }
+    return row;
+}
+
+lv_obj_t* Gui::addOptionRow_(lv_obj_t* list, uint8_t index, const char* title, const char* options, Action action) {
+    lv_obj_t* row = addConfigRow_(list, index, ROW_H, title);
+    lv_obj_t* dd = lv_dropdown_create(row);
+    lv_dropdown_set_options(dd, options);
+    lv_obj_set_size(dd, DROPDOWN_W, ROW_CONTENT_H);
+    lv_obj_align(dd, LV_ALIGN_LEFT_MID, VALUE_X, 0);
+    // Grayed out while the option does not apply (the arrow inherits the color).
+    lv_obj_set_style_text_color(dd, Colors::muted(), LV_STATE_DISABLED);
+    // Denser than the theme (line space 16, pad 13): a 4-entry list needs 106 px and so opens
+    // completely in every snap position (at most 111 px free above or below a row mid-screen).
+    lv_obj_t* opts = lv_dropdown_get_list(dd);
+    lv_obj_set_style_text_line_space(opts, DROPDOWN_LINE_SPACE, 0);
+    lv_obj_set_style_pad_ver(opts, DROPDOWN_LIST_PAD, 0);
+    on_(dd, LV_EVENT_VALUE_CHANGED, action, 0);
+    return dd;
 }
 
 void Gui::createConfig_() {
-    const lv_color_t color = Colors::config();
     const lv_color_t btnColor = lv_color_hex(0xF9A825);
-    createHeader_("CONFIG", color, 0);
-    lv_obj_t* row;
-    lv_obj_t* l;
+    lv_obj_t* bar = createHeader_("CONFIG", Colors::config(), 0);
+    // Autosave state in the header, visible in every scroll position.
+    w_.saveState = addLabel_(bar, "", &lv_font_montserrat_14, Colors::muted(), 0, 0);
+    lv_obj_align(w_.saveState, LV_ALIGN_LEFT_MID, SAVE_STATE_X, 0);
 
-    // Backlight
-    row = asRow(addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, ROW_H, color));
-    l = addLabel_(row, "Backlight", &lv_font_montserrat_14, Colors::text(), 2, 0);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, 2, 0);
-    lv_obj_t* s = lv_slider_create(row);
-    lv_slider_set_range(s, BACKLIGHT_MIN_PERCENT, 100);
-    lv_slider_set_value(s, app_->system().backlight, LV_ANIM_OFF);
-    lv_obj_set_size(s, 140, 10);
-    lv_obj_align(s, LV_ALIGN_LEFT_MID, 92, 0);
-    lv_obj_set_style_bg_color(s, color, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_color(s, color, LV_PART_KNOB);
-    lv_obj_set_ext_click_area(s, 12);
-    on_(s, LV_EVENT_VALUE_CHANGED, Action::Backlight, 0);
+    lv_obj_t* list = lv_obj_create(root_);
+    w_.cfgList = list;
+    lv_obj_set_pos(list, 0, HEADER_H);
+    lv_obj_set_size(list, SCREEN_WIDTH, LIST_HEIGHT);
+    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(list, 0, 0);
+    lv_obj_set_style_radius(list, 0, 0);
+    lv_obj_set_style_pad_all(list, 0, 0);
+    lv_obj_set_style_pad_ver(list, LIST_PAD, 0);
+    lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_set_scroll_snap_y(list, LV_SCROLL_SNAP_START);
+    // Momentum stays; no elastic overscroll at the ends.
+    lv_obj_clear_flag(list, LV_OBJ_FLAG_SCROLL_ELASTIC);
+    // Always visible (the list continues), 4 px in the right margin next to the cards.
+    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_ON);
+    lv_obj_set_style_width(list, 4, LV_PART_SCROLLBAR);
+    lv_obj_set_style_pad_right(list, 2, LV_PART_SCROLLBAR);
+    lv_obj_set_style_pad_ver(list, 2, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(list, Colors::muted(), LV_PART_SCROLLBAR);
+    lv_obj_add_event_cb(list, scrollBeginCb, LV_EVENT_SCROLL_BEGIN, nullptr);
+    lv_obj_t* row;
+
+    // Backlight in BACKLIGHT_STEP_PERCENT steps, value centered between the buttons
+    row = addConfigRow_(list, 0, ROW_H, "Backlight");
+    addButton_(row, LV_SYMBOL_MINUS, VALUE_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::BacklightDown);
     w_.blValue = addLabel_(row, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
-    lv_obj_align(w_.blValue, LV_ALIGN_RIGHT_MID, -2, 0);
+    lv_obj_set_width(w_.blValue, BTN_RIGHT_X - (VALUE_X + BTN_W));
+    lv_obj_set_style_text_align(w_.blValue, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(w_.blValue, LV_ALIGN_LEFT_MID, VALUE_X + BTN_W, 0);
+    addButton_(row, LV_SYMBOL_PLUS, BTN_RIGHT_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::BacklightUp);
 
     // Frequency step (same presets as the chips on the channel pages)
-    row = asRow(addCard_(root_, MARGIN, CONTENT_Y + ROW_PITCH, CONTENT_W, ROW_H, color));
-    l = addLabel_(row, "Step", &lv_font_montserrat_14, Colors::text(), 0, 0);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, 2, 0);
+    row = addConfigRow_(list, 1, ROW_H, "Step");
     w_.stepValue = addLabel_(row, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
-    lv_obj_align(w_.stepValue, LV_ALIGN_LEFT_MID, 92, 0);
-    addButton_(row, "/10", 180, 0, 52, ROW_CONTENT_H, btnColor, Action::StepDown);
-    addButton_(row, "x10", 236, 0, 52, ROW_CONTENT_H, btnColor, Action::StepUp);
+    lv_obj_align(w_.stepValue, LV_ALIGN_LEFT_MID, VALUE_X, 0);
+    addButton_(row, "/10", BTN_RIGHT_X - BTN_W - 4, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::StepDown);
+    addButton_(row, "x10", BTN_RIGHT_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::StepUp);
 
     // Frequency correction in ppm; the step chip cycles 0.01 / 0.1 / 1 ppm.
-    row = asRow(addCard_(root_, MARGIN, CONTENT_Y + 2 * ROW_PITCH, CONTENT_W, ROW_H, color));
-    l = addLabel_(row, "Corr.", &lv_font_montserrat_14, Colors::text(), 0, 0);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, 2, 0);
+    // The widest value ("+48.44 ppm", 100 px) ends 4 px before the chip.
+    row = addConfigRow_(list, 2, ROW_H, "Corr.");
     w_.corrValue = addLabel_(row, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
-    lv_obj_align(w_.corrValue, LV_ALIGN_LEFT_MID, 46, 0);
-    w_.corrStep = addChip_(row, "", 140, 0, 46, ROW_CONTENT_H, btnColor, Action::CorrStepCycle, 0);
+    lv_obj_align(w_.corrValue, LV_ALIGN_LEFT_MID, 40, 0);
+    w_.corrStep = addChip_(row, "", 144, 0, 42, ROW_CONTENT_H, btnColor, Action::CorrStepCycle, 0);
     addButton_(row, LV_SYMBOL_MINUS, 190, 0, 47, ROW_CONTENT_H, btnColor, Action::CorrDown, 0, true);
     addButton_(row, LV_SYMBOL_PLUS, 241, 0, 47, ROW_CONTENT_H, btnColor, Action::CorrUp, 0, true);
 
-    // Global drive strength and autosave state
-    row = asRow(addCard_(root_, MARGIN, CONTENT_Y + 3 * ROW_PITCH, CONTENT_W, ROW_H, color));
-    l = addLabel_(row, "Drive all", &lv_font_montserrat_14, Colors::text(), 0, 0);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, 2, 0);
-    lv_obj_t* dd = lv_dropdown_create(row);
-    lv_dropdown_set_options(dd, "2 mA\n4 mA\n6 mA\n8 mA");
-    lv_dropdown_set_selected(dd, app_->system().drive_ma / 2 - 1);
-    lv_obj_set_size(dd, 96, ROW_CONTENT_H);
-    lv_obj_align(dd, LV_ALIGN_LEFT_MID, 92, 0);
-    on_(dd, LV_EVENT_VALUE_CHANGED, Action::Drive, 0);
-    w_.saveState = addLabel_(row, "", &lv_font_montserrat_14, Colors::muted(), 0, 0);
-    lv_obj_align(w_.saveState, LV_ALIGN_RIGHT_MID, -2, 0);
+    // Options; the dropdown entries are in the order of the enum values.
+    w_.driveDd = addOptionRow_(list, 3, "Drive all", "2 mA\n4 mA\n6 mA\n8 mA", Action::Drive);
+    w_.tuningDd = addOptionRow_(list, 4, "Tuning", "Fractional\nLow noise\nInteger", Action::Tuning);
+    w_.spreadDd = addOptionRow_(list, 5, "Spread CH1", "Off\n-0.5 %\n-1.5 %\n+/-0.5 %", Action::Spread);
+    w_.offStateDd = addOptionRow_(list, 6, "Off state", "Low\nHigh\nHigh-Z", Action::OffState);
+
+    // Info card: firmware, build, display controller and SI5351 link (refreshConfig_).
+    row = addConfigRow_(list, ROW_COUNT, INFO_H, nullptr);
+    lv_obj_t* info[INFO_LINES];
+    for (uint8_t i = 0; i < INFO_LINES; ++i) {
+        info[i] = addLabel_(row, "", &lv_font_montserrat_12, Colors::muted(), 2, i * INFO_LINE_H);
+        // One line each; a long branch name ends in "..." instead of leaving the card.
+        lv_obj_set_size(info[i], ROW_CONTENT_W - 2, INFO_LINE_H);
+        lv_label_set_long_mode(info[i], LV_LABEL_LONG_DOT);
+    }
+    char buf[96];
+    snprintf(buf, sizeof(buf), "Firmware %s | %s %s", BuildInfo::version(), BuildInfo::branch(), BuildInfo::commit());
+    lv_label_set_text(info[0], buf);
+    snprintf(buf, sizeof(buf), "Build %s", BuildInfo::time());
+    lv_label_set_text(info[1], buf);
+    snprintf(buf, sizeof(buf), "Display %s (%s)", DisplayDetect::name(display_->panel()),
+             DisplayDetect::sourceName(display_->source()));
+    lv_label_set_text(info[2], buf);
+    w_.si5351Info = info[3];
+
+    // Snap point for the end of the list: the rows below SCROLL_MAX are not snappable, this
+    // invisible stop shows the info card completely.
+    lv_obj_t* endStop = lv_obj_create(list);
+    lv_obj_remove_style_all(endStop);
+    lv_obj_clear_flag(endStop, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_pos(endStop, 0, SCROLL_MAX);
+    lv_obj_set_size(endStop, 1, 1);
+
+    noScrollOnFocus(list);
+    lv_obj_update_layout(list);
+    lv_obj_scroll_to_y(list, configScrollY_, LV_ANIM_OFF);
 }
 
 void Gui::refreshConfig_() {
-    const SystemSettings& sys = app_->system();
-    char buf[24];
+    const AppController& app = *app_;
+    const SystemSettings& sys = app.system();
+    char buf[64];
 
     snprintf(buf, sizeof(buf), "%u %%", sys.backlight);
     lv_label_set_text(w_.blValue, buf);
@@ -85,6 +190,24 @@ void Gui::refreshConfig_() {
     lv_label_set_text(w_.corrValue, buf);
     static const char* corrStepLabels[CORRECTION_STEP_COUNT] = {"0.01", "0.1", "1"};
     lv_label_set_text(lv_obj_get_child(w_.corrStep, 0), corrStepLabels[corrStepIdx_]);
+
+    setSelected(w_.driveDd, sys.drive_ma / 2 - 1);
+    setSelected(w_.tuningDd, (uint16_t)sys.tuning_mode);
+    // Spread spectrum needs a fractional PLL A; the controller keeps it Off in Integer mode.
+    setSelected(w_.spreadDd, (uint16_t)sys.spread);
+    if (sys.tuning_mode == TuningMode::Integer) lv_obj_add_state(w_.spreadDd, LV_STATE_DISABLED);
+    else lv_obj_clear_state(w_.spreadDd, LV_STATE_DISABLED);
+    setSelected(w_.offStateDd, (uint16_t)sys.off_state);
+
+    if (app.hardwareReady()) {
+        snprintf(buf, sizeof(buf), "SI5351 SDA %d SCL %d%s%s", app.i2cSdaPin(), app.i2cSclPin(),
+                 app.i2cSwapped() ? " (swapped)" : "", app.si5351IdUnverified() ? " (clone?)" : "");
+        lv_label_set_text(w_.si5351Info, buf);
+        lv_obj_set_style_text_color(w_.si5351Info, Colors::muted(), 0);
+    } else {
+        lv_label_set_text(w_.si5351Info, "SI5351 not found");
+        lv_obj_set_style_text_color(w_.si5351Info, Colors::error(), 0);
+    }
 
     refreshSaveState_();
 }

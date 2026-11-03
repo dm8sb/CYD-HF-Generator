@@ -1,5 +1,6 @@
 #include "frequency_utils.h"
 #include <constants.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,6 +29,20 @@ void format(uint64_t hz, char* out, size_t outSize) {
              (unsigned long long)fracR);
 }
 
+void formatMHz(uint64_t hz, uint8_t decimals, char* out, size_t outSize) {
+    if (!out || outSize == 0) return;
+    if (decimals > 6) decimals = 6;
+    const uint64_t unit = powerOfTen(6 - decimals); // Hz per last digit
+    const uint64_t scale = powerOfTen(decimals);
+    const uint64_t v = (hz + unit / 2) / unit;
+    if (decimals == 0) {
+        snprintf(out, outSize, "%llu", (unsigned long long)v);
+    } else {
+        snprintf(out, outSize, "%llu.%0*llu", (unsigned long long)(v / scale), (int)decimals,
+                 (unsigned long long)(v % scale));
+    }
+}
+
 void formatStep(uint32_t hz, char* out, size_t outSize) {
     if (hz >= 1000000UL && hz % 1000000UL == 0) snprintf(out, outSize, "%lu MHz", (unsigned long)(hz / 1000000UL));
     else if (hz >= 1000UL && hz % 1000UL == 0) snprintf(out, outSize, "%lu kHz", (unsigned long)(hz / 1000UL));
@@ -37,6 +52,43 @@ void formatStep(uint32_t hz, char* out, size_t outSize) {
 void formatPpm(int32_t centiPpm, char* out, size_t outSize) {
     int32_t a = centiPpm < 0 ? -centiPpm : centiPpm;
     snprintf(out, outSize, "%c%ld.%02ld ppm", centiPpm < 0 ? '-' : '+', (long)(a / 100), (long)(a % 100));
+}
+
+const char* spreadLabel(Spread spread) {
+    switch (spread) {
+        case Spread::Down05: return "-0.5 %";
+        case Spread::Down15: return "-1.5 %";
+        case Spread::Center05: return "+/-0.5 %";
+        default: return "Off";
+    }
+}
+
+double deviation(double actualHz, uint64_t requestedHz) {
+    const double d = round((actualHz - (double)requestedHz) * 10.0) / 10.0;
+    return d == 0.0 ? 0.0 : d;
+}
+
+double formatOutput(double actualHz, uint64_t requestedHz, Spread spread, char* out, size_t outSize) {
+    if (!out || outSize == 0) return 0.0;
+    if (actualHz <= 0.0) {
+        snprintf(out, outSize, "Out -");
+        return 0.0;
+    }
+    char freq[24];
+    if (spread != Spread::Off) {
+        // Down spread sweeps from the actual frequency down by the amplitude, center spread
+        // around it; the mean is what a counter shows.
+        double mean = actualHz;
+        if (spread == Spread::Down05) mean *= 1.0 - 0.005 / 2;
+        else if (spread == Spread::Down15) mean *= 1.0 - 0.015 / 2;
+        format((uint64_t)(mean + 0.5), freq, sizeof(freq));
+        snprintf(out, outSize, "Out %s mean, SSC %s", freq, spreadLabel(spread));
+        return 0.0;
+    }
+    const double dev = deviation(actualHz, requestedHz);
+    format((uint64_t)(actualHz + 0.5), freq, sizeof(freq));
+    snprintf(out, outSize, "Out %s (%+.1f Hz)", freq, dev);
+    return dev;
 }
 
 bool parseFrequency(const char* text, const char* unit, uint64_t* outHz) {
