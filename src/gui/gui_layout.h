@@ -13,7 +13,7 @@ static constexpr int CARD_PAD = 6;
 static constexpr int CARD_BORDER = 2;
 }
 
-// Color scheme (PROJECT_SPECIFICATION.md 11.3).
+// Color scheme (PROJECT_SPECIFICATION.md A-27).
 namespace Colors {
 inline lv_color_t ch1() { return lv_color_hex(0xE53935); }
 inline lv_color_t ch2() { return lv_color_hex(0x43A047); }

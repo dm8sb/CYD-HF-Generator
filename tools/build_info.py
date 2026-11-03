@@ -19,7 +19,7 @@ def git(*args):
 
 branch = git("rev-parse", "--abbrev-ref", "HEAD") or "unknown"
 commit = git("rev-parse", "--short", "HEAD") or "unknown"
-if commit != "unknown" and git("status", "--porcelain"):
+if commit != "unknown" and git("status", "--porcelain", "--untracked-files=no"):
     commit += "+"  # uncommitted changes
 build_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 

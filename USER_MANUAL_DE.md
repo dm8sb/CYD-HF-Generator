@@ -341,13 +341,12 @@ Unter der Frequenz zeigt die CH3-Seite den aktuellen Zustand:
 | Anzeige | Bedeutung |
 |---|---|
 | `Off  \|  follows CHx` | CH3 ausgeschaltet |
-| `IQ active, follows CHx` | IQ-Ausgang läuft |
+| `Out 10.000 000 MHz (+0.3 Hz)` | IQ-Ausgang läuft; tatsächliche Frequenz von CLK2 (Abschnitt 5) |
 | `Waiting: master CHx is off` | CH3 eingeschaltet, Master aus |
-| `Waiting: CHx below 4.730 MHz` | CH3 eingeschaltet, Masterfrequenz zu niedrig |
+| `Waiting: CHx below 4.730 MHz` | CH3 eingeschaltet, Masterfrequenz zu niedrig (mit Spread Spectrum auf CH1 höher, z. B. `4.749`) |
+| `Waiting: CHx above 99.502 MHz` | CH3 eingeschaltet, Masterfrequenz zu hoch; nur mit Spread `+/-0.5 %` auf Master CH1 |
 | `IQ setup failed, retrying` | Einstellen des IQ-Paars fehlgeschlagen (Status `ERR`); CLK2 ist aus, der Master läuft weiter, die Firmware versucht es alle 2 s erneut |
 | `SI5351 not found` | SI5351 fehlt |
-
-Zusätzlich zeigt die CH3-Seite die Zeile `Out` mit der tatsächlichen Frequenz von CLK2 (Abschnitt 5).
 
 **Wichtig:** Ist CH3 eingeschaltet, aber gerade nicht möglich (Master aus oder unter 4,730 MHz), bleibt der Schalter auf ON. Der Ausgang CLK2 bleibt aus, bis die Bedingungen erfüllt sind – dann startet CH3 **automatisch**. Es erscheint keine Fehlermeldung.
 
@@ -556,6 +555,7 @@ Beispiel: CH1 = 10 MHz mit `-0.5 %` belegt das Band 9,95–10,00 MHz; die Kanals
 
 - Beim Umschalten startet PLL A neu: CH1 setzt kurz aus. Läuft CH3 im IQ-Betrieb mit Master CH1, wird die Phasenlage danach neu ausgerichtet.
 - Im Modus `Integer` ist die Option gesperrt (ausgegraut, `Off`). Ein Wechsel auf `Integer` schaltet Spread Spectrum aus; nach dem Zurückwechseln muss es neu gewählt werden.
+- Auch mit Spread muss der SI5351-Oszillator (VCO) im Bereich 600–900 MHz bleiben. Mit Master CH1 wird der IQ-Bereich von CH3 deshalb etwas schmaler: `-0.5 %` ab 4,749 MHz, `-1.5 %` ab 4,797 MHz, `+/-0.5 %` von 4,749 bis 99,502 MHz. Außerhalb wartet CH3 (`WAIT`) wie unter 4,730 MHz. Die CH3-Seite zeigt den gültigen Bereich an.
 - Für Mischer- und Empfängerversuche mit sauberem Träger `Off` lassen.
 
 ### Off state (Zustand abgeschalteter Ausgänge)

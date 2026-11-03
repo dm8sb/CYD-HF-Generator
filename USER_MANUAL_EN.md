@@ -341,13 +341,12 @@ Below the frequency, the CH3 page shows the current state:
 | Display | Meaning |
 |---|---|
 | `Off  \|  follows CHx` | CH3 switched off |
-| `IQ active, follows CHx` | IQ output running |
+| `Out 10.000 000 MHz (+0.3 Hz)` | IQ output running; actual frequency of CLK2 (section 5) |
 | `Waiting: master CHx is off` | CH3 switched on, master off |
-| `Waiting: CHx below 4.730 MHz` | CH3 switched on, master frequency too low |
+| `Waiting: CHx below 4.730 MHz` | CH3 switched on, master frequency too low (higher with spread spectrum on CH1, e.g. `4.749`) |
+| `Waiting: CHx above 99.502 MHz` | CH3 switched on, master frequency too high; only with spread `+/-0.5 %` on master CH1 |
 | `IQ setup failed, retrying` | Setting up the IQ pair failed (status `ERR`); CLK2 is off, the master keeps running, the firmware retries every 2 s |
 | `SI5351 not found` | SI5351 missing |
-
-In addition, the CH3 page shows the `Out` line with the actual frequency of CLK2 (section 5).
 
 **Important:** If CH3 is switched on but cannot run at the moment (master off or below 4.730 MHz), the switch stays ON. Output CLK2 stays off until the conditions are met – then CH3 starts **automatically**. No error message appears.
 
@@ -556,6 +555,7 @@ Example: CH1 = 10 MHz with `-0.5 %` occupies the band 9.95–10.00 MHz; the chan
 
 - Switching resets PLL A: CH1 drops out briefly. If CH3 is running in IQ operation with master CH1, its phase is realigned afterwards.
 - In `Integer` mode, the option is locked (grayed out, `Off`). Switching to `Integer` turns spread spectrum off; after switching back, it has to be selected again.
+- With spread, too, the SI5351 oscillator (VCO) must stay within 600–900 MHz. With master CH1 the IQ range of CH3 therefore becomes slightly narrower: `-0.5 %` from 4.749 MHz, `-1.5 %` from 4.797 MHz, `+/-0.5 %` from 4.749 to 99.502 MHz. Outside it, CH3 waits (`WAIT`) as below 4.730 MHz. The CH3 page shows the valid range.
 - For mixer and receiver experiments with a clean carrier, leave it `Off`.
 
 ### Off state (State of Switched-Off Outputs)

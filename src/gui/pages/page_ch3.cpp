@@ -24,8 +24,10 @@ void Gui::createCH3_() {
     }
 
     char lo[12], hi[12], text[128];
-    FrequencyUtils::formatMHz(IQ_MIN_HZ, 3, lo, sizeof(lo));
-    FrequencyUtils::formatMHz(IQ_MAX_HZ, 0, hi, sizeof(hi));
+    // Rounded to kHz towards the inside of the range; 4.730 / 100 MHz without spread spectrum.
+    FrequencyUtils::formatMHz((app_->iqMinHz() + 999) / 1000 * 1000, 3, lo, sizeof(lo));
+    const uint64_t iqMax = app_->iqMaxHz() / 1000 * 1000;
+    FrequencyUtils::formatMHz(iqMax, iqMax % 1000000 ? 3 : 0, hi, sizeof(hi));
     snprintf(text, sizeof(text), "IQ range %s - %s MHz. 180/270 deg use output inversion. "
                                  "Drive strength is set globally in CONFIG.", lo, hi);
     lv_obj_t* note = addLabel_(root_, text, &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, 186);
@@ -44,8 +46,9 @@ void Gui::refreshCH3_() {
     lv_label_set_text(w_.freq, buf);
 
     lv_color_t infoColor = Colors::muted();
-    char iqMin[12];
-    FrequencyUtils::formatMHz(IQ_MIN_HZ, 3, iqMin, sizeof(iqMin));
+    char iqMin[12], iqMax[12];
+    FrequencyUtils::formatMHz((app.iqMinHz() + 999) / 1000 * 1000, 3, iqMin, sizeof(iqMin));
+    FrequencyUtils::formatMHz(app.iqMaxHz() / 1000 * 1000, 3, iqMax, sizeof(iqMax));
     switch (status) {
         case Ch3Status::Off:
             snprintf(buf, sizeof(buf), "Off  |  follows CH%u", c3.master);
@@ -60,6 +63,10 @@ void Gui::refreshCH3_() {
             break;
         case Ch3Status::FreqTooLow:
             snprintf(buf, sizeof(buf), "Waiting: CH%u below %s MHz", c3.master, iqMin);
+            infoColor = Colors::warn();
+            break;
+        case Ch3Status::FreqTooHigh:
+            snprintf(buf, sizeof(buf), "Waiting: CH%u above %s MHz", c3.master, iqMax);
             infoColor = Colors::warn();
             break;
         case Ch3Status::Error:

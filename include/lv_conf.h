@@ -39,11 +39,11 @@
 #define LV_USE_BTN 1
 #define LV_USE_BTNMATRIX 1
 #define LV_USE_SWITCH 1
-#define LV_USE_SLIDER 1
+#define LV_USE_SLIDER 0
 #define LV_USE_DROPDOWN 1
 #define LV_USE_MSGBOX 1
 #define LV_USE_TEXTAREA 1
-#define LV_USE_BAR 1 /* required by slider */
+#define LV_USE_BAR 0
 
 /* Unused widgets (LVGL enables them by default) */
 #define LV_USE_ARC 0

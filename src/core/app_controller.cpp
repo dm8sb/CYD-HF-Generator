@@ -1,6 +1,7 @@
 #include "app_controller.h"
 #include <constants.h>
 #include <hal/i2c_bus.h>
+#include <drivers/si5351_plan.h>
 #include <utils/logger.h>
 #include <utils/frequency_utils.h>
 
@@ -169,8 +170,11 @@ uint64_t AppController::masterFrequency_() const { return state_.ch3.master == 1
 // CH3 runs as IQ follower only while requested and the master frequency allows it.
 // Otherwise the master runs standalone and CLK2 stays off, but ch3.enabled keeps the user's choice.
 bool AppController::iqConfigured_() const {
-    return state_.ch3.enabled && masterFrequency_() >= IQ_MIN_HZ;
+    return state_.ch3.enabled && masterFrequency_() >= iqMinHz() && masterFrequency_() <= iqMaxHz();
 }
+
+uint64_t AppController::iqMinHz() const { return ::iqMinHz(spreadOf(3)); }
+uint64_t AppController::iqMaxHz() const { return ::iqMaxHz(spreadOf(3)); }
 
 ChannelStatus AppController::channelStatus(uint8_t ch) const {
     if (!si5351_.ready()) return ChannelStatus::NoDevice;
@@ -181,7 +185,8 @@ ChannelStatus AppController::channelStatus(uint8_t ch) const {
 Ch3Status AppController::ch3Status() const {
     if (!state_.ch3.enabled) return Ch3Status::Off;
     if (!si5351_.ready()) return Ch3Status::NoDevice;
-    if (masterFrequency_() < IQ_MIN_HZ) return Ch3Status::FreqTooLow;
+    if (masterFrequency_() < iqMinHz()) return Ch3Status::FreqTooLow;
+    if (masterFrequency_() > iqMaxHz()) return Ch3Status::FreqTooHigh;
     if (fault_[CLK_CH3]) return Ch3Status::Error;
     if (!masterEnabled_()) return Ch3Status::MasterOff;
     return Ch3Status::Active;

@@ -538,6 +538,29 @@ static void test_spread_and_off_state_reach_the_chip() {
     TEST_ASSERT_EQUAL_UINT(0, errorCount);
 }
 
+static void test_spread_narrows_the_iq_range_without_error() {
+    Device d;
+    d.app.setChannelFrequency(1, 4740000); // inside 4.730 MHz, below 4.748 151 MHz with -0.5 %
+    startIQ(d);
+    d.app.setSpread(Spread::Down05);
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooLow, d.app.ch3Status());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    TEST_ASSERT_TRUE(poweredDown(2) || !enabled(2));
+    d.app.setChannelFrequency(1, 99800000);
+    d.app.setSpread(Spread::Center05); // top limit 99.502 487 MHz
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooHigh, d.app.ch3Status());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    d.app.setSpread(Spread::Off);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    // CH2 as master: PLL B has no spread, the full range applies.
+    d.app.setSpread(Spread::Center05);
+    d.app.setChannelFrequency(2, 99800000);
+    d.app.setChannelEnabled(2, true);
+    d.app.setCH3Master(2);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
 // ---------------------------------------------------------------------------
 // SDA/SCL detection: the cable at CN1 may be swapped
 
@@ -883,6 +906,7 @@ int main() {
     RUN_TEST(test_iq_in_all_tuning_modes);
     RUN_TEST(test_spread_with_iq_on_master_ch1);
     RUN_TEST(test_spread_and_off_state_reach_the_chip);
+    RUN_TEST(test_spread_narrows_the_iq_range_without_error);
     RUN_TEST(test_boot_with_straight_cable);
     RUN_TEST(test_boot_with_swapped_cable);
     RUN_TEST(test_boot_without_module_searches_quietly);

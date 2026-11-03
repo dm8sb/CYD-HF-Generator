@@ -393,6 +393,24 @@ static void test_spread_shrinks_the_iq_range() {
     TEST_ASSERT_TRUE(p.ok && p.pll.a >= 25 && p.pll.a <= 35);
 }
 
+static void test_iq_range_matches_plan_iq() {
+    const Spread spreads[] = {Spread::Off, Spread::Down05, Spread::Down15, Spread::Center05};
+    const TuningMode modes[] = {TuningMode::Fractional, TuningMode::LowNoise};
+    for (Spread s : spreads) {
+        const uint64_t lo = iqMinHz(s), hi = iqMaxHz(s);
+        for (TuningMode m : modes) {
+            TEST_ASSERT_TRUE(planIQ(lo, m, XTAL4, s).ok);
+            TEST_ASSERT_TRUE(planIQ(hi, m, XTAL4, s).ok);
+            if (lo > IQ_MIN_HZ) TEST_ASSERT_FALSE(planIQ(lo - 1, m, XTAL4, s).ok);
+            if (hi < IQ_MAX_HZ) TEST_ASSERT_FALSE(planIQ(hi + 1, m, XTAL4, s).ok);
+        }
+    }
+    TEST_ASSERT_EQUAL_UINT64(IQ_MIN_HZ, iqMinHz(Spread::Off));
+    TEST_ASSERT_EQUAL_UINT64(IQ_MAX_HZ, iqMaxHz(Spread::Off));
+    TEST_ASSERT_EQUAL_UINT64(4748151, iqMinHz(Spread::Down05));
+    TEST_ASSERT_EQUAL_UINT64(99502487, iqMaxHz(Spread::Center05));
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_fractional_uses_a_fixed_pll);
@@ -413,5 +431,6 @@ int main() {
     RUN_TEST(test_spread_fractional_pll_choice);
     RUN_TEST(test_spread_shrinks_the_low_noise_window);
     RUN_TEST(test_spread_shrinks_the_iq_range);
+    RUN_TEST(test_iq_range_matches_plan_iq);
     return UNITY_END();
 }
