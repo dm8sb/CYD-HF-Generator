@@ -46,6 +46,53 @@ inline bool inverted(uint8_t clk) { return ctrl(clk) & CTRL_INV; }
 inline bool poweredDown(uint8_t clk) { return ctrl(clk) & CTRL_PDN; }
 inline bool enabled(uint8_t clk) { return !(regs()[3] & (1U << clk)) && !poweredDown(clk); }
 inline uint8_t driveMa(uint8_t clk) { return 2 + 2 * (ctrl(clk) & 0x03); }
+// FBA_INT / FBB_INT: bit 6 of the CLK6 / CLK7 control registers (22 / 23).
+inline bool pllIntMode(uint8_t clk) { return regs()[usesPllB(clk) ? 23 : 22] & 0x40; }
+// CLKx_DIS_STATE in register 24: 0 low, 1 high, 2 high-Z, 3 never disabled.
+inline uint8_t disableState(uint8_t clk) { return (regs()[24] >> (2 * clk)) & 0x03; }
+
+// Spread spectrum on PLL A, registers 149..161 (AN619 section 5).
+struct SpreadSpectrum {
+    bool enabled;   // SSC_EN
+    bool center;    // SSC_MODE
+    uint32_t udp;   // SSUDP
+    uint32_t dnP1, dnP2, dnP3, upP1, upP2, upP3;
+    uint8_t nclk;   // SS_NCLK, must be 0
+    double down() const { return dnP1 + (double)dnP2 / dnP3; } // SSDN
+    double up() const { return upP1 + (double)upP2 / upP3; }   // SSUP
+};
+
+inline SpreadSpectrum spreadSpectrum() {
+    const uint8_t* r = regs() + 149;
+    SpreadSpectrum s;
+    s.enabled = r[0] & 0x80;
+    s.dnP2 = ((uint32_t)(r[0] & 0x7F) << 8) | r[1];
+    s.center = r[2] & 0x80;
+    s.dnP3 = ((uint32_t)(r[2] & 0x7F) << 8) | r[3];
+    s.dnP1 = ((uint32_t)(r[5] & 0x0F) << 8) | r[4];
+    s.udp = ((uint32_t)(r[5] & 0xF0) << 4) | r[6];
+    s.upP2 = ((uint32_t)(r[7] & 0x7F) << 8) | r[8];
+    s.upP3 = ((uint32_t)(r[9] & 0x7F) << 8) | r[10];
+    s.upP1 = ((uint32_t)(r[12] & 0x0F) << 8) | r[11];
+    s.nclk = r[12] >> 4;
+    return s;
+}
+
+// Modulation rate f_PFD / (4 * SSUDP), PLL A from the crystal.
+inline double spreadModulationHz() { return XTAL_HZ / (4.0 * spreadSpectrum().udp); }
+// The AN619 equations solved for the amplitude sscAmp, with the programmed PLL A ratio N:
+// down spread SSDN = 64 N amp / ((1 + amp) SSUDP); center spread SSDN = 128 N amp / ((1 + amp) SSUDP)
+// and SSUP = 128 N amp / ((1 - amp) SSUDP).
+inline double spreadDownAmp() {
+    const SpreadSpectrum s = spreadSpectrum();
+    const double x = s.down() * s.udp;
+    return x / ((s.center ? 128.0 : 64.0) * block(26).ratio() - x);
+}
+inline double spreadUpAmp() {
+    const SpreadSpectrum s = spreadSpectrum();
+    const double x = s.up() * s.udp;
+    return x / (128.0 * block(26).ratio() + x);
+}
 
 // The real crystal as the driver models it: 25 MHz * (1 + correction * 1e-8).
 inline double xtalHz(int32_t correction) { return XTAL_HZ * (1.0 + correction * 1e-8); }
@@ -75,6 +122,9 @@ inline const char* limitViolation(uint8_t clk, int32_t correction = 0) {
     if (vco / r > 150e6 * (1 + 6e-5) && !m.divBy4) return "> 150 MHz without DIVBY4";
     if (phase(clk) != 0 && (ctrl(clk) & CTRL_MS_INT)) return "phase offset in integer mode";
     if ((ctrl(clk) & 0x0C) != 0x0C) return "CLK source is not its MultiSynth";
+    // AN619 3.2.1 and section 5.
+    if (pllIntMode(clk) && !(p.integer() && fmod(p.ratio(), 2.0) == 0.0)) return "FBx_INT with a non-even-integer PLL";
+    if (pllIntMode(clk) && !usesPllB(clk) && spreadSpectrum().enabled) return "FBA_INT with spread spectrum";
     return nullptr;
 }
 
