@@ -430,6 +430,91 @@ static void test_spread_applies_to_pll_a_only() {
     TEST_ASSERT_EQUAL(Spread::Off, d.app.spreadOf(3));
 }
 
+// Integer mode: integer PLL and MultiSynth; the shown frequency is the programmed raster point.
+static void assertRasterOutput(uint8_t clk, double shownHz) {
+    TEST_ASSERT_NULL(limitViolation(clk));
+    TEST_ASSERT_TRUE(pll(clk).integer() && ms(clk).integer());
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, outputHz(clk), shownHz);
+}
+
+static void test_tuning_mode_change_reconfigures_all_outputs() {
+    Device d;
+    d.app.setChannelFrequency(1, 7100000);
+    d.app.setChannelFrequency(2, 14200000);
+    d.app.setChannelEnabled(2, true);
+    startIQ(d);
+    d.app.setTuningMode(TuningMode::LowNoise);
+    // CH2 standalone: even integer MultiSynth in integer mode.
+    TEST_ASSERT_TRUE(ms(1).integer() && fmod(ms(1).ratio(), 2.0) == 0.0 && (ctrl(1) & CTRL_MS_INT));
+    assertHz(1, 14200000);
+    assertHz(2, 7100000);
+    d.app.setTuningMode(TuningMode::Integer);
+    assertRasterOutput(0, d.app.actualHz(1));
+    assertRasterOutput(1, d.app.actualHz(2));
+    assertRasterOutput(2, d.app.actualHz(3));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, d.app.actualHz(1), d.app.actualHz(3));
+    TEST_ASSERT_TRUE(enabled(0) && enabled(1) && enabled(2));
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    // Back to Fractional: the requested frequencies again.
+    d.app.setTuningMode(TuningMode::Fractional);
+    assertHz(0, 7100000);
+    assertHz(1, 14200000);
+    assertHz(2, 7100000);
+    TEST_ASSERT_TRUE(enabled(0) && enabled(1) && enabled(2));
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_iq_in_all_tuning_modes() {
+    Device d;
+    startIQ(d);
+    const TuningMode modes[] = {TuningMode::LowNoise, TuningMode::Integer, TuningMode::Fractional};
+    const uint16_t phases[] = {0, 90, 180, 270};
+    for (TuningMode m : modes) {
+        d.app.setTuningMode(m);
+        for (uint64_t f : {7100000ULL, 14200000ULL}) {
+            d.app.setChannelFrequency(1, f);
+            for (uint16_t ph : phases) {
+                d.app.setCH3Phase(ph);
+                TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+                TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+                TEST_ASSERT_EQUAL_MEMORY(chip.regs + 42, chip.regs + 58, 8);
+                TEST_ASSERT_EQUAL_UINT8((ph == 90 || ph == 270) ? (uint8_t)ms(0).ratio() : 0, phase(2));
+                TEST_ASSERT_EQUAL(ph >= 180, inverted(2));
+                if (m == TuningMode::Integer) {
+                    assertRasterOutput(0, d.app.actualHz(1));
+                    assertRasterOutput(2, d.app.actualHz(3));
+                } else {
+                    assertHz(0, f);
+                    assertHz(2, f);
+                }
+            }
+        }
+    }
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_spread_and_off_state_reach_the_chip() {
+    Device d;
+    d.app.setChannelEnabled(1, true);
+    d.app.setSpread(Spread::Down05);
+    TEST_ASSERT_TRUE(spreadSpectrum().enabled);
+    TEST_ASSERT_NULL(limitViolation(0));
+    assertHz(0, DEFAULT_FREQ_CH1); // unmodulated
+    d.app.setTuningMode(TuningMode::Integer);
+    TEST_ASSERT_FALSE(spreadSpectrum().enabled);
+    TEST_ASSERT_NULL(limitViolation(0));
+    // Off state: register 24; CLK2 (CH3 off) keeps its driver powered for High.
+    d.app.setOffState(OffState::High);
+    TEST_ASSERT_EQUAL_HEX8(0x15, chip.regs[24]);
+    TEST_ASSERT_FALSE(poweredDown(2));
+    TEST_ASSERT_FALSE(enabled(2));
+    d.app.setOffState(OffState::Low);
+    TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[24]);
+    TEST_ASSERT_TRUE(poweredDown(2));
+    TEST_ASSERT_TRUE(enabled(0));
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
 // ---------------------------------------------------------------------------
 // SDA/SCL detection: the cable at CN1 may be swapped
 
@@ -771,6 +856,9 @@ int main() {
     RUN_TEST(test_config_options_invalid_nvs_values);
     RUN_TEST(test_integer_mode_turns_spread_off);
     RUN_TEST(test_spread_applies_to_pll_a_only);
+    RUN_TEST(test_tuning_mode_change_reconfigures_all_outputs);
+    RUN_TEST(test_iq_in_all_tuning_modes);
+    RUN_TEST(test_spread_and_off_state_reach_the_chip);
     RUN_TEST(test_boot_with_straight_cable);
     RUN_TEST(test_boot_with_swapped_cable);
     RUN_TEST(test_boot_without_module_searches_quietly);

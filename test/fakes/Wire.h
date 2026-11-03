@@ -77,6 +77,13 @@ public:
         for (const RegWrite& w : writes) n += w.reg == reg;
         return n;
     }
+    // Position of the first write to `reg` in the log, -1 if none (to check the write order).
+    int firstWriteTo(uint8_t reg) const {
+        for (size_t i = 0; i < writes.size(); ++i) {
+            if (writes[i].reg == reg) return (int)i;
+        }
+        return -1;
+    }
     unsigned totalPllResets() const { return pllResets[0] + pllResets[1]; }
 
     // Bus side, used by TwoWire.
