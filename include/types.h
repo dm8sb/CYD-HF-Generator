@@ -62,7 +62,8 @@ enum class Ch3Status : uint8_t {
     Off,        // CH3 switched off
     Active,     // IQ output running
     MasterOff,  // CH3 on, but master channel off
-    FreqTooLow, // CH3 on, but master below IQ_MIN_HZ
+    FreqTooLow, // CH3 on, but master below the IQ range (IQ_MIN_HZ, higher with spread spectrum)
+    FreqTooHigh,// CH3 on, but master above the IQ range (only with center spread spectrum)
     Error,      // IQ setup failed; CLK2 is powered down, the master keeps running
     NoDevice    // SI5351 not found
 };

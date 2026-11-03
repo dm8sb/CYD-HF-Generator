@@ -1,4 +1,5 @@
 #include "si5351_plan.h"
+#include <constants.h>
 #include <math.h>
 
 static constexpr uint32_t MAX_DENOM = 1048575;    // 20-bit fraction denominator
@@ -202,4 +203,16 @@ SynthPlan planIQ(uint64_t freq, TuningMode mode, uint64_t xtal4, Spread spread) 
     p.ok = true;
     p.actualHz = synthesizedHz(p.pll, p.ms, 0, xtal4);
     return p;
+}
+
+uint64_t iqMinHz(Spread spread) {
+    // Divider 127 at the bottom of the VCO range.
+    const uint64_t lo = (vcoRange(spread).min + IQ_MAX_DIV - 1) / IQ_MAX_DIV;
+    return lo > IQ_MIN_HZ ? lo : IQ_MIN_HZ;
+}
+
+uint64_t iqMaxHz(Spread spread) {
+    // Divider 9 at the top of the VCO range.
+    const uint64_t hi = vcoRange(spread).max / IQ_MIN_DIV;
+    return hi < IQ_MAX_HZ ? hi : IQ_MAX_HZ;
 }

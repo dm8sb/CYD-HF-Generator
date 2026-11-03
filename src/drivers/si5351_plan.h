@@ -52,3 +52,8 @@ SynthPlan planStandalone(uint64_t freq, TuningMode mode, const SynthRatio* curre
 // LowNoise: VCO as close to the top of its range as possible, fractional PLL, error <= 1.35 Hz.
 // Integer: integer PLL, the nearest point crystal * a / divider.
 SynthPlan planIQ(uint64_t freq, TuningMode mode, uint64_t xtal4, Spread spread = Spread::Off);
+
+// Frequency range in which planIQ() succeeds: IQ_MIN_HZ..IQ_MAX_HZ, narrower with spread spectrum
+// (e.g. 4.748 151 MHz with -0.5 %, 99.502 487 MHz at the top with +/-0.5 %).
+uint64_t iqMinHz(Spread spread);
+uint64_t iqMaxHz(Spread spread);

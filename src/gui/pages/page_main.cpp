@@ -84,15 +84,18 @@ void Gui::refreshMain_() {
     const Channel3& c3 = app.ch3();
     // CLK2 has an actual frequency only while IQ runs.
     setCardFrequency(w_.cardFreq[2], app, 3, app.ch3Frequency());
-    char iqMin[12], tooLow[24];
-    FrequencyUtils::formatMHz(IQ_MIN_HZ, 2, iqMin, sizeof(iqMin));
-    snprintf(tooLow, sizeof(tooLow), " / < %s MHz", iqMin);
+    char iqLimit[12], tooLow[24], tooHigh[24];
+    FrequencyUtils::formatMHz((app.iqMinHz() + 9999) / 10000 * 10000, 2, iqLimit, sizeof(iqLimit));
+    snprintf(tooLow, sizeof(tooLow), " / < %s MHz", iqLimit);
+    FrequencyUtils::formatMHz(app.iqMaxHz() / 10000 * 10000, 2, iqLimit, sizeof(iqLimit));
+    snprintf(tooHigh, sizeof(tooHigh), " / > %s MHz", iqLimit);
     const char* reason = "";
     switch (app.ch3Status()) {
         case Ch3Status::Off: setState(w_.cardState[2], "OFF", Colors::muted()); break;
         case Ch3Status::Active: setState(w_.cardState[2], "ON", Colors::ok()); break;
         case Ch3Status::MasterOff: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = " / master off"; break;
         case Ch3Status::FreqTooLow: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = tooLow; break;
+        case Ch3Status::FreqTooHigh: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = tooHigh; break;
         case Ch3Status::Error: setState(w_.cardState[2], "ERR", Colors::error()); reason = " / setup failed"; break;
         case Ch3Status::NoDevice: setState(w_.cardState[2], "NO HW", Colors::error()); break;
     }

@@ -65,6 +65,9 @@ public:
     double actualHz(uint8_t ch) const { return si5351_.actualHz(ch - 1); }
     // Spread spectrum that applies to ch 1..3 (PLL A: CH1, CH3 with master CH1).
     Spread spreadOf(uint8_t ch) const;
+    // Master frequency range for CH3 IQ; spread spectrum on PLL A (master CH1) narrows it.
+    uint64_t iqMinHz() const;
+    uint64_t iqMaxHz() const;
     // Info for CONFIG: I2C pins of the SI5351 link (also while not connected) and identity.
     int i2cSdaPin() const;
     int i2cSclPin() const;

@@ -79,7 +79,7 @@ This table is authoritative; README and manual repeat parts of it.
   |---|---|---|---|
   | Fractional | fractional | fixed 900 or 887.5 MHz | no dropout; the PLL changes (with reset) only where 900 MHz cannot reach ≤ 0.25 Hz |
   | Low noise | even integer (`MS_INT`) | fractional, takes frequency and correction | PLL changes without reset while the divider stays (VCO 600–900 MHz); reset when the divider changes |
-  | Integer | even integer | integer, 24–36 × crystal (`FBx_INT`) | nearest raster point crystal × a / MS |
+  | Integer | even integer | integer, 24–36 × crystal (`FBx_INT` for even ratios, AN619 3.2.1) | nearest raster point crystal × a / MS |
 
   A mode change reconfigures all outputs; one brief dropout of running outputs is allowed.
 - **A-7** Spread spectrum `Off` / `-0.5 %` / `-1.5 %` / `+/-0.5 %` on PLL A only (CH1, and CH3 with master CH1), modulation ≈ 31.5 kHz, default `Off` (E-20). The setting is written explicitly at init (`SSC_EN` = 0 for `Off`). Not available in `Integer`; switching to `Integer` turns it off. Switching it resets PLL A (brief CH1 dropout, IQ realignment).
@@ -107,7 +107,7 @@ This table is authoritative; README and manual repeat parts of it.
 - **A-15** CH3 has the frequency of its master (CH1 or CH2) and shares its PLL. All four phases 0/90/180/270° work over the whole IQ range 4.730–100 MHz (`IQ_MIN_HZ`, `IQ_MAX_HZ`) (E-7).
 - **A-16** IQ pair: integer MultiSynth divider ≤ 127 (7-bit phase register; one unit = ¼ VCO period, so 90° = divider); 180°/270° = 0°/90° plus `CLK_INV` on CLK2. In `Fractional` and `Low noise` the divider is min(127, ⌊900 MHz / f⌋) with a fractional PLL; in `Integer` the PLL is integer as well.
 - **A-17** Any change of PLL, divider or phase offset of an IQ pair disables both outputs, reconfigures them and resets the shared PLL to align the phases. A change of drive strength or inversion only is written without reset.
-- **A-18** CH3 ON is a request (E-8): CLK2 runs only while the master is ON and ≥ 4.730 MHz. Otherwise CLK2 stays off without a dialog, the request is kept (WAIT) and CH3 starts automatically once the conditions are met.
+- **A-18** CH3 ON is a request (E-8): CLK2 runs only while the master is ON and inside the IQ range (4.730–100 MHz, narrower with spread spectrum on master CH1, see E-20). Otherwise CLK2 stays off without a dialog, the request is kept (WAIT) and CH3 starts automatically once the conditions are met.
 - **A-19** If the IQ setup fails while the SI5351 answers, CLK2 is powered down, the master keeps running standalone, CH3 shows ERR and the setup is retried (A-37).
 
 ### 3.4 Settings and persistence
@@ -257,7 +257,7 @@ After the ILI9341 init sequence the ST7789 reports ID1 = 0x10 (C1h is IDSET ther
 - Default stays `Fractional` (1.2.0 behavior, tuning without dropouts). Measurements K5 / K6 decide whether `Low noise` becomes the default.
 
 ### E-20 Spread spectrum on PLL A only, default Off
-*2026-10-28 (1.3.0).* AN619 provides spread spectrum only on PLL A; the option is therefore called "Spread CH1". AN619 allows down spread −0.1 … −2.5 % and center spread ±0.1 … ±1.5 %; the selection is kept small (Off, −0.5 %, −1.5 %, ±0.5 %). Parameters (registers 149–161) are recomputed on every PLL A change. Spread spectrum needs a fractional PLL A, hence locked in `Integer`. The setting is written explicitly at init (`SSC_EN` = 0 for Off), because modules with programmed NVM could start with spread spectrum on. Default Off: spread spectrum widens the spectrum, which is unwanted in mixer experiments.
+*2026-10-28 (1.3.0).* AN619 provides spread spectrum only on PLL A; the option is therefore called "Spread CH1". AN619 allows down spread −0.1 … −2.5 % and center spread ±0.1 … ±1.5 %; the selection is kept small (Off, −0.5 %, −1.5 %, ±0.5 %). Parameters (registers 149–161) are recomputed on every PLL A change. Spread spectrum needs a fractional PLL A, hence locked in `Integer`. The setting is written explicitly at init (`SSC_EN` = 0 for Off), because modules with programmed NVM could start with spread spectrum on. Default Off: spread spectrum widens the spectrum, which is unwanted in mixer experiments. The modulated VCO must stay within 600–900 MHz, so with spread the unmodulated VCO is limited to ≥ 600 MHz / (1 − amp) and, for center spread, ≤ 900 MHz / (1 + amp): `Fractional` uses the fixed PLLs 887.5 / 875 MHz for center spread, `Low noise` and IQ choose their divider in the narrower window. The IQ range with master CH1 therefore shrinks (−0.5 %: from 4.748 151 MHz; −1.5 %: from 4.796 355 MHz; ±0.5 %: 4.748 151–99.502 487 MHz); outside it CH3 waits instead of failing (`iqMinHz()` / `iqMaxHz()` in `si5351_plan.*`).
 
 ### E-21 Off state option, default Low
 *2026-10-28 (1.3.0).* Up to 1.2.0 register 24 was never written; switched-off outputs were LOW (reset value 00), while the documentation wrongly claimed High-Z. `Low` stays the default: unchanged behavior and suitable for DC-coupled mixers (diode ring, FST3253). `High` drives DC into a DC-coupled load (current limited by the drive strength). Code 11 (never disable) is not offered.
