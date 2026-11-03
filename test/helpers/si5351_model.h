@@ -125,6 +125,12 @@ inline const char* limitViolation(uint8_t clk, int32_t correction = 0) {
     // AN619 3.2.1 and section 5.
     if (pllIntMode(clk) && !(p.integer() && fmod(p.ratio(), 2.0) == 0.0)) return "FBx_INT with a non-even-integer PLL";
     if (pllIntMode(clk) && !usesPllB(clk) && spreadSpectrum().enabled) return "FBA_INT with spread spectrum";
+    // The modulated VCO stays in range too: down to vco * (1 - amp), up to vco * (1 + amp) (center).
+    if (!usesPllB(clk) && spreadSpectrum().enabled) {
+        const double up = spreadSpectrum().center ? spreadUpAmp() : 0.0;
+        if (vco * (1 + up) > 900e6 * (1 + 6e-5)) return "modulated VCO above 900 MHz";
+        if (vco * (1 - spreadDownAmp()) < 600e6 * (1 - 6e-5)) return "modulated VCO below 600 MHz";
+    }
     return nullptr;
 }
 

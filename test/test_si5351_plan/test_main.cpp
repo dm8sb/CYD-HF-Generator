@@ -280,6 +280,119 @@ static void test_iq_integer_raster() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Spread spectrum: the modulated VCO stays within 600..900 MHz
+
+static const Spread SPREADS[] = {Spread::Down05, Spread::Down15, Spread::Center05};
+
+// vco * (1 - amp) .. vco * (1 + amp) (center) within 600..900 MHz; a fixed PLL ratio carries the
+// crystal deviation on top.
+static bool modulatedVcoInRange(const SynthPlan& p, uint64_t xtal4, Spread s) {
+    const double vco = vcoHz(p, xtal4);
+    const double amp = spreadAmplitude(s);
+    const double tol = 20.0 + fabs((double)xtal4 - (double)XTAL4) / XTAL4 * 900e6;
+    return vco * (1 - amp) >= 600e6 - tol && vco * (1 + (isCenterSpread(s) ? amp : 0.0)) <= 900e6 + tol;
+}
+
+static void test_spread_limits_the_vco() {
+    const TuningMode modes[] = {TuningMode::Fractional, TuningMode::LowNoise, TuningMode::Integer};
+    for (Spread s : SPREADS) {
+        for (TuningMode m : modes) {
+            for (uint64_t xtal4 : XTALS) {
+                SynthPlan last {};
+                lcgState = 9;
+                for (int i = 0; i < 2000; ++i) {
+                    const uint64_t f = i % 4 == 0 ? randomHz(8000, 160000000ULL) : randomHz(FREQ_MIN_HZ, FREQ_MAX_HZ);
+                    const SynthPlan p = planStandalone(f, m, last.ok ? &last.pll : nullptr, last.ok ? &last.ms : nullptr,
+                                                       xtal4, s);
+                    snprintf(msg, sizeof(msg), "spread %u mode %u, %llu Hz, xtal4 %llu: %u + %u / %u, ms %u",
+                             (unsigned)s, (unsigned)m, (unsigned long long)f, (unsigned long long)xtal4, p.pll.a,
+                             p.pll.b, p.pll.c, p.ms.a);
+                    if (!p.ok) {
+                        // No even divider fits next to 150 MHz (6 or 4) once the range is narrower.
+                        TEST_ASSERT_TRUE_MESSAGE(m != TuningMode::Integer && f > 149000000 && f < 153000000, msg);
+                        continue;
+                    }
+                    TEST_ASSERT_TRUE_MESSAGE(modulatedVcoInRange(p, xtal4, s), msg);
+                    TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-6, outHz(p, xtal4), p.actualHz, msg);
+                    if (f <= FREQ_MAX_HZ && m != TuningMode::Integer) {
+                        const double maxErr = m == TuningMode::Fractional ? 0.5 : 1.5;
+                        TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(maxErr, (double)f, p.actualHz, msg);
+                    }
+                    last = p;
+                }
+                for (int i = 0; i < 500; ++i) {
+                    const uint64_t f = randomHz(IQ_MIN_HZ, IQ_MAX_HZ);
+                    const SynthPlan p = planIQ(f, m, xtal4, s);
+                    if (!p.ok) continue; // range: test_spread_shrinks_the_iq_range
+                    snprintf(msg, sizeof(msg), "spread %u mode %u, IQ %llu Hz, xtal4 %llu", (unsigned)s, (unsigned)m,
+                             (unsigned long long)f, (unsigned long long)xtal4);
+                    TEST_ASSERT_TRUE_MESSAGE(modulatedVcoInRange(p, xtal4, s), msg);
+                    if (m != TuningMode::Integer) TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1.35, (double)f, p.actualHz, msg);
+                }
+            }
+        }
+    }
+}
+
+static void test_spread_fractional_pll_choice() {
+    const SynthRatio pll900 {36, 0, 1};
+    const SynthRatio pll875 {35, 0, 1};
+    // Center spread: 900 MHz would reach 904.5 MHz. 10 MHz is exact with 887.5 and 875 MHz.
+    SynthPlan p = planStandalone(10000000, TuningMode::Fractional, nullptr, nullptr, XTAL4, Spread::Center05);
+    TEST_ASSERT_EQUAL_DOUBLE(35.5, value(p.pll));
+    p = planStandalone(10000000, TuningMode::Fractional, &pll900, nullptr, XTAL4, Spread::Center05);
+    TEST_ASSERT_EQUAL_DOUBLE(35.5, value(p.pll));
+    p = planStandalone(10000000, TuningMode::Fractional, &pll875, nullptr, XTAL4, Spread::Center05);
+    TEST_ASSERT_EQUAL_DOUBLE(35.0, value(p.pll));
+    // Down spread only lowers the VCO: 900 / 887.5 MHz as without spread spectrum, never 875 MHz.
+    p = planStandalone(10000000, TuningMode::Fractional, &pll900, nullptr, XTAL4, Spread::Down15);
+    TEST_ASSERT_EQUAL_DOUBLE(36.0, value(p.pll));
+    p = planStandalone(10000000, TuningMode::Fractional, &pll875, nullptr, XTAL4, Spread::Off);
+    TEST_ASSERT_EQUAL_DOUBLE(36.0, value(p.pll));
+}
+
+static void test_spread_shrinks_the_low_noise_window() {
+    const SynthRatio d90 {90, 0, 1};
+    // Center spread: VCO <= 895.522 MHz. Divider 90 now covers 6.700 2..9.950 2 MHz.
+    TEST_ASSERT_EQUAL_UINT32(88, planStandalone(10000000, TuningMode::LowNoise, nullptr, nullptr, XTAL4, Spread::Center05).ms.a);
+    TEST_ASSERT_EQUAL_UINT32(90, planStandalone(9950000, TuningMode::LowNoise, nullptr, &d90, XTAL4, Spread::Center05).ms.a);
+    TEST_ASSERT_EQUAL_UINT32(88, planStandalone(9951000, TuningMode::LowNoise, nullptr, &d90, XTAL4, Spread::Center05).ms.a);
+    // Down spread -0.5 %: VCO >= 603.015 MHz.
+    TEST_ASSERT_EQUAL_UINT32(90, planStandalone(6701000, TuningMode::LowNoise, nullptr, &d90, XTAL4, Spread::Down05).ms.a);
+    TEST_ASSERT_EQUAL_UINT32(134, planStandalone(6700000, TuningMode::LowNoise, nullptr, &d90, XTAL4, Spread::Down05).ms.a);
+    TEST_ASSERT_EQUAL_UINT32(90, planStandalone(6700000, TuningMode::LowNoise, nullptr, &d90, XTAL4, Spread::Off).ms.a);
+    // Integer: 25..35 x 25 MHz with center spread.
+    const SynthPlan p = planStandalone(4166667, TuningMode::Integer, nullptr, nullptr, XTAL4, Spread::Center05);
+    TEST_ASSERT_TRUE(p.pll.a >= 25 && p.pll.a <= 35);
+}
+
+static void test_spread_shrinks_the_iq_range() {
+    struct Case {
+        Spread spread;
+        uint64_t freq;
+        bool ok;
+    };
+    const Case cases[] = {{Spread::Center05, 99502487, true},  {Spread::Center05, 99502488, false},
+                          {Spread::Down05, 100000000, true},   {Spread::Down05, 4748151, true},
+                          {Spread::Down05, 4748150, false},    {Spread::Down15, 4796355, true},
+                          {Spread::Down15, 4796354, false},    {Spread::Center05, 4748151, true},
+                          {Spread::Off, 4730000, true}};
+    const TuningMode modes[] = {TuningMode::Fractional, TuningMode::LowNoise};
+    for (const Case& c : cases) {
+        for (TuningMode m : modes) {
+            const SynthPlan p = planIQ(c.freq, m, XTAL4, c.spread);
+            snprintf(msg, sizeof(msg), "spread %u, %llu Hz", (unsigned)c.spread, (unsigned long long)c.freq);
+            TEST_ASSERT_EQUAL_MESSAGE(c.ok, p.ok, msg);
+        }
+    }
+    TEST_ASSERT_EQUAL_UINT32(9, planIQ(99502487, TuningMode::Fractional, XTAL4, Spread::Center05).ms.a);
+    TEST_ASSERT_EQUAL_UINT32(89, planIQ(10000000, TuningMode::Fractional, XTAL4, Spread::Center05).ms.a);
+    // Integer keeps a raster point, with the PLL inside the narrower range.
+    const SynthPlan p = planIQ(IQ_MAX_HZ, TuningMode::Integer, XTAL4, Spread::Center05);
+    TEST_ASSERT_TRUE(p.ok && p.pll.a >= 25 && p.pll.a <= 35);
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_fractional_uses_a_fixed_pll);
@@ -296,5 +409,9 @@ int main() {
     RUN_TEST(test_iq_fractional_and_low_noise_are_the_same);
     RUN_TEST(test_iq_limits);
     RUN_TEST(test_iq_integer_raster);
+    RUN_TEST(test_spread_limits_the_vco);
+    RUN_TEST(test_spread_fractional_pll_choice);
+    RUN_TEST(test_spread_shrinks_the_low_noise_window);
+    RUN_TEST(test_spread_shrinks_the_iq_range);
     return UNITY_END();
 }

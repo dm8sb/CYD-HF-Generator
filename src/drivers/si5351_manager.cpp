@@ -102,8 +102,8 @@ static void sscParams(double x, uint32_t& p1, uint32_t& p2) {
 static void spreadRegisters(const Ratio& pll, Spread s, uint8_t out[13]) {
     memset(out, 0, 13);
     if (s == Spread::Off) return;
-    const bool center = s == Spread::Center05;
-    const double amp = s == Spread::Down15 ? 0.015 : 0.005;
+    const bool center = isCenterSpread(s);
+    const double amp = spreadAmplitude(s);
     const double ratio = (double)pll.a + (double)pll.b / (double)pll.c;
     const uint32_t udp = SSC_PFD_HZ / (4 * SSC_MOD_HZ); // 198: 31.57 kHz
     uint32_t dn1, dn2, up1 = 0, up2 = 0, up3 = 1;
@@ -140,6 +140,7 @@ bool SI5351Manager::begin(int32_t correction) {
     }
     for (PllCache& c : pll_) c = PllCache {{}, {0, 0, 1}, CTRL_PDN, false};
     memset(ssc_, 0, sizeof(ssc_));
+    sscApplied_ = Spread::Off;
 
     if (!probe_()) return fail_(Error::NoAck);
     uint8_t status = 0;
@@ -203,13 +204,9 @@ bool SI5351Manager::fail_(Error e) {
 }
 
 bool SI5351Manager::setSpread(Spread s) {
-    const bool changed = s != spread_;
+    // The VCO range depends on it, so PLL A may need other values: applied by the next setup.
     spread_ = s;
-    const PllCache& a = pll_[(uint8_t)Pll::A];
-    if (!changed || !ready_ || !a.valid) return true;
-    // Starts, stops and changes with a PLL A reset, which also realigns an IQ pair on PLL A.
-    const Ratio ratio = a.ratio;
-    return finish_(writePll_(Pll::A, ratio) && resetPll_(Pll::A));
+    return true;
 }
 
 bool SI5351Manager::setOffState(OffState s) {
@@ -246,7 +243,7 @@ bool SI5351Manager::setupStandalone(uint8_t clk, Pll pll, uint64_t freq, uint8_t
     const PllCache& pc = pll_[(uint8_t)pll];
     const OutputCache& oc = out_[clk];
     const SynthPlan p = planStandalone(freq, tuningMode_, pc.valid ? &pc.ratio : nullptr,
-                                       oc.msValid ? &oc.msRatio : nullptr, xtalQuarterHz_());
+                                       oc.msValid ? &oc.msRatio : nullptr, xtalQuarterHz_(), spreadOn_(pll));
     if (!p.ok) return false;
 
     uint8_t pllRegs[8];
@@ -254,9 +251,10 @@ bool SI5351Manager::setupStandalone(uint8_t clk, Pll pll, uint64_t freq, uint8_t
     encode(p.pll, 0, false, pllRegs);
     encode(p.ms, p.rLog2, p.divBy4, msRegs);
     // Low noise: the PLL follows the frequency without a reset while the divider stays.
-    const bool reset = pllDiffers_(pll, pllRegs) &&
-                       (tuningMode_ != TuningMode::LowNoise || LOW_NOISE_RESET_EACH_STEP || !pc.valid ||
-                        msDiffers_(clk, msRegs, 0));
+    const bool reset = spreadChanges_(pll) ||
+                       (pllDiffers_(pll, pllRegs) && (tuningMode_ != TuningMode::LowNoise ||
+                                                      LOW_NOISE_RESET_EACH_STEP || !pc.valid ||
+                                                      msDiffers_(clk, msRegs, 0)));
 
     bool ok = writePll_(pll, p.pll) && writeOutput_(clk, control(pll, driveMa, p.msInt, false), msRegs, 0, p.ms);
     if (ok && reset) ok = resetPll_(pll);
@@ -273,7 +271,8 @@ bool SI5351Manager::setupIQPair(uint8_t masterClk, uint8_t followerClk, Pll pll,
     if (!isValidPhase(phaseDeg) || freq < IQ_MIN_HZ || freq > IQ_MAX_HZ) return false;
     if (TEST_FAULT_IQ && phaseDeg == 270) return false;
 
-    const SynthPlan p = planIQ(freq, tuningMode_, xtalQuarterHz_());
+    // With spread spectrum on PLL A the range shrinks, e.g. +-0.5 %: up to 99.5 MHz (divider 9).
+    const SynthPlan p = planIQ(freq, tuningMode_, xtalQuarterHz_(), spreadOn_(pll));
     if (!p.ok) {
         Logger::error("SI5351", "IQ divider out of range");
         return false;
@@ -292,7 +291,7 @@ bool SI5351Manager::setupIQPair(uint8_t masterClk, uint8_t followerClk, Pll pll,
     auto needsAlign = [&](uint8_t clk, uint8_t ctrl) {
         return (out_[clk].ctrl & CTRL_PDN) || ((out_[clk].ctrl ^ ctrl) & ~(CTRL_DRIVE_MASK | CTRL_INV));
     };
-    const bool align = pllDiffers_(pll, pllRegs) || msDiffers_(masterClk, msRegs, 0) ||
+    const bool align = spreadChanges_(pll) || pllDiffers_(pll, pllRegs) || msDiffers_(masterClk, msRegs, 0) ||
                        msDiffers_(followerClk, msRegs, offset) ||
                        needsAlign(masterClk, ctrlMaster) || needsAlign(followerClk, ctrlFollower);
 
@@ -379,9 +378,11 @@ bool SI5351Manager::writeFbInt_(Pll pll, bool on) {
 bool SI5351Manager::writeSpread_(const Ratio& pllA) {
     uint8_t regs[SSC_REG_COUNT];
     spreadRegisters(pllA, spread_, regs);
-    if (memcmp(regs, ssc_, sizeof(regs)) == 0) return true;
-    if (!writeRegs_(REG_SSC_PARAMS, regs, sizeof(regs))) return false;
-    memcpy(ssc_, regs, sizeof(regs));
+    if (memcmp(regs, ssc_, sizeof(regs)) != 0) {
+        if (!writeRegs_(REG_SSC_PARAMS, regs, sizeof(regs))) return false;
+        memcpy(ssc_, regs, sizeof(regs));
+    }
+    sscApplied_ = spread_;
     return true;
 }
 
