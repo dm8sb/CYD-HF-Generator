@@ -262,7 +262,11 @@ void AppController::setChannelEnabled(uint8_t ch, bool en) {
         channel_(ch).enabled = en;
         if (si5351_.ready()) {
             bool ok = si5351_.enableOutput(clkForChannel_(ch), en);
-            if (ch == state_.ch3.master && iqConfigured_()) ok = ok && si5351_.enableOutput(CLK_CH3, en);
+            // CLK2 follows only a working IQ pair: in ERR it stays off (with off state High/High-Z
+            // its driver is still powered and would output again).
+            if (ch == state_.ch3.master && iqConfigured_() && !fault_[CLK_CH3]) {
+                ok = ok && si5351_.enableOutput(CLK_CH3, en);
+            }
             if (!ok) reportHardwareError_("Output switch failed");
         }
     } else if (ch == 3) {

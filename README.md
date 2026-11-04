@@ -44,6 +44,12 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - Dialogs for NVS errors; dialogs are queued
 - Channel page: tap a digit to select the step, tap the unit to open the numpad
 
+## Changes in 1.3.1 (in progress)
+
+- CH3 in `ERR`: switching the master off and on no longer enables CLK2 (with off state `High`/`High-Z` it output a signal again)
+- Build: `src/` compiles with `-Wall -Wextra` without warnings; XPT2046 pinned by commit; heap and LVGL memory in the debug log; CI for host tests and the firmware build
+- Host tests: environments `native-fault` / `native-win-fault` (IQ error state with `TEST_FAULT_IQ`)
+
 ## Changes in 1.3.0
 
 - SDA/SCL at CN1 in either order: the firmware tries both assignments at boot and on every reconnect (hot plug, replugging during operation); no pin setting in `pins.h` any more
@@ -128,6 +134,7 @@ Host tests run without hardware: frequency helpers, the SI5351 driver and its di
 ```bash
 pio test -e native-win   # Windows, uses the MinGW toolchain bundled with PlatformIO
 pio test -e native       # Linux/macOS/CI, needs gcc in PATH
+pio test -e native-win-fault   # IQ error state (TEST_FAULT_IQ); native-fault on Linux
 ```
 
 `test/fakes` replaces the Arduino core, `Wire` (SI5351 register model with fault injection, straight or swapped wiring, line held low, foreign device at 0x60) and `Preferences`. `test/helpers/si5351_model.h` decodes the written registers back into frequencies (AN619), independently of the driver's own arithmetic.
