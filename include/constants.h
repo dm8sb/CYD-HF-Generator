@@ -42,13 +42,8 @@ static constexpr uint32_t MEM_LOG_INTERVAL_MS = 30000;
 // GUI and touch timing.
 static constexpr uint32_t GUI_UPDATE_INTERVAL_MS = 300;  // save state, connection, output errors
 static constexpr uint32_t TOUCH_RELEASE_BRIDGE_MS = 35;  // pressure dropouts shorter than this stay pressed
-// Boot gesture: touch held from power-on for BOOT_GESTURE_SAMPLES x BOOT_GESTURE_SAMPLE_MS (1.5 s)
-// in at least BOOT_GESTURE_MIN_HELD samples (90 %).
-static constexpr uint8_t BOOT_GESTURE_SAMPLES = 75;
-static constexpr uint32_t BOOT_GESTURE_SAMPLE_MS = 20;
-static constexpr uint8_t BOOT_GESTURE_MIN_HELD = 68;
-static constexpr uint32_t BOOT_GESTURE_BLINK_MS = 150;
-// Released after a touch at boot: TOUCH_RELEASE_QUIET_SAMPLES x BOOT_GESTURE_SAMPLE_MS without touch.
+// Released after a touch at boot: TOUCH_RELEASE_QUIET_SAMPLES x TOUCH_RELEASE_SAMPLE_MS without touch.
+static constexpr uint32_t TOUCH_RELEASE_SAMPLE_MS = 20;
 static constexpr uint8_t TOUCH_RELEASE_QUIET_SAMPLES = 10;
 static constexpr uint32_t TOUCH_RELEASE_TIMEOUT_MS = 10000;
 // Display controller detection: probes before the default (E-18).

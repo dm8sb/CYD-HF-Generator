@@ -28,8 +28,6 @@ bool mapPoint(const TouchCalibration& cal, int16_t rawX, int16_t rawY, int16_t* 
     return true;
 }
 
-bool bootGestureHeld(uint8_t pressedSamples) { return pressedSamples >= BOOT_GESTURE_MIN_HELD; }
-
 Output Filter::update(const Sample& s, uint32_t nowMs) {
     Output o {false, x_, y_, false};
     if (!s.touched) {

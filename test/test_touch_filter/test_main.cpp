@@ -73,15 +73,6 @@ static void test_filter_rejects_weak_pressure_and_bad_calibration() {
     TEST_ASSERT_TRUE(o.calibrationError);
 }
 
-static void test_boot_gesture_threshold() {
-    TEST_ASSERT_FALSE(bootGestureHeld(BOOT_GESTURE_MIN_HELD - 1));
-    TEST_ASSERT_TRUE(bootGestureHeld(BOOT_GESTURE_MIN_HELD));
-    TEST_ASSERT_TRUE(bootGestureHeld(BOOT_GESTURE_SAMPLES));
-    // 90 % of 1.5 s.
-    TEST_ASSERT_EQUAL_UINT32(1500, BOOT_GESTURE_SAMPLES * BOOT_GESTURE_SAMPLE_MS);
-    TEST_ASSERT_TRUE(BOOT_GESTURE_MIN_HELD * 10 >= BOOT_GESTURE_SAMPLES * 9);
-}
-
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_plausible_raw_values);
@@ -89,6 +80,5 @@ int main(int, char**) {
     RUN_TEST(test_filter_smooths_and_starts_at_the_new_press);
     RUN_TEST(test_filter_bridges_short_dropouts);
     RUN_TEST(test_filter_rejects_weak_pressure_and_bad_calibration);
-    RUN_TEST(test_boot_gesture_threshold);
     return UNITY_END();
 }

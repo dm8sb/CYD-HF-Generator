@@ -590,7 +590,7 @@ SI5351 SDA 22 SCL 27
 |---|---|
 | `Firmware` | Version, branch and commit the firmware was built from. `+` after the commit: built with uncommitted changes. Without git, `unknown` is shown |
 | `Build` | Date and time of the build |
-| `Display` | Display controller (`ILI9341` or `ST7789`) and source: `detected` (detected automatically), `stored` (stored choice from an earlier boot gesture), `boot gesture` (chosen by boot gesture at this startup), `default` (nothing detected, ILI9341 assumed), `build flag` (set at build time) |
+| `Display` | Display controller (`ILI9341` or `ST7789`) and source: `detected` (detected automatically), `default` (nothing detected, ILI9341 assumed), `build flag` (set at build time) |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
 
 ---
@@ -624,7 +624,7 @@ The following are saved:
 
 If the three new options are missing from storage (settings from firmware 1.2.0), the defaults `Fractional`, `Off` and `Low` apply, i.e. the behavior of 1.2.0. Invalid stored values are replaced by the default value at startup.
 
-The display controller choice made by boot gesture is saved immediately (section 13).
+The display controller is not stored but detected at every startup (section 13).
 
 Touch calibration is not saved. Default values are always used.
 
@@ -845,6 +845,7 @@ Important messages:
 | `[BOOT] CYD HF Generator 1.3.1 (dev 641ebe6+, 2026-10-28 16:42)` | Startup: version, branch, commit and build time as on the info card |
 | `[I2C] Line held low; releasing bus` | An I2C line was LOW at startup and was released |
 | `[SETTINGS] Loaded from NVS` | Settings loaded |
+| `[SETTINGS] Stored display choice removed; the controller is detected` | Once after updating from 1.3.0/1.3.1: the choice of the former boot gesture was deleted (section 13) |
 | `[SI5351] Init OK; all outputs off` | SI5351 initialized, all outputs off |
 | `[APP] SI5351 at 0x60, SDA=22 SCL=27` | Connected; with swapped wires `SDA=27 SCL=22 (swapped)` |
 | `[APP] SI5351 not found` | No SI5351 found; the search continues |
@@ -894,7 +895,9 @@ Two boards are sold under the name ESP32-2432S028R; they differ only in the disp
 
 The info card on CONFIG and the serial monitor show the result, for example `Display ST7789 (detected)` and `[DISPLAY] ST7789 (detected); ...` respectively. Pinout, touch and operation are the same on both variants.
 
-**Display shows only noise (boot gesture):** Touch the display, switch the device on and keep touching until the backlight blinks twice, then let go. The firmware then uses the other controller and remembers the choice. A second boot gesture switches back to automatic detection. The gesture only works if the touch is already present at power-on and is held for 1.5 s. A touch at power-on is not passed on to the user interface as a tap.
+A touch at power-on has no effect and is not passed on to the user interface as a tap. The boot gesture of firmware 1.3.0 and 1.3.1 (holding the display at power-on) no longer exists; a choice stored with it is deleted at the first startup (log `[SETTINGS] Stored display choice removed; the controller is detected`).
+
+**Display shows only noise:** The detection did not recognize an unknown controller and assumed ILI9341 (info card or log `default`). Only a firmware with a fixed controller helps then: set `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `=2` (ST7789) at build time (README).
 
 ---
 

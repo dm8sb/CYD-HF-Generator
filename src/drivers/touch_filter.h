@@ -4,8 +4,8 @@
 #include <types.h>
 
 // Touch processing without the XPT2046 library or LVGL (audit T-14): calibration mapping,
-// plausibility of raw values, jitter filter, bridging of short pressure dropouts and the
-// boot gesture threshold. TouchDriver feeds it with the library samples.
+// plausibility of raw values, jitter filter and bridging of short pressure dropouts.
+// TouchDriver feeds it with the library samples.
 namespace TouchFilter {
 
 // A missing or defective controller reads saturated values (0 / 4095) that would look like a
@@ -13,8 +13,6 @@ namespace TouchFilter {
 bool plausibleRaw(int16_t rawX, int16_t rawY);
 // Raw values to screen coordinates (clamped); false for an unusable calibration.
 bool mapPoint(const TouchCalibration& cal, int16_t rawX, int16_t rawY, int16_t* x, int16_t* y);
-// Boot gesture: enough of the BOOT_GESTURE_SAMPLES samples were pressed.
-bool bootGestureHeld(uint8_t pressedSamples);
 
 struct Sample {
     bool touched;   // the controller reports a touch

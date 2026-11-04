@@ -15,6 +15,8 @@ public:
     bool putI32(const char* key, int32_t value);
     uint8_t getU8(const char* key, uint8_t def);
     bool putU8(const char* key, uint8_t value);
+    // Deletes the key; false if it did not exist or the delete failed.
+    bool remove(const char* key);
 
 private:
     Preferences prefs_;

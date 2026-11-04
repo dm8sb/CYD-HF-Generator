@@ -89,27 +89,10 @@ ProbeResult probeWithRetries(PanelBus& bus, uint8_t maxAttempts, uint8_t* attemp
 
 bool knownId(uint32_t id) { return id == 0 || id == ID_ST7789V || id == ID_CYD2USB; }
 
-static PanelType other(PanelType t) { return t == PanelType::ST7789 ? PanelType::ILI9341 : PanelType::ST7789; }
-
-PanelDecision decide(const ProbeResult& p, PanelType stored, bool gesture, uint8_t buildForce) {
-    if (buildForce == 1 || buildForce == 2) {
-        return PanelDecision {(PanelType)buildForce, PanelSource::Build, false, PanelType::Unknown};
-    }
-    const PanelType automatic = p.panel != PanelType::Unknown ? p.panel : PanelType::ILI9341;
-    PanelDecision d {automatic, p.panel != PanelType::Unknown ? PanelSource::Detected : PanelSource::Default,
-                     false, PanelType::Unknown};
-    if (stored == PanelType::ILI9341 || stored == PanelType::ST7789) {
-        d.panel = stored;
-        d.source = PanelSource::Stored;
-    }
-    if (gesture) {
-        d.panel = other(d.panel);
-        d.source = PanelSource::Gesture;
-        d.save = true;
-        // Back to automatic when the user undoes a wrong choice.
-        d.saveValue = d.panel == automatic ? PanelType::Unknown : d.panel;
-    }
-    return d;
+PanelDecision decide(const ProbeResult& p, uint8_t buildForce) {
+    if (buildForce == 1 || buildForce == 2) return PanelDecision {(PanelType)buildForce, PanelSource::Build};
+    if (p.panel != PanelType::Unknown) return PanelDecision {p.panel, PanelSource::Detected};
+    return PanelDecision {PanelType::ILI9341, PanelSource::Default};
 }
 
 void postInit(PanelBus& bus, PanelType panel) {
@@ -135,8 +118,6 @@ const char* sourceName(PanelSource s) {
     switch (s) {
         case PanelSource::Build: return "build flag";
         case PanelSource::Detected: return "detected";
-        case PanelSource::Stored: return "stored";
-        case PanelSource::Gesture: return "boot gesture";
         default: return "default";
     }
 }

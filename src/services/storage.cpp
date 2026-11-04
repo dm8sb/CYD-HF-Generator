@@ -17,3 +17,4 @@ int32_t Storage::getI32(const char* key, int32_t def) { return prefs_.getInt(key
 bool Storage::putI32(const char* key, int32_t value) { return prefs_.putInt(key, value) > 0; }
 uint8_t Storage::getU8(const char* key, uint8_t def) { return prefs_.getUChar(key, def); }
 bool Storage::putU8(const char* key, uint8_t value) { return prefs_.putUChar(key, value) > 0; }
+bool Storage::remove(const char* key) { return prefs_.isKey(key) && prefs_.remove(key); }

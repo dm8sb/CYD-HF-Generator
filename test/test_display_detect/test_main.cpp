@@ -115,50 +115,30 @@ static ProbeResult detected(PanelType t) {
     return r;
 }
 
-static void test_decide_detected_without_gesture() {
-    PanelDecision d = decide(detected(PanelType::ST7789), PanelType::Unknown, false, 0);
+// Detection decides; without a usable answer the original CYD (ILI9341) is assumed (U-10: no
+// boot gesture since 1.3.2).
+static void test_decide_detected_or_default() {
+    PanelDecision d = decide(detected(PanelType::ST7789), 0);
     TEST_ASSERT_EQUAL(PanelType::ST7789, d.panel);
     TEST_ASSERT_EQUAL(PanelSource::Detected, d.source);
-    TEST_ASSERT_FALSE(d.save);
-    d = decide(detected(PanelType::Unknown), PanelType::Unknown, false, 0);
+    d = decide(detected(PanelType::ILI9341), 0);
+    TEST_ASSERT_EQUAL(PanelType::ILI9341, d.panel);
+    TEST_ASSERT_EQUAL(PanelSource::Detected, d.source);
+    d = decide(detected(PanelType::Unknown), 0);
     TEST_ASSERT_EQUAL(PanelType::ILI9341, d.panel);
     TEST_ASSERT_EQUAL(PanelSource::Default, d.source);
-    TEST_ASSERT_FALSE(d.save);
 }
 
 static void test_decide_build_flag_wins() {
-    const PanelDecision d = decide(detected(PanelType::ILI9341), PanelType::ILI9341, true, 2);
+    PanelDecision d = decide(detected(PanelType::ILI9341), 2);
     TEST_ASSERT_EQUAL(PanelType::ST7789, d.panel);
     TEST_ASSERT_EQUAL(PanelSource::Build, d.source);
-    TEST_ASSERT_FALSE(d.save);
-}
-
-static void test_decide_stored_choice_wins_over_detection() {
-    const PanelDecision d = decide(detected(PanelType::ILI9341), PanelType::ST7789, false, 0);
-    TEST_ASSERT_EQUAL(PanelType::ST7789, d.panel);
-    TEST_ASSERT_EQUAL(PanelSource::Stored, d.source);
-    TEST_ASSERT_FALSE(d.save);
-}
-
-static void test_decide_gesture_switches_and_can_be_undone() {
-    // Detection failed on a CYD2USB: noise; the gesture selects the ST7789 and stores it.
-    PanelDecision d = decide(detected(PanelType::Unknown), PanelType::Unknown, true, 0);
-    TEST_ASSERT_EQUAL(PanelType::ST7789, d.panel);
-    TEST_ASSERT_EQUAL(PanelSource::Gesture, d.source);
-    TEST_ASSERT_TRUE(d.save);
-    TEST_ASSERT_EQUAL(PanelType::ST7789, d.saveValue);
-    // Next boot without gesture uses it.
-    d = decide(detected(PanelType::Unknown), PanelType::ST7789, false, 0);
-    TEST_ASSERT_EQUAL(PanelType::ST7789, d.panel);
-    // A gesture by mistake on a detected board: other panel, stored.
-    d = decide(detected(PanelType::ILI9341), PanelType::Unknown, true, 0);
-    TEST_ASSERT_EQUAL(PanelType::ST7789, d.panel);
-    TEST_ASSERT_EQUAL(PanelType::ST7789, d.saveValue);
-    // The second gesture returns to the detection and stores "automatic".
-    d = decide(detected(PanelType::ILI9341), PanelType::ST7789, true, 0);
+    d = decide(detected(PanelType::ST7789), 1);
     TEST_ASSERT_EQUAL(PanelType::ILI9341, d.panel);
-    TEST_ASSERT_TRUE(d.save);
-    TEST_ASSERT_EQUAL(PanelType::Unknown, d.saveValue);
+    TEST_ASSERT_EQUAL(PanelSource::Build, d.source);
+    // Invalid values detect.
+    d = decide(detected(PanelType::ST7789), 3);
+    TEST_ASSERT_EQUAL(PanelSource::Detected, d.source);
 }
 
 // ---------------------------------------------------------------------------
@@ -209,28 +189,26 @@ static void test_post_init_st7789() {
 }
 
 // ---------------------------------------------------------------------------
-// NVS key for the boot gesture
+// NVS key "disp_panel" of the removed boot gesture (1.3.0-1.3.1): it overrode the detection,
+// so it is deleted once at boot.
 
-static void test_display_panel_setting() {
+static void test_stored_display_choice_is_removed_once() {
+    Preferences p;
+    p.putUChar("disp_panel", 2);
     SettingsService s;
     TEST_ASSERT_TRUE(s.begin());
-    TEST_ASSERT_EQUAL_UINT8(0, s.loadDisplayPanel()); // 1.2.0 NVS: automatic
-    TEST_ASSERT_TRUE(s.saveDisplayPanel(2));
-    TEST_ASSERT_EQUAL_UINT8(2, s.loadDisplayPanel());
+    TEST_ASSERT_TRUE(s.removeDisplayPanel());
+    TEST_ASSERT_FALSE(p.isKey("disp_panel"));
     const unsigned writes = Fake::nvs().writeCount;
-    TEST_ASSERT_TRUE(s.saveDisplayPanel(2));
-    TEST_ASSERT_EQUAL_UINT(writes, Fake::nvs().writeCount); // unchanged: no flash write
-    Preferences p;
-    p.putUChar("disp_panel", 7);
-    TEST_ASSERT_EQUAL_UINT8(0, s.loadDisplayPanel());
+    TEST_ASSERT_FALSE(s.removeDisplayPanel()); // nothing left: no flash write
+    TEST_ASSERT_EQUAL_UINT(writes, Fake::nvs().writeCount);
 }
 
-static void test_display_panel_setting_without_nvs() {
+static void test_display_choice_without_nvs() {
     Fake::nvs().available = false;
     SettingsService s;
     TEST_ASSERT_FALSE(s.begin());
-    TEST_ASSERT_EQUAL_UINT8(0, s.loadDisplayPanel());
-    TEST_ASSERT_FALSE(s.saveDisplayPanel(1));
+    TEST_ASSERT_FALSE(s.removeDisplayPanel());
 }
 
 // Audit T-15: a disturbed read gives Unknown; the retry finds the controller, a floating bus
@@ -282,16 +260,14 @@ int main() {
     RUN_TEST(test_probe_without_answer_is_unknown);
     RUN_TEST(test_probe_rejects_unstable_id);
     RUN_TEST(test_probe_rejects_id_ffffff);
-    RUN_TEST(test_decide_detected_without_gesture);
-    RUN_TEST(test_decide_build_flag_wins);
-    RUN_TEST(test_decide_stored_choice_wins_over_detection);
-    RUN_TEST(test_decide_gesture_switches_and_can_be_undone);
     RUN_TEST(test_madctl_tables);
     RUN_TEST(test_st7789_init_table);
     RUN_TEST(test_post_init_ili9341_writes_nothing);
     RUN_TEST(test_post_init_st7789);
-    RUN_TEST(test_display_panel_setting);
-    RUN_TEST(test_display_panel_setting_without_nvs);
+    RUN_TEST(test_decide_detected_or_default);
+    RUN_TEST(test_decide_build_flag_wins);
+    RUN_TEST(test_stored_display_choice_is_removed_once);
+    RUN_TEST(test_display_choice_without_nvs);
     RUN_TEST(test_probe_retries_after_a_bad_read);
     return UNITY_END();
 }

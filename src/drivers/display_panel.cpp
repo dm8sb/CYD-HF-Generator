@@ -45,7 +45,7 @@ void hex(char* out, const uint8_t* b) { snprintf(out, 9, "%02X%02X%02X%02X", b[0
 
 }
 
-PanelDecision DisplayPanel::begin(PanelType stored, bool gesture) {
+void DisplayPanel::begin() {
     // Same pins as TFT_eSPI uses; its own begin() later keeps the running bus.
     SPIClass& spi = TFT_eSPI::getSPIinstance();
     spi.begin(TFT_SCLK, TFT_MISO, TFT_MOSI, -1);
@@ -59,7 +59,7 @@ PanelDecision DisplayPanel::begin(PanelType stored, bool gesture) {
     SpiPanelBus bus(spi);
     uint8_t attempts = 0;
     probe_ = DisplayDetect::probeWithRetries(bus, DISPLAY_PROBE_ATTEMPTS, &attempts);
-    const PanelDecision d = DisplayDetect::decide(probe_, stored, gesture, DISPLAY_FORCE_PANEL);
+    const PanelDecision d = DisplayDetect::decide(probe_, DISPLAY_FORCE_PANEL);
     panel_ = d.panel;
     source_ = d.source;
 
@@ -79,7 +79,6 @@ PanelDecision DisplayPanel::begin(PanelType stored, bool gesture) {
     if (probe_.panel == PanelType::ST7789 && !DisplayDetect::knownId(probe_.id)) {
         Logger::error("DISPLAY", "Unknown controller ID; assuming ST7789");
     }
-    return d;
 }
 
 void DisplayPanel::setRotation_(uint8_t r) {

@@ -107,7 +107,6 @@ Jede Phase endet mit den Gates aus Audit 5.8: Host-Tests in `native-win` und `na
 
 Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Abschnitt 2.3. Reihenfolge: Phase 2 (schnelle Verbesserungen), Phase 3 (Laborbetrieb).
 
-- [ ] **P2 Boot-Geste entfernen** (U-10): Versehentliche Geste speichert den falschen Controller; die automatische Erkennung reicht (entschieden 2026-11-04) → Geste und `disp_panel` entfernen, `DISPLAY_FORCE_PANEL` behalten (ARBEITSPLAN S27).
 - [ ] **P2 Bildschirmsperre und Grundzustand** (U-13, war P3): Sperre durch 2 s Halten mit Anzeige „LOCK“ (unterdrückt auch Neuzeichnen, 2.1); „Reset to defaults (keep calibration)“ mit Bestätigung; **Werksreset** (NVS löschen inkl. künftigem `hfnet`) als weitere Zeile auf der CONFIG-Seite.
 - [ ] **P2 Kalibrieren** (U-11): heute Kopfrechnen und ≈ 20 Tipps → Wert antippen öffnet das Numpad (ppm mit Vorzeichen); Assistent siehe 6.
 - [ ] **P3 Masterfrequenz und Master-Schalter auf der CH3-Seite** (U-16), Kanalwahl im Header (CH1 → CH2 heute 2 Tipps).
@@ -126,7 +125,7 @@ Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Absch
 
 - [ ] **P2 Anwendungskapitel „Mischer-Experimente“** in beiden Handbüchern: Ausgangspegel je Drive-Stärke in dBm an 50 Ω (aus Messplan F2); Oberwellen eines Rechtecks (3. ≈ −9,5 dBc, 5. ≈ −14 dBc) und passende Tiefpässe; LO-Pegel für Diodenringmischer (+7 dBm) bzw. Dämpfung für NE612/SA612; IQ direkt an FST3253/74CBT3253 (Tayloe-Detektor); gleich lange Kabel bei IQ (1° bei 100 MHz ≈ 28 ps ≈ 5,6 mm Koax); Zusammenhang Phasenfehler ↔ Spiegelunterdrückung (1° ≈ 41 dB, 2° ≈ 35 dB, 5° ≈ 27 dB); Rechtecksignal nie ungefiltert an eine Antenne.
 - [M] **P2 „50 % Tastverhältnis“** (Handbücher 1) ist nicht belegt. Nach Messplan E5 präzisieren.
-- [ ] **P2 Handbuch ausbauen** (U-23): Inhaltsverzeichnis, einseitige Kurzanleitung für den Laborplatz, Seitenbilder, Glossar „Anzeige am Gerät → Bedeutung“ (NO HW, ERR, Corr., SSC, Out, Off state …), Symptomtabelle („kHz-Abweichung → Integer“, „breites Spektrum → Spread“, „DC bei OFF → Off state“); dass die Schrittweite für CH1 und CH2 gemeinsam gilt; Boot-Geste auch in §11. Hinweise „physischer Zugriff = Vollzugriff“ (S-22) und „ein Fremdgerät an 0x60 bekommt einen Schreibzugriff“ (S-24).
+- [ ] **P2 Handbuch ausbauen** (U-23): Inhaltsverzeichnis, einseitige Kurzanleitung für den Laborplatz, Seitenbilder, Glossar „Anzeige am Gerät → Bedeutung“ (NO HW, ERR, Corr., SSC, Out, Off state …), Symptomtabelle („kHz-Abweichung → Integer“, „breites Spektrum → Spread“, „DC bei OFF → Off state“); dass die Schrittweite für CH1 und CH2 gemeinsam gilt. Hinweise „physischer Zugriff = Vollzugriff“ (S-22) und „ein Fremdgerät an 0x60 bekommt einen Schreibzugriff“ (S-24).
 
 ## 6. Erweiterungen für Experimente und Ausbildung
 
@@ -158,7 +157,7 @@ Umgesetzt: `pio test -e native-win` (Windows) bzw. `pio test -e native` (gcc). S
 | `test_si5351` | 53 | Init, Identitätsprüfung und Überwachung; Einzelbetrieb in allen drei Tuning-Modi (Genauigkeit 1–100 MHz mit Korrektur 0 / +9,7 / ±50 ppm, Schwachstellen, R-Teiler, Hysterese ohne PLL-Reset in Low noise, Rasterpunkte und `FBx_INT` in Integer); Spread Spectrum (Register 149–161 zurückgerechnet, PLL B unberührt, VCO mit Modulation in 600–900 MHz); Off state (Register 24, Power-down-Strategie); IQ in allen Modi; Registergrenzen nach AN619 |
 | `test_si5351_plan` | 19 | Planungsfunktionen ohne I2C: feste PLLs, Hysterese, Raster, VCO-Fenster mit Spread, IQ-Bereich `iqMinHz()` / `iqMaxHz()` |
 | `test_app_controller` | 49 | Bootzustand, Schalten, Abstimmen, Grenzen, Drive, Korrektur, Backlight-Stufen; CH3 (Warten, Nachführen, Masterwechsel, IQ-Bereich mit Spread); CONFIG-Optionen (Standard, Speichern, ungültige NVS-Werte, Integer sperrt Spread); SDA/SCL-Erkennung (gerade, vertauscht, Hot-Plug, Fremdgerät, Leitung low, 400 kHz zu schwach); Autosave und NVS |
-| `test_display_detect` | 20 | Erkennung gegen ein Panel-Modell mit dem gemessenen Leseverhalten, Entscheidung (Build-Flag, gespeicherte Wahl, Boot-Geste), ST7789-Init-Tabelle, NVS-Schlüssel `disp_panel` |
+| `test_display_detect` | 20 | Erkennung gegen ein Panel-Modell mit dem gemessenen Leseverhalten, Entscheidung (Build-Flag, Erkennung, Standard), ST7789-Init-Tabelle, Löschen des alten NVS-Schlüssels `disp_panel` |
 
 Aufbau: [test/fakes](test/fakes) ersetzt Arduino-Core, `Wire` (SI5351-Registermodell mit Schreibprotokoll, Fehlerinjektion, Pinbelegung, Fremdgerät) und `Preferences`. [test/helpers/si5351_model.h](test/helpers/si5351_model.h) dekodiert die geschriebenen Register unabhängig vom Treiber zurück in Frequenzen, Spread-Parameter und Off state und prüft die Grenzen aus AN619; [test/helpers/panel_model.h](test/helpers/panel_model.h) bildet die Display-Controller nach.
 
