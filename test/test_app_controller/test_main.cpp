@@ -787,6 +787,31 @@ static void test_autosave_after_quiet_period() {
     TEST_ASSERT_EQUAL_UINT64(7110000ULL, p.getULong64("ch1_freq", 0));
 }
 
+// Audit C-5 / T-7: output states are not stored (A-4), so switching them must not write
+// the flash; neither must setting a stored value to the value it already has.
+static void test_unchanged_settings_do_not_write_flash() {
+    Device d;
+    d.run(SETTINGS_AUTOSAVE_MS + 1000);
+    const unsigned before = nvs.writeCount;
+    for (int i = 0; i < 10; ++i) {
+        d.app.setChannelEnabled(1, i % 2 == 0);
+        d.app.setChannelEnabled(3, i % 2 == 0);
+    }
+    const SystemSettings sys = d.app.system();
+    d.app.setDeltaStep(sys.delta_step);
+    d.app.setGlobalDriveStrength(sys.drive_ma);
+    d.app.setChannelFrequency(1, d.app.channel(1).frequency);
+    d.app.setChannelFrequency(2, d.app.channel(2).frequency);
+    TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
+    d.run(SETTINGS_AUTOSAVE_MS + 1000);
+    TEST_ASSERT_EQUAL_UINT(before, nvs.writeCount);
+    // A real change is still saved.
+    d.app.setDeltaStep(sys.delta_step == 1000 ? 100 : 1000);
+    TEST_ASSERT_EQUAL(SaveState::Pending, d.app.saveState());
+    d.run(SETTINGS_AUTOSAVE_MS + 1000);
+    TEST_ASSERT_TRUE(nvs.writeCount > before);
+}
+
 static void test_save_failure_is_reported() {
     Device d;
     nvs.failWrites = true;
@@ -948,6 +973,7 @@ int main() {
     RUN_TEST(test_boot_releases_line_held_low);
     RUN_TEST(test_link_texts_fit_the_dialog);
     RUN_TEST(test_autosave_after_quiet_period);
+    RUN_TEST(test_unchanged_settings_do_not_write_flash);
     RUN_TEST(test_save_failure_is_reported);
     RUN_TEST(test_nvs_unavailable);
     RUN_TEST(test_settings_survive_reboot_but_outputs_start_off);

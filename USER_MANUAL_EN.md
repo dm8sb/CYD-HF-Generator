@@ -627,7 +627,7 @@ The display controller choice made by boot gesture is saved immediately (section
 
 Touch calibration is not saved. Default values are always used.
 
-The ON/OFF state of the outputs is not saved; all outputs are off after power-up.
+The ON/OFF state of the outputs is not saved; all outputs are off after power-up. Switching outputs on or off therefore does not trigger saving, nor does a setting that already has the selected value. This spares the flash memory.
 
 ---
 
