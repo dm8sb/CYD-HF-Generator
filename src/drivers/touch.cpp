@@ -39,7 +39,7 @@ void TouchDriver::readLvgl(lv_indev_drv_t*, lv_indev_data_t* data) {
     bool pressed = touch_.touched();
 
     if (!pressed) {
-        if (now - lastTouchMs_ < 35 && lastPressed_) {
+        if (now - lastTouchMs_ < TOUCH_RELEASE_BRIDGE_MS && lastPressed_) {
             data->state = LV_INDEV_STATE_PR;
             data->point.x = filtX_;
             data->point.y = filtY_;

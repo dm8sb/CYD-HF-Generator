@@ -27,6 +27,10 @@ double formatOutput(double actualHz, uint64_t requestedHz, Spread spread, char* 
 // Returns false for anything else or a result outside FREQ_MIN_HZ..FREQ_MAX_HZ.
 bool parseFrequency(const char* text, const char* unit, uint64_t* outHz);
 uint8_t stepIndex(uint32_t step);
+// A limit of the CH3 IQ range in MHz with `decimals` places, rounded towards the inside of the
+// range (lower limit up, upper limit down), so the shown value is always reachable.
+// trimWhole: a whole number of MHz without decimals ("100" instead of "100.000").
+void formatIqLimit(uint64_t hz, bool lowerLimit, uint8_t decimals, bool trimWhole, char* out, size_t outSize);
 // For text from format(): decimal exponent of the digit at index (= digits to its right),
 // -1 for anything else.
 int digitExponent(const char* text, size_t index);

@@ -5,6 +5,7 @@
 #include <constants.h>
 #include <utils/frequency_utils.h>
 #include <utils/input_logic.h>
+#include <utils/message_queue.h>
 #include <string.h>
 
 using namespace InputLogic;
@@ -121,6 +122,78 @@ static void test_step_markup() {
     TEST_ASSERT_TRUE(strlen(small) < sizeof(small));
 }
 
+// ---------------------------------------------------------------------------
+// Message queue (audit T-12, A-38)
+
+static bool isLink(const char* text) { return strncmp(text, "Link", 4) == 0; }
+
+static void test_queue_one_open_rest_waits_in_order() {
+    MessageQueue q;
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Open, q.post("SI5351", "Link lost"));
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Queued, q.post("SI5351", "Frequency set failed"));
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Queued, q.post("Settings", "Save failed"));
+    TEST_ASSERT_EQUAL_STRING("Link lost", q.openText());
+    const MessageQueue::Message* m = q.close();
+    TEST_ASSERT_NOT_NULL(m);
+    TEST_ASSERT_EQUAL_STRING("Frequency set failed", q.openText());
+    m = q.close();
+    TEST_ASSERT_EQUAL_STRING("Settings", m->title);
+    TEST_ASSERT_NULL(q.close());
+    TEST_ASSERT_FALSE(q.isOpen());
+}
+
+static void test_queue_drops_duplicates_and_overflow() {
+    MessageQueue q;
+    q.post("A", "one");
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Duplicate, q.post("A", "one"));
+    q.post("A", "two");
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Duplicate, q.post("B", "two"));
+    q.post("A", "three");
+    q.post("A", "four");
+    TEST_ASSERT_EQUAL_UINT8(MessageQueue::CAPACITY, q.queued());
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Full, q.post("A", "five"));
+    // A long text is compared as stored (truncated).
+    char longText[300];
+    memset(longText, 'x', sizeof(longText) - 1);
+    longText[sizeof(longText) - 1] = 0;
+    MessageQueue r;
+    r.post("A", longText);
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Duplicate, r.post("A", longText));
+}
+
+static void test_queue_drops_link_messages_after_reconnect() {
+    MessageQueue q;
+    q.post("SI5351", "Link lost");
+    q.post("SI5351", "Frequency set failed");
+    q.post("SI5351", "Link stays low");
+    TEST_ASSERT_TRUE(q.dropMatching(isLink)); // the open one is a link message
+    TEST_ASSERT_EQUAL_UINT8(1, q.queued());
+    q.close();
+    TEST_ASSERT_EQUAL_STRING("Frequency set failed", q.openText());
+    TEST_ASSERT_FALSE(q.dropMatching(isLink));
+}
+
+// ---------------------------------------------------------------------------
+// IQ limit text (audit T-13, C-11)
+
+static void test_iq_limit_is_rounded_towards_the_inside() {
+    char buf[16];
+    FrequencyUtils::formatIqLimit(4730000, true, 3, false, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("4.730", buf);
+    FrequencyUtils::formatIqLimit(4748151, true, 3, false, buf, sizeof(buf)); // -0.5 % spread
+    TEST_ASSERT_EQUAL_STRING("4.749", buf);
+    FrequencyUtils::formatIqLimit(4748151, true, 2, false, buf, sizeof(buf)); // MAIN
+    TEST_ASSERT_EQUAL_STRING("4.75", buf);
+    FrequencyUtils::formatIqLimit(99502487, false, 3, false, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("99.502", buf);
+    FrequencyUtils::formatIqLimit(99502487, false, 2, false, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("99.50", buf);
+    FrequencyUtils::formatIqLimit(100000000, false, 3, true, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("100", buf);
+    FrequencyUtils::formatIqLimit(100000000, false, 3, false, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("100.000", buf);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_numpad_digits_and_one_point);
@@ -131,5 +204,9 @@ int main(int, char**) {
     RUN_TEST(test_char_index_at);
     RUN_TEST(test_tap_target);
     RUN_TEST(test_step_markup);
+    RUN_TEST(test_queue_one_open_rest_waits_in_order);
+    RUN_TEST(test_queue_drops_duplicates_and_overflow);
+    RUN_TEST(test_queue_drops_link_messages_after_reconnect);
+    RUN_TEST(test_iq_limit_is_rounded_towards_the_inside);
     return UNITY_END();
 }

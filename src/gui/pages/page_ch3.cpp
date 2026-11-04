@@ -25,9 +25,8 @@ void Gui::createCH3_() {
 
     char lo[12], hi[12], text[128];
     // Rounded to kHz towards the inside of the range; 4.730 / 100 MHz without spread spectrum.
-    FrequencyUtils::formatMHz((app_->iqMinHz() + 999) / 1000 * 1000, 3, lo, sizeof(lo));
-    const uint64_t iqMax = app_->iqMaxHz() / 1000 * 1000;
-    FrequencyUtils::formatMHz(iqMax, iqMax % 1000000 ? 3 : 0, hi, sizeof(hi));
+    FrequencyUtils::formatIqLimit(app_->iqMinHz(), true, 3, false, lo, sizeof(lo));
+    FrequencyUtils::formatIqLimit(app_->iqMaxHz(), false, 3, true, hi, sizeof(hi));
     snprintf(text, sizeof(text), "IQ range %s - %s MHz. 180/270 deg use output inversion. "
                                  "Drive strength is set globally in CONFIG.", lo, hi);
     lv_obj_t* note = addLabel_(root_, text, &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, 186);
@@ -47,8 +46,8 @@ void Gui::refreshCH3_() {
 
     lv_color_t infoColor = Colors::muted();
     char iqMin[12], iqMax[12];
-    FrequencyUtils::formatMHz((app.iqMinHz() + 999) / 1000 * 1000, 3, iqMin, sizeof(iqMin));
-    FrequencyUtils::formatMHz(app.iqMaxHz() / 1000 * 1000, 3, iqMax, sizeof(iqMax));
+    FrequencyUtils::formatIqLimit(app.iqMinHz(), true, 3, false, iqMin, sizeof(iqMin));
+    FrequencyUtils::formatIqLimit(app.iqMaxHz(), false, 3, false, iqMax, sizeof(iqMax));
     switch (status) {
         case Ch3Status::Off:
             snprintf(buf, sizeof(buf), "Off  |  follows CH%u", c3.master);

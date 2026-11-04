@@ -262,7 +262,7 @@ void Gui::refresh_() {
 void Gui::update() {
     // Without user input only the autosave indicator, the SI5351 connection and
     // output errors (cleared by the periodic retry) change.
-    if (millis() - lastUpdateMs_ < 300) return;
+    if (millis() - lastUpdateMs_ < GUI_UPDATE_INTERVAL_MS) return;
     lastUpdateMs_ = millis();
     // SI5351 reconnected (possibly between two samples): connection dialogs are outdated.
     if (app_->connectionCount() != lastConnections_) {
@@ -297,6 +297,14 @@ void Gui::eventCb_(lv_event_t* e) {
     uintptr_t packed = (uintptr_t)lv_event_get_user_data(e);
     g->handleAction_((Action)((packed >> 8) & 0xFF), (uint8_t)(packed & 0xFF), obj);
 }
+
+// CONFIG dropdowns (page_config.cpp) list their options in enum order; the index is the value.
+static_assert((uint8_t)TuningMode::Fractional == 0 && (uint8_t)TuningMode::LowNoise == 1 &&
+                  (uint8_t)TuningMode::Integer == 2, "Tuning dropdown order");
+static_assert((uint8_t)Spread::Off == 0 && (uint8_t)Spread::Down05 == 1 && (uint8_t)Spread::Down15 == 2 &&
+                  (uint8_t)Spread::Center05 == 3, "Spread CH1 dropdown order");
+static_assert((uint8_t)OffState::Low == 0 && (uint8_t)OffState::High == 1 && (uint8_t)OffState::HighZ == 2,
+              "Off state dropdown order");
 
 void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
     AppController& app = *app_;
@@ -354,7 +362,7 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::Drive:
             app.setGlobalDriveStrength((lv_dropdown_get_selected(obj) + 1) * 2);
             break;
-        // The dropdown options are in enum order. refresh_() shows the resulting state, e.g.
+        // The dropdown options are in enum order (checked below). refresh_() shows the resulting state, e.g.
         // spread spectrum turned off by the Integer mode.
         case Action::Tuning:
             app.setTuningMode((TuningMode)lv_dropdown_get_selected(obj));
@@ -376,65 +384,51 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
 // Message box: one at a time, further messages wait in a short queue.
 
 void Gui::showMessage(const char* title, const char* text) {
-    if (!msgbox_) {
-        openMessage_(title, text);
-        return;
+    switch (messages_.post(title, text)) {
+        case MessageQueue::Post::Open: openMessage_(); break;
+        case MessageQueue::Post::Full: Logger::error("GUI", "Message queue full"); break;
+        case MessageQueue::Post::Queued:
+        case MessageQueue::Post::Duplicate: break;
     }
-    if (strcmp(msgText_, text) == 0) return;
-    for (uint8_t i = 0; i < msgCount_; ++i) {
-        if (strcmp(msgQueue_[i].text, text) == 0) return;
-    }
-    if (msgCount_ == MSG_QUEUE_LEN) {
-        Logger::error("GUI", "Message queue full");
-        return;
-    }
-    Message& m = msgQueue_[msgCount_++];
-    snprintf(m.title, sizeof(m.title), "%s", title);
-    snprintf(m.text, sizeof(m.text), "%s", text);
 }
 
-void Gui::openMessage_(const char* title, const char* text) {
+// Creates the box of the open message unless it exists (several async calls may be pending).
+void Gui::openMessage_() {
     static const char* buttons[] = {"OK", ""};
-    snprintf(msgText_, sizeof(msgText_), "%s", text);
-    msgbox_ = lv_msgbox_create(nullptr, title, msgText_, buttons, false);
+    if (shownBox_ || !messages_.isOpen()) return;
+    msgbox_ = shownBox_ = lv_msgbox_create(nullptr, messages_.openTitle(), messages_.openText(), buttons, false);
     lv_obj_center(msgbox_);
     lv_obj_add_event_cb(msgbox_, msgboxEventCb_, LV_EVENT_VALUE_CHANGED, nullptr);
     lv_obj_add_event_cb(msgbox_, msgboxEventCb_, LV_EVENT_DELETE, nullptr);
 }
 
 void Gui::dismissLinkMessages_() {
-    uint8_t kept = 0;
-    for (uint8_t i = 0; i < msgCount_; ++i) {
-        if (!AppController::isLinkText(msgQueue_[i].text)) msgQueue_[kept++] = msgQueue_[i];
+    // Output errors from the restore stay.
+    if (!messages_.dropMatching(AppController::isLinkText)) return;
+    if (msgbox_) {
+        lv_msgbox_close(msgbox_); // the delete event moves on to the next message
+    } else if (!shownBox_ && messages_.close()) {
+        // The outdated message was still waiting for its box; the next one gets it.
+        lv_async_call(nextMessageCb_, this);
     }
-    msgCount_ = kept;
-    // Output errors from the restore stay. The delete event clears msgbox_ and opens the next message.
-    if (msgbox_ && AppController::isLinkText(msgText_)) lv_msgbox_close(msgbox_);
+    // shownBox_ without msgbox_: already closing after OK, its delete event moves on.
 }
 
-void Gui::nextMessageCb_(void* gui) {
-    Gui* g = static_cast<Gui*>(gui);
-    if (g->msgbox_ || g->msgCount_ == 0) return;
-    const Message m = g->msgQueue_[0];
-    g->msgCount_--;
-    memmove(&g->msgQueue_[0], &g->msgQueue_[1], g->msgCount_ * sizeof(Message));
-    g->openMessage_(m.title, m.text);
-}
+void Gui::nextMessageCb_(void* gui) { static_cast<Gui*>(gui)->openMessage_(); }
 
 void Gui::msgboxEventCb_(lv_event_t* e) {
     lv_obj_t* box = lv_event_get_current_target(e);
     Gui* g = from_(box);
-    if (g->msgbox_ == box) {
-        g->msgbox_ = nullptr;
-        g->msgText_[0] = '\0';
-    }
     // lv_msgbox footer buttons have no default action in LVGL 8.3.
     if (lv_event_get_code(e) == LV_EVENT_VALUE_CHANGED) {
-        // Block a second tap before the async close runs, it would close a deleted box.
+        // Closing: no second close from dismissLinkMessages_(), no second tap before the
+        // async close runs (it would close a deleted box).
+        if (g->msgbox_ == box) g->msgbox_ = nullptr;
         lv_obj_clear_flag(lv_msgbox_get_btns(box), LV_OBJ_FLAG_CLICKABLE);
         lv_msgbox_close_async(box);
-    } else if (g->msgCount_ > 0) {
-        // Not inside the delete event of the old box.
-        lv_async_call(nextMessageCb_, g);
+    } else if (box == g->shownBox_) {
+        g->shownBox_ = g->msgbox_ = nullptr;
+        // The next message opens outside the delete event of the old box.
+        if (g->messages_.close()) lv_async_call(nextMessageCb_, g);
     }
 }
