@@ -125,7 +125,6 @@ Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Absch
 
 - [ ] **P2 Anwendungskapitel „Mischer-Experimente“** in beiden Handbüchern: Ausgangspegel je Drive-Stärke in dBm an 50 Ω (aus Messplan F2); Oberwellen eines Rechtecks (3. ≈ −9,5 dBc, 5. ≈ −14 dBc) und passende Tiefpässe; LO-Pegel für Diodenringmischer (+7 dBm) bzw. Dämpfung für NE612/SA612; IQ direkt an FST3253/74CBT3253 (Tayloe-Detektor); gleich lange Kabel bei IQ (1° bei 100 MHz ≈ 28 ps ≈ 5,6 mm Koax); Zusammenhang Phasenfehler ↔ Spiegelunterdrückung (1° ≈ 41 dB, 2° ≈ 35 dB, 5° ≈ 27 dB); Rechtecksignal nie ungefiltert an eine Antenne.
 - [M] **P2 „50 % Tastverhältnis“** (Handbücher 1) ist nicht belegt. Nach Messplan E5 präzisieren.
-- [ ] **P2 Handbuch ausbauen** (U-23): Inhaltsverzeichnis, einseitige Kurzanleitung für den Laborplatz, Seitenbilder, Glossar „Anzeige am Gerät → Bedeutung“ (NO HW, ERR, Corr., SSC, Out, Off state …), Symptomtabelle („kHz-Abweichung → Integer“, „breites Spektrum → Spread“, „DC bei OFF → Off state“); dass die Schrittweite für CH1 und CH2 gemeinsam gilt. Hinweise „physischer Zugriff = Vollzugriff“ (S-22) und „ein Fremdgerät an 0x60 bekommt einen Schreibzugriff“ (S-24).
 
 ## 6. Erweiterungen für Experimente und Ausbildung
 
