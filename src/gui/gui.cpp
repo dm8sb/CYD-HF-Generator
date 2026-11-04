@@ -234,9 +234,10 @@ void Gui::showState_(lv_obj_t* label, const StatusText::Text& state) {
 
 // Includes SI5351 rounding, the Integer raster and spread spectrum; assumes a correct
 // frequency correction.
-void Gui::showOutput_(uint8_t ch, uint64_t requested) {
-    char buf[64];
-    const double dev = FrequencyUtils::formatOutput(app_->actualHz(ch), requested, app_->spreadOf(ch), buf, sizeof(buf));
+void Gui::showOutput_(uint8_t ch, uint64_t requested, const char* prefix) {
+    char out[64], buf[72];
+    const double dev = FrequencyUtils::formatOutput(app_->actualHz(ch), requested, app_->spreadOf(ch), out, sizeof(out));
+    snprintf(buf, sizeof(buf), "%s%s", prefix, out);
     lv_label_set_text(w_.info, buf);
     const bool warn = fabs(dev) >= FrequencyUtils::DEVIATION_WARN_HZ;
     lv_obj_set_style_text_color(w_.info, warn ? Colors::warn() : Colors::muted(), 0);

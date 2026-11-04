@@ -20,8 +20,12 @@ using namespace Si5351Model;
 static Fake::Si5351Chip& chip = Fake::si5351();
 static Fake::Nvs& nvs = Fake::nvs();
 static unsigned errorCount;
+static char lastErrorText[160];
 
-static void onError(const char*, const char*) { ++errorCount; }
+static void onError(const char*, const char* text) {
+    ++errorCount;
+    snprintf(lastErrorText, sizeof(lastErrorText), "%s", text);
+}
 
 struct Device {
     SettingsService settings;
@@ -54,6 +58,7 @@ void setUp() {
     nvs.reset();
     Fake::clockMs() = 0;
     errorCount = 0;
+    lastErrorText[0] = '\0';
     Fake::wireMisuse() = false;
     Wire.failBegin = false;
     Wire.resetCounters();
@@ -66,6 +71,8 @@ static void startFaultyIQ(Device& d) {
     d.app.setCH3Phase(270);
     d.app.setChannelEnabled(3, true);
     TEST_ASSERT_EQUAL(Ch3Status::Error, d.app.ch3Status());
+    // The dialog names the channel and the running master (audit U-21).
+    TEST_ASSERT_EQUAL_STRING("CH3: IQ setup failed, CLK2 stays off. CH1 keeps running. Retrying every 2 s.", lastErrorText);
 }
 
 static void assertMasterRuns() {

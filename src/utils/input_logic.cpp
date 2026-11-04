@@ -10,11 +10,24 @@ namespace InputLogic {
 
 const char* const KEY_BACKSPACE = "\xEF\x95\x9A"; // LV_SYMBOL_BACKSPACE (LVGL 8.3)
 
+static_assert(FREQ_MIN_HZ == 1000000ULL && FREQ_MAX_HZ == 100000000ULL, "numpadErrorText() names the range");
+static_assert(NUMPAD_MAX_LEN == 9, "numpadErrorText() names the length");
+
+const char* numpadErrorText(NumpadError e) {
+    switch (e) {
+        case NumpadError::Empty: return "Enter a number";
+        case NumpadError::OutOfRange: return "Allowed 1 - 100 MHz";
+        case NumpadError::TooLong: return "Max. 9 characters";
+        case NumpadError::None: break;
+    }
+    return "";
+}
+
 static bool isUnit(const char* key) { return !strcmp(key, "Hz") || !strcmp(key, "kHz") || !strcmp(key, "MHz"); }
 
 NumpadEvent numpadKey(Numpad& n, const char* key, uint64_t* outHz) {
     if (!key) return NumpadEvent::Ignored;
-    n.error = false;
+    n.error = NumpadError::None;
     if (!strcmp(key, KEY_BACKSPACE)) {
         if (n.len == 0) return NumpadEvent::Ignored;
         n.text[--n.len] = '\0';
@@ -28,9 +41,8 @@ NumpadEvent numpadKey(Numpad& n, const char* key, uint64_t* outHz) {
     if (isUnit(key)) {
         uint64_t hz = 0;
         if (!FrequencyUtils::parseFrequency(n.text, key, &hz)) {
-            n.len = 0;
-            n.text[0] = '\0';
-            n.error = true;
+            // The input stays, so it can be corrected (U-9).
+            n.error = strpbrk(n.text, "0123456789") ? NumpadError::OutOfRange : NumpadError::Empty;
             return NumpadEvent::Rejected;
         }
         if (outHz) *outHz = hz;
@@ -40,7 +52,11 @@ NumpadEvent numpadKey(Numpad& n, const char* key, uint64_t* outHz) {
     const bool point = key[0] == '.' && key[1] == '\0';
     if (!digit && !point) return NumpadEvent::Ignored;
     // Only one decimal point; the field holds NUMPAD_MAX_LEN characters.
-    if ((point && strchr(n.text, '.')) || n.len >= NUMPAD_MAX_LEN) return NumpadEvent::Ignored;
+    if (point && strchr(n.text, '.')) return NumpadEvent::Ignored;
+    if (n.len >= NUMPAD_MAX_LEN) {
+        n.error = NumpadError::TooLong;
+        return NumpadEvent::Rejected;
+    }
     n.text[n.len++] = key[0];
     n.text[n.len] = '\0';
     return NumpadEvent::Edited;
@@ -54,6 +70,21 @@ size_t charIndexAt(const char* text, int x, GlyphWidth width, void* ctx) {
         if (x < right) return i;
     }
     return len - 1; // right of the text = unit
+}
+
+size_t tapIndexAt(const char* text, int x, GlyphWidth width, void* ctx) {
+    const size_t i = charIndexAt(text, x, width, ctx);
+    if (text[i] != ' ' && text[i] != '.') return i;
+    int left = 0;
+    for (size_t k = 0; k < i; ++k) left += width(text[k], text[k + 1], ctx);
+    const bool leftHalf = x < left + width(text[i], text[i + 1], ctx) / 2;
+    const size_t len = strlen(text);
+    auto usable = [&](size_t k) { return k < len && isalnum((unsigned char)text[k]); };
+    const size_t nearer = leftHalf ? i - 1 : i + 1; // i - 1 wraps for i == 0: not usable
+    const size_t other = leftHalf ? i + 1 : i - 1;
+    if (usable(nearer)) return nearer;
+    if (usable(other)) return other;
+    return i;
 }
 
 TapTarget tapTarget(const char* text, size_t index, uint32_t* step) {

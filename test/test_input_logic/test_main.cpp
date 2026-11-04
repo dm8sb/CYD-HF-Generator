@@ -36,7 +36,13 @@ static void test_numpad_length_limit() {
     Numpad n = typed("1234567890");
     TEST_ASSERT_EQUAL_STRING("123456789", n.text);
     TEST_ASSERT_EQUAL_UINT(NUMPAD_MAX_LEN, n.len);
-    TEST_ASSERT_EQUAL(NumpadEvent::Ignored, numpadKey(n, "1", nullptr));
+    // The 10th character is not ignored silently (audit U-9).
+    TEST_ASSERT_EQUAL(NumpadEvent::Rejected, numpadKey(n, "1", nullptr));
+    TEST_ASSERT_EQUAL(NumpadError::TooLong, n.error);
+    TEST_ASSERT_EQUAL_STRING("123456789", n.text);
+    // Backspace still works and clears the error.
+    TEST_ASSERT_EQUAL(NumpadEvent::Edited, numpadKey(n, KEY_BACKSPACE, nullptr));
+    TEST_ASSERT_EQUAL(NumpadError::None, n.error);
 }
 
 static void test_numpad_backspace_and_clear() {
@@ -65,20 +71,40 @@ static void test_numpad_units_confirm() {
     TEST_ASSERT_EQUAL_UINT64(5000000ULL, hz);
 }
 
-// MESSPLAN B3: "500" MHz and "0.5" MHz are rejected, the field is cleared and marked.
+// MESSPLAN B3: "500" MHz and "0.5" MHz are rejected and marked; the input stays, so it can be
+// corrected (audit U-9).
 static void test_numpad_rejects_out_of_range_and_empty() {
-    const char* bad[] = {"500", "0.5", "", "."};
-    for (const char* t : bad) {
-        Numpad n = typed(t);
+    struct Case {
+        const char* text;
+        NumpadError error;
+    };
+    const Case bad[] = {{"500", NumpadError::OutOfRange}, {"0.5", NumpadError::OutOfRange},
+                        {"", NumpadError::Empty}, {".", NumpadError::Empty}};
+    for (const Case& c : bad) {
+        Numpad n = typed(c.text);
         uint64_t hz = 42;
-        TEST_ASSERT_EQUAL_MESSAGE(NumpadEvent::Rejected, numpadKey(n, "MHz", &hz), t);
+        TEST_ASSERT_EQUAL_MESSAGE(NumpadEvent::Rejected, numpadKey(n, "MHz", &hz), c.text);
         TEST_ASSERT_EQUAL_UINT64(42, hz);
-        TEST_ASSERT_TRUE(n.error);
-        TEST_ASSERT_EQUAL_STRING("", n.text);
+        TEST_ASSERT_EQUAL_MESSAGE(c.error, n.error, c.text);
+        TEST_ASSERT_EQUAL_STRING(c.text, n.text);
         // The next key clears the error mark.
-        numpadKey(n, "1", nullptr);
-        TEST_ASSERT_FALSE(n.error);
+        numpadKey(n, KEY_BACKSPACE, nullptr);
+        TEST_ASSERT_EQUAL(NumpadError::None, n.error);
     }
+    // Corrected after the error: "500" -> "50" MHz.
+    Numpad n = typed("500");
+    numpadKey(n, "MHz", nullptr);
+    numpadKey(n, KEY_BACKSPACE, nullptr);
+    uint64_t hz = 0;
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadKey(n, "MHz", &hz));
+    TEST_ASSERT_EQUAL_UINT64(50000000ULL, hz);
+}
+
+static void test_numpad_error_texts() {
+    TEST_ASSERT_EQUAL_STRING("", numpadErrorText(NumpadError::None));
+    TEST_ASSERT_EQUAL_STRING("Enter a number", numpadErrorText(NumpadError::Empty));
+    TEST_ASSERT_EQUAL_STRING("Allowed 1 - 100 MHz", numpadErrorText(NumpadError::OutOfRange));
+    TEST_ASSERT_EQUAL_STRING("Max. 9 characters", numpadErrorText(NumpadError::TooLong));
 }
 
 // Monospaced test font: every character 10 px.
@@ -92,6 +118,20 @@ static void test_char_index_at() {
     TEST_ASSERT_EQUAL_UINT(13, charIndexAt(text, 139, width10, nullptr));
     TEST_ASSERT_EQUAL_UINT(13, charIndexAt(text, 500, width10, nullptr)); // right of the text
     TEST_ASSERT_EQUAL_UINT(0, charIndexAt(text, -5, width10, nullptr));
+}
+
+// A tap on a point or space selects the nearer neighbor (audit U-15): the targets are only
+// 1.8-3.4 mm wide.
+static void test_tap_index_assigns_separators_to_neighbors() {
+    const char* text = "10.700 000 MHz"; // 10 px per character
+    TEST_ASSERT_EQUAL_UINT(1, tapIndexAt(text, 22, width10, nullptr)); // left half of '.'
+    TEST_ASSERT_EQUAL_UINT(3, tapIndexAt(text, 27, width10, nullptr)); // right half of '.'
+    TEST_ASSERT_EQUAL_UINT(5, tapIndexAt(text, 61, width10, nullptr)); // left half of ' '
+    TEST_ASSERT_EQUAL_UINT(7, tapIndexAt(text, 66, width10, nullptr)); // right half of ' '
+    TEST_ASSERT_EQUAL_UINT(9, tapIndexAt(text, 101, width10, nullptr)); // ' ' before the unit
+    TEST_ASSERT_EQUAL_UINT(11, tapIndexAt(text, 107, width10, nullptr)); // unit side
+    TEST_ASSERT_EQUAL_UINT(4, tapIndexAt(text, 45, width10, nullptr)); // digits unchanged
+    TEST_ASSERT_EQUAL_UINT(13, tapIndexAt(text, 500, width10, nullptr));
 }
 
 static void test_tap_target() {
@@ -264,6 +304,16 @@ static void test_edge_area_reaches_only_near_edges() {
     TEST_ASSERT_EQUAL(9, a.y1);
 }
 
+// Output error dialogs name the channel and what happens next (audit U-21).
+static void test_output_error_texts_name_channel_and_retry() {
+    using namespace StatusText;
+    char buf[160];
+    outputErrorText(2, 0, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("CH2: frequency setup failed. Retrying every 2 s.", buf);
+    outputErrorText(3, 1, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("CH3: IQ setup failed, CLK2 stays off. CH1 keeps running. Retrying every 2 s.", buf);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_numpad_digits_and_one_point);
@@ -281,5 +331,8 @@ int main(int, char**) {
     RUN_TEST(test_status_texts_show_the_actual_state);
     RUN_TEST(test_mode_summary_lists_only_deviations);
     RUN_TEST(test_edge_area_reaches_only_near_edges);
+    RUN_TEST(test_numpad_error_texts);
+    RUN_TEST(test_tap_index_assigns_separators_to_neighbors);
+    RUN_TEST(test_output_error_texts_name_channel_and_retry);
     return UNITY_END();
 }

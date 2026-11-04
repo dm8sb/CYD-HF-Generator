@@ -14,9 +14,11 @@ void Gui::createCH3_() {
     w_.freq = addLabel_(card, "", &lv_font_montserrat_28, Colors::text(), 2, 0);
     w_.info = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), 2, 32);
     w_.modes = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 2, 50);
+    lv_obj_set_width(w_.modes, CONTENT_W - 2 * (CARD_PAD + CARD_BORDER) - 4);
+    lv_label_set_long_mode(w_.modes, LV_LABEL_LONG_DOT);
 
     addLabel_(root_, "Master", &lv_font_montserrat_14, Colors::muted(), MARGIN + 2, 128);
-    addLabel_(root_, "Phase (deg)", &lv_font_montserrat_14, Colors::muted(), 148, 128);
+    addLabel_(root_, "Phase (\xC2\xB0)", &lv_font_montserrat_14, Colors::muted(), 148, 128);
 
     // Chips 6 px apart, a mistap would swap the sideband (audit U-6); 8 px between the groups.
     w_.masterChips[0] = addChip_(root_, "CH1", MARGIN, 146, 62, 40, Colors::ch1(), Action::Ch3Master, 1);
@@ -29,7 +31,7 @@ void Gui::createCH3_() {
     // Rounded to kHz towards the inside of the range; 4.730 / 100 MHz without spread spectrum.
     FrequencyUtils::formatIqLimit(app_->iqMinHz(), true, 3, false, lo, sizeof(lo));
     FrequencyUtils::formatIqLimit(app_->iqMaxHz(), false, 3, true, hi, sizeof(hi));
-    snprintf(text, sizeof(text), "IQ range %s - %s MHz. 180/270 deg use output inversion. "
+    snprintf(text, sizeof(text), "IQ range %s - %s MHz. 180\xC2\xB0/270\xC2\xB0 use output inversion. "
                                  "Drive strength is set globally in CONFIG.", lo, hi);
     lv_obj_t* note = addLabel_(root_, text, &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, 194);
     lv_obj_set_width(note, CONTENT_W - 4);

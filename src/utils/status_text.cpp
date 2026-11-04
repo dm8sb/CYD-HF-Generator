@@ -35,6 +35,17 @@ static void append(char* out, size_t outSize, size_t& n, const char* token) {
     if (w > 0) n += (size_t)w;
 }
 
+void outputErrorText(uint8_t ch, uint8_t master, char* out, size_t outSize) {
+    if (!out || outSize == 0) return;
+    static_assert(HW_CHECK_INTERVAL_MS == 2000, "the texts name the retry interval");
+    if (ch == 3) {
+        snprintf(out, outSize, "CH3: IQ setup failed, CLK2 stays off. CH%u keeps running. Retrying every 2 s.",
+                 (unsigned)master);
+    } else {
+        snprintf(out, outSize, "CH%u: frequency setup failed. Retrying every 2 s.", (unsigned)ch);
+    }
+}
+
 Tone modeSummary(TuningMode tuning, Spread spread, uint8_t driveMa, OffState off, char* out, size_t outSize) {
     if (!out || outSize == 0) return Tone::Muted;
     out[0] = '\0';

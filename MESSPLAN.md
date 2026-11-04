@@ -536,10 +536,10 @@ Für B8 bis B20 gelten die Bedingungen aus Abschnitt 2.4. Die Auswertung der Tou
 
 `Board` beide · `Läufe` R0 R1 · `Bezug` A-2, E-5 · `Dauer` 10 min
 
-1. NUMPAD öffnen; „500“ und `MHz`; dann „0.5“ und `MHz`; dann „10.7“ und `MHz`.
+1. NUMPAD öffnen; „500“ und `MHz`; dann `C`, „0.5“ und `MHz`; dann `C`, „10.7“ und `MHz`.
 2. Zusätzlich „1“ und `Hz` (unter 1 MHz) prüfen; Verhalten bei Bereich 8 kHz … 160 MHz nur, falls 2.4 umgesetzt ist (H).
 
-**Soll:** Fehlermeldung, Fehlermeldung, 10.700 000 MHz; nach einer Fehleingabe bleibt die Eingabe sichtbar (U-9) bzw. wird laut Handbuch gelöscht.
+**Soll:** zweimal `Allowed 1 - 100 MHz` in Rot mit rotem Rahmen, die Eingabe bleibt stehen (U-9, seit S26); dann 10.700 000 MHz.
 **Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
 
 #### B4 · Numpad schließen mit kurzem Finger-Nachhalten (alt 13a)

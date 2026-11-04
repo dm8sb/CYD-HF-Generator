@@ -37,7 +37,7 @@ Die Hauptseite zeigt für jeden Kanal eine Karte mit:
 - Kanalname und Status
 - eingestellter Frequenz (Sollfrequenz)
 - eigenem ON/OFF-Schalter
-- Zusatzzeile: bei CH1/CH2 die Moduszeile (siehe unten) und `IQ master of CH3`, wenn CH3 eingeschaltet ist und diesem Kanal folgt (mit Moduszeile kurz `| IQ master`); bei CH3 Master und Phase, z. B. `CH1 / 90 deg`, bei `WAIT` und `! ERR` mit dem Grund (z. B. `CH1 / 90 deg / master off`)
+- Zusatzzeile: bei CH1/CH2 die Moduszeile (siehe unten) und `IQ master of CH3`, wenn CH3 eingeschaltet ist und diesem Kanal folgt (mit Moduszeile kurz `| IQ master`); bei CH3 Master und Phase, z. B. `CH1 / 90°`, bei `WAIT` und `! ERR` mit dem Grund (z. B. `CH1 / 90° / master off`)
 
 Im Modus `Tuning` = `Integer` steht vor der Frequenz ein `~`, wenn die tatsächliche Frequenz um 1 Hz oder mehr von der Sollfrequenz abweicht (Abschnitt 8).
 
@@ -152,7 +152,7 @@ Die Kanalseite von CH1 und CH2 enthält:
 
 Die Tasten `−` und `+` ändern die Frequenz um den aktuell gewählten Schritt. Der gewählte Schritt ist farbig hervorgehoben und wird direkt auf der Kanalseite (oder in CONFIG) gewählt.
 
-**Stelle direkt antippen:** Ein Tipp auf eine Ziffer der Frequenzanzeige wählt diese Stelle als Schritt (z. B. die dritte Nachkommastelle = 1 kHz). Die Stelle, die `−`/`+` ändert, ist in der Kanalfarbe hervorgehoben. Ziffern über 1 MHz (10 MHz, 100 MHz) wählen den größten Schritt 1 MHz. Ein Tipp auf die Einheit `MHz` öffnet das NUMPAD.
+**Stelle direkt antippen:** Ein Tipp auf eine Ziffer der Frequenzanzeige wählt diese Stelle als Schritt (z. B. die dritte Nachkommastelle = 1 kHz). Die Stelle, die `−`/`+` ändert, ist in der Kanalfarbe hervorgehoben. Ziffern über 1 MHz (10 MHz, 100 MHz) wählen den größten Schritt 1 MHz. Ein Tipp auf die Einheit `MHz` öffnet das NUMPAD. Das Antippen ist eine Abkürzung zu den Schritt-Tasten: Die Ziffern sind nur 2–3 mm breit, ein Tipp auf den Punkt oder eine Lücke wählt die nähere Nachbarziffer.
 
 **Gedrückt halten:** Nach ca. 0,4 s wiederholt sich der Schritt automatisch etwa alle 0,1 s, bis die Taste losgelassen wird.
 
@@ -184,6 +184,9 @@ Out 7.102 273 MHz (+2272.7 Hz)
 ```text
 Out 9.975 000 MHz mean, SSC -0.5 %
 ```
+
+- Bei ausgeschaltetem Kanal beginnt die Zeile mit `Off | `, z. B. `Off | Out 10.000 000 MHz (+0.3 Hz)`: So würde der Ausgang nach dem Einschalten laufen.
+- Folgt CH3 diesem Kanal, steht in der Moduszeile darunter `IQ master of CH3 (90°)` mit der Phase von CH3; Frequenzänderungen verschieben dann beide Ausgänge.
 
 Bei Fehlern steht statt der Frequenz in Rot:
 
@@ -219,7 +222,7 @@ Die Frequenz bleibt immer im Bereich 1 MHz bis 100 MHz.
 Auf CH1 oder CH2:
 
 1. `NUMPAD` drücken.
-2. Zahlen eingeben. Die aktuelle Frequenz steht grau als Platzhalter im Eingabefeld.
+2. Zahlen eingeben. Unter dem Eingabefeld steht links die aktuelle Frequenz, z. B. `Now 10.000 000 MHz`.
 3. Optional einen Dezimalpunkt verwenden (nur einer ist möglich).
 4. Eine Einheit drücken:
    - `Hz`
@@ -250,11 +253,19 @@ Mit der Taste `◀` oben links geht es **ohne Änderung** zurück zur Kanalseite
 | MHz | Wert als MHz übernehmen |
 | `◀` | Zurück zur Kanalseite ohne Änderung |
 
-Maximal 9 Zeichen sind erlaubt.
+Maximal 9 Zeichen sind erlaubt; ein zehntes zeigt `Max. 9 characters`.
 
 ### Ungültige Eingabe
 
-Liegt der Wert außerhalb von 1–100 MHz oder ist die Eingabe leer bzw. ungültig, wird sie **nicht übernommen**. Das Eingabefeld wird geleert, der Rahmen rot und der Hinweis `1 - 100 MHz` erscheint. Mit der nächsten Taste kann neu eingegeben werden.
+Liegt der Wert außerhalb von 1–100 MHz oder ist die Eingabe leer bzw. ungültig, wird sie **nicht übernommen**. Die Eingabe bleibt stehen, der Rahmen wird rot und rechts unter dem Feld erscheint der Grund in Rot:
+
+| Anzeige | Bedeutung |
+|---|---|
+| `Allowed 1 - 100 MHz` | Wert außerhalb des Bereichs, z. B. `500` `MHz` |
+| `Enter a number` | keine Ziffer eingegeben (leer oder nur `.`) |
+| `Max. 9 characters` | Feld voll |
+
+Die Eingabe lässt sich mit `⌫` korrigieren oder mit `C` löschen; die nächste Taste löscht den Hinweis.
 
 ### Beispiel 1: 10 MHz eingeben
 
@@ -747,12 +758,12 @@ Hinweis: Bleibt ein SI5351-Modul beim Abziehen des Kabels versorgt, laufen seine
 
 ### Ausgangsfehler
 
-Schlägt das Einstellen eines Ausgangs fehl, obwohl der SI5351 antwortet, erscheint ein Dialog. Der Kanal zeigt `! ERR` (Hauptseite, Titelzeile), die Kanalseite `Output error, retrying` bzw. die CH3-Seite `IQ setup failed, retrying`. Der Schalter behält die gewünschte Einstellung; die Firmware versucht es alle 2 s erneut, ohne weiteren Dialog. Bei einem IQ-Fehler läuft der Master weiter.
+Schlägt das Einstellen eines Ausgangs fehl, obwohl der SI5351 antwortet, erscheint ein Dialog. Der Kanal zeigt `! ERR` (Hauptseite, Titelzeile), die Kanalseite `Output error, retrying` bzw. die CH3-Seite `IQ setup failed, retrying`. Der Dialog nennt den Kanal und was weiterläuft. Der Schalter behält die gewünschte Einstellung; die Firmware versucht es alle 2 s erneut, ohne weiteren Dialog. Bei einem IQ-Fehler läuft der Master weiter.
 
 | Meldung | Bedeutung |
 |---|---|
-| `Frequency set failed` | CH1 oder CH2 ließ sich nicht einstellen |
-| `CH3 IQ setup failed` | Das IQ-Paar ließ sich nicht einstellen |
+| `CH1: frequency setup failed. Retrying every 2 s.` | CH1 (bzw. CH2) ließ sich nicht einstellen |
+| `CH3: IQ setup failed, CLK2 stays off. CH1 keeps running. Retrying every 2 s.` | Das IQ-Paar ließ sich nicht einstellen; CLK2 bleibt aus, der Master (hier CH1) läuft weiter |
 
 ### Einstellungen werden nicht gespeichert
 
@@ -855,7 +866,7 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | `[ERROR][FATAL] LVGL assert; restarting` | Speicher der Bedienoberfläche erschöpft o. Ä.; das Gerät startet neu |
 | `task_wdt: Task watchdog got triggered … loopTask` | Firmware hing 5 s; das Gerät startet neu |
 
-Dialogtexte erscheinen zusätzlich im Log, z. B. `[ERROR][SI5351] Frequency set failed`.
+Dialogtexte erscheinen zusätzlich im Log, z. B. `[ERROR][SI5351] CH1: frequency setup failed. Retrying every 2 s.`.
 
 Frequenzänderungen und ausführliche SI5351-Meldungen (Ausgangsmaske, Phasenregister, I2C-Scan usw.) erscheinen nur, wenn die Firmware mit `LOG_DEBUG 1` (in `include/config.h`) gebaut wurde. Im Normalbetrieb sind sie abgeschaltet, weil serielle Ausgaben die Bedienung verlangsamen.
 
