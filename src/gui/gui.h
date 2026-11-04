@@ -14,6 +14,8 @@ public:
     // The display must already be initialized (DisplayPanel::begin()).
     bool begin(AppController& app, TouchDriver& touch, DisplayPanel& display);
     void update();
+    // Redraws the current page from the controller state (e.g. after the boot programming).
+    void refresh() { refresh_(); }
     // One dialog at a time; further messages are queued, identical ones dropped.
     void showMessage(const char* title, const char* text);
     void navigate(PageId page);

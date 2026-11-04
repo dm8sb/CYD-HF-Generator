@@ -128,7 +128,6 @@ Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Absch
 
 - [ ] **P1 Frequenzparser härten** (C-4, S-21): `parseFrequency("nan")` liefert true, `1e7` und `0x989680` werden angenommen (in der GUI unerreichbar, für REST/SCPI kritisch). `isfinite()`, nur Ziffern und ein Punkt; für das Netz ein eigener Parser (V-11).
 - [ ] **P2 Unerreichbare Dialoge** (C-6): „Output switch failed“, „Off state setup failed“, „Spread spectrum setup failed“ können praktisch nicht auftreten, stehen aber im Handbuch → entfernen bzw. über Ergebniscodes (V-1), Handbuch DE/EN.
-- [ ] **P2 „~“ auf MAIN nach dem Boot** (C-2): MAIN wird vor `applyStoredChannelSettings()` gezeichnet → nach Schritt 9 neu zeichnen; dauerhaft über den Änderungszähler (V-2).
 - [ ] **P3 Toter Code** (C-10): `SI5351Manager::revId()`, `DisplayPanel::probeResult()` (ggf. für die Info-Karte nutzen), unerreichbares `p.z < 150` in `touch.cpp`, nie ausgewertete Rückgabewerte von `readLvgl()` und `Gui::begin()`.
 - [ ] **P3 Doppelte Formatierung und Literale** (C-11): IQ-Grenze dreimal mit unterschiedlicher Rundung formatiert → `FrequencyUtils::formatIqLimit()`; Zeiten (300 ms, 35 ms, 75 × 20 ms, 10 s) nach `constants.h`.
 - [ ] **P3 Feste Koordinaten in den Pages**: Header (158/214), CH3 (114/134/186) usw. in [gui_layout.h](src/gui/gui_layout.h) bzw. als lokale Konstanten zusammenfassen, wie in [page_main.cpp](src/gui/pages/page_main.cpp) schon geschehen.

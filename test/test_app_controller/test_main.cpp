@@ -848,6 +848,31 @@ static void test_settings_survive_reboot_but_outputs_start_off() {
     assertHz(0, 7100000, -1234);
 }
 
+// Boot order (audit C-2, T-2): the actual frequency, and with it the "~" on MAIN, is known
+// only after applyStoredChannelSettings(); main.cpp redraws the GUI after that step.
+static void test_actual_frequency_known_only_after_stored_settings() {
+    {
+        Device d;
+        d.app.setTuningMode(TuningMode::Integer);
+        d.app.setChannelFrequency(1, 7100000);
+        d.run(SETTINGS_AUTOSAVE_MS + 1000);
+    }
+    SettingsService settings;
+    SI5351Manager si;
+    BacklightDriver backlight;
+    AppController app(settings, si, backlight);
+    I2CBus::begin();
+    settings.begin();
+    PersistentState loaded;
+    settings.load(loaded);
+    app.begin(loaded);
+    TEST_ASSERT_TRUE(app.connectHardware());
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, app.actualHz(1));
+    app.applyStoredChannelSettings();
+    // 25 MHz x 25 / 88, the nearest raster point to 7.1 MHz.
+    TEST_ASSERT_DOUBLE_WITHIN(0.5, 7102272.7, app.actualHz(1));
+}
+
 static void test_settings_load_sanitizes_invalid_values() {
     Preferences p;
     p.putULong64("ch1_freq", 0);
@@ -927,5 +952,6 @@ int main() {
     RUN_TEST(test_nvs_unavailable);
     RUN_TEST(test_settings_survive_reboot_but_outputs_start_off);
     RUN_TEST(test_settings_load_sanitizes_invalid_values);
+    RUN_TEST(test_actual_frequency_known_only_after_stored_settings);
     return UNITY_END();
 }

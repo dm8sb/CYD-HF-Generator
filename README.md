@@ -47,6 +47,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 ## Changes in 1.3.1 (in progress)
 
 - CH3 in `ERR`: switching the master off and on no longer enables CLK2 (with off state `High`/`High-Z` it output a signal again)
+- MAIN shows the `~` of a rastered frequency (`Integer`) right after boot
 - Build: `src/` compiles with `-Wall -Wextra` without warnings; XPT2046 pinned by commit; heap and LVGL memory in the debug log; CI for host tests and the firmware build
 - Host tests: environments `native-fault` / `native-win-fault` (IQ error state with `TEST_FAULT_IQ`)
 

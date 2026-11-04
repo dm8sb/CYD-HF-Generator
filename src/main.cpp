@@ -118,6 +118,8 @@ void setup() {
 
     // 9. Program stored frequencies; all outputs start off (no-op without SI5351)
     app.applyStoredChannelSettings();
+    // MAIN was drawn before the dividers existed; the actual frequencies ("~" in Integer) are known now.
+    gui.refresh();
 
     Logger::info("BOOT", "Setup complete");
     MemMonitor::log("boot");
