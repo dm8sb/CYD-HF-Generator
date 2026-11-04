@@ -140,6 +140,8 @@ public:
     uint32_t clockHz = 0;
     uint16_t timeOutMs = 50;
     bool failBegin = false;
+    // end() reports a failure (arduino-esp32 2.0.x: driver left installed without buffers).
+    bool failEnd = false;
 
     // Like arduino-esp32 2.0.x: begin() on a running bus keeps the old pins.
     bool begin(int sda, int scl, uint32_t hz) {
@@ -155,7 +157,7 @@ public:
     bool end() {
         ++endCalls;
         begun_ = false;
-        return true;
+        return !failEnd;
     }
     void setClock(uint32_t hz) {
         ++setClockCalls;

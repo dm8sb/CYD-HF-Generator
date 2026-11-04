@@ -148,7 +148,7 @@ This table is authoritative; README and manual repeat parts of it.
 ### 3.6 Robustness and errors
 
 - **A-34** SI5351 errors never crash the firmware; they are logged, shown as a dialog where useful, and leave the outputs in a safe state.
-- **A-35** Supervision every 2 s (`HW_CHECK_INTERVAL_MS`) reads back the output enable and CLK control registers. A failed transfer or unexpected content (e.g. after a power interruption) marks the SI5351 as lost (NO HW); the firmware reconnects every 2 s and restores all outputs with their states.
+- **A-35** Supervision every 2 s (`HW_CHECK_INTERVAL_MS`) reads back the output enable and CLK control registers. A failed transfer or unexpected content (e.g. after a power interruption) marks the SI5351 as lost (NO HW); the firmware tries to reconnect in the same cycle and then every 2 s, and restores all outputs with their states.
 - **A-36** Without SI5351 no output is configured and no repeated errors appear; all settings remain editable and are saved.
 - **A-37** An output setup that fails while the SI5351 answers is shown as ERR (MAIN, header, info line), the switch keeps the requested state, and the setup is retried every 2 s without further dialogs (E-12).
 - **A-38** Dialogs: at most one is open, further ones are queued, identical ones are not repeated; `OK` closes. Connection dialogs close by themselves after a reconnect; output error dialogs stay.

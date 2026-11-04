@@ -63,6 +63,7 @@ void setUp() {
     Fake::wireMisuse() = false;
     Fake::gpio() = Fake::Gpio {};
     Wire.failBegin = false;
+    Wire.failEnd = false;
     Wire.resetCounters();
 }
 void tearDown() { TEST_ASSERT_FALSE(Fake::wireMisuse()); }
@@ -311,14 +312,61 @@ static void test_power_glitch_reports_once_and_restores() {
     d.run(HW_CHECK_INTERVAL_MS + 100);
     TEST_ASSERT_EQUAL_UINT(1, errorCount);
     TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
-    TEST_ASSERT_EQUAL(ChannelStatus::NoDevice, d.app.channelStatus(1));
-    d.run(HW_CHECK_INTERVAL_MS + 100);
+    // Reconnected in the same cycle (C-12); the dialog closes itself (connection count).
     TEST_ASSERT_TRUE(d.app.hardwareReady());
+    d.run(HW_CHECK_INTERVAL_MS + 100);
     TEST_ASSERT_EQUAL_UINT(1, errorCount);
     TEST_ASSERT_TRUE(enabled(0) && enabled(2));
     assertHz(0, 7100000);
     TEST_ASSERT_TRUE(inverted(2));
     TEST_ASSERT_EQUAL_UINT8((uint8_t)ms(0).ratio(), phase(2));
+}
+
+// Audit C-12: a lost SI5351 is reconnected in the same supervision cycle that detects the
+// loss, so the outputs are back within one HW_CHECK_INTERVAL_MS (before: up to two).
+static void test_power_glitch_is_restored_in_the_same_cycle() {
+    Device d;
+    d.app.setChannelEnabled(1, true);
+    chip.powerOn(); // SI5351 lost its configuration
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(ChannelStatus::On, d.app.channelStatus(1));
+    TEST_ASSERT_TRUE(enabled(0));
+    assertHz(0, DEFAULT_FREQ_CH1);
+}
+
+// Audit T-3: millis() wraps after 49.7 days; supervision and autosave keep working.
+static void test_millis_wrap_keeps_supervision_and_autosave() {
+    Fake::clockMs() = 0xFFFFFFFFUL - 3000;
+    Device d;
+    d.app.setChannelEnabled(1, true);
+    d.app.setChannelFrequency(1, 7100000);
+    d.run(SETTINGS_AUTOSAVE_MS + 1000); // crosses the wrap
+    TEST_ASSERT_TRUE(Fake::clockMs() < 0x80000000UL);
+    TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
+    chip.powerOn();
+    d.run(2 * HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_TRUE(enabled(0));
+    assertHz(0, 7100000);
+}
+
+// Audit T-6: failing Wire.end() / Wire.begin() while searching leave the bus closed (no
+// transfer on a closed bus, tearDown checks) and the search goes on.
+static void test_failing_bus_reinit_is_survived() {
+    chip.present = false;
+    Device d;
+    Wire.failEnd = true;
+    d.run(3 * HW_CHECK_INTERVAL_MS);
+    Wire.failEnd = false;
+    Wire.failBegin = true;
+    d.run(3 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_FALSE(d.app.hardwareReady());
+    Wire.failBegin = false;
+    chip.present = true;
+    d.run(2 * HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
 }
 
 static void test_bus_failure_while_tuning_shows_no_hw() {
@@ -642,8 +690,10 @@ static void test_dropout_reconnects_on_same_assignment() {
     chip.failAfter = -1;
     d.run(HW_CHECK_INTERVAL_MS);
     TEST_ASSERT_TRUE(d.app.hardwareReady());
-    TEST_ASSERT_EQUAL_UINT(0, Wire.endCalls);
+    // The immediate reconnect (C-12) already tried the other assignment while the dropout
+    // lasted; the link ends up on the original one again.
     TEST_ASSERT_EQUAL(I2CMap::Default, I2CBus::map());
+    TEST_ASSERT_TRUE(I2CBus::isOpen());
 }
 
 static void test_healthy_link_leaves_bus_setup_alone() {
@@ -729,14 +779,15 @@ static void test_line_held_low_reports_blocked() {
     Device d;
     chip.lineLow = Fake::Si5351Chip::Line::Scl;
     d.run(HW_CHECK_INTERVAL_MS + 100);
-    TEST_ASSERT_EQUAL_UINT(1, errorCount); // connection lost
+    // "Connection lost", and in the same cycle (C-12) the more precise reason.
+    TEST_ASSERT_EQUAL(LinkState::Blocked, d.app.linkState());
+    TEST_ASSERT_EQUAL_UINT(2, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "stays low"));
+    // Each later search stays short, so the GUI does not stall.
     Fake::advanceMs(HW_CHECK_INTERVAL_MS);
     const uint32_t t0 = Fake::clockMs();
     d.app.update();
     TEST_ASSERT_TRUE(Fake::clockMs() - t0 <= 2 * I2C_TIMEOUT_MS);
-    TEST_ASSERT_EQUAL(LinkState::Blocked, d.app.linkState());
-    TEST_ASSERT_EQUAL_UINT(2, errorCount);
-    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "stays low"));
     d.run(3 * HW_CHECK_INTERVAL_MS);
     TEST_ASSERT_EQUAL_UINT(2, errorCount); // one dialog per change
     chip.lineLow = Fake::Si5351Chip::Line::None;
@@ -965,6 +1016,9 @@ int main() {
     RUN_TEST(test_ch3_off_powers_clk2_down);
     RUN_TEST(test_boot_without_si5351_then_hot_plug);
     RUN_TEST(test_power_glitch_reports_once_and_restores);
+    RUN_TEST(test_power_glitch_is_restored_in_the_same_cycle);
+    RUN_TEST(test_millis_wrap_keeps_supervision_and_autosave);
+    RUN_TEST(test_failing_bus_reinit_is_survived);
     RUN_TEST(test_bus_failure_while_tuning_shows_no_hw);
     RUN_TEST(test_healthy_device_is_not_reconfigured);
     RUN_TEST(test_backlight_steps);
