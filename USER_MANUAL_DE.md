@@ -4,6 +4,43 @@ Firmware-Version: 1.3.1
 
 Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_EN.md](USER_MANUAL_EN.md) ist ihre Übersetzung.
 
+## Inhalt
+
+- [Kurzanleitung](#kurzanleitung)
+- [1. Überblick](#1-überblick)
+- [2. Grundbedienung](#2-grundbedienung)
+- [3. Frequenzanzeige](#3-frequenzanzeige)
+- [4. CH1 und CH2 verwenden](#4-ch1-und-ch2-verwenden)
+- [5. Frequenz mit + und − ändern](#5-frequenz-mit--und--ändern)
+- [6. Frequenz über NUMPAD eingeben](#6-frequenz-über-numpad-eingeben)
+- [7. CH3 als IQ-Follower verwenden](#7-ch3-als-iq-follower-verwenden)
+- [8. CONFIG-Seite](#8-config-seite)
+- [9. Speicherung der Einstellungen](#9-speicherung-der-einstellungen)
+- [10. Beispielanwendungen](#10-beispielanwendungen)
+- [11. Fehler und Hinweise](#11-fehler-und-hinweise)
+- [12. Serielle Diagnose](#12-serielle-diagnose)
+- [13. Aktuelle Hardware-Pinbelegung](#13-aktuelle-hardware-pinbelegung)
+- [14. Sicherheitshinweis](#14-sicherheitshinweis)
+- [Anhang A: Seitenbilder](#anhang-a-seitenbilder)
+- [Anhang B: Glossar](#anhang-b-glossar)
+- [Anhang C: Symptome und Abhilfe](#anhang-c-symptome-und-abhilfe)
+
+## Kurzanleitung
+
+Für den Laborplatz; Einzelheiten in den genannten Abschnitten, Bilder der Seiten in Anhang A.
+
+1. **Anschließen:** SI5351-Modul an CN1 (3,3 V, GND, GPIO22, GPIO27; SDA und SCL beliebig), Versorgung über USB. CH1 = CLK0, CH2 = CLK1, CH3 = CLK2 (Abschnitt 13).
+2. **Einschalten:** Alle Ausgänge sind aus. Beim allerersten Start erscheint der Touch-Abgleich: vier Kreuze und ein Prüfkreuz nacheinander halten, bis sie grün werden (Abschnitt 8).
+3. **Frequenz einstellen:** Karte `CH1` antippen, Schritt-Taste wählen (`1M` … `1`), dann `−` / `+`; oder `NUMPAD`, Zahl eingeben, mit `MHz`, `kHz` oder `Hz` bestätigen (Abschnitte 5 und 6).
+4. **Ausgang einschalten:** Schalter auf der Karte oder in der Titelzeile. Daneben steht, was der Ausgang tut: `ON` im grünen Feld = läuft.
+5. **IQ-Signal:** Karte `CH3`, Master `CH1` oder `CH2`, Phase `0` / `90` / `180` / `270`, Schalter ein. Unter 4,730 MHz Masterfrequenz wartet CH3 (`WAIT`) und startet von selbst (Abschnitt 7).
+6. **Vor dem Messen:** Steht unter einer Frequenz eine Moduszeile (z. B. `OFF = High`, `SSC -0.5 %`, `Integer`), weicht CONFIG von den Werkseinstellungen ab (Abschnitt 2).
+7. **Bei Fehlern:** `! NO HW` = SI5351 nicht verbunden; `! ERR` = Einstellen fehlgeschlagen, die Firmware versucht es alle 2 s erneut (Abschnitt 11, Anhang C).
+
+Werkseinstellungen in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; Frequenzen 10 MHz (CH1) und 14 MHz (CH2), Schritt 1 kHz.
+
+---
+
 ## 1. Überblick
 
 Der **CYD HF Generator** ist ein 3-Kanal-HF-Rechteckgenerator auf Basis eines ESP32-2432S028R Displays und eines SI5351-Taktgenerators.
@@ -150,7 +187,7 @@ Die Kanalseite von CH1 und CH2 enthält:
 - große Tasten `−` (links) und `+` (rechts)
 - die Taste `NUMPAD`
 
-Die Tasten `−` und `+` ändern die Frequenz um den aktuell gewählten Schritt. Der gewählte Schritt ist farbig hervorgehoben und wird direkt auf der Kanalseite (oder in CONFIG) gewählt.
+Die Tasten `−` und `+` ändern die Frequenz um den aktuell gewählten Schritt. Der gewählte Schritt ist farbig hervorgehoben und wird auf der Kanalseite gewählt. Er gilt für CH1 und CH2 gemeinsam und bleibt gespeichert: Ein Wechsel von CH1 zu CH2 behält den Schritt.
 
 **Stelle direkt antippen:** Ein Tipp auf eine Ziffer der Frequenzanzeige wählt diese Stelle als Schritt (z. B. die dritte Nachkommastelle = 1 kHz). Die Stelle, die `−`/`+` ändert, ist in der Kanalfarbe hervorgehoben. Ziffern über 1 MHz (10 MHz, 100 MHz) wählen den größten Schritt 1 MHz. Ein Tipp auf die Einheit `MHz` öffnet das NUMPAD. Das Antippen ist eine Abkürzung zu den Schritt-Tasten: Die Ziffern sind nur 2–3 mm breit, ein Tipp auf den Punkt oder eine Lücke wählt die nähere Nachbarziffer.
 
@@ -938,3 +975,139 @@ Die SI5351-Ausgänge liefern digitale Rechtecksignale. Vor Anschluss an empfindl
 - galvanische Verbindung
 - Masseführung
 - Zustand abgeschalteter Ausgänge (`Off state`): Bei `High` liegt an einem ausgeschalteten Ausgang Gleichspannung an
+
+Zum Betrieb:
+
+- **Physischer Zugriff ist Vollzugriff:** Wer das Gerät bedienen oder über USB neu flashen kann, kann alle Einstellungen und Ausgänge ändern; es gibt keine Sperre und kein Passwort.
+- **Fremdgerät an 0x60:** Antwortet auf der I2C-Adresse 0x60 ein anderes Gerät, liest die Firmware seine Kennung und schreibt höchstens ein Testbyte in dessen Register 3, bevor sie es als „kein SI5351“ erkennt (Abschnitt 11). Andere Geräte an CN1 mit dieser Adresse nicht anschließen.
+
+---
+
+## Anhang A: Seitenbilder
+
+Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = Scrollleiste.
+
+### MAIN
+
+```text
++--------------------------------------------+
+| CH1              10.000 000 MHz |  [==o]   |
+| ON   SSC -0.5 % | Low noise     |          |
++--------------------------------------------+
+| CH2              14.000 000 MHz |  [o==]   |
+| OFF                             |          |
++--------------------------------------------+
+| CH3              10.000 000 MHz |  [==o]   |
+| WAIT CH1 / 90° / master off     |          |
++--------------------------------------------+
+| Saved                          [ CONFIG ]  |
++--------------------------------------------+
+```
+
+### CH1 / CH2
+
+```text
++--------------------------------------------+
+| CH1  [==o]  ON                    [ MAIN ] |
++--------------------------------------------+
+| 10.000 000 MHz                             |
+| Out 10.000 000 MHz (+0.3 Hz)               |
+| SSC -0.5 % | IQ master of CH3 (90°)        |
++--------------------------------------------+
+| [1M][100k][10k][ 1k ][100][ 10][  1]       |
+| [   −   ]  [   +   ]  [  NUMPAD  ]         |
++--------------------------------------------+
+```
+
+### CH3 IQ
+
+```text
++--------------------------------------------+
+| CH3 IQ  [==o]  ON                 [ MAIN ] |
++--------------------------------------------+
+| 10.000 000 MHz                             |
+| Out 10.000 000 MHz (+0.3 Hz)               |
++--------------------------------------------+
+| Master            Phase (°)                |
+| [CH1] [CH2]       [0] [90] [180] [270]     |
+| IQ range 4.730 - 100 MHz. 180°/270° use    |
+| output inversion. ...                      |
++--------------------------------------------+
+```
+
+### CONFIG
+
+```text
++--------------------------------------------+
+| CONFIG   Saved                    [ MAIN ] |
++--------------------------------------------+
+| Drive all   [ 4 mA        v]             # |
+| Off state   [ Low         v]             # |
+| Tuning      [ Fractional  v]             | |
+| Spread CH1  [ Off         v]             | |   <- wischen
+| (Corr., Backlight, Touch, Info-Karte)      |
++--------------------------------------------+
+```
+
+### NUMPAD
+
+```text
++--------------------------------------------+
+| [<]  CH1  [                     10.7 ]     |
+| Now 10.000 000 MHz     Allowed 1 - 100 MHz |
+| [ 7 ][ 8 ][ 9 ][ MHz ]                     |
+| [ 4 ][ 5 ][ 6 ][ kHz ]                     |
+| [ 1 ][ 2 ][ 3 ][ Hz  ]                     |
+| [ . ][ 0 ][ ⌫ ][  C  ]                     |
++--------------------------------------------+
+```
+
+---
+
+## Anhang B: Glossar
+
+| Anzeige | Bedeutung | Abschnitt |
+|---|---|---|
+| `ON` (grünes Feld) | Ausgang läuft | 2 |
+| `OFF` (graue Schrift) | Ausgang aus | 2 |
+| `WAIT` (oranges Feld) | CH3 eingeschaltet, wartet auf Master oder IQ-Bereich | 2, 7 |
+| `! ERR` (rotes Feld) | Einstellen fehlgeschlagen, Wiederholung alle 2 s | 11 |
+| `! NO HW` (rotes Feld) | SI5351 nicht gefunden oder Verbindung verloren | 11 |
+| `~` vor der Frequenz | tatsächliche Frequenz weicht um 1 Hz oder mehr ab (`Integer`) | 2, 8 |
+| `Out …` | tatsächlich erzeugte Frequenz und Abweichung in Hz | 5 |
+| `Out … mean, SSC …` | mittlere Frequenz bei Spread Spectrum | 5 |
+| `Off \| Out …` | Kanal aus; so läuft er nach dem Einschalten | 5 |
+| `IQ master of CH3 (90°)` | CH3 folgt diesem Kanal mit der angegebenen Phase | 2, 5 |
+| `CH1 / 90° / master off` | CH3: Master, Phase und Grund des Wartens | 2, 7 |
+| Moduszeile | Einstellungen, die vom Werkszustand abweichen | 2 |
+| `OFF = High` / `OFF = High-Z` | ausgeschaltete Ausgänge führen HIGH (Gleichspannung) bzw. sind hochohmig | 8 |
+| `SSC -0.5 %` usw. | Spread Spectrum: Frequenz wird absichtlich verteilt | 8 |
+| `Fractional` / `Low noise` / `Integer` | Teilerverfahren des SI5351 (`Tuning`) | 8 |
+| `2 mA` … `8 mA` | Ausgangsstrom (`Drive all`) | 8 |
+| `Corr.`, ppm | Frequenzkorrektur des Quarzes in Millionstel | 8 |
+| `Saved` / `Saving...` / `Save failed` / `Not saved` | Speicherzustand | 8, 9 |
+| `Now …` | NUMPAD: aktuelle Frequenz | 6 |
+| `Allowed 1 - 100 MHz`, `Enter a number`, `Max. 9 characters` | NUMPAD: Grund einer abgelehnten Eingabe | 6 |
+| `Touch calibrated …` / `Touch not calibrated (default)` | Info-Karte: Touch-Abgleich | 8 |
+| `detected` / `default` / `build flag` | Info-Karte: Herkunft des Display-Controllers | 8, 13 |
+| `(swapped)` / `(clone?)` | Info-Karte: SDA/SCL vertauscht bzw. ungewöhnliches SI5351-Register | 8, 11 |
+
+---
+
+## Anhang C: Symptome und Abhilfe
+
+| Symptom | Wahrscheinliche Ursache | Abhilfe | Abschnitt |
+|---|---|---|---|
+| Frequenz weicht um einige kHz ab, `Out` orange, `~` auf MAIN | `Tuning` = `Integer` (Raster) | `Fractional` oder `Low noise` wählen | 8 |
+| Spektrum breit, Träger „verschmiert“ | Spread Spectrum (`SSC` in der Moduszeile) | `Spread CH1` = `Off` | 8 |
+| Gleichspannung an einem ausgeschalteten Ausgang | `Off state` = `High` | `Low` oder `High-Z` | 8 |
+| Pegel zu klein oder zu groß | `Drive all` | 8 mA bzw. 2 mA wählen | 8 |
+| Frequenzzähler zeigt einige Hz Abweichung bei allen Frequenzen | Quarztoleranz | `Corr.` abgleichen | 8 |
+| CH3 bleibt bei `WAIT` | Master aus oder Masterfrequenz außerhalb des IQ-Bereichs | Master einschalten, Frequenz ≥ 4,730 MHz | 7, 11 |
+| `! NO HW` auf allen Karten | Kabel, 3,3 V oder GND an CN1 | Verbindung prüfen; SDA/SCL dürfen vertauscht sein | 11 |
+| Tipps landen neben der Taste, Rand schwer zu treffen | Touch-Abgleich fehlt oder passt nicht | CONFIG `Touch` → `Calibrate` | 8 |
+| Display zeigt nur Rauschen | Controller nicht erkannt | Firmware mit `DISPLAY_FORCE_PANEL` bauen | 13 |
+| Einstellungen nach dem Ausschalten verloren | `Save failed` / `Not saved` | Gerät neu starten; bleibt es, Flash-Speicher defekt | 9, 11 |
+| Ausgänge nach dem Einschalten aus | so vorgesehen | Ausgänge einschalten | 2 |
+| Kurzer Aussetzer beim Abstimmen | `Low noise`, `Integer` oder IQ-Betrieb | gewollt; `Fractional` stimmt ohne Aussetzer | 5 |
+| Seitenband im Mischer vertauscht | Phase 90° statt 270° (oder umgekehrt) | Phase auf der CH3-Seite prüfen | 7 |

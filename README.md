@@ -52,6 +52,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - Dialog buttons 120 x 40 px with 6.7:1 contrast (were about 80 x 23 px, 1.1:1); buttons near the screen edge take taps up to the edge, `MAIN` 36 px high; CH3 master and phase chips 6 px apart (were 2 px)
 - Step chips on the channel pages from `1M` (left) to `1` (right), like the digits of the frequency
 - MAIN: a status bar with the save state and `CONFIG` replaces the buttons CH1-CH3 (the cards open the channels); taller cards, state and detail lines in 14 px instead of 12 px
+- User manual (DE/EN): table of contents, quick start, page sketches, glossary and symptom table; the step applies to CH1 and CH2 together; notes on physical access and foreign devices at 0x60
 - Touch calibration at the first start and via CONFIG `Touch` -> `Calibrate`: 4 crosses near the corners and a check cross (<= 8 px), stored per board; the fixed calibration put the hits up to 19 px off
 - Touch test builds `esp32-2432S028R-touchlog` and `esp32-2432S028R-hitmap` (flags `TEST_TOUCH_LOG`, `TEST_HIT_MAP`) for the operating tests; release firmware unchanged
 - Boot gesture removed: the display controller is detected at every boot, a choice stored by the gesture of 1.3.0/1.3.1 is deleted; `DISPLAY_FORCE_PANEL` stays for unknown boards
