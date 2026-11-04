@@ -38,7 +38,11 @@ void Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
 
     lv_theme_default_init(lv_disp_get_default(), lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
     lastHwState_ = hardwareState_();
+#if TEST_HIT_MAP
+    createHitMap_();
+#else
     navigate(PageId::Main);
+#endif
     Logger::info("GUI", "LVGL initialized");
 }
 
@@ -293,6 +297,9 @@ void Gui::asyncNavigateCb_(void* gui) {
 }
 
 void Gui::refresh_() {
+#if TEST_HIT_MAP
+    return; // the hit map has none of the page widgets
+#endif
     switch (currentPage_) {
         case PageId::Main: refreshMain_(); break;
         case PageId::CH1:

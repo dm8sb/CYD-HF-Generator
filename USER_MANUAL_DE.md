@@ -869,6 +869,8 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 
 Dialogtexte erscheinen zusätzlich im Log, z. B. `[ERROR][SI5351] CH1: frequency setup failed. Retrying every 2 s.`.
 
+Die Touch-Testbuilds für den Messplan (README) schreiben zusätzlich je Berührung eine Zeile `[TOUCH] x=… y=… to …,… z=… t=…ms gap=…ms drop=n/…ms target=…` (Anfangs- und Endpunkt, höchster Druck, Dauer, Pause seit der letzten Berührung, überbrückte Druckaussetzer, gedrücktes Element) und auf der Trefferkarte `[HITMAP] target n (x,y) hit (x,y) dx … dy …`. Die normale Firmware enthält beides nicht.
+
 Frequenzänderungen und ausführliche SI5351-Meldungen (Ausgangsmaske, Phasenregister, I2C-Scan usw.) erscheinen nur, wenn die Firmware mit `LOG_DEBUG 1` (in `include/config.h`) gebaut wurde. Im Normalbetrieb sind sie abgeschaltet, weil serielle Ausgaben die Bedienung verlangsamen.
 
 ---

@@ -1,9 +1,11 @@
 // Touch processing without the XPT2046 library (audit T-14): calibration, plausibility,
-// jitter filter, dropout bridge and the boot gesture threshold.
+// jitter filter and dropout bridge; records and hit map targets of the touch test builds.
 
 #include <unity.h>
 #include <constants.h>
 #include <drivers/touch_filter.h>
+#include <string.h>
+#include <utils/touch_test.h>
 
 using namespace TouchFilter;
 
@@ -73,6 +75,65 @@ static void test_filter_rejects_weak_pressure_and_bad_calibration() {
     TEST_ASSERT_TRUE(o.calibrationError);
 }
 
+// ---------------------------------------------------------------------------
+// Touch test builds (MESSPLAN B8, B9, B12)
+
+static void test_recorder_measures_a_touch_with_a_bridged_dropout() {
+    TouchTest::Recorder rec;
+    TouchTest::Record r {};
+    // 10 ms reads: pressed 0..40 ms, raw dropout at 50/60 ms (bridged), pressed 70..90 ms.
+    for (uint32_t t = 0; t <= 40; t += 10) TEST_ASSERT_FALSE(rec.update(true, (int16_t)(500 + t), true, 100, 50, t, &r));
+    TEST_ASSERT_FALSE(rec.update(false, 0, true, 100, 50, 50, &r));
+    TEST_ASSERT_FALSE(rec.update(false, 0, true, 100, 50, 60, &r));
+    for (uint32_t t = 70; t <= 90; t += 10) TEST_ASSERT_FALSE(rec.update(true, 400, true, 102, 52, t, &r));
+    TEST_ASSERT_TRUE(rec.update(false, 0, false, 102, 52, 130, &r));
+    TEST_ASSERT_EQUAL_INT16(100, r.x0);
+    TEST_ASSERT_EQUAL_INT16(50, r.y0);
+    TEST_ASSERT_EQUAL_INT16(102, r.x1);
+    TEST_ASSERT_EQUAL_INT16(52, r.y1);
+    TEST_ASSERT_EQUAL_INT16(540, r.zMax);
+    TEST_ASSERT_EQUAL_UINT32(90, r.durationMs);
+    TEST_ASSERT_EQUAL_UINT16(1, r.dropouts);
+    TEST_ASSERT_EQUAL_UINT32(20, r.maxDropoutMs);
+    TEST_ASSERT_EQUAL_UINT32(0, r.gapBeforeMs); // first touch
+    // Released reads produce nothing; the next touch reports the gap to the last one.
+    TEST_ASSERT_FALSE(rec.update(false, 0, false, 0, 0, 140, &r));
+    TEST_ASSERT_FALSE(rec.update(true, 600, true, 10, 10, 150, &r));
+    TEST_ASSERT_TRUE(rec.update(false, 0, false, 10, 10, 160, &r));
+    TEST_ASSERT_EQUAL_UINT32(60, r.gapBeforeMs); // 90 -> 150 ms: a dropout longer than the bridge
+    TEST_ASSERT_EQUAL_UINT32(0, r.durationMs);
+    TEST_ASSERT_EQUAL_UINT16(0, r.dropouts);
+}
+
+static void test_record_line() {
+    TouchTest::Record r {100, 50, 102, 52, 540, 90, 820, 1, 20};
+    char buf[96];
+    TouchTest::formatRecord(r, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("x=100 y=50 to 102,52 z=540 t=90ms gap=820ms drop=1/20ms", buf);
+    char small[8];
+    TouchTest::formatRecord(r, small, sizeof(small));
+    TEST_ASSERT_TRUE(strlen(small) < sizeof(small));
+}
+
+static void test_hit_map_targets_and_nearest() {
+    using namespace TouchTest;
+    for (uint8_t i = 0; i < TARGET_COUNT; ++i) {
+        TEST_ASSERT_TRUE(TARGETS[i].x >= 0 && TARGETS[i].x < SCREEN_WIDTH);
+        TEST_ASSERT_TRUE(TARGETS[i].y >= 0 && TARGETS[i].y < SCREEN_HEIGHT);
+        int16_t dx = 9, dy = 9;
+        TEST_ASSERT_EQUAL_UINT8(i, nearestTarget(TARGETS[i].x, TARGETS[i].y, &dx, &dy));
+        TEST_ASSERT_EQUAL_INT16(0, dx);
+        TEST_ASSERT_EQUAL_INT16(0, dy);
+    }
+    // A clamped corner tap near (319, 0) belongs to the corner, not to the 4 px target.
+    int16_t dx = 0, dy = 0;
+    const uint8_t i = nearestTarget(318, 1, &dx, &dy);
+    TEST_ASSERT_EQUAL_INT16(319, TARGETS[i].x);
+    TEST_ASSERT_EQUAL_INT16(0, TARGETS[i].y);
+    TEST_ASSERT_EQUAL_INT16(-1, dx);
+    TEST_ASSERT_EQUAL_INT16(1, dy);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_plausible_raw_values);
@@ -80,5 +141,8 @@ int main(int, char**) {
     RUN_TEST(test_filter_smooths_and_starts_at_the_new_press);
     RUN_TEST(test_filter_bridges_short_dropouts);
     RUN_TEST(test_filter_rejects_weak_pressure_and_bad_calibration);
+    RUN_TEST(test_recorder_measures_a_touch_with_a_bridged_dropout);
+    RUN_TEST(test_record_line);
+    RUN_TEST(test_hit_map_targets_and_nearest);
     return UNITY_END();
 }

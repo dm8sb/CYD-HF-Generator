@@ -328,10 +328,10 @@ Aufbau 7 – Netz
 |---|---|---|---|
 | Debug | `-DLOG_DEBUG=1` | J6, J9, J14, A10, Q | vorhanden |
 | IQ-Fehler | `-DTEST_FAULT_IQ=1` | A8, A11 | vorhanden |
-| Touch-Log | Aufgabe Audit Phase 2 (Ausgabe von x, y, Druck, Dauer, Ziel je Berührung) | B8, B9, B12 | zu erstellen |
-| Trefferkarte | Testseite mit 20 Zielkreuzen (Ecken, 4-px-Rand) | B8 | zu erstellen |
+| Touch-Log | env `esp32-2432S028R-touchlog` (`-DTEST_TOUCH_LOG=1`): je Berührung `[TOUCH] x=… y=… to …,… z=… t=…ms gap=…ms drop=n/…ms target=…` | B8, B9, B12 | vorhanden (S28) |
+| Trefferkarte | env `esp32-2432S028R-hitmap` (`-DTEST_HIT_MAP=1`, mit Touch-Log): 20 Zielkreuze, roter Punkt am Treffer, `[HITMAP] target n (x,y) hit (x,y) dx dy`; Verlassen durch Neustart | B8 | vorhanden (S28) |
 | PLL ohne Reset | Testbuild (todo 2.1/2.2) | D5, K6 | zu erstellen |
-| Assert/WDT | `-DTEST_LVGL_ASSERT=1`, `-DTEST_LOOP_HANG=1` | Q4, Q5 | zu erstellen (Phase 1) |
+| Assert/WDT | `-DTEST_LVGL_ASSERT=1`, `-DTEST_LOOP_HANG=1` | Q4, Q5 | vorhanden (S15) |
 
 ### 4.3 Smoke-Test (je Entwicklungsphase, beide Boards)
 
@@ -592,7 +592,7 @@ Für B8 bis B20 gelten die Bedingungen aus Abschnitt 2.4. Die Auswertung der Tou
 3. Auswertung: mittlere und maximale Abweichung (px) je Zielbereich (Ecken, Rand, Mitte) und je Board.
 
 **Soll:** zu dokumentieren; daraus folgen die Mindestgrößen und der Randabstand für Tasten (U-4, U-5); Ecken sollen innerhalb 4 px liegen (Klemmung auf 319, 0 beachten).
-**Ergebnis:** i · Messwert (mittel/max je Bereich):
+**Ergebnis:** i · Messwert (mittel/max je Bereich): Vorlauf 2026-11-04 (ein Bediener, Finger, Firmware 2073e2d mit fester Kalibrierung): Original-CYD dx −11 … −19 px in der Mitte, −4 … −12 px am Rand, dy 0 … +6 px; rechts nur x ≈ 305–308 erreichbar, die rechte Ecke (319) nicht. CYD2USB (55 Tipps): dx bei x = 80 −14 … −19 px, bei 160 −10 … −15, bei 240 −5 … −8, am rechten Rand −1 … −7; dy −7 … +3 (ein Ausreißer +11). Beide Boards linear (Versatz und Steigung in x, Original-CYD ≈ 1,03, CYD2USB ≈ 1,06) → U-26 (Touch-Abgleich, S28a). Nach S28a wiederholen.
 
 #### B9 · Trefferquote echter Ziele (Audit U-4, U-6)
 

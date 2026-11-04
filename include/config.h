@@ -28,3 +28,13 @@
 #ifndef TEST_LOOP_HANG
 #define TEST_LOOP_HANG 0
 #endif
+
+// Touch test builds (MESSPLAN B8, B9, B12), never in the release: TEST_TOUCH_LOG logs one line
+// per touch (position, pressure, duration, dropouts, target); TEST_HIT_MAP shows the hit map
+// with 20 target crosses instead of the GUI and implies the touch log.
+#ifndef TEST_HIT_MAP
+#define TEST_HIT_MAP 0
+#endif
+#ifndef TEST_TOUCH_LOG
+#define TEST_TOUCH_LOG TEST_HIT_MAP
+#endif

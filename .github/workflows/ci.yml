@@ -59,6 +59,9 @@ jobs:
         run: pip install "platformio==${PLATFORMIO_VERSION}"
       - name: Build firmware
         run: pio run -e esp32-2432S028R
+      # The touch test build (hit map + touch log) must keep compiling.
+      - name: Build touch test firmware
+        run: pio run -e esp32-2432S028R-hitmap
       # Audit T-16: the image must carry the checked-out commit without the dirty mark.
       - name: Check build information
         run: |
