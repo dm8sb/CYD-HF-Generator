@@ -14,6 +14,7 @@ pio device monitor -b 115200
 pio test -e native-win                    # host unit tests on Windows (bundled MinGW)
 pio test -e native                        # host unit tests on Linux/macOS (gcc in PATH)
 pio test -e native-win -f test_si5351     # run a single test suite (test/test_<name>/)
+pio test -e native-win-fault              # IQ error state: test_fault_iq with -DTEST_FAULT_IQ=1 (native-fault on Linux)
 ```
 
 The ESP32 envs set `test_ignore = *`; tests only run in the native envs.

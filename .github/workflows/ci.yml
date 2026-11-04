@@ -37,6 +37,8 @@ jobs:
         run: pip install "platformio==${PLATFORMIO_VERSION}"
       - name: Host unit tests
         run: pio test -e native
+      - name: Host tests of the IQ error state
+        run: pio test -e native-fault
 
   firmware:
     name: Firmware build
