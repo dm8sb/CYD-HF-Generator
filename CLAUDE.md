@@ -15,6 +15,8 @@ pio test -e native-win                    # host unit tests on Windows (bundled 
 pio test -e native                        # host unit tests on Linux/macOS (gcc in PATH)
 pio test -e native-win -f test_si5351     # run a single test suite (test/test_<name>/)
 pio test -e native-win-fault              # IQ error state: test_fault_iq with -DTEST_FAULT_IQ=1 (native-fault on Linux)
+pio run -e esp32-2432S028R-touchlog -t upload --upload-port COMx   # test build: one log line per touch
+pio run -e esp32-2432S028R-hitmap -t upload --upload-port COMx     # test build: hit map + touch log
 ```
 
 The ESP32 envs set `test_ignore = *`; tests only run in the native envs.
@@ -32,7 +34,7 @@ The ESP32 envs set `test_ignore = *`; tests only run in the native envs.
 
 ## Host tests
 
-The native envs compile only hardware-independent sources (see `build_src_filter` in `[native_test]`: app_controller, backlight, display_detect, touch_filter, si5351_manager, si5351_plan, hal/i2c_bus, services, contrast, frequency_utils, input_logic, message_queue, status_text, logger) with `-std=gnu++11`. Keep those files free of LVGL/TFT dependencies. `test/fakes/` replaces Arduino, `Wire` (an SI5351 register model with fault injection, straight/swapped wiring, line held low, foreign device; `Fake::wireMisuse()` flags transfers on a closed bus) and `Preferences`. `test/helpers/si5351_model.h` decodes written registers back into frequencies independently of the driver's arithmetic — use it to verify driver changes rather than reusing driver math.
+The native envs compile only hardware-independent sources (see `build_src_filter` in `[native_test]`: app_controller, backlight, display_detect, touch_filter, si5351_manager, si5351_plan, hal/i2c_bus, services, contrast, frequency_utils, input_logic, message_queue, status_text, touch_test, logger) with `-std=gnu++11`. Keep those files free of LVGL/TFT dependencies. `test/fakes/` replaces Arduino, `Wire` (an SI5351 register model with fault injection, straight/swapped wiring, line held low, foreign device; `Fake::wireMisuse()` flags transfers on a closed bus) and `Preferences`. `test/helpers/si5351_model.h` decodes written registers back into frequencies independently of the driver's arithmetic — use it to verify driver changes rather than reusing driver math.
 
 ## Documentation
 

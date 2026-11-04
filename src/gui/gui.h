@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <lvgl.h>
+#include <config.h>
 #include <constants.h>
 #include <core/app_controller.h>
 #include <drivers/display_panel.h>
@@ -76,6 +77,11 @@ private:
     void createCH3_();
     void createConfig_();
     void createNumpad_(uint8_t ch);
+#if TEST_HIT_MAP
+    // Test build only (MESSPLAN B8): target crosses instead of the GUI.
+    void createHitMap_();
+    static void hitMapCb_(lv_event_t* e);
+#endif
 
     void refresh_();
     void refreshMain_();

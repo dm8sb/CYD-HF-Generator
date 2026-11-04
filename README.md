@@ -52,6 +52,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - Dialog buttons 120 x 40 px with 6.7:1 contrast (were about 80 x 23 px, 1.1:1); buttons near the screen edge take taps up to the edge, `MAIN` 36 px high; CH3 master and phase chips 6 px apart (were 2 px)
 - Step chips on the channel pages from `1M` (left) to `1` (right), like the digits of the frequency
 - MAIN: a status bar with the save state and `CONFIG` replaces the buttons CH1-CH3 (the cards open the channels); taller cards, state and detail lines in 14 px instead of 12 px
+- Touch test builds `esp32-2432S028R-touchlog` and `esp32-2432S028R-hitmap` (flags `TEST_TOUCH_LOG`, `TEST_HIT_MAP`) for the operating tests; release firmware unchanged
 - Boot gesture removed: the display controller is detected at every boot, a choice stored by the gesture of 1.3.0/1.3.1 is deleted; `DISPLAY_FORCE_PANEL` stays for unknown boards
 - Numpad keeps a rejected input and shows why (`Allowed 1 - 100 MHz`, `Enter a number`, `Max. 9 characters`), the current frequency as `Now ...`; a tap on a point or gap of the frequency selects the nearer digit; channel page shows `Off | Out ...` when off and `IQ master of CH3 (90°)`; `°` instead of `deg`; output error dialogs name the channel (`CH1: frequency setup failed. Retrying every 2 s.`)
 - CONFIG: signal settings first (Drive, Off state, Tuning, Spread, Corr., Backlight), `Step` row removed (the channel pages set the step), buttons 40 px, wider scrollbar, `Spread CH1` shows `Off (Integer)` when locked
@@ -158,6 +159,13 @@ Host tests run without hardware: frequency helpers, the SI5351 driver and its di
 pio test -e native-win   # Windows, uses the MinGW toolchain bundled with PlatformIO
 pio test -e native       # Linux/macOS/CI, needs gcc in PATH
 pio test -e native-win-fault   # IQ error state (TEST_FAULT_IQ); native-fault on Linux
+```
+
+Touch test builds for the measurement plan (MESSPLAN B8, B9, B12), not built by a plain `pio run` and never released; CI builds the hit map env so it keeps compiling:
+
+```bash
+pio run -e esp32-2432S028R-touchlog -t upload   # normal GUI, one [TOUCH] log line per touch
+pio run -e esp32-2432S028R-hitmap -t upload     # 20 target crosses instead of the GUI, [HITMAP] and [TOUCH] lines
 ```
 
 `test/fakes` replaces the Arduino core, `Wire` (SI5351 register model with fault injection, straight or swapped wiring, line held low, foreign device at 0x60) and `Preferences`. `test/helpers/si5351_model.h` decodes the written registers back into frequencies (AN619), independently of the driver's own arithmetic.
