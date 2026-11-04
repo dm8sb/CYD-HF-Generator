@@ -126,7 +126,7 @@ This table is authoritative; README and manual repeat parts of it.
   | `tune` | U8 | 0 Fractional, 1 Low noise, 2 Integer | 0 | invalid → default |
   | `ssc` | U8 | 0 Off, 1 −0.5 %, 2 −1.5 %, 3 ±0.5 % | 0 | invalid → default; Off in Integer |
   | `off_st` | U8 | 0 Low, 1 High, 2 High-Z | 0 | invalid → default |
-  | `disp_panel` | U8 | 0 automatic, 1 ILI9341, 2 ST7789 | 0 | written only by the boot gesture, only when it changes |
+  | `disp_panel` | U8 | removed in 1.3.2 | – | was written by the boot gesture (1.3.0–1.3.1); deleted at boot (E-26) |
 
 - **A-21** Missing keys give the defaults, so NVS contents from 1.2.0 keep the 1.2.0 behavior. Keys `ch1_en` / `ch2_en` / `ch3_en` from 1.1.0 are ignored. Output states, touch calibration and the SDA/SCL assignment are not stored.
 - **A-22** Autosave writes all settings 5 s after the last change (`SETTINGS_AUTOSAVE_MS`).
@@ -164,7 +164,7 @@ This table is authoritative; README and manual repeat parts of it.
 - **A-41** The SI5351 works with SDA/SCL in either order on CN1. The assignment is detected at boot and every 2 s while the chip is not ready (hot plug, replugging); while it is ready, the pins are never changed (E-17).
 - **A-42** The identity of the device at 0x60 is checked before the first write; a foreign device is not programmed (at most a test byte in register 3).
 - **A-43** An I2C line held low at boot (SI5351 reset during a read) is released.
-- **A-44** One firmware for both boards: the display controller is detected before the display init; a boot gesture selects the other controller and stores the choice; a build flag can force it (E-18).
+- **A-44** One firmware for both boards: the display controller is detected before the display init at every boot; nothing is stored; a build flag can force it (E-18, E-26).
 
 ### 3.8 Build and tests
 
@@ -252,7 +252,7 @@ This table is authoritative; README and manual repeat parts of it.
 After the ILI9341 init sequence the ST7789 reports ID1 = 0x10 (C1h is IDSET there); SWRESET restores it.
 
 - Probe before `tft.init()` at 1 MHz, mode 0, GPIO12 without pull: SWRESET; MADCTL A8h / 54h written and read back (the XOR must show FCh in bits 7:2, which rejects a floating or stuck MISO); RDDID read twice and compared. ID `000000` → ILI9341, `FFFFFF` → unknown, any other → ST7789 (unknown IDs logged). At most 3 attempts of about 20 ms.
-- Order: build flag `DISPLAY_FORCE_PANEL` (1 / 2, nothing stored) → stored `disp_panel` → detection → ILI9341. The boot gesture (touch held 1.5 s from power-on, ≥ 90 % of 20 ms samples, plausible raw positions only) selects the other controller and stores it, or resets `disp_panel` to 0 when it equals the automatic result. A second gesture undoes a wrong choice without a readable screen.
+- Order: build flag `DISPLAY_FORCE_PANEL` (1 / 2) → detection → ILI9341. Up to 1.3.1 a boot gesture could select the other controller and store it in `disp_panel`; removed in 1.3.2 (E-26).
 - Init: TFT_eSPI (built for the ILI9341) sends its sequence on both boards; on the ST7789 `DisplayDetect::postInit()` sends SWRESET, 150 ms and `ST7789_INIT`, copied from TFT_eSPI 2.5.43 (hence the exact version pin), and `DisplayPanel` writes the ST7789 MADCTL (`08 68 C8 A8` for rotation 0..3 instead of `48 28 88 E8`).
 
 ### E-19 Tuning modes, default Fractional
@@ -281,3 +281,6 @@ Whether `CLKx_PDN` leaves a pin high-impedance or pulls it low is unmeasured (ha
 
 ### E-25 Documentation roles
 *2026-10-28.* Specification = requirements and decisions; behavior only in `USER_MANUAL_DE.md`; `USER_MANUAL_EN.md` is its translation with the same structure and tables, updated in the same commit. Reason: the former specification (1401 lines) and both manuals described the same behavior and had drifted apart.
+
+### E-26 Boot gesture removed, detection only
+*2026-11-04 (1.3.2).* The boot gesture (touch held 1.5 s from power-on: use the other controller and store it) could fire by accident with a thumb on the screen while plugging in, and stored a wrong controller that only a second gesture without a readable screen undid (audit U-10). The detection (MADCTL read-back, RDDID read twice, up to 3 attempts) worked reliably on both boards in all tests. Decision: no runtime override; the build flag `DISPLAY_FORCE_PANEL` stays as the fallback for an unknown board. The NVS key `disp_panel` would otherwise override the detection forever and is deleted at boot. A touch at power-on is still kept away from LVGL.

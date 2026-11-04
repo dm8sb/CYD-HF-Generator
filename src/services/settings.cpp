@@ -56,16 +56,10 @@ bool SettingsService::save_(const PersistentState& s) {
     return ok;
 }
 
-uint8_t SettingsService::loadDisplayPanel() {
-    if (!available_) return 0;
-    const uint8_t v = storage_.getU8("disp_panel", 0);
-    return v <= 2 ? v : 0;
-}
-
-bool SettingsService::saveDisplayPanel(uint8_t panel) {
-    if (!available_) return false;
-    if (storage_.getU8("disp_panel", 0) == panel) return true;
-    return storage_.putU8("disp_panel", panel);
+bool SettingsService::removeDisplayPanel() {
+    if (!available_ || !storage_.remove("disp_panel")) return false;
+    Logger::info("SETTINGS", "Stored display choice removed; the controller is detected");
+    return true;
 }
 
 void SettingsService::markDirty() {

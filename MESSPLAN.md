@@ -677,15 +677,14 @@ Für B8 bis B20 gelten die Bedingungen aus Abschnitt 2.4. Die Auswertung der Tou
 **Soll:** Aufgabenerfolg ohne Handbuch ≥ 80 % (T1 bis T3), SUS ≥ 70; die Verständnisfragen von ≥ 80 % richtig beantwortet.
 **Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Erfolg, Zeit, SUS je Person):
 
-#### B17 · Versehentliche Boot-Geste (Audit U-10)
+#### B17 · Berührung beim Einschalten (Audit U-10)
 
-`Geräte` VIDEO · `Board` beide · `Läufe` R1 · `Bezug` A-44 · `Dauer` 30 min
+`Geräte` VIDEO · `Board` beide · `Läufe` R1 · `Bezug` A-44 · `Dauer` 20 min
 
-1. 20× das Gerät in natürlicher Haltung einschalten (Daumen auf dem Display, USB-Stecker einstecken).
-2. Zählen: ausgelöste Boot-Gesten (Beleuchtung blinkt 2×, ggf. Rauschen).
-3. Eine Testperson (Novize) behebt eine ausgelöste Fehl-Geste ohne Hilfe; Zeit messen.
+1. 20× das Gerät in natürlicher Haltung einschalten (Daumen auf dem Display, USB-Stecker einstecken), den Daumen 0,5 bis 3 s liegen lassen.
+2. Zählen: Starts mit falschem Bild (Rauschen) und Tipps, die in der Bedienung landen.
 
-**Soll:** 0 Fehlauslösungen in 20 Starts; Behebung durch Novizen < 2 min bzw. Hinweis im Handbuch ausreichend.
+**Soll:** 20/20 richtiges Bild, kein Tipp in der GUI (seit 1.3.2 gibt es keine Boot-Geste mehr, E-26).
 **Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
 
 #### B18 · Fehlerdialoge mit Testperson
@@ -1223,22 +1222,22 @@ I0 bis I2 sind am 2026-10-28 gelaufen (Messwerte in Spezifikation E-18); die Erg
 **Soll:** 40/40 richtig erkannt, nie Rauschen.
 **Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Fehlerkennungen je Board):
 
-#### I4 · Boot-Geste auf dem CYD2USB
+#### I4 · Gespeicherte Wahl der alten Boot-Geste wird gelöscht
 
-`Board` CYD2USB · `Läufe` R0 R1 · `Bezug` A-44 · `Dauer` 15 min
+`Board` CYD2USB · `Läufe` R0 · `Bezug` A-44, E-26 · `Dauer` 15 min
 
-1. Display berühren, einschalten, gedrückt halten, bis die Beleuchtung zweimal blinkt, dann loslassen.
-2. Beobachten: Bild (Rauschen, weil nun ILI9341 angenommen wird), Log `boot gesture`, Info-Karte (falls lesbar).
-3. Zweite Boot-Geste ausführen.
+1. Firmware 1.3.1 flashen, eine Boot-Geste ausführen (Display beim Einschalten 1,5 s halten): Rauschen, `disp_panel` = 1 gespeichert.
+2. Firmware ab 1.3.2 flashen (ohne Löschen des NVS), einschalten.
+3. Log und Info-Karte ablesen; ein zweites Mal einschalten.
 
-**Soll:** nach der ersten Geste Rauschen und Log „boot gesture“; nach der zweiten wieder ST7789 mit `disp_panel` = 0 (Log „detected“), Bild normal.
+**Soll:** beim ersten Start Log `[SETTINGS] Stored display choice removed; the controller is detected` und `[DISPLAY] ST7789 (detected)`, Bild normal; beim zweiten Start keine Löschmeldung mehr.
 **Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
 
-#### I5 · Geste länger als 3 s und lange Berührung
+#### I5 · Lange Berührung beim Einschalten
 
 `Board` beide · `Läufe` R0 R1 · `Bezug` A-44 · `Dauer` 10 min
 
-1. Boot-Geste länger als 3 s halten, dann loslassen; auf Fehl-Tipps in der GUI achten.
+1. Display beim Einschalten länger als 3 s halten, dann loslassen; auf Fehl-Tipps in der GUI achten.
 2. Nur 1 s berühren und weiter halten, bis die Hauptseite erscheint.
 
 **Soll:** kein Tipp landet in der GUI.

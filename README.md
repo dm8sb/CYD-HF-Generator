@@ -52,6 +52,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - Dialog buttons 120 x 40 px with 6.7:1 contrast (were about 80 x 23 px, 1.1:1); buttons near the screen edge take taps up to the edge, `MAIN` 36 px high; CH3 master and phase chips 6 px apart (were 2 px)
 - Step chips on the channel pages from `1M` (left) to `1` (right), like the digits of the frequency
 - MAIN: a status bar with the save state and `CONFIG` replaces the buttons CH1-CH3 (the cards open the channels); taller cards, state and detail lines in 14 px instead of 12 px
+- Boot gesture removed: the display controller is detected at every boot, a choice stored by the gesture of 1.3.0/1.3.1 is deleted; `DISPLAY_FORCE_PANEL` stays for unknown boards
 - Numpad keeps a rejected input and shows why (`Allowed 1 - 100 MHz`, `Enter a number`, `Max. 9 characters`), the current frequency as `Now ...`; a tap on a point or gap of the frequency selects the nearer digit; channel page shows `Off | Out ...` when off and `IQ master of CH3 (90°)`; `°` instead of `deg`; output error dialogs name the channel (`CH1: frequency setup failed. Retrying every 2 s.`)
 - CONFIG: signal settings first (Drive, Off state, Tuning, Spread, Corr., Backlight), `Step` row removed (the channel pages set the step), buttons 40 px, wider scrollbar, `Spread CH1` shows `Off (Integer)` when locked
 - Contrast: dark text on channel-colored buttons and selected chips (white had 2.9-3.7:1), switch track and chip border at least 3:1; states other than OFF as filled labels, errors as `! ERR` / `! NO HW` (palette in `include/palette.h`, checked by `test_contrast`)
@@ -143,7 +144,7 @@ pio run -t upload            # both boards
 pio device monitor -b 115200
 ```
 
-At boot the firmware reads the controller over SPI (MISO GPIO12) before the display is initialized and logs the result, e.g. `[DISPLAY] ST7789 (detected); detected ST7789: ID 8181B3, ...`. If the display still shows only noise, hold the touch screen while switching on until the backlight blinks twice (boot gesture): the firmware uses the other controller and stores the choice; a second gesture returns to automatic detection. Developers can skip the detection with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789).
+At boot the firmware reads the controller over SPI (MISO GPIO12) before the display is initialized and logs the result, e.g. `[DISPLAY] ST7789 (detected); detected ST7789: ID 8181B3, ...`. Nothing is stored; the detection runs at every boot. For a board whose controller is not recognized (display shows only noise), build with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789).
 
 The pre-build script `tools/build_info.py` takes branch, commit and build time from git (`unknown` without git, `+` after the commit for uncommitted changes); only `src/utils/build_info.cpp` is recompiled for it.
 

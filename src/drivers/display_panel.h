@@ -10,9 +10,9 @@
 // Never call setRotation(), readPixel() or readRect() on TFT_eSPI directly.
 class DisplayPanel {
 public:
-    // Detects the controller (unless forced or overridden), initializes it in landscape
-    // and clears the screen. Never fails; the backlight should still be off.
-    PanelDecision begin(PanelType stored, bool gesture);
+    // Detects the controller (unless forced by DISPLAY_FORCE_PANEL), initializes it in
+    // landscape and clears the screen. Never fails; the backlight should still be off.
+    void begin();
     void flush(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels);
     PanelType panel() const { return panel_; }
     // How begin() chose the panel (DisplayDetect::sourceName() for the text).

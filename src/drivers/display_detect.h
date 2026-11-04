@@ -6,8 +6,8 @@
 // (ILI9341) and the CYD2USB with an additional USB-C port (ST7789). Hardware-independent,
 // so it runs in the host tests; drivers/display_panel.* connects it to TFT_eSPI.
 
-enum class PanelType : uint8_t { Unknown = 0, ILI9341 = 1, ST7789 = 2 }; // = NVS value "disp_panel"
-enum class PanelSource : uint8_t { Build, Detected, Stored, Default, Gesture };
+enum class PanelType : uint8_t { Unknown = 0, ILI9341 = 1, ST7789 = 2 }; // = DISPLAY_FORCE_PANEL
+enum class PanelSource : uint8_t { Build, Detected, Default };
 
 // Raw SPI access to the panel; the host tests use a panel model.
 class PanelBus {
@@ -31,8 +31,6 @@ struct ProbeResult {
 struct PanelDecision {
     PanelType panel;
     PanelSource source;
-    bool save;          // write saveValue to NVS
-    PanelType saveValue;
 };
 
 namespace DisplayDetect {
@@ -47,9 +45,10 @@ ProbeResult probe(PanelBus& bus);
 // CYD2USB MISO must not select the wrong controller); *attempts = probes made.
 ProbeResult probeWithRetries(PanelBus& bus, uint8_t maxAttempts, uint8_t* attempts);
 bool knownId(uint32_t id);
-// buildForce: DISPLAY_FORCE_PANEL (0 = detect). The boot gesture switches to the other
-// panel; it stores the choice, or "automatic" when it matches the detection.
-PanelDecision decide(const ProbeResult& p, PanelType stored, bool gesture, uint8_t buildForce);
+// buildForce: DISPLAY_FORCE_PANEL (1 / 2; anything else detects). Without a recognized
+// controller the original CYD (ILI9341) is assumed. There is no override at runtime since
+// 1.3.2 (boot gesture removed, audit U-10).
+PanelDecision decide(const ProbeResult& p, uint8_t buildForce);
 // After the ILI9341 init of TFT_eSPI: nothing for the ILI9341; SWRESET and ST7789_INIT for the ST7789.
 void postInit(PanelBus& bus, PanelType panel);
 

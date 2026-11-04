@@ -590,7 +590,7 @@ SI5351 SDA 22 SCL 27
 |---|---|
 | `Firmware` | Version, Branch und Commit, aus dem die Firmware gebaut wurde. `+` hinter dem Commit: mit nicht eingecheckten Änderungen gebaut. Ohne git steht `unknown` |
 | `Build` | Datum und Uhrzeit des Builds |
-| `Display` | Display-Controller (`ILI9341` oder `ST7789`) und Herkunft: `detected` (erkannt), `stored` (gespeicherte Wahl einer früheren Boot-Geste), `boot gesture` (bei diesem Start per Boot-Geste gewählt), `default` (nichts erkannt, ILI9341 angenommen), `build flag` (beim Bauen festgelegt) |
+| `Display` | Display-Controller (`ILI9341` oder `ST7789`) und Herkunft: `detected` (erkannt), `default` (nichts erkannt, ILI9341 angenommen), `build flag` (beim Bauen festgelegt) |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
 
 ---
@@ -624,7 +624,7 @@ Gespeichert werden:
 
 Fehlen die drei neuen Optionen im Speicher (Einstellungen aus Firmware 1.2.0), gelten die Standardwerte `Fractional`, `Off` und `Low`, also das Verhalten von 1.2.0. Ungültige gespeicherte Werte werden beim Start durch den Standardwert ersetzt.
 
-Die Wahl des Display-Controllers per Boot-Geste wird sofort gespeichert (Abschnitt 13).
+Der Display-Controller wird nicht gespeichert, sondern bei jedem Start erkannt (Abschnitt 13).
 
 Touch-Kalibrierung wird nicht gespeichert. Es werden immer Default-Werte verwendet.
 
@@ -845,6 +845,7 @@ Wichtige Meldungen:
 | `[BOOT] CYD HF Generator 1.3.1 (dev 641ebe6+, 2026-10-28 16:42)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
 | `[I2C] Line held low; releasing bus` | Eine I2C-Leitung lag beim Start auf LOW und wurde freigegeben |
 | `[SETTINGS] Loaded from NVS` | Einstellungen geladen |
+| `[SETTINGS] Stored display choice removed; the controller is detected` | Einmalig nach dem Update von 1.3.0/1.3.1: die Wahl der früheren Boot-Geste wurde gelöscht (Abschnitt 13) |
 | `[SI5351] Init OK; all outputs off` | SI5351 initialisiert, alle Ausgänge aus |
 | `[APP] SI5351 at 0x60, SDA=22 SCL=27` | Verbunden; bei vertauschten Adern `SDA=27 SCL=22 (swapped)` |
 | `[APP] SI5351 not found` | Kein SI5351 gefunden, die Suche läuft weiter |
@@ -894,7 +895,9 @@ Unter der Bezeichnung ESP32-2432S028R werden zwei Boards verkauft, die sich nur 
 
 Die Info-Karte auf CONFIG und der Serial Monitor zeigen das Ergebnis, zum Beispiel `Display ST7789 (detected)` bzw. `[DISPLAY] ST7789 (detected); ...`. Pinbelegung, Touch und Bedienung sind bei beiden Varianten gleich.
 
-**Display zeigt nur Rauschen (Boot-Geste):** Display berühren, Gerät einschalten und gedrückt halten, bis die Beleuchtung zweimal blinkt, dann loslassen. Die Firmware verwendet dann den anderen Controller und merkt sich die Wahl. Eine zweite Boot-Geste schaltet zurück auf die automatische Erkennung. Die Geste wirkt nur, wenn die Berührung schon beim Einschalten besteht und 1,5 s gehalten wird. Eine Berührung beim Einschalten wird nicht als Tipp in die Bedienung übernommen.
+Eine Berührung beim Einschalten hat keine Wirkung und wird nicht als Tipp in die Bedienung übernommen. Die Boot-Geste der Firmware 1.3.0 und 1.3.1 (Display beim Einschalten gedrückt halten) gibt es nicht mehr; eine damit gespeicherte Wahl löscht die Firmware beim ersten Start (Log `[SETTINGS] Stored display choice removed; the controller is detected`).
+
+**Display zeigt nur Rauschen:** Die Erkennung hat einen unbekannten Controller nicht erkannt und ILI9341 angenommen (Info-Karte bzw. Log `default`). Dann hilft nur eine Firmware mit festem Controller: beim Bauen `-DDISPLAY_FORCE_PANEL=1` (ILI9341) oder `=2` (ST7789) setzen (README).
 
 ---
 

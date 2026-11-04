@@ -28,27 +28,6 @@ static void showError(const char* title, const char* text) {
     gui.showMessage(title, text);
 }
 
-// Touch held from power-on for 1.5 s: use the other display controller. Works without a
-// readable screen, so it helps when the display shows only noise.
-static bool bootGesture() {
-    if (!touch.pressed()) return false;
-    uint8_t held = 0;
-    for (uint8_t i = 0; i < BOOT_GESTURE_SAMPLES; ++i) {
-        held += touch.pressed() ? 1 : 0;
-        delay(BOOT_GESTURE_SAMPLE_MS);
-    }
-    return TouchFilter::bootGestureHeld(held);
-}
-
-static void blinkBacklight(uint8_t times) {
-    for (uint8_t i = 0; i < times; ++i) {
-        backlight.setPercent(100);
-        delay(BOOT_GESTURE_BLINK_MS);
-        backlight.setPercent(0);
-        delay(BOOT_GESTURE_BLINK_MS);
-    }
-}
-
 // A finger on the screen at boot must not reach LVGL as the first tap. The pressure
 // reading flickers, so released means 200 ms without touch (at most 10 s).
 static void waitForRelease() {
@@ -56,7 +35,7 @@ static void waitForRelease() {
     uint8_t free = 0;
     while (free < TOUCH_RELEASE_QUIET_SAMPLES && millis() - t0 < TOUCH_RELEASE_TIMEOUT_MS) {
         free = touch.pressed() ? 0 : free + 1;
-        delay(BOOT_GESTURE_SAMPLE_MS);
+        delay(TOUCH_RELEASE_SAMPLE_MS);
     }
 }
 
@@ -93,16 +72,11 @@ void setup() {
         Logger::error("BOOT", "Touch init failed");
     }
 
-    // 7. Display: detect the controller (ILI9341 / ST7789), boot gesture overrides
-    const bool touchedAtBoot = touch.pressed();
-    const bool gesture = touchedAtBoot && bootGesture();
-    const PanelDecision panel = display.begin((PanelType)settings.loadDisplayPanel(), gesture);
-    if (panel.save && !settings.saveDisplayPanel((uint8_t)panel.saveValue)) {
-        Logger::error("DISPLAY", "Saving the display choice failed");
-    }
-    // Two blinks: the boot gesture switched the controller (ignored with DISPLAY_FORCE_PANEL).
-    if (panel.source == PanelSource::Gesture) blinkBacklight(2);
-    if (touchedAtBoot) waitForRelease();
+    // 7. Display: detect the controller (ILI9341 / ST7789); a choice stored by the boot gesture
+    // of 1.3.0-1.3.1 would override nothing any more and is deleted.
+    settings.removeDisplayPanel();
+    display.begin();
+    if (touch.pressed()) waitForRelease();
 
     // 8. LVGL and GUI init
     gui.begin(app, touch, display);

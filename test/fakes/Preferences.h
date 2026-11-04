@@ -48,6 +48,13 @@ public:
     size_t putUInt(const char* key, uint32_t v) { return put_(key, Type::U32, v, 4); }
     uint64_t getULong64(const char* key, uint64_t def) { return get_(key, Type::U64, def); }
     size_t putULong64(const char* key, uint64_t v) { return put_(key, Type::U64, v, 8); }
+    bool isKey(const char* key) { return Fake::nvs().available && Fake::nvs().values.count(key) > 0; }
+    bool remove(const char* key) {
+        Fake::Nvs& n = Fake::nvs();
+        if (!n.available || n.failWrites || !n.values.erase(key)) return false;
+        ++n.writeCount;
+        return true;
+    }
 
 private:
     using Type = Fake::Nvs::Type;
