@@ -795,7 +795,7 @@ static void test_begin_switches_spread_spectrum_off() {
     TEST_ASSERT_FALSE(spreadSpectrum().enabled);
     TEST_ASSERT_EQUAL_UINT8(0, spreadSpectrum().nclk);
     // Also with spread spectrum selected: it starts with the first PLL A setup.
-    TEST_ASSERT_TRUE(si.setSpread(Spread::Down05));
+    si.setSpread(Spread::Down05);
     TEST_ASSERT_TRUE(si.begin(0));
     TEST_ASSERT_FALSE(spreadSpectrum().enabled);
     chip.clearLog();
@@ -808,13 +808,13 @@ static void test_begin_switches_spread_spectrum_off() {
 static void test_spread_spectrum_parameters() {
     const Spread options[] = {Spread::Down05, Spread::Down15, Spread::Center05};
     for (Spread s : options) {
-        TEST_ASSERT_TRUE(si.setSpread(Spread::Off));
+        si.setSpread(Spread::Off);
         TEST_ASSERT_TRUE(si.begin(0));
         TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8)); // 900 MHz, FBA_INT
         TEST_ASSERT_TRUE(pllIntMode(0));
         // Only stored: the next PLL A setup applies it, with a reset.
         chip.clearLog();
-        TEST_ASSERT_TRUE(si.setSpread(s));
+        si.setSpread(s);
         TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
         TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
         assertSpread(s);
@@ -826,7 +826,7 @@ static void test_spread_spectrum_parameters() {
         assertOutput(0, 10000000, 0, STANDALONE_MAX_ERR_HZ);
         // Off again, with a reset. FBA_INT only after the modulation has stopped; Fractional keeps 887.5 MHz.
         chip.clearLog();
-        TEST_ASSERT_TRUE(si.setSpread(Spread::Off));
+        si.setSpread(Spread::Off);
         TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
         TEST_ASSERT_FALSE(spreadSpectrum().enabled);
         TEST_ASSERT_EQUAL_UINT(1, chip.pllResets[0]);
@@ -843,7 +843,7 @@ static void test_spread_spectrum_follows_pll_a() {
     for (int32_t corr : {0, -CORRECTION_MAX}) {
         TEST_ASSERT_TRUE(si.begin(corr));
         si.setTuningMode(TuningMode::LowNoise);
-        TEST_ASSERT_TRUE(si.setSpread(Spread::Center05));
+        si.setSpread(Spread::Center05);
         TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 6900000, 8));
         // 100 kHz steps change the PLL A ratio by up to 1.5 %: stale parameters would show.
         for (uint64_t f = 7000000; f <= 9000000; f += 100000) {
@@ -868,7 +868,7 @@ static void test_spread_spectrum_never_touches_pll_b() {
     TEST_ASSERT_TRUE(si.setupStandalone(1, Pll::B, 14000000, 8));
     chip.clearLog();
     // PLL A not configured yet: only stored.
-    TEST_ASSERT_TRUE(si.setSpread(Spread::Down15));
+    si.setSpread(Spread::Down15);
     TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
     TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
     assertSpread(Spread::Down15);
@@ -882,7 +882,7 @@ static void test_spread_spectrum_never_touches_pll_b() {
     // Changing the option touches neither PLL B nor FBB_INT.
     chip.clearLog();
     for (Spread s : {Spread::Center05, Spread::Off}) {
-        TEST_ASSERT_TRUE(si.setSpread(s));
+        si.setSpread(s);
         TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
     }
     for (const Fake::RegWrite& w : chip.writes) {
@@ -917,7 +917,7 @@ static void test_spread_keeps_modulated_vco_in_range() {
     for (Spread s : SPREADS) {
         for (TuningMode mode : MODES) {
             for (int32_t corr : CORRECTIONS) {
-                TEST_ASSERT_TRUE(si.setSpread(s));
+                si.setSpread(s);
                 TEST_ASSERT_TRUE(si.begin(corr));
                 si.setTuningMode(mode);
                 lcgState = 37;
@@ -943,7 +943,7 @@ static void test_spread_keeps_modulated_vco_in_range() {
 static void test_center_spread_fractional_accuracy_at_weak_spots() {
     // 900 MHz is out of range: 887.5 and 875 MHz, each next to the weak spots of the other.
     for (int32_t corr : CORRECTIONS) {
-        TEST_ASSERT_TRUE(si.setSpread(Spread::Center05));
+        si.setSpread(Spread::Center05);
         TEST_ASSERT_TRUE(si.begin(corr));
         for (int n = 9; n <= 900; ++n) {
             for (double vco : {900e6, 887.5e6, 875e6}) {
@@ -967,7 +967,7 @@ static void test_spread_keeps_modulated_vco_in_range_iq() {
         const uint64_t edges[] = {(uint64_t)ceil(lo), (uint64_t)ceil(lo) - 1, (uint64_t)floor(hi), (uint64_t)floor(hi) + 1};
         for (TuningMode mode : MODES) {
             for (int32_t corr : CORRECTIONS) {
-                TEST_ASSERT_TRUE(si.setSpread(s));
+                si.setSpread(s);
                 TEST_ASSERT_TRUE(si.begin(corr));
                 si.setTuningMode(mode);
                 lcgState = 41;

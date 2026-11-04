@@ -164,6 +164,10 @@ void AppController::reportError_(const char* title, const char* text) {
     if (errorCb_) errorCb_(title, text);
 }
 
+// A failed output enable or register 24 write means the transfer failed, and the driver has
+// already marked the SI5351 as lost (audit C-6): report that, not an output error.
+void AppController::reportLinkLost_() { reportError_("SI5351", MSG_HW_LOST); }
+
 void AppController::reportHardwareError_(const char* text) {
     reportError_("SI5351", si5351_.ready() ? text : MSG_HW_LOST);
 }
@@ -228,7 +232,7 @@ void AppController::configureMasterGroup_() {
     }
     fault_[masterClk] = fault_[CLK_CH3] = false;
     if (!si5351_.enableOutput(masterClk, masterEnabled_()) || !si5351_.enableOutput(CLK_CH3, masterEnabled_())) {
-        reportHardwareError_("Output switch failed");
+        reportLinkLost_();
     }
 }
 
@@ -273,7 +277,7 @@ void AppController::setChannelEnabled(uint8_t ch, bool en) {
             if (ch == state_.ch3.master && iqConfigured_() && !fault_[CLK_CH3]) {
                 ok = ok && si5351_.enableOutput(CLK_CH3, en);
             }
-            if (!ok) reportHardwareError_("Output switch failed");
+            if (!ok) reportLinkLost_();
         }
     } else if (ch == 3) {
         state_.ch3.enabled = en;
@@ -332,7 +336,7 @@ void AppController::setSpread(Spread spread) {
     if (spread > Spread::Center05 || spread == state_.sys.spread) return;
     if (state_.sys.tuning_mode == TuningMode::Integer) return;
     state_.sys.spread = spread;
-    if (!si5351_.setSpread(spread)) reportHardwareError_("Spread spectrum setup failed");
+    si5351_.setSpread(spread);
     reconfigureOutputs_();
     markChanged_();
 }
@@ -340,7 +344,7 @@ void AppController::setSpread(Spread spread) {
 void AppController::setOffState(OffState offState) {
     if (offState > OffState::HighZ || offState == state_.sys.off_state) return;
     state_.sys.off_state = offState;
-    if (!si5351_.setOffState(offState)) reportHardwareError_("Off state setup failed");
+    if (!si5351_.setOffState(offState)) reportLinkLost_();
     // The power-down strategy of switched-off outputs depends on the off state.
     reconfigureOutputs_();
     markChanged_();

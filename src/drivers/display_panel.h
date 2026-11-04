@@ -17,7 +17,6 @@ public:
     PanelType panel() const { return panel_; }
     // How begin() chose the panel (DisplayDetect::sourceName() for the text).
     PanelSource source() const { return source_; }
-    const ProbeResult& probeResult() const { return probe_; }
 
 private:
     void setRotation_(uint8_t r);
