@@ -12,7 +12,8 @@ AppController::AppController(SettingsService& settings, SI5351Manager& si5351, B
 
 void AppController::begin(const PersistentState& loaded) {
     state_ = loaded;
-    // Before connectHardware(): SI5351Manager::begin() writes spread and off state.
+    // Before connectHardware(): begin() writes the off state and turns spread spectrum off;
+    // the spread option follows with the first PLL A setup.
     si5351_.setTuningMode(state_.sys.tuning_mode);
     si5351_.setSpread(state_.sys.spread);
     si5351_.setOffState(state_.sys.off_state);

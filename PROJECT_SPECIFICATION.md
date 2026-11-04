@@ -95,7 +95,7 @@ This table is authoritative; README and manual repeat parts of it.
   | Case | Limit | Host test |
   |---|---|---|
   | Standalone, `Fractional` | ≤ 0.5 Hz | ≤ 0.375 Hz at correction 0 |
-  | Standalone, `Low noise` | ≤ 1.4 Hz | – |
+  | Standalone, `Low noise` | ≤ 1.5 Hz | bound 25 MHz / 2^21 / 8 (divider 8 at 100 MHz); random frequencies max. 0.49 Hz |
   | IQ, `Fractional` / `Low noise` | ≤ 1.4 Hz | 1.32 Hz worst case (91 666 668 Hz) |
   | `Integer` | nearest raster point (kHz range possible) | – |
 
