@@ -107,7 +107,8 @@ bool AppController::connect_() {
 }
 
 void AppController::setLinkState_(LinkState s) {
-    if (s == link_) return;
+    if (linkKnown_ && s == link_) return;
+    linkKnown_ = true;
     link_ = s;
     if (s == LinkState::Connected) {
         char line[64];

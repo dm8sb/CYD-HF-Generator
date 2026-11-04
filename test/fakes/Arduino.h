@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 // Minimal Arduino core for the host unit tests (env:native / env:native-win).
 // Header-only: function-local statics give one shared instance per test program.
 
@@ -38,6 +40,9 @@ struct SerialLog {
     char last[256];
     unsigned errors;
     unsigned lines;
+    std::string all; // every line since the last clear()
+    void clear() { last[0] = '\0'; errors = lines = 0; all.clear(); }
+    bool contains(const char* text) const { return all.find(text) != std::string::npos; }
 };
 inline SerialLog& serialLog() {
     static SerialLog log {};
@@ -91,6 +96,7 @@ public:
         const int n = vsnprintf(log.last, sizeof(log.last), fmt, args);
         va_end(args);
         ++log.lines;
+        log.all += log.last;
         if (strncmp(log.last, "[ERROR]", 7) == 0) ++log.errors;
         return n < 0 ? 0 : (size_t)n;
     }

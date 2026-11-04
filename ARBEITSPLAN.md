@@ -160,6 +160,8 @@ Jeder Fix kommt zusammen mit seinem Host-Test; der Test scheitert vor dem Fix (G
 - [x] **S16 · Doku-Abgleich (C-8, C-9).** Low noise „≈ 1,4 Hz“ gegen Test 1,5 Hz (A-12, Handbuch), WAIT-Gründe mit Spread-Grenzen, Kommentare in `pins.h` und `app_controller.cpp`, `todo.md` 2.2/2.4. *Commit:* `S16: Align documentation with code (C-8, C-9)`
 - [x] **S17 · Release 1.3.1.** `APP_VERSION`, README „Changes“; Smoke-Test auf beiden Boards (MESSPLAN 4.3); lokaler Tag `v1.3.1`. *Commit:* `S17: Release 1.3.1` — *Erledigt 2026-11-04*, lokaler Tag `v1.3.1`. Smoke-Test nur teilweise: Original-CYD (COM7, ohne SI5351) bootet mit 1.3.1, ILI9341 erkannt, `SI5351 not found` wie erwartet; das CYD2USB mit SI5351 war nicht angeschlossen (COM13 fehlt). **Offen:** Smoke-Test MESSPLAN 4.3 mit Touch auf beiden Boards und mit SI5351.
 
+- [x] **S17a · Verbindungszeile beim Boot (Befund M-1, 2026-11-04).** Beim Smoke-Test am CYD2USB fehlte `[APP] SI5351 at 0x60, SDA=… SCL=…` nach einem erfolgreichen ersten Verbinden, weil der Link-Zustand als `Connected` startete. Fix mit Host-Test (Serial-Fake merkt sich jetzt das ganze Log). *Commit:* `S17a: Log the first SI5351 connection at boot (M-1)`
+
 ### Phase 2 – Bedienung 1.3.2 (≈ 3–4 d)
 
 - [ ] **S18 · Numpad und Ziffer-Antippen testbar (T-10, T-11).** `NumpadInput` (ein Dezimalpunkt, Länge, ⌫/C, Einheiten, Grenzen) und `charIndexAt`/`stepMarkup` als reine Funktionen. *Commit:* `S18: Extract numpad and digit-tap logic for host tests`
