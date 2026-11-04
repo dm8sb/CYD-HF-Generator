@@ -91,16 +91,30 @@ double formatOutput(double actualHz, uint64_t requestedHz, Spread spread, char* 
     return dev;
 }
 
+// Digits with at most one decimal point and at least one digit ("10", "10.7", "10.", ".5").
+// Rejects everything else strtod would take: signs, blanks, exponents, hex, NaN, infinity.
+static bool isPlainDecimal(const char* text) {
+    static constexpr size_t MAX_LEN = 16;
+    size_t digits = 0, points = 0, len = 0;
+    for (const char* p = text; *p; ++p) {
+        if (++len > MAX_LEN) return false;
+        if (*p >= '0' && *p <= '9') ++digits;
+        else if (*p == '.') ++points;
+        else return false;
+    }
+    return digits > 0 && points <= 1;
+}
+
 bool parseFrequency(const char* text, const char* unit, uint64_t* outHz) {
-    if (!text || !outHz) return false;
-    char* end = nullptr;
-    double v = strtod(text, &end);
-    if (end == text || *end != '\0' || v <= 0) return false;
+    if (!text || !outHz || !isPlainDecimal(text)) return false;
     double scale = 1.0;
     if (unit) {
         if (strcmp(unit, "kHz") == 0) scale = 1000.0;
         else if (strcmp(unit, "MHz") == 0) scale = 1000000.0;
+        else if (strcmp(unit, "Hz") != 0) return false;
     }
+    const double v = strtod(text, nullptr);
+    if (!isfinite(v) || v <= 0) return false;
     double hz = v * scale + 0.5;
     if (hz < (double)FREQ_MIN_HZ || hz >= (double)FREQ_MAX_HZ + 1.0) return false;
     *outHz = (uint64_t)hz;

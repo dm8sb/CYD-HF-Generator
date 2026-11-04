@@ -170,6 +170,30 @@ static void test_parse_rejects_malformed_input() {
     TEST_ASSERT_FALSE(parseFrequency(nullptr, "MHz", nullptr));
 }
 
+// Audit C-4 / T-4: only digits and one decimal point; strtod alone also took NaN, infinity,
+// exponents, hex, signs and leading blanks.
+static void test_parse_accepts_only_digits_and_one_point() {
+    assertRejected("nan", "Hz");
+    assertRejected("NAN", "MHz");
+    assertRejected("inf", "MHz");
+    assertRejected("infinity", "Hz");
+    assertRejected("1e7", "Hz");
+    assertRejected("1E1", "MHz");
+    assertRejected("0x989680", "Hz");
+    assertRejected("1..2", "MHz");
+    assertRejected("+10", "MHz");
+    assertRejected("-10", "MHz");
+    assertRejected(" 10", "MHz");
+    assertRejected("10 ", "MHz");
+    assertRejected("10,7", "MHz");
+    assertRejected("10", "GHz");
+    assertRejected("10", "");
+    assertRejected("1234567890123456789012345", "Hz");
+    assertParse("10.", "MHz", 10000000ULL);
+    assertParse("1000.5", "kHz", 1000500ULL);
+    assertParse("5000000", nullptr, 5000000ULL); // no unit = Hz
+}
+
 static void test_parse_digit_sweep_matches_integer_math() {
     // Every kHz-aligned value from the numpad must parse exactly.
     char text[16];
@@ -254,6 +278,7 @@ int main() {
     RUN_TEST(test_parse_rounds_to_hz);
     RUN_TEST(test_parse_rejects_malformed_input);
     RUN_TEST(test_parse_digit_sweep_matches_integer_math);
+    RUN_TEST(test_parse_accepts_only_digits_and_one_point);
     RUN_TEST(test_clamp);
     RUN_TEST(test_step_index_and_snap);
     RUN_TEST(test_digit_exponent_on_formatted_text);

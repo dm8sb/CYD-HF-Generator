@@ -126,7 +126,6 @@ Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Absch
 
 ## 4. Code-Qualität & Wartbarkeit
 
-- [ ] **P1 Frequenzparser härten** (C-4, S-21): `parseFrequency("nan")` liefert true, `1e7` und `0x989680` werden angenommen (in der GUI unerreichbar, für REST/SCPI kritisch). `isfinite()`, nur Ziffern und ein Punkt; für das Netz ein eigener Parser (V-11).
 - [ ] **P2 Unerreichbare Dialoge** (C-6): „Output switch failed“, „Off state setup failed“, „Spread spectrum setup failed“ können praktisch nicht auftreten, stehen aber im Handbuch → entfernen bzw. über Ergebniscodes (V-1), Handbuch DE/EN.
 - [ ] **P3 Toter Code** (C-10): `SI5351Manager::revId()`, `DisplayPanel::probeResult()` (ggf. für die Info-Karte nutzen), unerreichbares `p.z < 150` in `touch.cpp`, nie ausgewertete Rückgabewerte von `readLvgl()` und `Gui::begin()`.
 - [ ] **P3 Doppelte Formatierung und Literale** (C-11): IQ-Grenze dreimal mit unterschiedlicher Rundung formatiert → `FrequencyUtils::formatIqLimit()`; Zeiten (300 ms, 35 ms, 75 × 20 ms, 10 s) nach `constants.h`.
