@@ -5,6 +5,7 @@
 #include <XPT2046_Touchscreen.h>
 #include <lvgl.h>
 #include <types.h>
+#include "touch_filter.h"
 
 class TouchDriver {
 public:
@@ -16,13 +17,8 @@ public:
     bool pressed();
 
 private:
-    bool mapPoint(int16_t rx, int16_t ry, lv_coord_t* x, lv_coord_t* y);
-
     SPIClass spi_;
     XPT2046_Touchscreen touch_;
-    TouchCalibration cal_ {};
-    bool lastPressed_ = false;
-    lv_coord_t filtX_ = 0;
-    lv_coord_t filtY_ = 0;
-    uint32_t lastTouchMs_ = 0;
+    // Calibration, plausibility, jitter filter and dropout bridge (host-tested).
+    TouchFilter::Filter filter_ {TouchCalibration {}};
 };

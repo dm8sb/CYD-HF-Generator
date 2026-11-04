@@ -51,6 +51,8 @@ static constexpr uint32_t BOOT_GESTURE_BLINK_MS = 150;
 // Released after a touch at boot: TOUCH_RELEASE_QUIET_SAMPLES x BOOT_GESTURE_SAMPLE_MS without touch.
 static constexpr uint8_t TOUCH_RELEASE_QUIET_SAMPLES = 10;
 static constexpr uint32_t TOUCH_RELEASE_TIMEOUT_MS = 10000;
+// Display controller detection: probes before the default (E-18).
+static constexpr uint8_t DISPLAY_PROBE_ATTEMPTS = 3;
 // Delay of the restart test hooks (TEST_LVGL_ASSERT, TEST_LOOP_HANG): time to switch outputs on.
 static constexpr uint32_t TEST_TRIGGER_MS = 20000;
 static constexpr const char* SETTINGS_NAMESPACE = "hfgen";

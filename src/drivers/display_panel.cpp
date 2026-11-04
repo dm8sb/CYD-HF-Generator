@@ -1,4 +1,5 @@
 #include "display_panel.h"
+#include <constants.h>
 #include <SPI.h>
 #include <driver/gpio.h>
 #include <config.h>
@@ -56,11 +57,8 @@ PanelDecision DisplayPanel::begin(PanelType stored, bool gesture) {
     digitalWrite(TFT_DC, HIGH);
 
     SpiPanelBus bus(spi);
-    // One bad read on the weak CYD2USB MISO must not select the wrong controller.
     uint8_t attempts = 0;
-    do {
-        probe_ = DisplayDetect::probe(bus);
-    } while (probe_.panel == PanelType::Unknown && ++attempts < 3);
+    probe_ = DisplayDetect::probeWithRetries(bus, DISPLAY_PROBE_ATTEMPTS, &attempts);
     const PanelDecision d = DisplayDetect::decide(probe_, stored, gesture, DISPLAY_FORCE_PANEL);
     panel_ = d.panel;
     source_ = d.source;
@@ -76,7 +74,7 @@ PanelDecision DisplayPanel::begin(PanelType stored, bool gesture) {
     hex(id, probe_.rddid);
     snprintf(line, sizeof(line), "%s (%s); detected %s: ID %06lX, MADCTL read %s/%s, RDDID %s, attempts %u",
              DisplayDetect::name(panel_), DisplayDetect::sourceName(d.source), DisplayDetect::name(probe_.panel),
-             (unsigned long)probe_.id, a, b, id, attempts + (probe_.panel == PanelType::Unknown ? 0 : 1));
+             (unsigned long)probe_.id, a, b, id, attempts);
     Logger::info("DISPLAY", line);
     if (probe_.panel == PanelType::ST7789 && !DisplayDetect::knownId(probe_.id)) {
         Logger::error("DISPLAY", "Unknown controller ID; assuming ST7789");

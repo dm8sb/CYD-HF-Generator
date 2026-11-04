@@ -37,7 +37,7 @@ static bool bootGesture() {
         held += touch.pressed() ? 1 : 0;
         delay(BOOT_GESTURE_SAMPLE_MS);
     }
-    return held >= BOOT_GESTURE_MIN_HELD;
+    return TouchFilter::bootGestureHeld(held);
 }
 
 static void blinkBacklight(uint8_t times) {
