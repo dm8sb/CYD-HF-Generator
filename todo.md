@@ -49,11 +49,9 @@ Jede Phase endet mit den Gates aus Audit 5.8: Host-Tests in `native-win` und `na
 
 ## 1. Build, Tests & Hardware-Varianten
 
-- [ ] **P0 PlatformIO 6.1.5 aus dem PATH entfernen** (P-1): Das alte `pio` (Python-3.10-User-Site) bricht ESP32-Builds; nur `~/.platformio/penv` (6.2.0) verwenden oder `pip install -U platformio`.
 - [ ] **P1 CI** (Phase 0): GitHub Action mit `pio test -e native` und `pio run` (eine Firmware-Umgebung); `env:native` (Linux, gcc) ist noch nie gelaufen. Actions per SHA gepinnt, `permissions: contents: read`, kein `pull_request_target` mit PR-Checkout (S-27). Später Fuzzing-Job (Konzept WEB-HMI W-S25).
-- [ ] **P1 Warnungen**: `build_src_flags = -Wall -Wextra` für `src/` (heute 0 Warnungen, auch damit); bei der Migration zusätzlich eine Host-Test-Umgebung mit `-std=gnu++17` (V-9).
-- [ ] **P1 Abhängigkeiten auf Commit pinnen** (S-20): `XPT2046_Touchscreen` von `#v1.4` auf den Commit `d57f64c8b5f2bc5b8d10d121550806eeff7b06d9`; Plattform-Prüfsumme in der CI; Advisory-Check je Release.
-- [ ] **P2 Migration Arduino-Core 3.x** (Phase 4, [Konzept WEB-HMI Abschnitt 4](KONZEPT_WEB_HMI.md)): Ziel offizielles `platformio/espressif32@8.0.0` (Arduino 3.3.12, IDF 5.5.5; Spike gegen pioarduino 55.03.312-1). Grund ist vor allem Sicherheit: IDF 4.4 und mbedTLS 2.28 sind ohne Support (S-19, P-4). Teilaufgaben: LEDC auf `ledcAttach()` (auch im Fake), Wire auf dem neuen `i2c_master`-Treiber mit gebündelten Transfers in `I2CBus` (C-14), TFT_eSPI 2.5.43 früh bauen und testen, A/B-Umgebungen bis zur Abnahme; Messplan A, B, I, J gegen die Basis aus Phase 0 wiederholen.
+- [ ] **P2 Abhängigkeiten prüfen** (S-20): Plattform-Prüfsumme in der CI; Advisory-Check je Release (XPT2046 ist seit S05 auf den Commit gepinnt).
+- [ ] **P2 Migration Arduino-Core 3.x** (Phase 4, [Konzept WEB-HMI Abschnitt 4](KONZEPT_WEB_HMI.md)): Ziel offizielles `platformio/espressif32@8.0.0` (Arduino 3.3.12, IDF 5.5.5; Spike gegen pioarduino 55.03.312-1). Grund ist vor allem Sicherheit: IDF 4.4 und mbedTLS 2.28 sind ohne Support (S-19, P-4). Teilaufgaben: LEDC auf `ledcAttach()` (auch im Fake), Wire auf dem neuen `i2c_master`-Treiber mit gebündelten Transfers in `I2CBus` (C-14), TFT_eSPI 2.5.43 früh bauen und testen, A/B-Umgebungen bis zur Abnahme, GCC-14-Warnungen beheben (`src/` baut seit S05 mit `-Wall -Wextra`), Host-Test-Umgebung mit `-std=gnu++17` (V-9); Messplan A, B, I, J gegen die Basis aus Phase 0 wiederholen.
 - [ ] **P4 Updates später** (P-6, P-8): LVGL 8.4.0 (nur Fixes, optional), Unity 2.7.0 sobald in der Registry, Arduino 3.3.13 / IDF 5.5.6 sobald erschienen. Nicht empfohlen: LVGL 9, espressif32 6.13.0, LovyanGFX außer als Fallback.
 
 ## 2. SI5351 / HF-Funktion
