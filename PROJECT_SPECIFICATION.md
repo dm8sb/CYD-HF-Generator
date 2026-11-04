@@ -165,10 +165,11 @@ This table is authoritative; README and manual repeat parts of it.
 ### 3.8 Build and tests
 
 - **A-45** PlatformIO + Arduino-ESP32. `esp32-2432S028R` is the only firmware environment and `default_envs`; `native` (gcc in PATH) and `native-win` (bundled MinGW) run the host tests.
-- **A-46** Pinned versions: `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43`, `lvgl/lvgl@8.3.11`, XPT2046_Touchscreen from GitHub `#v1.4` (E-4). Partition table `huge_app.csv`, 4 MB flash.
+- **A-46** Pinned versions: `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43`, `lvgl/lvgl@8.3.11`, XPT2046_Touchscreen from GitHub, pinned to commit `d57f64c8b5f2bc5b8d10d121550806eeff7b06d9` (tag v1.4, E-4). Partition table `huge_app.csv`, 4 MB flash.
 - **A-47** TFT_eSPI is configured only through build flags (`USER_SETUP_LOADED`), never by editing library files.
 - **A-48** The host tests compile the hardware-independent sources (controller, SI5351 driver and planner, I2C bus, display detection, services, frequency utilities, logger) against fakes (E-15). These sources stay free of LVGL and TFT_eSPI; `constants.h`, `types.h` and `frequency_utils.h` do not include `Arduino.h`.
 - **A-49** The version is `APP_VERSION` in `config.h`. Branch, commit (with `+` for uncommitted changes) and build time are taken at build time; without git they read `unknown` (E-24).
+- **A-50** The own sources (`src/`) compile with `-Wall -Wextra` (`build_src_flags`) without warnings; libraries keep their default flags.
 
 ---
 

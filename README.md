@@ -97,7 +97,7 @@ Pinned in `platformio.ini`:
 - Arduino-ESP32 via `espressif32@6.7.0`
 - `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it)
 - `lvgl/lvgl@8.3.11`
-- XPT2046_Touchscreen from `https://github.com/PaulStoffregen/XPT2046_Touchscreen.git#v1.4`
+- XPT2046_Touchscreen from `https://github.com/PaulStoffregen/XPT2046_Touchscreen.git`, pinned to commit `d57f64c` (tag v1.4)
 - `Preferences` from Arduino-ESP32
 
 ## Build and Flash
