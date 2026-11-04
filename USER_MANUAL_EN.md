@@ -1,8 +1,8 @@
 # User Manual – CYD HF Generator
 
-Firmware version: 1.3.0
+Firmware version: 1.3.1
 
-This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 1.3.0); the German manual is the reference for the firmware's behavior.
+This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 1.3.1); the German manual is the reference for the firmware's behavior.
 
 ## 1. Overview
 
@@ -579,7 +579,7 @@ Determines the level that a switched-off output carries (SI5351 register 24). Th
 At the end of the page, a card shows information for troubleshooting without a serial monitor, for example:
 
 ```text
-Firmware 1.3.0 | dev 641ebe6+
+Firmware 1.3.1 | dev 641ebe6+
 Build 2026-10-28 16:42
 Display ST7789 (detected)
 SI5351 SDA 22 SCL 27
@@ -841,7 +841,7 @@ Important messages:
 
 | Message | Meaning |
 |---|---|
-| `[BOOT] CYD HF Generator 1.3.0 (dev 641ebe6+, 2026-10-28 16:42)` | Startup: version, branch, commit and build time as on the info card |
+| `[BOOT] CYD HF Generator 1.3.1 (dev 641ebe6+, 2026-10-28 16:42)` | Startup: version, branch, commit and build time as on the info card |
 | `[I2C] Line held low; releasing bus` | An I2C line was LOW at startup and was released |
 | `[SETTINGS] Loaded from NVS` | Settings loaded |
 | `[SI5351] Init OK; all outputs off` | SI5351 initialized, all outputs off |
