@@ -164,7 +164,7 @@ Jeder Fix kommt zusammen mit seinem Host-Test; der Test scheitert vor dem Fix (G
 
 ### Phase 2 – Bedienung 1.3.2 (≈ 3–4 d)
 
-- [ ] **S18 · Numpad und Ziffer-Antippen testbar (T-10, T-11).** `NumpadInput` (ein Dezimalpunkt, Länge, ⌫/C, Einheiten, Grenzen) und `charIndexAt`/`stepMarkup` als reine Funktionen. *Commit:* `S18: Extract numpad and digit-tap logic for host tests`
+- [x] **S18 · Numpad und Ziffer-Antippen testbar (T-10, T-11).** `NumpadInput` (ein Dezimalpunkt, Länge, ⌫/C, Einheiten, Grenzen) und `charIndexAt`/`stepMarkup` als reine Funktionen. *Commit:* `S18: Extract numpad and digit-tap logic for host tests`
 - [ ] **S19 · Message-Queue, Formatierung, Konstanten (T-12, T-13, C-11).** `FrequencyUtils::formatIqLimit()`, Zeiten nach `constants.h`, Textbausteine und Dropdown-Index ↔ Enum mit `static_assert`. *Commit:* `S19: Extract formatting and message queue logic (C-11)`
 - [ ] **S20 · Touch-Filter und Display-Erkennung testbar (T-14, T-15).** Touch-Filter, Schwelle der Boot-Geste, Erkennung mit Wiederholungen. *Commit:* `S20: Make touch filter and display detection host-testable`
 - [ ] **S21 · Header Ist-Zustand und Kartenschalter (U-1, U-3).** Header zeigt ON/OFF/WAIT/ERR/NO HW wie MAIN; Schalter in eigene Spalte, ≥ 12 px Abstand. *Commit:* `S21: Show actual channel state in header, separate card switch (U-1, U-3)`

@@ -1,8 +1,7 @@
 #include "../gui.h"
 #include "../gui_layout.h"
 #include <utils/frequency_utils.h>
-#include <ctype.h>
-#include <cstring>
+#include <utils/input_logic.h>
 
 using namespace Layout;
 
@@ -44,17 +43,8 @@ void Gui::refreshChannel_() {
     setHeaderState_(c.enabled, status == ChannelStatus::Error);
     // The digit that +/- changes is shown in the channel color.
     FrequencyUtils::format(c.frequency, freqText_, sizeof(freqText_));
-    const int stepExp = FrequencyUtils::decimalExponent(app.system().delta_step);
-    const uint32_t rgb = lv_color_to32(Colors::forChannel(channel_)) & 0xFFFFFF;
-    size_t n = 0;
-    for (size_t i = 0; freqText_[i] && n + 12 < sizeof(buf); ++i) {
-        if (FrequencyUtils::digitExponent(freqText_, i) == stepExp) {
-            n += snprintf(buf + n, sizeof(buf) - n, "#%06lX %c#", (unsigned long)rgb, freqText_[i]);
-        } else {
-            buf[n++] = freqText_[i];
-        }
-    }
-    buf[n] = '\0';
+    InputLogic::stepMarkup(freqText_, app.system().delta_step, lv_color_to32(Colors::forChannel(channel_)), buf,
+                           sizeof(buf));
     lv_label_set_text(w_.freq, buf);
 
     // The step is visible through the colored digit and the chips; the info line shows the
@@ -73,6 +63,10 @@ void Gui::refreshChannel_() {
     }
 }
 
+static int glyphWidth(char c, char next, void* font) {
+    return lv_font_get_glyph_width(static_cast<const lv_font_t*>(font), (uint8_t)c, (uint8_t)next);
+}
+
 void Gui::handleFreqTap_(lv_obj_t* label) {
     lv_indev_t* indev = lv_indev_get_act();
     if (!indev || !freqText_[0]) return;
@@ -82,25 +76,18 @@ void Gui::handleFreqTap_(lv_obj_t* label) {
     lv_obj_get_content_coords(label, &area);
 
     // Find the tapped character in the plain text; the recolor commands take no space.
-    const lv_font_t* font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
-    const size_t len = strlen(freqText_);
-    size_t index = len - 1; // right of the text = unit
-    lv_coord_t x = area.x1;
-    for (size_t i = 0; i < len; ++i) {
-        x += lv_font_get_glyph_width(font, freqText_[i], freqText_[i + 1]);
-        if (p.x < x) {
-            index = i;
-            break;
-        }
+    lv_font_t* font = const_cast<lv_font_t*>(lv_obj_get_style_text_font(label, LV_PART_MAIN));
+    const size_t index = InputLogic::charIndexAt(freqText_, p.x - area.x1, glyphWidth, font);
+    uint32_t step = 0;
+    switch (InputLogic::tapTarget(freqText_, index, &step)) {
+        case InputLogic::TapTarget::Numpad:
+            requestNavigate_(PageId::Numpad);
+            return;
+        case InputLogic::TapTarget::Step:
+            app_->setDeltaStep(step);
+            refresh_();
+            return;
+        case InputLogic::TapTarget::None:
+            return;
     }
-
-    if (isalpha((unsigned char)freqText_[index])) {
-        requestNavigate_(PageId::Numpad);
-        return;
-    }
-    const int exponent = FrequencyUtils::digitExponent(freqText_, index);
-    if (exponent < 0) return; // decimal point or space
-    // Digits above the largest step (10 / 100 MHz) select the largest step.
-    app_->setDeltaStep(exponent < 10 ? FrequencyUtils::powerOfTen((uint8_t)exponent) : DELTA_STEPS[DELTA_STEP_COUNT - 1]);
-    refresh_();
 }

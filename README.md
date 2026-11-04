@@ -46,6 +46,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 
 ## Changes in 1.3.2 (in progress)
 
+- GUI input logic (numpad, tap on a digit, colored step digit) as pure functions with host tests (`utils/input_logic.*`); behavior unchanged
 - Boot log shows `[APP] SI5351 at 0x60, SDA=... SCL=...` also when the first connection succeeds (was missing since the SDA/SCL detection)
 
 ## Changes in 1.3.1
