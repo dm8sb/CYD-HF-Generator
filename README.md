@@ -48,6 +48,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 
 - CH3 in `ERR`: switching the master off and on no longer enables CLK2 (with off state `High`/`High-Z` it output a signal again)
 - MAIN shows the `~` of a rastered frequency (`Integer`) right after boot
+- Switching outputs on/off and setting a value to its current value no longer trigger an autosave (before: all 11 keys written 5 s later)
 - Frequency parser accepts only digits and one decimal point and the units Hz/kHz/MHz (rejected before: NaN, infinity, exponents, hex, signs)
 - A failed LVGL assert (pool full) or a `loop()` blocked for 5 s (task watchdog) restarts the device instead of freezing with running outputs; test hooks `TEST_LVGL_ASSERT`, `TEST_LOOP_HANG`
 - Build: `src/` compiles with `-Wall -Wextra` without warnings; XPT2046 pinned by commit; heap and LVGL memory in the debug log; CI for host tests and the firmware build

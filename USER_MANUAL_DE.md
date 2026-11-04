@@ -627,7 +627,7 @@ Die Wahl des Display-Controllers per Boot-Geste wird sofort gespeichert (Abschni
 
 Touch-Kalibrierung wird nicht gespeichert. Es werden immer Default-Werte verwendet.
 
-Der ON/OFF-Zustand der Ausgänge wird nicht gespeichert; nach dem Einschalten sind alle Ausgänge aus.
+Der ON/OFF-Zustand der Ausgänge wird nicht gespeichert; nach dem Einschalten sind alle Ausgänge aus. Ein- und Ausschalten löst deshalb kein Speichern aus, ebenso wenig eine Einstellung, die schon den gewählten Wert hat. Das schont den Flash-Speicher.
 
 ---
 

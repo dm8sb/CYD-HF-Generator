@@ -76,7 +76,7 @@ Jede Phase endet mit den Gates aus Audit 5.8: Host-Tests in `native-win` und `na
 - [ ] **P2 Heap auf der Info-Karte** (V-8, Rest von C-3): freier/minimaler Heap und LVGL-Heap auf der CONFIG-Info-Karte; kommt mit der Info-Karten-Erweiterung der WEB-HMI (Arbeitsplan S53). Assert-Handler und Loop-Watchdog sind seit S09 umgesetzt.
 - [ ] **P2 Wiederverbinden im selben Zyklus** (C-12, [app_controller.cpp:37-48](src/core/app_controller.cpp#L37-L48)): Nach erkanntem Verlust erst im nächsten 2-s-Zyklus `connect_()` → bis zu 4 s ohne Wiederherstellung.
 - [ ] **P2 Speichern wiederholen** (C-13, [settings.cpp:78](src/services/settings.cpp#L78)): `dirty_` wird vor dem Speichern gelöscht; ein einmaliger NVS-Fehler verliert die Änderung. `dirty_` behalten, Retry mit Backoff 30 s, Dialog nur einmal.
-- [ ] **P2 Unnötige Flash-Schreibvorgänge** (C-5): ON/OFF und eine unveränderte Schrittweite markieren „dirty“ und schreiben nach 5 s alle 11 Schlüssel. `markChanged_()` nur bei geänderten gespeicherten Feldern; dauerhaft Dirty je Schlüssel (V-4).
+- [ ] **P2 Dirty je Schlüssel** (Rest von C-5, V-4): Bei einer echten Änderung schreibt das Autosave weiterhin alle 11 Schlüssel; nur geänderte schreiben (Arbeitsplan S45). Ein/Aus und unveränderte Werte speichern seit S11 nicht mehr.
 
 ### 2.4 Frequenzbereich CH1/CH2 auf 8 kHz – 160 MHz erweitern (Entscheidung 2026-10-27)
 

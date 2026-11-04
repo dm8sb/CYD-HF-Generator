@@ -242,7 +242,9 @@ void AppController::reconfigureOutputs_() {
 
 void AppController::setChannelFrequency(uint8_t ch, uint64_t freq) {
     if (ch < 1 || ch > 2) return;
-    channel_(ch).frequency = FrequencyUtils::clamp(freq);
+    freq = FrequencyUtils::clamp(freq);
+    if (freq == channel_(ch).frequency) return;
+    channel_(ch).frequency = freq;
     Logger::debugValue("APP", ch == 1 ? "CH1 frequency" : "CH2 frequency", (int64_t)channel_(ch).frequency);
     configureChannel_(ch);
     markChanged_();
@@ -273,7 +275,7 @@ void AppController::setChannelEnabled(uint8_t ch, bool en) {
         state_.ch3.enabled = en;
         if (si5351_.ready()) configureMasterGroup_();
     }
-    markChanged_();
+    // Output states are not stored (A-4): no autosave, no flash write (audit C-5).
 }
 
 void AppController::setCH3Master(uint8_t master) {
@@ -291,7 +293,7 @@ void AppController::setCH3Phase(uint16_t phase) {
 }
 
 void AppController::setGlobalDriveStrength(uint8_t strength) {
-    if (!isValidDrive(strength)) return;
+    if (!isValidDrive(strength) || strength == state_.sys.drive_ma) return;
     state_.sys.drive_ma = strength;
     reconfigureOutputs_();
     markChanged_();
@@ -350,7 +352,9 @@ int AppController::i2cSclPin() const { return I2CBus::sclPin(); }
 bool AppController::i2cSwapped() const { return I2CBus::map() == I2CMap::Swapped; }
 
 void AppController::setDeltaStep(uint32_t step) {
-    state_.sys.delta_step = FrequencyUtils::snapStep(step);
+    step = FrequencyUtils::snapStep(step);
+    if (step == state_.sys.delta_step) return;
+    state_.sys.delta_step = step;
     markChanged_();
 }
 
