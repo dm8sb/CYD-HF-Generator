@@ -3,3 +3,6 @@
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Measurement artifacts (firmware images, screenshots, logs); protocols messungen/*.md stay tracked
+messungen/*/
