@@ -37,9 +37,22 @@ The main page shows one card per channel with:
 - channel name and status
 - the frequency you set (requested frequency)
 - its own ON/OFF switch
-- an extra line: on CH1/CH2 `IQ master of CH3` when CH3 is switched on and follows this channel; on CH3 the master and phase, e.g. `CH1 / 90 deg`, and with `WAIT` and `ERR` also the reason (e.g. `CH1 / 90 deg / master off`)
+- an extra line: on CH1/CH2 the mode line (see below) and `IQ master of CH3` when CH3 is switched on and follows this channel (shortened to `| IQ master` after a mode line); on CH3 the master and phase, e.g. `CH1 / 90 deg`, and with `WAIT` and `ERR` also the reason (e.g. `CH1 / 90 deg / master off`)
 
 In mode `Tuning` = `Integer`, the frequency is preceded by a `~` when the actual frequency deviates from the requested frequency by 1 Hz or more (section 8).
+
+### Mode Line
+
+CONFIG settings that change the signal of a channel compared to the factory settings appear as a mode line on the main page (cards CH1 and CH2) and on the channel pages (CH1 to CH3, in the card below the `Out` line). With the factory settings it is empty. The entries appear in this order, separated by ` | `:
+
+| Entry | Appears with |
+|---|---|
+| `OFF = High` / `OFF = High-Z` | `Off state` ≠ `Low` |
+| `SSC -0.5 %`, `SSC -1.5 %`, `SSC +/-0.5 %` | `Spread CH1` ≠ `Off`, only on CH1 and on CH3 with master CH1 |
+| `Low noise` / `Integer` | `Tuning` ≠ `Fractional` |
+| `2 mA`, `6 mA`, `8 mA` | `Drive all` ≠ `4 mA` |
+
+Example: `SSC -0.5 % | Low noise | 8 mA` on CH1, `Low noise | 8 mA` on CH2. With `OFF = High` the line is orange, because a switched-off output then carries DC; otherwise gray. If the line is too long on the main page, it ends with `...`; the channel page shows it completely.
 
 Operation on the main page:
 
@@ -569,11 +582,13 @@ Determines the level that a switched-off output carries (SI5351 register 24). Th
 | `High` | HIGH (supply voltage of the outputs, usually 3.3 V) |
 | `High-Z` | high impedance |
 
+- `High` needs a confirmation: the dialog `Off state High` explains the DC voltage on a switched-off output. `High` applies the setting, `Cancel` keeps the previous one. `Low` and `High-Z` apply without a question.
 - The change takes effect immediately; running outputs are not affected.
+- If the setting differs from `Low`, the main page and the channel pages show `OFF = High` or `OFF = High-Z` in the mode line (section 2).
 - The firmware writes the state when connecting to the SI5351, before any output can be switched on.
 - **`High`:** A continuous current flows into a DC-coupled load (e.g. 50 Ω), limited by the drive strength; a DC-coupled mixer sees a DC voltage.
 - For DC-coupled diode ring mixers, use `Low` or `High-Z`.
-- Until hardware check K2 (measurement plan in `todo.md`), with `High` and `High-Z` the output driver of switched-off outputs stays powered, including that of CLK2 when CH3 is off. With `Low`, CLK2 is powered down completely as before, as long as CH3 is not running in IQ operation.
+- Until hardware check K2 (`MESSPLAN.md`), with `High` and `High-Z` the output driver of switched-off outputs stays powered, including that of CLK2 when CH3 is off. With `Low`, CLK2 is powered down completely as before, as long as CH3 is not running in IQ operation.
 
 ### Info Card
 

@@ -90,8 +90,18 @@ void Gui::refreshMain_() {
         const Channel& c = app.channel(ch);
         setCardFrequency(w_.cardFreq[i], app, ch, c.frequency);
         setState(w_.cardState[i], StatusText::channel(app.channelStatus(ch)));
+        // Special modes first (they change the signal); a long line ends in "...".
+        showModes_(w_.cardDetail[i], ch);
         const bool iqMaster = app.ch3().master == ch && app.ch3Status() != Ch3Status::Off;
-        lv_label_set_text(w_.cardDetail[i], iqMaster ? "IQ master of CH3" : "");
+        if (iqMaster) {
+            const char* modes = lv_label_get_text(w_.cardDetail[i]);
+            if (modes[0]) {
+                snprintf(buf, sizeof(buf), "%s | IQ master", modes);
+                lv_label_set_text(w_.cardDetail[i], buf);
+            } else {
+                lv_label_set_text(w_.cardDetail[i], "IQ master of CH3");
+            }
+        }
         if (c.enabled) lv_obj_add_state(w_.cardSwitch[i], LV_STATE_CHECKED);
         else lv_obj_clear_state(w_.cardSwitch[i], LV_STATE_CHECKED);
     }
