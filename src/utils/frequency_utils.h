@@ -23,7 +23,8 @@ double deviation(double actualHz, uint64_t requestedHz);
 // "Out 9.975 000 MHz mean, SSC -0.5 %". "Out -" without an actual frequency (0).
 // Returns the deviation shown (0 with spread spectrum or without an actual frequency).
 double formatOutput(double actualHz, uint64_t requestedHz, Spread spread, char* out, size_t outSize);
-// Returns false for unparsable input or a result outside FREQ_MIN_HZ..FREQ_MAX_HZ.
+// `text`: digits with at most one decimal point; `unit`: "Hz" (or nullptr), "kHz", "MHz".
+// Returns false for anything else or a result outside FREQ_MIN_HZ..FREQ_MAX_HZ.
 bool parseFrequency(const char* text, const char* unit, uint64_t* outHz);
 uint8_t stepIndex(uint32_t step);
 // For text from format(): decimal exponent of the digit at index (= digits to its right),
