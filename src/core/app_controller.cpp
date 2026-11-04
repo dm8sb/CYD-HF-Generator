@@ -35,16 +35,19 @@ void AppController::superviseHardware_() {
     if (now - lastHwCheckMs_ < HW_CHECK_INTERVAL_MS) return;
     lastHwCheckMs_ = now;
     if (si5351_.ready()) {
-        if (!si5351_.checkAlive()) {
-            link_ = LinkState::NotFound;
-            reportError_("SI5351", MSG_HW_LOST);
-        } else if (anyFault_()) {
-            quietRetry_ = true;
-            reconfigureOutputs_();
-            quietRetry_ = false;
-            if (!anyFault_()) Logger::info("APP", "Output error cleared");
+        if (si5351_.checkAlive()) {
+            if (anyFault_()) {
+                quietRetry_ = true;
+                reconfigureOutputs_();
+                quietRetry_ = false;
+                if (!anyFault_()) Logger::info("APP", "Output error cleared");
+            }
+            return;
         }
-        return;
+        link_ = LinkState::NotFound;
+        reportError_("SI5351", MSG_HW_LOST);
+        // Reconnect at once (audit C-12): after a power glitch the chip answers again right away,
+        // so the outputs are back within one cycle instead of two.
     }
     if (connect_()) {
         Logger::info("APP", "Restoring outputs");
