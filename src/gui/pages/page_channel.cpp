@@ -25,8 +25,10 @@ void Gui::createChannelPage_(uint8_t ch) {
 
     // Step presets in Hz.
     const int chipW = (CONTENT_W - (DELTA_STEP_COUNT - 1) * 4) / DELTA_STEP_COUNT;
+    // Largest step on the left, as the digits of the frequency above (U-25).
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) {
-        w_.chips[i] = addChip_(root_, STEP_LABELS[i], MARGIN + i * (chipW + 4), 128, chipW, 36, color, Action::SetStep, i);
+        const int x = MARGIN + (DELTA_STEP_COUNT - 1 - i) * (chipW + 4);
+        w_.chips[i] = addChip_(root_, STEP_LABELS[i], x, 128, chipW, 36, color, Action::SetStep, i);
     }
 
     const int btnY = 170;

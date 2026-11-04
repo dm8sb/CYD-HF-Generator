@@ -50,6 +50,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - MAIN: card switches in their own column with a divider, 13 px from the frequency (a tap on `MHz` could switch the output); frequencies right-aligned
 - Mode line on MAIN and the channel pages lists settings that differ from the defaults (`OFF = High | SSC -0.5 % | Low noise | 8 mA`), orange with off state `High`; `Off state` = `High` needs a confirmation
 - Dialog buttons 120 x 40 px with 6.7:1 contrast (were about 80 x 23 px, 1.1:1); buttons near the screen edge take taps up to the edge, `MAIN` 36 px high; CH3 master and phase chips 6 px apart (were 2 px)
+- Step chips on the channel pages from `1M` (left) to `1` (right), like the digits of the frequency
 - Contrast: dark text on channel-colored buttons and selected chips (white had 2.9-3.7:1), switch track and chip border at least 3:1; states other than OFF as filled labels, errors as `! ERR` / `! NO HW` (palette in `include/palette.h`, checked by `test_contrast`)
 - GUI input logic (numpad, tap on a digit, colored step digit) and the dialog queue as pure functions with host tests (`utils/input_logic.*`, `utils/message_queue.*`); IQ limits formatted in one place; timing constants in `constants.h`; touch filter, boot gesture threshold and display probe retries host-tested (`drivers/touch_filter.*`, `DisplayDetect::probeWithRetries()`); behavior unchanged
 - Boot log shows `[APP] SI5351 at 0x60, SDA=... SCL=...` also when the first connection succeeds (was missing since the SDA/SCL detection)

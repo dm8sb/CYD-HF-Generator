@@ -152,7 +152,7 @@ Alternativ kann der Kanal direkt mit dem Schalter auf seiner Karte der Hauptseit
 Die Kanalseite von CH1 und CH2 enthält:
 
 - die Frequenzkarte mit der Zeile `Out`
-- eine Reihe Schritt-Tasten: `1`, `10`, `100`, `1k`, `10k`, `100k`, `1M` (in Hz)
+- eine Reihe Schritt-Tasten: `1M`, `100k`, `10k`, `1k`, `100`, `10`, `1` (in Hz), wie die Stellen der Frequenz darüber: links die großen, rechts die kleinen Schritte
 - große Tasten `−` (links) und `+` (rechts)
 - die Taste `NUMPAD`
 
