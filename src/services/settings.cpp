@@ -70,13 +70,26 @@ bool SettingsService::saveDisplayPanel(uint8_t panel) {
 
 void SettingsService::markDirty() {
     dirty_ = true;
+    retryPending_ = false;
     lastChange_ = millis();
 }
 
 SaveResult SettingsService::update(const PersistentState& state) {
-    if (!dirty_ || millis() - lastChange_ < SETTINGS_AUTOSAVE_MS) return SaveResult::None;
-    dirty_ = false;
-    if (!available_) return SaveResult::None;
-    saveFailed_ = !save_(state);
-    return saveFailed_ ? SaveResult::Failed : SaveResult::Saved;
+    if (!dirty_) return SaveResult::None;
+    const uint32_t wait = retryPending_ ? SETTINGS_RETRY_MS : SETTINGS_AUTOSAVE_MS;
+    if (millis() - lastChange_ < wait) return SaveResult::None;
+    if (!available_) {
+        dirty_ = false;
+        return SaveResult::None;
+    }
+    if (save_(state)) {
+        dirty_ = retryPending_ = saveFailed_ = false;
+        return SaveResult::Saved;
+    }
+    // Keep the change and try again later (audit C-13); only the first failure of a series
+    // is reported, so a broken flash does not open a dialog every 30 s.
+    const bool first = !saveFailed_;
+    saveFailed_ = retryPending_ = true;
+    lastChange_ = millis();
+    return first ? SaveResult::Failed : SaveResult::None;
 }

@@ -827,6 +827,27 @@ static void test_save_failure_is_reported() {
     TEST_ASSERT_EQUAL_UINT(1, errorCount);
 }
 
+// Audit C-13 / T-5: a failed save keeps the change and retries every SETTINGS_RETRY_MS
+// without further dialogs; the change is not lost when the flash works again.
+static void test_failed_save_is_retried_without_new_dialogs() {
+    Device d;
+    nvs.failWrites = true;
+    d.app.setChannelFrequency(1, 7100000);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_EQUAL(SaveState::Failed, d.app.saveState());
+    d.run(4 * SETTINGS_RETRY_MS);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_EQUAL(SaveState::Failed, d.app.saveState());
+    // Flash works again, no further user change: the next retry saves the frequency.
+    nvs.failWrites = false;
+    d.run(SETTINGS_RETRY_MS + 100);
+    TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    Preferences p;
+    TEST_ASSERT_EQUAL_UINT64(7100000ULL, p.getULong64("ch1_freq", 0));
+}
+
 static void test_nvs_unavailable() {
     nvs.available = false;
     Device d;
@@ -975,6 +996,7 @@ int main() {
     RUN_TEST(test_autosave_after_quiet_period);
     RUN_TEST(test_unchanged_settings_do_not_write_flash);
     RUN_TEST(test_save_failure_is_reported);
+    RUN_TEST(test_failed_save_is_retried_without_new_dialogs);
     RUN_TEST(test_nvs_unavailable);
     RUN_TEST(test_settings_survive_reboot_but_outputs_start_off);
     RUN_TEST(test_settings_load_sanitizes_invalid_values);

@@ -436,7 +436,7 @@ The save state is shown in the title bar between `CONFIG` and `MAIN`. It is visi
 |---|---|
 | `Saving...` | Change not yet saved (autosave after 5 s) |
 | `Saved` | Everything saved |
-| `Save failed` (red) | Saving to flash failed; a dialog also appears |
+| `Save failed` (red) | Saving to flash failed; a dialog also appears; the firmware tries again every 30 s |
 | `Not saved` (red) | Flash storage (NVS) not available at startup; changes are lost at power-off |
 
 ### Backlight
@@ -769,7 +769,7 @@ If setting up an output fails although the SI5351 responds, a dialog appears. Th
 
 ### Settings Are Not Saved
 
-If the flash storage (NVS) is not available at startup, a dialog appears and CONFIG shows `Not saved`. If saving fails, a dialog appears and CONFIG shows `Save failed`.
+If the flash storage (NVS) is not available at startup, a dialog appears and CONFIG shows `Not saved`. If saving fails, a dialog appears and CONFIG shows `Save failed`. The change stays pending: the firmware tries to save again every 30 s, without another dialog, and shows `Save failed` until it succeeds. A new change is saved after 5 s as usual.
 
 ### Restart After an Internal Error
 

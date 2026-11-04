@@ -13,7 +13,8 @@ public:
     bool available() const { return available_; }
     void load(PersistentState& state);
     void markDirty();
-    // Saves SETTINGS_AUTOSAVE_MS after the last change.
+    // Saves SETTINGS_AUTOSAVE_MS after the last change. A failed save keeps the change and is
+    // retried every SETTINGS_RETRY_MS; Failed is returned only for the first failure of a series.
     SaveResult update(const PersistentState& state);
     bool isDirty() const { return dirty_; }
     bool lastSaveFailed() const { return saveFailed_; }
@@ -29,5 +30,6 @@ private:
     bool available_ = false;
     bool dirty_ = false;
     bool saveFailed_ = false;
+    bool retryPending_ = false;
     uint32_t lastChange_ = 0;
 };
