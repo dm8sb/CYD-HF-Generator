@@ -275,7 +275,10 @@ void Gui::navigate(PageId page) {
         case PageId::CH3: createCH3_(); break;
         case PageId::Config: createConfig_(); break;
         case PageId::Numpad: createNumpad_(channel_); break;
+        case PageId::TouchCal: createTouchCal_(); break;
     }
+    // Dialogs wait while the calibration covers the screen.
+    if (page != PageId::TouchCal) openMessage_();
     refresh_();
 }
 
@@ -306,11 +309,16 @@ void Gui::refresh_() {
         case PageId::CH2: refreshChannel_(); break;
         case PageId::CH3: refreshCH3_(); break;
         case PageId::Config: refreshConfig_(); break;
-        case PageId::Numpad: break;
+        case PageId::Numpad:
+        case PageId::TouchCal: break;
     }
 }
 
 void Gui::update() {
+    if (currentPage_ == PageId::TouchCal) {
+        tickTouchCal_();
+        return;
+    }
     // Without user input only the autosave indicator, the SI5351 connection and
     // output errors (cleared by the periodic retry) change.
     if (millis() - lastUpdateMs_ < GUI_UPDATE_INTERVAL_MS) return;
@@ -420,6 +428,10 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             app.setOffState(s);
             break;
         }
+        case Action::TouchCal:
+            calFirstStart_ = false;
+            requestNavigate_(PageId::TouchCal);
+            return;
         case Action::NumpadKey:
             handleNumpadKey_(obj);
             return;
@@ -468,7 +480,7 @@ static void styleDialog(lv_obj_t* box, uint8_t buttons) {
 // Creates the box of the open message unless it exists (several async calls may be pending).
 void Gui::openMessage_() {
     static const char* buttons[] = {"OK", ""};
-    if (shownBox_ || !messages_.isOpen()) return;
+    if (shownBox_ || !messages_.isOpen() || currentPage_ == PageId::TouchCal) return;
     msgbox_ = shownBox_ = lv_msgbox_create(nullptr, messages_.openTitle(), messages_.openText(), buttons, false);
     styleDialog(msgbox_, 1);
     lv_obj_center(msgbox_);

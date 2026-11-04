@@ -74,5 +74,6 @@ enum class PageId : uint8_t {
     CH2,
     CH3,
     Config,
-    Numpad
+    Numpad,
+    TouchCal  // touch calibration (U-26)
 };

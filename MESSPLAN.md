@@ -592,7 +592,7 @@ Für B8 bis B20 gelten die Bedingungen aus Abschnitt 2.4. Die Auswertung der Tou
 3. Auswertung: mittlere und maximale Abweichung (px) je Zielbereich (Ecken, Rand, Mitte) und je Board.
 
 **Soll:** zu dokumentieren; daraus folgen die Mindestgrößen und der Randabstand für Tasten (U-4, U-5); Ecken sollen innerhalb 4 px liegen (Klemmung auf 319, 0 beachten).
-**Ergebnis:** i · Messwert (mittel/max je Bereich): Vorlauf 2026-11-04 (ein Bediener, Finger, Firmware 2073e2d mit fester Kalibrierung): Original-CYD dx −11 … −19 px in der Mitte, −4 … −12 px am Rand, dy 0 … +6 px; rechts nur x ≈ 305–308 erreichbar, die rechte Ecke (319) nicht. CYD2USB (55 Tipps): dx bei x = 80 −14 … −19 px, bei 160 −10 … −15, bei 240 −5 … −8, am rechten Rand −1 … −7; dy −7 … +3 (ein Ausreißer +11). Beide Boards linear (Versatz und Steigung in x, Original-CYD ≈ 1,03, CYD2USB ≈ 1,06) → U-26 (Touch-Abgleich, S28a). Nach S28a wiederholen.
+**Ergebnis:** i · Messwert (mittel/max je Bereich): Vorlauf 2026-11-04 (ein Bediener, Finger, Firmware 2073e2d mit fester Kalibrierung): Original-CYD dx −11 … −19 px in der Mitte, −4 … −12 px am Rand, dy 0 … +6 px; rechts nur x ≈ 305–308 erreichbar, die rechte Ecke (319) nicht. CYD2USB (55 Tipps): dx bei x = 80 −14 … −19 px, bei 160 −10 … −15, bei 240 −5 … −8, am rechten Rand −1 … −7; dy −7 … +3 (ein Ausreißer +11). Beide Boards linear (Versatz und Steigung in x, Original-CYD ≈ 1,03, CYD2USB ≈ 1,06) → U-26 (Touch-Abgleich, S28a). Abgleich mit S28a am 2026-11-04: CYD2USB x 161…3778, y 245…3830, Prüfkreuz −2/+2 px; Original-CYD x 166…3716, y 280…3885, −2/+1 px (statt fest 300…3800). Trefferkarte mit Abgleich wiederholen.
 
 #### B9 · Trefferquote echter Ziele (Audit U-4, U-6)
 

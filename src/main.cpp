@@ -28,6 +28,8 @@ static void showError(const char* title, const char* text) {
     gui.showMessage(title, text);
 }
 
+static bool saveTouchCalibration(const TouchCalibration& cal) { return settings.saveTouchCalibration(cal); }
+
 // A finger on the screen at boot must not reach LVGL as the first tap. The pressure
 // reading flickers, so released means 200 ms without touch (at most 10 s).
 static void waitForRelease() {
@@ -68,7 +70,10 @@ void setup() {
     }
 
     // 6. Touch init
-    if (!touch.begin(TOUCH_CAL_DEFAULT)) {
+    // Calibration of this board (U-26); without one the wizard runs after the GUI start.
+    TouchCalibration touchCal = TOUCH_CAL_DEFAULT;
+    const bool touchCalStored = settings.loadTouchCalibration(&touchCal);
+    if (!touch.begin(touchCal, touchCalStored)) {
         Logger::error("BOOT", "Touch init failed");
     }
 
@@ -80,6 +85,9 @@ void setup() {
 
     // 8. LVGL and GUI init
     gui.begin(app, touch, display);
+    gui.setTouchCalibrationStore(saveTouchCalibration);
+    // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
+    if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
     app.setErrorCallback(showError);
     if (!si5351Ok) {
         gui.showMessage("SI5351", AppController::linkText(app.linkState()));

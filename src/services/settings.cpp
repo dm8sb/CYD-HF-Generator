@@ -1,6 +1,8 @@
 #include "settings.h"
 #include <constants.h>
 #include <utils/logger.h>
+#include <utils/touch_cal.h>
+#include <limits.h>
 #include <utils/frequency_utils.h>
 
 bool SettingsService::begin() {
@@ -53,6 +55,30 @@ bool SettingsService::save_(const PersistentState& s) {
     ok &= storage_.putU8("off_st", (uint8_t)s.sys.off_state);
     if (ok) Logger::info("SETTINGS", "Saved to NVS");
     else Logger::error("SETTINGS", "Saving to NVS failed");
+    return ok;
+}
+
+bool SettingsService::loadTouchCalibration(TouchCalibration* out) {
+    if (!available_ || !out) return false;
+    static constexpr int32_t NONE = INT32_MIN;
+    const TouchCalibration c {storage_.getI32("tc_x0", NONE), storage_.getI32("tc_x1", NONE),
+                              storage_.getI32("tc_y0", NONE), storage_.getI32("tc_y1", NONE)};
+    if (c.x_min == NONE || c.x_max == NONE || c.y_min == NONE || c.y_max == NONE) return false;
+    if (!TouchCal::plausible(c)) {
+        Logger::error("SETTINGS", "Stored touch calibration implausible; using the default");
+        return false;
+    }
+    *out = c;
+    return true;
+}
+
+bool SettingsService::saveTouchCalibration(const TouchCalibration& cal) {
+    if (!available_) return false;
+    bool ok = storage_.putI32("tc_x0", cal.x_min);
+    ok &= storage_.putI32("tc_x1", cal.x_max);
+    ok &= storage_.putI32("tc_y0", cal.y_min);
+    ok &= storage_.putI32("tc_y1", cal.y_max);
+    if (!ok) Logger::error("SETTINGS", "Saving the touch calibration failed");
     return ok;
 }
 

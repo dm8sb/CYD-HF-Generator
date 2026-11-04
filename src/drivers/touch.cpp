@@ -45,14 +45,29 @@ static void describeTarget(char* out, size_t outSize) {
 
 TouchDriver::TouchDriver() : spi_(VSPI), touch_(PIN_TOUCH_CS, PIN_TOUCH_IRQ) {}
 
-bool TouchDriver::begin(const TouchCalibration& cal) {
-    filter_ = TouchFilter::Filter(cal);
+bool TouchDriver::begin(const TouchCalibration& cal, bool stored) {
+    setCalibration(cal, stored);
     spi_.begin(PIN_TOUCH_SCK, PIN_TOUCH_MISO, PIN_TOUCH_MOSI, PIN_TOUCH_CS);
     bool ok = touch_.begin(spi_);
     touch_.setRotation(1);
     if (ok) Logger::info("TOUCH", "XPT2046 init OK on VSPI");
     else Logger::error("TOUCH", "XPT2046 init failed");
     return ok;
+}
+
+void TouchDriver::setCalibration(const TouchCalibration& cal, bool stored) {
+    filter_ = TouchFilter::Filter(cal);
+    cal_ = cal;
+    calibrated_ = stored;
+}
+
+bool TouchDriver::readRaw(int16_t* rawX, int16_t* rawY) {
+    if (!touch_.touched()) return false;
+    const TS_Point p = touch_.getPoint();
+    if (!TouchFilter::plausibleRaw(p.x, p.y)) return false;
+    *rawX = p.x;
+    *rawY = p.y;
+    return true;
 }
 
 bool TouchDriver::pressed() {
