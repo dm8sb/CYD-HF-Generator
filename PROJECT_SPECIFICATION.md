@@ -60,7 +60,7 @@ This table is authoritative; README and manual repeat parts of it.
 - Many breakout boards have an active-low `OE` pin: OE = GND enables the outputs.
 - The original specification listed SDA = 27 / SCL = 22; the verified wiring is SDA = 22 / SCL = 27. Both work (E-17).
 - Clones (e.g. MS5351M) with a different register 183 are accepted with a log warning (E-17).
-- Duty cycle and output level at 50 Ω are not yet measured (measurement plan E5, F2 in `todo.md`).
+- Duty cycle and output level at 50 Ω are not yet measured (MESSPLAN E5, F2).
 
 ---
 
@@ -185,7 +185,7 @@ This table is authoritative; README and manual repeat parts of it.
 *Original specification; superseded by E-27 (1.3.2).* Runtime calibration and its UI are disabled; all devices use `TOUCH_CAL_DEFAULT` (x 300–3800, y 300–3800). Touch works with these values on both boards (hardware tests I1, I2); hits at the screen edges are checked by B7.
 
 ### E-2 Global drive strength
-*Original specification.* One CONFIG value `Drive all` for CH1–CH3; CH3 has no own setting, so master and follower of an IQ pair always drive alike. The per-channel fields were removed in 1.3.0 (stored key `drv_def` unchanged). Drive per channel is an open question (`todo.md` 9).
+*Original specification.* One CONFIG value `Drive all` for CH1–CH3; CH3 has no own setting, so master and follower of an IQ pair always drive alike. The per-channel fields were removed in 1.3.0 (stored key `drv_def` unchanged). Drive per channel is an open question (ARBEITSPLAN 1.3, question 1c).
 
 ### E-3 RGB LED shows the open channel page
 *Original specification, confirmed 2026-10-27.* The LED is not used as an output indicator.
@@ -227,7 +227,7 @@ This table is authoritative; README and manual repeat parts of it.
 *2026-10-27.* Driver math and controller logic are tested without hardware. `test/fakes` replaces Arduino, `Wire` (SI5351 register model with fault injection) and `Preferences`; `test/helpers/si5351_model.h` decodes the written registers independently of the driver's arithmetic, so a wrong formula cannot confirm itself. A check with deliberately inserted faults (correction sign, phase offset −1) made the affected tests fail.
 
 ### E-16 Frequency range 8 kHz–160 MHz (planned)
-*Decided 2026-10-27, not implemented in 1.3.0* (`todo.md` 2.4). CH1/CH2 shall cover 8 kHz–160 MHz; CH3 stays at 4.730–100 MHz.
+*Decided 2026-10-27, not implemented yet* (ARBEITSPLAN S34, S35). CH1/CH2 shall cover 8 kHz–160 MHz; CH3 stays at 4.730–100 MHz.
 
 ### E-17 Automatic SDA/SCL detection and identity check
 *Requested 2026-10-28.* Reason: the original specification and the verified device disagreed on SDA/SCL, and cables get swapped in the lab.

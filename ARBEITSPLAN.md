@@ -1,269 +1,416 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: 2026-11-04 · Ausgangsstand: Firmware 1.3.0 (Branch `dev`, Commit 8ab70bc) · Ziel: Firmware 1.4.0 (WEB-HMI), danach Messkampagne
+Stand: 2026-11-04 · Firmware **1.3.2** (`main` = `dev` = `ee2b91a`, Tag `v1.3.2`) · nächste Ziele: **1.3.3** (Laborbetrieb), **1.4.0** (WEB-HMI)
 
-Diese Datei fasst [AUDIT_2026-11.md](AUDIT_2026-11.md), [KONZEPT_WEB_HMI.md](KONZEPT_WEB_HMI.md), [todo.md](todo.md) und [MESSPLAN.md](MESSPLAN.md) zusammen und enthält die Aufgabenliste in der Reihenfolge der Abarbeitung. Details, Begründungen und Rechnungen stehen in den Quelldateien; hier stehen nur die Kernaussagen und die Schritte.
-
----
-
-## 0. Arbeitsregel: nach jedem Schritt wird committet
-
-1. **Ein Schritt = ein Commit.** Jeder Schritt der Liste in Abschnitt 2 endet mit genau einem Commit auf dem Arbeitsbranch. Ist ein Schritt größer als einen Tag, wird er vorher in Teilschritte zerlegt, und jeder Teilschritt bekommt seinen Commit. Kein Sammel-Commit über mehrere Schritte, kein „später committen“.
-2. **Erst das Gate, dann der Commit.** Der Commit entsteht erst, wenn das Gate des Schritts erfüllt ist:
-   - Host-Tests grün in `native-win` (und `native`, sobald die CI steht);
-   - 0 Warnungen in `src/` (mit `-Wall -Wextra`, ab Schritt S05);
-   - neue Logik nur mit Host-Test, mit Gegenprobe (absichtlich eingebauter Fehler lässt den Test scheitern);
-   - Handbuch DE **und** EN, Spezifikation (A-n / E-n), README und `todo.md` im **selben** Commit wie die Änderung;
-   - bei Netzcode zusätzlich Review gegen die Sicherheitsanforderungen W-S.
-   Ist das Gate nicht erfüllt, wird nicht committet, sondern korrigiert.
-3. **Der Haken gehört in den Commit.** Im selben Commit wird der Schritt hier abgehakt (`[x]`); erledigte Punkte werden aus `todo.md` entfernt.
-4. **Commit-Text:** Betreff auf Englisch im Imperativ mit der Schritt-Nummer (`S07: Keep CLK2 off while CH3 is in error`), im Text die Befund-IDs (C-1, U-3, W-S4 …) und eine Zeile zur Prüfung. Am Ende die Attributionszeile des Werkzeugs.
-5. **Nur lokal.** Commits bleiben lokal; Push, Merge nach `main` und das Veröffentlichen von Tags passieren **nur auf ausdrückliche Anweisung**. Lokale Tags (`v1.3.0`, `v1.3.1` …) gehören zu den Schritten.
-6. **Branches (Vorschlag):** Phasen 0–3 direkt auf `dev`; Phase 4 auf `feature/core3`; Phasen 5–6 auf `feature/web-hmi`; Merge nach `dev` je nach Phasenabnahme, nach `main` nur bei der Freigabe (S73).
-7. **Schritte ohne Dateiänderung** (z. B. Umgebung einrichten) bekommen keinen eigenen Commit; sie werden im Plan abgehakt, und der Haken geht in den nächsten Commit.
-8. **Hardware-Smoke-Test nach jeder Phase** auf beiden Boards (MESSPLAN 4.3, ≈ 45 min); das Ergebnis steht im Commit der Phasen-Freigabe.
-9. **Nicht mischen:** Ein Commit enthält entweder Verhalten oder reines Aufräumen, nicht beides.
-10. **Messprotokolle** (`.md`) werden committet, Screenshots, Fotos, Binärdateien und Logs nicht (`.gitignore`, Schritt S03).
+Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufgabenliste. Sie ersetzt `todo.md`, `AUDIT_2026-11.md` und `KONZEPT_WEB_HMI.md` (vollständig in der Git-Historie bis `ee2b91a`). Die Befund-IDs aus dem Audit (C-n Code, S-n Security, U-n Bedienung, P-n Plattform, T-n Tests) und dem Konzept (W-E, W-S, V-n) bleiben als Namen gültig. Messungen am Gerät: [MESSPLAN.md](MESSPLAN.md). Verhalten: [USER_MANUAL_DE.md](USER_MANUAL_DE.md); Anforderungen und Entscheidungen: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md).
 
 ---
 
-## 1. Zusammenfassung
+## 0. Arbeitsregeln
 
-### 1.1 Gesamtbewertung (Audit)
+1. **Ein Schritt = ein Commit.** Jeder Schritt der Aufgabenliste (Abschnitt 4) endet mit genau einem Commit. Größere Schritte werden vorher geteilt (S25a/S25b); kein Sammel-Commit.
+2. **Erst das Gate, dann der Commit:**
+   - Host-Tests grün in `native-win` und `native-win-fault` (CI: `native`, `native-fault`);
+   - 0 Warnungen in `src/` (`-Wall -Wextra`);
+   - neue Logik nur mit Host-Test; der Test scheitert vor dem Fix (Gegenprobe);
+   - Handbuch DE **und** EN, Spezifikation (A-n / E-n), README und diese Datei im **selben** Commit;
+   - bei Netzcode Review gegen die Sicherheitsanforderungen W-S (Abschnitt 3.7).
+3. **Der Haken gehört in den Commit.** Erledigte Schritte werden in Abschnitt 4 abgehakt und beim nächsten Aufräumen entfernt; erledigte Befunde verschwinden aus Abschnitt 2.
+4. **Bedientest am Gerät vor dem Commit**, wenn sich die Oberfläche ändert: flashen, die Prüfpunkte dem Nutzer nennen, Rückmeldung abwarten.
+5. **Commit-Text:** Betreff Englisch im Imperativ mit Schrittnummer (`S31: Add screen lock …`), im Text die Befund-IDs und eine Zeile zur Prüfung; am Ende die Attributionszeile.
+6. **Nur lokal.** Push, Merge nach `main` und Tags veröffentlichen nur auf ausdrückliche Anweisung.
+7. **Branches:** Phase 3 auf `dev`; Phase 4 auf `feature/core3`; Phasen 5–6 auf `feature/web-hmi`.
+8. **Smoke-Test nach jeder Phase** auf beiden Boards (MESSPLAN 4.3); Ergebnis im Release-Commit bzw. direkt danach.
+9. **Nicht mischen:** Ein Commit enthält Verhalten oder Aufräumen, nicht beides.
+10. **Messprotokolle** (`messungen/*.md`) werden committet, Medien und Binärdateien nicht (`messungen/*/` ist ignoriert).
 
-| Bereich | Bewertung | Kernaussage |
+---
+
+## 1. Stand
+
+### 1.1 Erledigt (Details in der Git-Historie)
+
+| Phase | Version | Inhalt |
 |---|---|---|
-| Code | gut | 161 Host-Tests (160 bestanden, 1 übersprungen), 0 Warnungen auch mit `-Wall -Wextra`. Kleine Fehler (C-1, C-2, C-5, C-13). 45 % der `src`-Zeilen (GUI, `main`, `display_panel`, `touch`) ohne Host-Test. |
-| Security heute | niedrig | keine Netzwerkschnittstelle; Eingaben und NVS-Werte validiert; physischer Zugriff = Vollzugriff. ESP-IDF 4.4 ist seit 07/2024 ohne Support. |
-| Security WEB-HMI wie zuerst geplant | hoch, bei Provisionierung kritisch | offener AP + Klartext-Provisionierung (Nachbar liest das Heim-WLAN-Passwort mit, S-1), CSRF, DNS-Rebinding, SCPI-Port aus dem Browser, XSS über SSIDs. Mit den Maßnahmen des Konzepts: niedrig bis mittel. |
-| Bedienung | solide Basis, Fehlbedienungsrisiken | Header zeigt die Anforderung statt des Ist-Zustands (U-1), Sondermodi unsichtbar (U-2), Schalter 0,5 mm neben der Kartenfläche (U-3), kleine Rand- und Dialogtasten (U-4, U-5), Kontraste (U-7). |
-| Plattform | veraltet | Offizielles `espressif32@8.0.0` (Arduino 3.3.12 / IDF 5.5.5) macht die Migration einfacher; LVGL 8.3 ohne Support, TFT_eSPI 2.5.43 ist das letzte Release. |
-| Hardware | offen | fast der gesamte Messplan nie am Gerät gelaufen. |
+| 0 Hygiene | – | PlatformIO nur aus `penv` (6.2.0), CI mit per SHA gepinnten Actions, `-Wall -Wextra` ohne Warnungen, XPT2046 auf Commit gepinnt, Heap im Debug-Log, Referenz `v1.3.0` gesichert |
+| 1 Robustheit | 1.3.1 | C-1 bis C-13, M-1; Assert- und Loop-Watchdog-Neustart (am Gerät geprüft), gehärteter Parser, Speichern nur bei Änderung und mit Wiederholung, Wiederverbinden im selben Zyklus |
+| 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 
-### 1.2 Audit: Befunde
+Host-Tests: 213 Fälle in `native-win` (1 bewusst übersprungen, Fehler um 112,5 MHz → S34) und 4 in `native-win-fault`.
 
-| Gruppe | Anzahl | Wichtigste Punkte | Schritte |
-|---|---|---|---|
-| Code C | 17 | **C-1** CLK2 bei ERR eingeschaltet · **C-3** Einfrieren bei vollem LVGL-Heap, kein Loop-Watchdog · **C-4** Parser nimmt `nan`, `1e7`, Hex · **C-5** ON/OFF löst 11 Flash-Schreibvorgänge aus · **C-13** Speichern wird nicht wiederholt · **C-16** Logger kollidiert mit SCPI über USB · **C-17** `*RST` gegen Autosave | S07 bis S16, S45, S46 |
-| Security S | 28 | **S-1** Provisionierung über offenen AP (kritisch) · S-2/S-3 offener AP und Rückfall · S-4 CSRF · S-5 DNS-Rebinding · S-6 SCPI-Port aus dem Browser · S-7 XSS über SSIDs · S-16 kein NAPT · S-18 Fernschalten der Ausgänge · S-20 Abhängigkeiten pinnen | Konzept W-S1 bis W-S25, S05, S49 bis S58 |
-| Bedienung U | 23 | **U-1** Header Ist-Zustand · **U-2** Sondermodi sichtbar · **U-3** Kartenschalter · U-4 bis U-7 Tasten und Kontraste · U-8 Lesbarkeit · U-10 Boot-Geste · U-11 Kalibrieren · U-13 Sperre/Grundzustand · U-23 Handbuch | S21 bis S33 |
-| Plattform P | 11 | P-1 PlatformIO 6.1.5 im PATH · P-2 `espressif32@8.0.0` · P-4 Core 3.x · P-6 LVGL 8.4 später · P-8 Unity 2.7 später | S02, S37 bis S41, N11 |
-| Testlücken T | 16 | T-1 `native-fault` · T-2 bis T-9 Controller, Speichern, Treiber · T-10 bis T-15 GUI-Logik testbar · T-16 Build-Info in der CI | S04, S07 bis S14, S18 bis S20 |
+### 1.2 Referenzwerte
 
-### 1.3 WEB-HMI (Konzept, Ziel 1.4.0)
+- **Firmware 1.3.0:** `firmware.bin` SHA-256 `e0ca03b6c03ab4771f74c7018ca21bde2b8bef672d21b31d0deedf4783bdf577` unter `messungen/firmware/1.3.0/` (nicht im Repo).
+- **Heap (Debug-Build 1.3.1, Original-CYD ohne SI5351):** frei 277 412 B, Minimum 271 820 B, größter Block 110 580 B; LVGL 38 484 von 49 152 B frei; Stack-Reserve `loop()` 4 796 B. Basis für den Vergleich nach der Migration (S37).
+- **Flash/RAM 1.3.2:** 630 069 B (20,0 %) / 90 312 B (27,6 %).
+- **Touch-Abgleich (2026-11-04):** CYD2USB x 161…3778, y 245…3830; Original-CYD x 166…3716, y 280…3885 (vorher fest 300…3800).
+- **Boards:** COM13 = CYD2USB (ST7789) mit SI5351, COM7 = Original-CYD (ILI9341) ohne SI5351.
+- **Smoke-Tests 1.3.1 und 1.3.2:** bestanden bis auf die Schritte 5 und 6 (10 MHz und IQ 90° messen) – kein Messgerät verfügbar; nachholen in MESSPLAN Stufe 1.
 
-- **Ziel:** WLAN (Client oder Access Point) über CONFIG, Weboberfläche mit allen Funktionen und Tastaturbedienung, Fernsteuerung per **SCPI** über TCP 5025 und USB-Seriell sowie REST; Bedienung am Gerät hat immer Vorrang.
-- **Wichtigste Entscheidungen (W-E1 bis W-E28):**
-  - Standard WLAN aus; Rückfall-AP nach 60 s;
-  - AP mit **zufälligem WPA2-Passwort** je Gerät und **QR-Code**; Passwörter nie über einen offenen AP;
-  - Captive-DNS nur im AP-Modus;
-  - zwei gespeicherte WLANs; Web-Passwort optional (Sitzungs-Cookie, gehasht);
-  - Netzänderungen zweistufig mit Rückfall nach 120 s;
-  - ein SCPI-Client, Leerlauf 10 min; höchstens 3 Web-Clients;
-  - Speichern nach 5 s (Touch, Web) bzw. 30 s (SCPI), nur geänderte Schlüssel, ON/OFF ohne Speichern;
-  - `*RST` speichert nicht bis `SYSTem:SAVE`;
-  - Option `Remote outputs: allowed / local only` (Standard allowed, nur am Gerät änderbar);
-  - Statusleiste auf MAIN statt der Tasten CH1–CH3; Identify; Logger schweigt während SCPI über USB;
-  - Plattform: offizielles `espressif32@8.0.0`.
-- **Architektur:** CommandQueue und StateSnapshot (kein Netz-Task ruft Controller, LVGL, I2C oder NVS direkt); reine, host-testbare Module `request_guard`, `sanitize`, `line_framer`, SCPI-Kern; Bibliotheken ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, ArduinoJson 7.4.3, scpi-parser v2.3, LittleFS, mDNS; alle exakt gepinnt.
-- **Sicherheit:** 25 prüfbare Anforderungen W-S1 bis W-S25 (Host-Allowlist, CSRF-Schutz, CSP, Limits, PMK-Speicherung, kein Routing, SCPI-Zeilenrahmen mit HTTP-Erkennung, Voll-Typ-Prüfung, Fuzzing, Watchdog, gepinnte Abhängigkeiten).
-- **Aufwand:** Migration ≈ 2,5–3 d, Vorarbeiten V-1 bis V-6, V-11 ≈ 4 d, WEB-HMI ≈ 13,75 d (Konzept-Schritte 0–9), zusammen ≈ 20–21 d.
+### 1.3 Entscheidungen
 
-### 1.4 Offene Punkte aus todo.md und ihre Schritte
-
-| todo-Abschnitt | Offen | Schritt |
-|---|---|---|
-| 1 Build | PATH 6.1.5, CI, Warnungen, Pinning, Migration, spätere Updates | S02, S04, S05, S37 bis S41, N11 |
-| 2.1 Phasenrauschen | MultiSynth abgeschalteter Kanäle, Störquellen, Hardware-Hinweise (alle wartend auf Messung) | N5, N6, N10 |
-| 2.2 IQ | IQ ohne Aussetzer, ungerade Teiler, Phasen-Feinabgleich (wartend auf Messung) | N2 bis N4 |
-| 2.3 Robustheit | CLK2 bei ERR, Einfrieren, Wiederverbinden, Speichern, Flash-Schreibvorgänge; Sticky-Bit, Flash-Hinweis, VCO-Grenze | S07, S09, S11 bis S14, N9, S72 |
-| 2.4 Bereich | 8 kHz bis 160 MHz mit Fix um 112,5 MHz | S34, S35 |
-| 3 Bedienung | U-1 bis U-23 | S21 bis S27, S29, S31 bis S33 |
-| 4 Code-Qualität | Parser, Dialoge, „~“, toter Code, Formatierung, feste Koordinaten, DMA | S08, S10, S15, S19, N12, N13 |
-| 5 Doku | Doku-Abgleich, Handbuch ausbauen, Anwendungskapitel Mischer, 50 %-Tastverhältnis | S16, S29, S72, N8 |
-| 6 Erweiterungen | WEB-HMI; Info-Seite, freie Phase, gekoppelter Betrieb, Speicherplätze, Wobbeln, Modulation, externe Referenz | S49 bis S58, N4, N14 |
-| 7 Tests | `native-fault`, GUI-Logik, Fakes, CI-Prüfung des Commits | S04, S07 bis S14, S18 bis S20, S57 |
-| 9 Rückfragen | neue Funktionen (a–f), Standard-Tuning | Abschnitt 1.6 |
-| 10 Messplan | 150 Messungen | Phase 7 |
-
-### 1.5 Messplan
-
-[MESSPLAN.md](MESSPLAN.md): vollständiger Plan mit Messgeräten, Aufbauten, 150 Messungen mit Einzelschritten (A Inbetriebnahme, B Bedienung, C bis H HF, I und J Erkennung, K CONFIG, L WEB-HMI, L-S Sicherheit, Q Qualität), Bewertungsregel, Auswertung, Freigabekriterien, Rückverfolgbarkeit und Anhängen. Benötigt: Frequenzzähler mit 10-MHz-Referenz, Oszilloskop ≥ 500 MHz, Spektrumanalysator mit RBW ≤ 10 Hz, Logikanalysator, Multimeter, Zubehör (Abschlüsse, Dämpfungsglieder, gleich lange Kabel, Mischer), Smartphones, Router, 5 + 3 Testpersonen. Aufwand ≈ 9 Arbeitstage plus Auswertung.
-
-### 1.6 Entscheidungen
-
-**Getroffen** (Audit D1 bis D9, 2026-11-03 und 2026-11-04):
-
-| # | Entscheidung |
+| # | Entscheidung (Datum) |
 |---|---|
-| D1 | Passwörter nie über einen offenen AP |
-| D2 | AP mit Zufallspasswort und QR; „offen“ nur auf Wunsch |
-| D3 | Rückfall-AP offen nur nach Bestätigung am Touch |
-| D4 | Option `Remote outputs`, Standard erlaubt |
-| D5 | Plattform offiziell `espressif32@8.0.0` (Spike entscheidet endgültig) |
+| D1 | WLAN-Passwörter nie über einen offenen AP (2026-11-03) |
+| D2 | AP mit zufälligem WPA2-Passwort und QR; offen nur auf Wunsch |
+| D3 | Offener Rückfall-AP nur nach Bestätigung am Touch |
+| D4 | Option `Remote outputs: allowed / local only`, Standard `allowed` |
+| D5 | Plattform offiziell `espressif32@8.0.0` (Spike S37 entscheidet endgültig) |
 | D6 | Captive-DNS nur im AP-Modus |
 | D7 | `*RST` speichert nicht bis `SYSTem:SAVE` |
-| D8 | Statusleiste auf MAIN; Zeile „Step“ in CONFIG streichen |
-| D9 | **Reihenfolge: erst Qualität, Bedienung und WEB-HMI, dann die Messkampagne** (2026-11-04) |
+| D8 | Statusleiste auf MAIN, Zeile `Step` in CONFIG gestrichen (umgesetzt in 1.3.2) |
+| D9 | Erst Qualität, Bedienung und WEB-HMI, dann die Messkampagne (2026-11-04) |
+| D10 | Boot-Geste entfernt, nur automatische Display-Erkennung (2026-11-04, E-26) |
+| D11 | Touch-Abgleich beim ersten Start (2026-11-04, E-27) |
+| D12 | Ein Plan statt todo/Audit/Konzept; Messplan nach Priorität (Stufe 1 Pflicht, 1W Pflicht ab WEB-HMI, 2 Entscheidungen, 3 optional). Ändert D9: Stufe 1 (und möglichst 2) läuft, sobald Zähler und Oszilloskop verfügbar sind, auf 1.3.x vor der Migration und ist die Referenz R0; ein eigener R0-Lauf mit 1.3.0 entfällt (2026-11-04) |
 
-**Offen:**
+**Nicht umsetzen:** RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
 
-1. **Neue Funktionen** (todo 9.1): Speicherplätze, Wobbeln, Drive je Kanal, Info-Seite „Synthesizer“, freie Phase, gekoppelter Betrieb; Entscheidung vor N14.
-2. **Standard-Tuning** `Fractional` oder `Low noise`: nach den Messungen K5, K6, K7, F3 (Schritt S71).
+**Offene Rückfragen:**
 
-**Folge der Reihenfolge D9:** Die Referenz 1.3.0 wird nur als Tag und Binärdatei gesichert (S03) und später nachgemessen (S61). Ändert die Migration (Core 3.x, `Wire`) HF-Eigenschaften, zeigen das erst die Messungen am Ende; deshalb der Smoke-Test nach jeder Phase und der Vergleich R0/R1 (MESSPLAN 7.2).
-
-### 1.7 Aufwand
-
-| Phase | Inhalt | Aufwand |
-|---|---|---|
-| 0 | Hygiene und Basis | 0,5 d |
-| 1 | Robustheit 1.3.1 | ≈ 2 d |
-| 2 | Bedienung 1.3.2 | ≈ 3–4 d |
-| 3 | Laborbetrieb 1.3.3, Bereichserweiterung | ≈ 2–3 d |
-| 4 | Migration Core 3.x | ≈ 2,5–3 d |
-| 5 | WEB-HMI-Vorarbeiten | ≈ 4 d |
-| 6 | WEB-HMI 1.4.0 | ≈ 13,75 d (Konzept) bis 15–16 d (Audit, mit Reserve) |
-| 7 | Messkampagne und Auswertung | ≈ 10–11 d |
-| 8 | Folgearbeiten (je nach Messergebnis) | offen |
-
-Entwicklung bis zur Messkampagne ≈ 29–33 Arbeitstage.
+1. **Neue Funktionen:** Welche sind gewünscht? a) Speicherplätze (z. B. 5 je Kanal), b) Wobbeln, c) Drive-Strength je Kanal, d) Info-Seite „Synthesizer“, e) freie Phase / Phasen-Feinabgleich, f) gekoppelter Betrieb CH2 = CH1 ± Offset. Entscheidung vor N14.
+2. **Standard-Tuning:** bleibt `Fractional`, oder wird `Low noise` Standard, wenn die Messungen (MESSPLAN Stufe 2) einen klaren Vorteil zeigen? (N1)
 
 ---
 
-## 2. Aufgabenliste
+## 2. Offene Befunde
 
-**Erinnerung: Nach jedem Schritt wird committet (Abschnitt 0).** Je Schritt: Inhalt, Prüfung (Gate), Aufwand, Commit-Betreff. `[ ]` offen, `[x]` erledigt und committet.
+`[M]` = wartet auf eine Messung (MESSPLAN-ID in Klammern).
 
-### Phase 0 – Hygiene und Basis (0,5 d)
+### 2.1 SI5351, HF und IQ
 
-- [x] **S01 · Dokumente committen.** `MESSPLAN.md`, `ARBEITSPLAN.md`, die Änderungen an `todo.md`, `AUDIT_2026-11.md`, `KONZEPT_WEB_HMI.md` und `CLAUDE.md` (Dokumentationsrollen). *Prüfung:* Verweise stimmen, `git status` sauber (außer `.codegraph/`). *Commit:* `S01: Add measurement plan and work plan, record order decision`
-- [x] **S02 · PlatformIO 6.1.5 aus dem PATH entfernen** (P-1): nur `~/.platformio/penv/Scripts/pio.exe` (6.2.0) verwenden oder `pip install -U platformio`; `pio --version` prüfen. Keine Dateiänderung, kein eigener Commit. *Aufwand:* 10 min — *Erledigt 2026-11-04:* 6.1.5 aus der Python-3.10-Benutzerumgebung deinstalliert; `pio` steht nicht mehr im PATH, Aufruf über `~/.platformio/penv/Scripts/pio.exe` (6.2.0).
-- [x] **S03 · Referenz 1.3.0 sichern.** Lokaler Tag `v1.3.0` auf 8ab70bc; Referenzbuild und SHA-256 unter `messungen/firmware/1.3.0/`; `.gitignore`: `messungen/*/` (Medien und Binärdateien, Protokolle `.md` direkt in `messungen/` bleiben im Repo). *Prüfung:* `git tag -l`, Build reproduzierbar. *Commit:* `S03: Ignore measurement artifacts, keep reference tag v1.3.0` (Tag lokal) — *Erledigt 2026-11-04:* `firmware.bin` SHA-256 `e0ca03b6c03ab4771f74c7018ca21bde2b8bef672d21b31d0deedf4783bdf577` (Build im Worktree, Info-Karte zeigt Branch `HEAD`, Commit `8ab70bc` ohne `+`).
-- [x] **S04 · CI.** GitHub Action mit `pio test -e native` und `pio run`; Actions per SHA gepinnt, `permissions: contents: read`, kein `pull_request_target` mit PR-Checkout (S-27); CI-Prüfung, dass das ELF den aktuellen Commit enthält (T-16). *Prüfung:* CI grün; `env:native` (Linux) läuft zum ersten Mal. *Aufwand:* 0,25 d. *Commit:* `S04: Add CI for host tests and firmware build` — *Stand 2026-11-04:* `.github/workflows/ci.yml` angelegt (checkout v7.0.1, setup-python v7.1.0, cache v6.1.0 per SHA; PlatformIO 6.2.0). Erster Lauf nach dem Push am 2026-11-04 (Run 41829737952, Commit 9a6f2ff) grün: Firmware-Build und `env:native` unter Linux.
-- [x] **S05 · Warnungen und Pinning.** `-Wall -Wextra` für `src/`; XPT2046 von `#v1.4` auf den Commit `d57f64c8b5f2bc5b8d10d121550806eeff7b06d9` (S-20). *Prüfung:* 0 Warnungen, Tests grün, CI grün. *Commit:* `S05: Enable -Wall -Wextra and pin XPT2046 by commit` — *Erledigt 2026-11-04:* 21 Dateien aus `src/` mit `-Wall -Wextra`, 0 Warnungen; Bibliotheken ohne; Flash 623 045 B (19,8 %), RAM 90 236 B (27,5 %), unverändert. Hinweis: `pio run -v` scheitert bei `elf2image` (Ausgabefehler von PlatformIO im ausführlichen Modus), der normale Build läuft.
-- [x] **S06 · Heap im Debug-Log.** Freier und minimaler Heap, größter Block, `lv_mem_monitor()` nach dem Boot und alle 30 s (nur `LOG_DEBUG`; Teil von V-8). *Prüfung:* Debug-Build auf dem Gerät zeigt Werte; Release unverändert. *Commit:* `S06: Log heap and LVGL memory in debug builds` — *Erledigt 2026-11-04* (Board an COM7, Original-CYD ohne SI5351, Debug-Build): Heap frei 277 412 B, Minimum 271 820 B, größter Block 110 580 B; LVGL 38 484 von 49 152 B frei, größter Block 38 396 B, maximal belegt 4 789 B; Stack-Reserve `loop()` 4 796 B. Release-Build +44 B Flash.
+- [M] **MultiSynth abgeschalteter Kanäle abschalten** (K2, F7): CH1/CH2 im Zustand OFF nur über Output-Enable abgeschaltet, ihr MultiSynth läuft weiter; CLK2 bekommt `CLK2_PDN` nur bei Off state `Low`. Ist ein Ausgang mit `CLKx_PDN` hochohmig (K2), bei `High-Z` alle abgeschalteten Ausgänge mit PDN abschalten. F7 zeigt, ob es sich lohnt. → N5
+- [M] **Störquellen der Plattform** (F6, F9): Backlight-PWM 5 kHz (Seitenlinien ±5 kHz möglich; Abhilfe ≥ 20 kHz oder 100 % ohne PWM), I2C-Überwachung alle 2 s (Abhilfe: Ruhemodus), CONFIG schreibt den Speicherzustand alle 300 ms neu (C-15; nur bei Änderung schreiben). → N6
+- [M] **IQ-Abstimmen ohne Aussetzer** (D3, D5, K6, E9): Jede Frequenzänderung im IQ-Betrieb setzt die PLL zurück (1000 Schritte → 1000 Resets). Teiler mit Hysterese festhalten und nur die PLL ohne Reset schreiben (wie `Low noise` im Einzelbetrieb), dann bleibt die Phase erhalten; ebenso bei Korrekturänderungen. Host-Test „PLL-Änderung ohne Reset, Offset und Teiler unverändert“. → N2
+- [M] **180°/270° bei ungeraden Teilern** (E4): Invertierung ergibt nur bei exakt 50 % Tastverhältnis 180°; der IQ-Teiler `min(127, ⌊900 MHz / f⌋)` ist in 54 % der Fälle ungerade (14,2 MHz → 63, 99 MHz → 9). Abhilfe: zwischen 4,77 und 90 MHz gibt es immer einen geraden Teiler mit VCO 600–900 MHz, oder 180° über den Phasen-Offset (2 × Teiler ≤ 127). → N3
+- [ ] **Phasen-Feinabgleich und freie Phase:** Auflösung 90° / Teiler (10 MHz: 1°, 99 MHz: 10°); Skew- und Kabelausgleich (E3), Ausbildungsversuche zur Spiegelunterdrückung. Nach Rückfrage 1e. → N4
+- [ ] **Fix um 112,5 MHz** (Tuning `Fractional`, `planStandalone()` in `si5351_plan.cpp`): Bei Korrektur 0 rundet `approxRatio()` den MultiSynth auf genau 8/1; dann greift `p.ms.a < 8` nicht, der Weg „gerader Integer-Teiler + fraktionale PLL“ wird nicht versucht, 112 500 004 Hz liegt 5,1 Hz daneben. Zusätzlich setzt der Zweig „aktuelle PLL behalten“ `bestErr` nicht. Erprobter Fix (Namen von 1.2.0; heute `p.pll`, `p.ms`, `p.rLog2`, `synthesizedHz()`, VCO-Grenzen aus `range` mit Spread):
 
-### Phase 1 – Robustheit 1.3.1 (≈ 2 d)
+  ```cpp
+  // im Zweig "aktuelle PLL behalten" zusätzlich: bestErr = err;
+  if (msR.a < 8 || bestErr > FIXED_PLL_KEEP_ERR_HZ) {
+      for (uint32_t div : {8u, 6u, 4u}) {   // größter gültiger gerader Teiler
+          if (div * msHz > VCO_MAX_HZ || div * msHz < VCO_MIN_HZ) continue;
+          const Ratio p = approxRatio(4 * div * msHz, xtal4);
+          const Ratio m {div, 0, 1};
+          const double err = fabs(synthesizedHz_(p, m, rLog2) - (double)freq);
+          if (msR.a < 8 || err < bestErr) { bestErr = err; pllR = p; msR = m; divBy4 = div == 4; }
+          break;
+      }
+  }
+  ```
 
-Jeder Fix kommt zusammen mit seinem Host-Test; der Test scheitert vor dem Fix (Gegenprobe).
+  Danach in `test_standalone_above_100_mhz` das `TEST_IGNORE_MESSAGE` entfernen. Erreichbar: ≤ 0,5 Hz bis 100 MHz, ≤ 1,5 Hz bis 112,5 MHz, ≤ 2 Hz bis 150 MHz, ≤ 3 Hz bis 160 MHz. → S34
+- [ ] **Bereichserweiterung CH1/CH2 auf 8 kHz – 160 MHz** (entschieden 2026-10-27, E-16): Der Treiber kann es (`OUT_MIN_HZ`/`OUT_MAX_HZ`, R-Teiler unter 1 MHz). Teilaufgaben: `FREQ_MIN_HZ`/`FREQ_MAX_HZ` anpassen (Numpad-Fehlertext und `static_assert` in `input_logic.cpp` folgen); über 112,5 MHz löst jeder Schritt einen PLL-Reset aus (prüfen mit D5); CH3 bleibt bei 4,73–100 MHz, Testfall mit Master > 100 MHz (`FreqTooHigh`); Numpad 10 Zeichen; Anzeige unter 1 MHz in kHz (`455.000 kHz`, `digitExponent()` und Tests anpassen); Hinweis auf der Kanalseite (über 100 MHz geringerer Pegel, unter 1 MHz Oberwellen/Tiefpass); auf MAIN prüfen, ob `~` vor dreistelligen MHz-Werten Platz hat. MESSPLAN H. → S35
+- [ ] **Spannungseinbruch über Sticky-Bit erkennen:** `checkAlive()` erkennt einen SI5351-Neustart nur, solange ein Ausgang konfiguriert ist. Robuster: Register 1 (`SYS_INIT_STKY`) nach `begin()` löschen und zyklisch lesen; dasselbe Register meldet `LOL_A`/`LOL_B` → Zeile „PLL locked“ auf der Info-Karte. → N9
+- [ ] **Hinweise:** SI5351 läuft beim Flashen und nach ESP32-Reset mit der letzten Einstellung weiter (A10, Handbuch); Hardware-Hinweise (eigener LDO mit Ferrit, kurze Masse, Abschirmung, optional TCXO nach C7). VCO bei `Fractional` und +50 ppm 900,045 MHz (unkritisch, nur notieren). → S72, N7, N10
 
-- [x] **S07 · CLK2 bei ERR (C-1, T-1).** Bedingung `iqConfigured_() && !fault_[CLK_CH3]`; neue Umgebung `native-fault` mit `TEST_FAULT_IQ`. *Prüfung:* Test mit Off state High/High-Z; Hardware A8, A11 später. *Commit:* `S07: Keep CLK2 off while CH3 is in error (C-1)`
-- [x] **S08 · „~“ nach dem Boot (C-2, T-2).** MAIN nach `applyStoredChannelSettings()` neu zeichnen; Test der Bootreihenfolge. *Commit:* `S08: Redraw MAIN after boot settings are applied (C-2)`
-- [x] **S09 · Assert-Handler und Loop-Watchdog (C-3, S-23).** `LV_ASSERT_HANDLER` (Log + `esp_restart()`), `enableLoopWDT()`, Test-Flags `TEST_LVGL_ASSERT` und `TEST_LOOP_HANG` für Q4/Q5; Heap-Werte auf die Info-Karte (V-8). *Prüfung:* Host-Build, Hardware-Probe der Test-Flags. *Commit:* `S09: Restart on LVGL assert, enable loop watchdog (C-3)` — *Erledigt 2026-11-04:* am Board (COM7) geprüft: Assert → Neustart nach < 1 s (`SW_CPU_RESET`), blockiertes `loop()` → Task-Watchdog nach 5 s. Die Heap-Werte auf der Info-Karte sind nach S53 verschoben (Info-Karte wird dort ohnehin erweitert).
-- [x] **S10 · Parser härten (C-4, T-4).** `isfinite()`, nur Ziffern und ein Punkt; Tests `nan`, `inf`, `1e7`, `0x…`, `1..2`, `.`, leer. *Commit:* `S10: Harden frequency parser (C-4)`
-- [x] **S11 · Keine unnötigen Schreibvorgänge (C-5, T-7).** `markChanged_()` nur bei geänderten gespeicherten Feldern; ON/OFF und unveränderte Schrittweite speichern nichts. *Commit:* `S11: Save only when a stored value changed (C-5)`
-- [x] **S12 · Speichern wiederholen (C-13, T-5).** `dirty_` behalten, Retry mit Backoff 30 s, Dialog einmal; Test mit NVS-Fehler beim Teilspeichern. *Commit:* `S12: Retry failed saves with backoff (C-13)`
-- [x] **S13 · Wiederverbinden im selben Zyklus (C-12, T-3, T-6).** `connect_()` im selben 2-s-Zyklus; Tests für `millis()`-Überlauf und Fehlerinjektion `Wire.end()`/`begin()`. *Commit:* `S13: Reconnect in the same supervision cycle (C-12)`
-- [x] **S14 · Integer-Grenzen und Spread bei Neuverbindung (C-7, T-8, T-9).** Grenzen aus `xtal4`; Test mit ±50 ppm; Neuverbindung mit Spread. *Commit:* `S14: Compute integer-mode VCO limits from the corrected crystal (C-7)`
-- [x] **S15 · Unerreichbare Dialoge und toter Code (C-6, C-10).** Zweige entfernen bzw. auf Ergebniscodes vorbereiten; Handbuch DE/EN §11. *Commit:* `S15: Remove unreachable dialogs and dead code (C-6, C-10)`
-- [x] **S16 · Doku-Abgleich (C-8, C-9).** Low noise „≈ 1,4 Hz“ gegen Test 1,5 Hz (A-12, Handbuch), WAIT-Gründe mit Spread-Grenzen, Kommentare in `pins.h` und `app_controller.cpp`, `todo.md` 2.2/2.4. *Commit:* `S16: Align documentation with code (C-8, C-9)`
-- [x] **S17 · Release 1.3.1.** `APP_VERSION`, README „Changes“; Smoke-Test auf beiden Boards (MESSPLAN 4.3); lokaler Tag `v1.3.1`. *Commit:* `S17: Release 1.3.1` — *Erledigt 2026-11-04*, lokaler Tag `v1.3.1`. Smoke-Test MESSPLAN 4.3 am 2026-11-04 mit `c259eae` (nach S17a): beide Boards Info-Karte richtig (COM7 Original-CYD ILI9341 ohne SI5351, COM13 CYD2USB ST7789 mit SI5351), alle Seiten ohne Abschneiden oder Überlappen, Einstellungen bleiben nach Stecker ziehen erhalten, Ausgänge danach aus; acht Speichervorgänge ohne Fehler im Log. **Offen:** Schritt 5 (10 MHz und 90° messen), kein Messgerät greifbar. Beobachtung: Bildlauf auf CONFIG nicht erkennbar → U-24 (S25).
+### 2.2 Bedienung
 
-- [x] **S17a · Verbindungszeile beim Boot (Befund M-1, 2026-11-04).** Beim Smoke-Test am CYD2USB fehlte `[APP] SI5351 at 0x60, SDA=… SCL=…` nach einem erfolgreichen ersten Verbinden, weil der Link-Zustand als `Connected` startete. Fix mit Host-Test (Serial-Fake merkt sich jetzt das ganze Log). *Commit:* `S17a: Log the first SI5351 connection at boot (M-1)`
+- [ ] **U-13 Sperre, Grundzustand, Werksreset:** keine Bildschirmsperre, kein Grundzustand für die nächste Gruppe (≈ 25–30 Tipps). Sperre durch 2 s Halten mit Anzeige `LOCK` (unterdrückt auch Neuzeichnen); `Reset to defaults (keep calibration)` mit Bestätigung; Werksreset (NVS löschen, später auch `hfnet`). → S31
+- [ ] **U-11 Kalibrieren:** heute ≈ 20 Tipps und Kopfrechnen für +9,70 ppm → Wert antippen öffnet das Numpad (ppm mit Vorzeichen); optional Assistent „gemessene Frequenz eingeben“ (6 Tipps). → S32
+- [ ] **U-16 CH3-Seite:** Masterfrequenz und Master-Schalter auf der CH3-Seite, Kanalwahl im Header (IQ-Aufbau 11 → 9 Tipps). → S33
+- [ ] **U-20 Halten:** 10 Schritte/s ohne Beschleunigung; Druckaussetzer > 35 ms beenden die Wiederholung (Touch-Log zeigte bridged dropouts bis 30 ms). Beschleunigung nach 2 s, Überbrückung 60–80 ms; auch schwacher Druck (`z < 150`) beendet heute sofort ohne Überbrückung. → S33
 
-### Phase 2 – Bedienung 1.3.2 (≈ 3–4 d)
+### 2.3 Code und Tests
 
-- [x] **S18 · Numpad und Ziffer-Antippen testbar (T-10, T-11).** `NumpadInput` (ein Dezimalpunkt, Länge, ⌫/C, Einheiten, Grenzen) und `charIndexAt`/`stepMarkup` als reine Funktionen. *Commit:* `S18: Extract numpad and digit-tap logic for host tests`
-- [x] **S19 · Message-Queue, Formatierung, Konstanten (T-12, T-13, C-11).** `FrequencyUtils::formatIqLimit()`, Zeiten nach `constants.h`, Textbausteine und Dropdown-Index ↔ Enum mit `static_assert`. *Commit:* `S19: Extract formatting and message queue logic (C-11)`
-- [x] **S20 · Touch-Filter und Display-Erkennung testbar (T-14, T-15).** Touch-Filter, Schwelle der Boot-Geste, Erkennung mit Wiederholungen. *Commit:* `S20: Make touch filter and display detection host-testable`
-- [x] **S21 · Header Ist-Zustand und Kartenschalter (U-1, U-3).** Header zeigt ON/OFF/WAIT/ERR/NO HW wie MAIN; Schalter in eigene Spalte, ≥ 12 px Abstand. *Commit:* `S21: Show actual channel state in header, separate card switch (U-1, U-3)`
-- [x] **S22 · Sondermodi sichtbar (U-2).** Detailzeile auf MAIN und Kanalseite („SSC -0.5 % · INT · 8 mA“, „OFF = HIGH“); Off state `High` einmal bestätigen. *Commit:* `S22: Show special modes on MAIN and channel pages (U-2)`
-- [x] **S23 · Tasten (U-4, U-5, U-6).** Dialog-OK ≥ 120 × 40 px mit ≥ 3:1 Kontrast, Randtasten bis an den Bildrand (`ext_click_area`), MAIN 36 px, Phasen-Chips 6 px Abstand. *Commit:* `S23: Enlarge dialog and edge buttons, space phase chips (U-4..U-6)`
-- [x] **S24 · Kontraste und Farbenblindheit (U-7, U-19).** Textfarbe nach Kontrast, Schalter-Spur und Chip-Rand ≥ 3:1, Zustände zusätzlich über Form („!“ bei ERR, gefülltes ON-Kennzeichen). *Commit:* `S24: Improve contrast and add non-color state cues (U-7, U-19)`
-- [x] **S24a · Schritt-Chips in Stellenreihenfolge (U-25).** Befund aus dem Bedientest 2026-11-04: Die Chips `1` … `1M` liefen entgegengesetzt zu den Stellen der Frequenz; jetzt `1M` links bis `1` rechts. *Commit:* `S24a: Order step chips like the frequency digits (U-25)`
-- [x] **S25a · Statusleiste auf MAIN (W-E26, U-8, U-22).** Navigationstasten CH1–CH3 auf MAIN durch Statusleiste mit Speicherzustand und CONFIG ersetzt (WLAN-Symbole folgen in S53); Karten 62 px, Zustand als gefülltes Feld und Detailzeile in 14 px. S25 wurde für den Bedientest in S25a (MAIN) und S25b (CONFIG) geteilt. *Commit:* `S25a: Replace MAIN channel buttons with a status bar (W-E26, U-8)`
-- [x] **S25b · CONFIG-Reihenfolge und Bildlauf (U-14, U-18, U-24).** CONFIG-Reihenfolge, Zeile „Step“ streichen, Hinweis „(Integer: off)“; Bildlauf auf CONFIG sichtbar machen (U-24: breitere Scrollleiste, Anschnitt der nächsten Zeile, Hinweis am unteren Rand). *Commit:* `S25b: Reorder CONFIG, drop the Step row, make scrolling visible (U-14, U-18, U-24)`
-- [x] **S26 · Kleinere Punkte (U-9, U-12, U-15, U-17, U-21).** Numpad behält die Eingabe und zeigt einen Fehlertext; „°“ statt „deg“; Ziffer-Antippen als Komfortfunktion; Kanalseite „Off | …“; Meldungen mit Kanal und Abhilfe. *Commit:* `S26: Polish numpad errors, labels and messages (U-9, U-12, U-15, U-17, U-21)`
-- [x] **S27 · Boot-Geste entfernen (U-10).** Entschieden 2026-11-04: Die automatische Erkennung (ID-Lesen mit Wiederholung) arbeitet auf beiden Boards zuverlässig; die Geste kann versehentlich auslösen. Geste, Blinken, `bootGestureHeld()`, `BOOT_GESTURE_*` und der Gesten-Zweig von `DisplayDetect::decide()` entfallen; `disp_panel` wird nicht mehr gelesen und beim Start einmal gelöscht; `DISPLAY_FORCE_PANEL` bleibt als Ausweg für unbekannte Boards. Tests, Handbuch §11, Spezifikation (A-44, neue Entscheidung E-n), README, todo. *Commit:* `S27: Remove the boot gesture, keep automatic display detection (U-10)`
-- [x] **S28 · Test-Builds für Bedientests.** Touch-Log (x, y, Druck, Dauer, Ziel je Berührung) und Trefferkarte (20 Zielkreuze) als Build-Flags, nicht im Release (MESSPLAN B8, B9, B12). *Commit:* `S28: Add touch log and hit map test builds`
-- [x] **S28a · Touch-Abgleich beim ersten Start (U-26).** Befund 2026-11-04 (Trefferkarte): Original-CYD 11–19 px nach links versetzt, rechte Ecke nicht erreichbar. Abgleich mit 4 Kreuzen nahe den Ecken und Prüfkreuz in der Mitte (Abweichung ≤ 6 px, sonst wiederholen); automatisch, solange keine Kalibrierung gespeichert ist, erneut über CONFIG `Touch`; Rechnung und Prüfung als reine Funktionen mit Host-Tests; NVS-Schlüssel, Spezifikation (A-32 ändern, neue Entscheidung), Handbuch, MESSPLAN B8 (Trefferkarte vor/nach). *Commit:* `S28a: Calibrate the touch screen at first start (U-26)`
-- [x] **S29 · Handbuch ausbauen (U-23).** Inhaltsverzeichnis, einseitige Kurzanleitung, Seitenbilder, Glossar „Anzeige → Bedeutung“, Symptomtabelle, Hinweise zur Schrittweite; EN im selben Commit. *Commit:* `S29: Extend user manual with quick start, glossary and symptoms (U-23)`
-- [x] **S30 · Release 1.3.2.** Version, README, Smoke-Test auf beiden Boards, Tag `v1.3.2`. *Commit:* `S30: Release 1.3.2` — *Erledigt 2026-11-04*, lokaler Tag `v1.3.2`. Smoke-Test MESSPLAN 4.3 am 2026-11-04 mit `2babc7b`: beide Boards Info-Karte richtig (Firmware 1.3.2, Display `detected`, Touch kalibriert), Verbindungsverlust und Wiederverbinden mit genau einem Dialog, Einstellungen nach Stecker ziehen erhalten und Ausgänge aus, alle Seiten ohne Abschneiden oder Überlappen, Dropdowns vollständig und Optionen nach Neustart erhalten. **Offen:** Schritte 5 und 6 (10 MHz und IQ 90° messen), kein Messgerät greifbar.
+- [ ] **Heap auf der Info-Karte** (V-8): freier/minimaler Heap und LVGL-Heap; kommt mit der Info-Karten-Erweiterung in S53.
+- [ ] **Dirty je Schlüssel** (Rest von C-5, V-4, C-17): Autosave schreibt bei einer echten Änderung noch alle 11 Schlüssel. → S45
+- [ ] **C-14 I2C bündeln:** Register-Transfers rufen `Wire` direkt; 2.0.x-Semantik verteilt, ändert sich mit Core 3.x. → S39
+- [ ] **C-16 Logger gegen SCPI über USB** (hoch für WEB-HMI): Logger, LVGL- und IDF-Log schreiben auf `Serial`, dieselbe Schnittstelle wie SCPI; Öffnen des Ports kann über DTR/RTS einen Reset auslösen. → S46
+- [ ] **Feste Koordinaten in den Pages** durch das Layoutgitter (`gui_layout.h`) bzw. lokale Konstanten ersetzen. → N12
+- [ ] **DMA und Doppelpuffer** (nach der Migration): zwei Puffer 320 × 40 px (`DMA_ATTR`, je 25,6 KB), `LV_COLOR_16_SWAP` = 1, `setSwapBytes(false)`; in `DisplayPanel::begin()` erst Erkennung und Init mit rohem Buszugriff, dann `initDMA()` und einmal `startWrite()` (CS bleibt LOW, `endWrite()` nie); `flush()` = `dmaWait()`, `setAddrWindow()`, `pushPixelsDMA()`, `lv_disp_flush_ready()` sofort. Erwartung bis ≈ 30 Bilder/s, +36 KB RAM; Messung mit `LV_USE_PERF_MONITOR`. → N13
+- [ ] **Fakes:** `endTransmission(false)` erst mit `requestFrom` ausführen; Preferences mit mehreren Namespaces und Strings (für `hfnet`); LEDC-API von Core 3.x. Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln. → S38, S45, S52
 
-### Phase 3 – Laborbetrieb 1.3.3 (≈ 2–3 d)
+### 2.4 Plattform und Lieferkette
 
-- [ ] **S31 · Sperre, Grundzustand, Werksreset (U-13).** Sperre durch 2 s Halten mit „LOCK“; „Reset to defaults (keep calibration)“; Werksreset (NVS löschen) mit Bestätigung. *Commit:* `S31: Add screen lock, reset to defaults and factory reset (U-13)`
-- [ ] **S32 · Kalibrieren (U-11).** Wert antippen öffnet das Numpad (ppm mit Vorzeichen); optional Kalibrierassistent (gemessene Frequenz eingeben). *Commit:* `S32: Enter correction via numpad (U-11)`
-- [ ] **S33 · CH3-Seite und Touch-Feinheiten (U-16, U-20, U-22).** Masterfrequenz und Master-Schalter auf der CH3-Seite, Kanalwahl im Header; Wiederholung beschleunigen und Druckaussetzer überbrücken; Speicherzustand in der Statusleiste. *Commit:* `S33: Add master controls on CH3 page, tune touch repeat (U-16, U-20, U-22)`
-- [ ] **S34 · Fix um 112,5 MHz.** Treiberfehler in `planStandalone()` (MultiSynth rundet auf 8/1; „aktuelle PLL behalten“ setzt `bestErr` nicht); Host-Tests 112 500 004 Hz. *Commit:* `S34: Fix tuning accuracy around 112.5 MHz`
-- [ ] **S35 · Bereichserweiterung 8 kHz bis 160 MHz (E-16).** Planer, Controller, GUI (kHz-Anzeige, Numpad 10 Zeichen), `iqMaxHz()`, `FreqTooHigh`-Testfall mit Master > 100 MHz; Spezifikation A-1, E-16, Handbuch DE/EN, README. Auf MAIN prüfen, ob „~“ vor dreistelligen MHz-Werten noch Abstand zum Kanalnamen hat (Karten seit S21 rechtsbündig). *Commit:* `S35: Extend CH1/CH2 range to 8 kHz-160 MHz (E-16)`
-- [ ] **S36 · Release 1.3.3.** Version, README, Smoke-Test, Tag `v1.3.3`. *Commit:* `S36: Release 1.3.3`
+| ID | Komponente | heute | Ziel |
+|---|---|---|---|
+| P-2, P-4, S-19 | espressif32 / Arduino / IDF | 6.7.0 / 2.0.16 / 4.4.7 (EOL, mbedTLS 2.28 EOL) | offiziell `espressif32@8.0.0` = Arduino 3.3.12 / IDF 5.5.5 (u. a. DHCP-Fix CVE-2026-45160); pioarduino 55.03.312-1 nur bei Bedarf an `custom_sdkconfig` → S37–S41 |
+| P-5 | TFT_eSPI | 2.5.43 (letztes Release) | bleibt; Build mit Core 3.x im Spike prüfen; Fork oder LovyanGFX nur als Ausweg (eigene Display-Erkennung bleibt, LovyanGFX erwartet ST7789-ID 0x85, der CYD2USB meldet `8181B3`) |
+| P-6, P-8 | LVGL, Unity | 8.3.11, 2.6.1 | später LVGL 8.4.0 (nur Fixes), Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 → N11 |
+| P-9 | Web-Bibliotheken | – | ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, ArduinoJson 7.4.3, scpi-parser v2.3 (Commit), alle exakt gepinnt |
+| S-20 | Prüfung | XPT2046 auf Commit gepinnt | Plattform-Prüfsumme in der CI, Advisory-Check je Release (W-S24) |
 
-### Phase 4 – Migration Core 3.x (≈ 2,5–3 d, Branch `feature/core3`)
+### 2.5 Dokumentation
 
-- [ ] **S37 · Spike.** `espressif32@8.0.0` gegen pioarduino 55.03.312-1; TFT_eSPI, XPT2046 und LVGL unverändert; Flash, RAM und Heap gegen 1.3.x; Ergebnis als Notiz in `KONZEPT_WEB_HMI.md` Abschnitt 4. *Prüfung:* Firmware startet auf beiden Boards. *Commit:* `S37: Spike espressif32@8.0.0 with Arduino 3.3.12`
-- [ ] **S38 · LEDC.** `ledcAttach()`/`ledcWrite(pin, …)`; Fake in `test/fakes/Arduino.h`. *Commit:* `S38: Port backlight PWM to the Arduino 3 LEDC API`
-- [ ] **S39 · I2CBus bündeln (C-14, V-7).** `writeRegs`/`readRegs` in `I2CBus`; Annahmen aus 2.0.x als benannte Fake-Tests (Rückgabecode 5, `end()`/`begin()`, Lock). *Commit:* `S39: Bundle I2C register transfers in I2CBus (C-14)`
-- [ ] **S40 · Compiler.** GCC-14-Warnungen beheben; Host-Test-Umgebung mit `-std=gnu++17`; CI erweitern. *Commit:* `S40: Fix GCC 14 warnings and add gnu++17 host environment`
-- [ ] **S41 · Abnahme der Migration.** Beide Cores als Umgebungen bis zur Abnahme, danach 2.x-Umgebung entfernen; Spezifikation A-46 (gepinnte Versionen), README, `CLAUDE.md`; S-16 prüfen (`IP_FORWARD`/`NAPT`); Smoke-Test beider Boards; Merge nach `dev` (lokal). *Commit:* `S41: Switch to the official espressif32@8.0.0 platform`
+- [ ] **Anwendungskapitel „Mischer-Experimente“** (beide Handbücher): Pegel je Drive-Stärke an 50 Ω (F2), Oberwellen des Rechtecks (3. ≈ −9,5 dBc, 5. ≈ −14 dBc) und Tiefpässe, LO-Pegel für Diodenringmischer (+7 dBm) bzw. Dämpfung für NE612/SA612, IQ an FST3253/74CBT3253 (Tayloe), gleich lange Kabel (1° bei 100 MHz ≈ 28 ps ≈ 5,6 mm Koax), Phasenfehler ↔ Spiegelunterdrückung (1° ≈ 41 dB, 2° ≈ 35 dB, 5° ≈ 27 dB), nie ungefiltert an eine Antenne. → N8
+- [M] **„50 % Tastverhältnis“** (Handbuch §1) ist nicht belegt (E5). → S72
 
-### Phase 5 – WEB-HMI-Vorarbeiten (≈ 4 d, Branch `feature/web-hmi`)
+---
+
+## 3. WEB-HMI (Konzept, Ziel 1.4.0)
+
+Voraussetzungen: Migration (Phase 4) und Vorarbeiten V-1 bis V-6, V-11 (Phase 5). Aufwand ≈ 20–21 d einschließlich Migration.
+
+### 3.1 Ziel
+
+1. **WLAN:** Client in einem bestehenden WLAN oder eigener Access Point, über CONFIG; Standard aus.
+2. **Weboberfläche:** alle Funktionen des Touch-Bildschirms im Browser (PC, Tablet, Handy), zusätzlich Tastaturbedienung.
+3. **Fernsteuerung:** SCPI über TCP 5025 und USB-Seriell sowie eine dokumentierte REST-API.
+4. **Sicher im Labor:** kein Mitlesen von WLAN-Passwörtern, kein Fernsteuern über fremde Webseiten, kein ungewolltes Senden; die Bedienung am Gerät hat Vorrang.
+
+### 3.2 Entscheidungen W-E
+
+| # | Thema | Entscheidung |
+|---|---|---|
+| W-E1 | Betriebsarten | `Off` (Standard) / `Client` / `Access point`. Ein Client ohne Verbindung startet nach 60 s zusätzlich den AP und sucht weiter; ein offener Rückfall-AP nur nach Bestätigung am Touch (S-3). |
+| W-E2 | Zugangsdaten | am Gerät (Scan-Liste, Bildschirmtastatur) oder per Handy über den AP; Passwörter nie über einen **offenen** AP (S-1). |
+| W-E3 | AP-Passwort | zufälliges WPA2-Passwort je Gerät (12 Zeichen ohne verwechselbare), beim ersten Einschalten des AP erzeugt, im NVS; am Display als Text und **QR-Code**; neu erzeugbar oder frei wählbar; offen nur auf Wunsch mit Warnung (S-2). |
+| W-E4 | IP | DHCP; statische IP optional mit Plausibilitätsprüfung (S-15). |
+| W-E5 | Gerätename | Standard `cyd-hf-<4 Stellen MAC>`, nur RFC 1123 (a–z, 0–9, `-`, ≤ 32); gilt für mDNS, DHCP-Hostnamen, AP-SSID `CYD-HF-<4 Stellen MAC>` (S-26). |
+| W-E6 | Captive-DNS | nur im AP-Modus; kein WPA2-Enterprise. |
+| W-E7 | Gespeicherte WLANs | höchstens zwei, das stärkste gewinnt; Mindestsicherheit WPA2, PMF „capable“; Warnung bei offenem Netz (S-28). |
+| W-E8 | Zugriffsschutz | Web-Passwort optional; dann Login mit Sitzungs-Cookie (kein Basic-Auth), gesalzen gehasht, Sperre nach Fehlversuchen (S-9). |
+| W-E9 | Umfang Web | alle Funktionen inkl. CONFIG und WLAN außer W-E25; Netzänderungen zweistufig (Bestätigung über die neue Verbindung binnen 120 s, sonst Rückfall; ohne Web-Passwort zusätzlich am Touch, S-15). |
+| W-E10 | Web-Clients | höchstens 3, live synchron; ein vierter bekommt eine Fehlerseite. |
+| W-E11 | Sprache | Englisch, responsiv, nur lokale Ressourcen. |
+| W-E12 | Protokoll | SCPI (IEEE 488.2 / SCPI-99, eigener Baum) über TCP 5025 und USB; mDNS `_scpi-raw._tcp`; kein VXI-11, HiSLIP, MQTT. |
+| W-E13 | SCPI-Verbindungen | eine; eine zweite wird abgelehnt; Leerlauf-Timeout 10 min; `Disconnect` am Gerät (S-17). |
+| W-E14 | Gleichzeitige Bedienung | uneingeschränkt, „der Letzte gewinnt“; Statusleiste `REMOTE <Quelle>` (S-18). |
+| W-E15 | Ereignisse | Polling und `*OPC?`; Live-Push nur per WebSocket. |
+| W-E16 | Verbindungsabbruch | Ausgänge laufen wie eingestellt weiter. |
+| W-E17 | Speichern | Touch/Web nach 5 s, SCPI nach 30 s Ruhe; `SYSTem:SAVE` sofort; nur geänderte Schlüssel; Ein/Aus ohne Speichern. |
+| W-E18 | Grenzen | wie am Touch; jeder Wert im vollen Typ geprüft, nie still abgeschnitten (S-12). |
+| W-E19 | `*RST` | Ausgänge aus, Standardwerte im RAM, nicht gespeichert bis `SYSTem:SAVE`; eine spätere Änderung speichert nur ihren Schlüssel (C-17, D7). |
+| W-E20 | HF-Reinheit | WLAN abschaltbar, Standard aus. |
+| W-E21 | Ohne SI5351 | Web und SCPI laufen, Kanäle `NO HW`. |
+| W-E22 | OTA, NTP | nein (OTA später als Option). |
+| W-E23 | Doku | SCPI-Referenz, REST-API, Python-Beispiel, Verweise auf PyVISA, LabVIEW, NI-MAX, MATLAB, Sicherheitshinweise. |
+| W-E24 | Plattform | vorher Migration auf `espressif32@8.0.0`; Heap laufend überwacht. |
+| W-E25 | Fernschalten | CONFIG `Remote outputs: allowed / local only` (Standard `allowed`, nur am Gerät änderbar); `local only`: Netz darf alles einstellen, aber nicht einschalten (S-18). |
+| W-E26 | Statusleiste | in 1.3.2 umgesetzt; WLAN-, AP-, `REMOTE`- und später `LOCK`-Symbole kommen in S53 dazu (Form statt nur Farbe, U-19). |
+| W-E27 | SCPI über USB | während einer SCPI-USB-Sitzung kein Log auf `Serial` (Ringpuffer, `SYSTem:LOG?`) (C-16). |
+| W-E28 | Identify | Web-Taste und `SYSTem:IDENtify`: Backlight und LED blinken 5 s. |
+
+### 3.3 Architektur
+
+```
+ Touch/LVGL ───────────── Ausführer (synchron) ──┐
+ Web-UI ─┐                                       │
+ REST ───┼─► RequestGuard ─► CommandQueue ───────┼─► AppController ─► SI5351 / NVS
+ SCPI TCP 5025 ─► LineFramer ─► scpi ─┘          │
+ SCPI USB-Seriell ─► LineFramer ─► scpi ─┘       │
+ Abfragen (Web, REST, SCPI) ◄── StateSnapshot ◄──┘  (Sequenzzähler, revision())
+```
+
+| Modul | Aufgabe |
+|---|---|
+| `net/wifi_manager.*` | Betriebsarten, `WiFiMulti`, Rückfall-AP, statische IP, Gerätename, mDNS, Captive-DNS (nur AP), AP aus beim STA-Connect |
+| `net/net_settings.*` | NVS `hfnet`: Modus, 2 × SSID/PSK, AP-SSID/-Passwort, Gerätename, statische IP, Web-Passwort-Hash, `remote_outputs`; bei WPA2 64-Hex-PMK statt Passphrase, `WiFi.persistent(false)` (S-8) |
+| `net/request_guard.*` | rein, host-testbar: Host-Allowlist, Origin/Sec-Fetch-Site, Content-Type, Token, Sitzung, Rate-Limits, Größen |
+| `net/sanitize.*` | fremde Zeichenketten → gültiges UTF-8 ohne Steuerzeichen, ≤ 32 B, für LVGL und JSON (S-7, S-14) |
+| `remote/command.*`, `remote/state_snapshot.*` | Befehle mit Quelle (Touch/Web/SCPI/USB) und `Result`; Zustandskopie für Abfragen und Push |
+| `remote/line_framer.*` | rein: Zeilen ≤ 256 B (Überlänge bis `\n` verwerfen, −363), ≤ 16 Befehle je Zeile, NUL/Nicht-ASCII verwirft, HTTP-Erkennung auf TCP (S-6, S-11) |
+| `remote/scpi.*`, `remote/scpi_server.*` | Befehlsbaum auf j123b567/scpi-parser v2.3 (Commit gepinnt, Beispielcode nicht übernehmen, Issue #174); TCP 5025 (eine Verbindung, Timeout, Keepalive) und USB |
+| `web/web_server.*`, `data/` | ESPAsyncWebServer 3.12.1 + AsyncTCP 3.5.0: LittleFS (gzip, ≈ 30–60 KB, eine Seite ohne Framework, JS nur als Datei), REST, WebSocket `/ws`, Sicherheits-Header; nie im `async_tcp`-Task blockieren |
+| JSON | ArduinoJson 7.4.3, Verschachtelung ≤ 10 |
+| GUI | Statusleisten-Symbole, CONFIG `WiFi` und `Remote outputs`, Seiten WIFI (Unterseiten, kein Scrollen), Tastatur, QR (`lv_qrcode`), Info-Karte |
+
+**Regeln:**
+- Kein Netz-Task ruft `AppController`, LVGL, I2C oder NVS direkt; Schreiben über die Queue (16 Einträge), Lesen über den Schnappschuss (Sequenzzähler, weil uint64/double nicht atomar sind).
+- SCPI wartet auf Quittungen höchstens 1 s; HTTP-Handler antworten asynchron.
+- Touch, Web und SCPI sind gleichberechtigt; jede Änderung erscheint sofort überall.
+- Fremde Zeichenketten erreichen LVGL und JSON nur über `sanitize`; Passwörter werden nie ausgegeben (nur „gesetzt / nicht gesetzt“).
+- WLAN aus: kein Netz-Task, `WIFI_OFF`, Verhalten wie heute; SCPI über USB bleibt.
+- Kein Routing zwischen AP und STA: NAPT aus, AP aus im Event der STA-IP, DHCP ohne Gateway (S-16).
+- Sicherheitslogik (`request_guard`, `sanitize`, `line_framer`, SCPI-Kern, JSON-Abbildung) frei von Arduino-/Webserver-Abhängigkeiten, im `native`-Env getestet und gefuzzt.
+
+### 3.4 WLAN am Gerät
+
+- **Statusleiste:** links WLAN-Signal bzw. `AP`, `REMOTE <Quelle>`, Speicherzustand, später `LOCK`; rechts `CONFIG`.
+- **CONFIG:** `WiFi` (`Off` / `Client` / `Access point`, Taste `Setup…`), `Remote outputs` (`allowed` / `local only`).
+- **Seite WIFI:** *Networks* (zwei Einträge; `Scan` mit Spinner, ≤ 15 Netze bereinigt und ohne Doppelte; „Other…“ für versteckte SSIDs); *Password* (Vollbildseite, Tastatur ≈ 190 px, „anzeigen“, Zeichenzähler; ä, ö, ü, ß, € nur per Handy); *Access point* (Name, Passwort mit `Regenerate`, `Set…`, `Open (not recommended)`, großer QR „Join“, darunter URL als Text und QR); *Device* (Gerätename, IP, Web-Passwort).
+- **Rückmeldungen:** `Connecting…`, `Connected 192.168.1.50`, `Wrong password`, `Network not found`, `Fallback: AP active`.
+- **Info-Karte:** WLAN-Modus, SSID, RSSI, IP, `<name>.local`, SCPI-Status, Web-Clients, Heap, LVGL-Heap; Taste `Disconnect all` (S-10, S-17).
+- **Verhalten:** Client mit `WiFiMulti` (WPA2), nach 60 s ohne Verbindung AP (WPA2), Suche läuft weiter, AP aus sobald verbunden. Offener AP (nur auf Wunsch): `AP open` in Warnfarbe, aus nach 15 min ohne Station, ≤ 2 Stationen, Passwortfelder 403, SCPI über TCP aus, Rückfall nur nach Bestätigung.
+- **Heap:** Warnung bei minimalem freiem Heap < 40 KB oder größtem Block < 16 KB; unter 24 KB neue Verbindungen ablehnen (503, SCPI schließen); `SYSTem:HEAP?`; 24-h-Dauertest.
+
+### 3.5 SCPI-Befehlsbaum
+
+Kurzform groß; `n` = Kanal 1–3 (Standard 1). Zahlen: Ganzzahl in Hz oder Dezimalzahl mit `HZ`/`KHZ`/`MHZ`, `MIN`/`MAX`/`DEF`; `NAN`, `INF`, Exponenten außerhalb des Bereichs, Hex → −222/−224. Antworten in Grundeinheiten.
+
+| Befehl | Abfrage | Bedeutung |
+|---|---|---|
+| `*IDN?` | `CYD,HF-Generator,<MAC>,1.4.0` | Identifikation |
+| `*RST` | – | W-E19 |
+| `*CLS`, `*ESR?`, `*ESE`, `*STB?`, `*SRE`, `*OPC`, `*OPC?`, `*WAI`, `*TST?` | | IEEE 488.2 |
+| `OUTPut<n>[:STATe] ON\|OFF\|1\|0` | `OUTPut<n>?` | Ausgang (CH3 = Anforderung); `local only` → −221 für ON |
+| `OUTPut<n>:STATus?` | `ON`/`OFF`/`ERR`/`WAIT`/`NOHW` | tatsächlicher Zustand |
+| `[SOURce<n>:]FREQuency[:CW] <f>` | `FREQ?` | Sollfrequenz CH1/CH2; CH3 nur Abfrage |
+| `[SOURce<n>:]FREQuency:ACTual?` | Hz mit 0,1 Hz | wie die Zeile `Out` (bei Spread Mittelwert) |
+| `SOURce3:IQ:MASTer 1\|2`, `SOURce3:PHASe 0\|90\|180\|270`, `SOURce3:IQ:RANGe?` | `?` | CH3 |
+| `OUTPut:DRIVe 2\|4\|6\|8`, `OUTPut:OFFState LOW\|HIGH\|HIZ` | `?` | Ausgänge |
+| `OUTPut:REMote?` | `ALLOWED`/`LOCAL` | W-E25 (nur lesbar) |
+| `[SOURce1:]SSC OFF\|DOWN05\|DOWN15\|CENT05`, `SYSTem:TUNing FRAC\|LNO\|INT` | `?` | Signal |
+| `SYSTem:CORRection <ppm>`, `SYSTem:STEP <Hz>`, `SYSTem:BACKlight <%>` | `?` | Einstellungen |
+| `SYSTem:SI5351?`, `SYSTem:HEAP?`, `SYSTem:IDENtify`, `SYSTem:LOG?`, `SYSTem:SAVE` | | Diagnose, Identify, Log, Speichern |
+| `SYSTem:ERRor[:NEXT]?`, `SYSTem:VERSion?` | | Fehlerwarteschlange, `1999.0` |
+
+Netzwerkeinstellungen und `Remote outputs` sind über SCPI nicht änderbar.
+
+```python
+import pyvisa
+rm = pyvisa.ResourceManager()
+gen = rm.open_resource("TCPIP0::cyd-hf-1a2b.local::5025::SOCKET",
+                       read_termination="\n", write_termination="\n")
+print(gen.query("*IDN?"))
+gen.write("FREQ 7.1 MHZ")
+gen.write("OUTP1 ON")
+print(gen.query("FREQ:ACT?"))
+print(gen.query("SYST:ERR?"))
+```
+
+Über USB `ASRL5::INSTR` mit DTR und RTS aus, damit das Öffnen des Ports nicht neu startet (MESSPLAN L6).
+
+### 3.6 Weboberfläche und REST
+
+- **Bereiche:** MAIN, CH1, CH2, CH3, CONFIG, WiFi; auf dem Handy untereinander mit fixierter Ausgangsleiste; Tasten ≥ 44 CSS-px, `touch-action: manipulation`.
+- **Frequenzeingabe:** `10.7M`, `455k`, `7 100 000`, `10,7 MHz`; bei Fehler bleibt die Eingabe mit Fehlertext stehen.
+- **Live:** geänderte Felder kurz hervorheben, Feld mit Fokus nie überschreiben, bei Verbindungsabbruch grau; Sondermodi sichtbar wie am Gerät (Moduszeile).
+- **Tastatur:** `↑`/`↓` (auch Ziffernblock `+`/`−`) Frequenz im Schritt; `←`/`→` Schrittweite (`←` = größer); `Bild↑`/`Bild↓` × 10 / ÷ 10; Mausrad über einer Ziffer; `1`/`2`/`3` Kanal (nur ohne Fokus); `F` oder `Enter` fokussiert, `Enter` übernimmt, `Esc` verwirft; `O` Ausgang ein/aus (nicht `Space`); `?` Belegung.
+- **Netzänderungen:** Countdown „Confirm within 120 s, otherwise the previous settings return“; `Identify`-Taste; Login nur mit Web-Passwort; vierter Client „Too many clients (max. 3)“.
+
+| Methode und Pfad | Inhalt |
+|---|---|
+| `GET /api/state` | Zustand als JSON; ohne Passwort nur die verbundene SSID; MAC und Commit erst nach Login, falls ein Passwort gesetzt ist (S-26) |
+| `POST /api/channel/<n>` | `{"enabled":true,"frequency":10000000}` |
+| `POST /api/ch3` | `{"master":1,"phase":90}` |
+| `POST /api/config` | `{"drive":8,"tuning":"lownoise","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80}` |
+| `GET/POST /api/wifi`, `POST /api/wifi/confirm` | Netzwerk (Passwörter nur schreibend, über offenen AP gesperrt), zweistufige Bestätigung |
+| `GET /api/wifi/scan` | höchstens alle 10 s |
+| `POST /api/save`, `POST /api/identify`, `POST /api/login` | |
+| WebSocket `/ws?t=<token>` | nur Push |
+
+Fehler: HTTP 400 mit `{"error":"-222,Data out of range"}` (dieselben Codes wie SCPI); unbekannte Schlüssel und falsche Typen (`{"drive":"4"}`, `{"drive":4.5}`) → 400. Token je Boot im HTML-Kopf, REST-POST verlangt `X-CYD-Token`; für Skripte auf der Info-Karte und unter `GET /api/token` (nur same-origin).
+
+### 3.7 Sicherheitsanforderungen W-S
+
+| Nr | Anforderung (Audit-Befund) |
+|---|---|
+| W-S1 | Über einen offenen AP lehnt der Server WLAN- und Web-Passwortfelder ab (403); Standard ist der WPA2-AP mit Zufallspasswort. (S-1, S-2) |
+| W-S2 | Offener Rückfall-AP nur nach Bestätigung am Touch; offener AP ohne Station nach 15 min aus, ≤ 2 Stationen, Statusleiste `AP open`. (S-2, S-3) |
+| W-S3 | Kein Routing AP ↔ STA (NAPT aus, AP aus bei STA-IP, DHCP ohne Gateway). (S-16) |
+| W-S4 | Host-Allowlist für HTTP und WebSocket (eigene IPv4, `<name>.local`, `<name>`, im AP fürs Captive-DNS), sonst 421; IPv6 aus. (S-5) |
+| W-S5 | POST nur mit `application/json` (415), gültigem `X-CYD-Token` (403), `Origin` leer oder eigener Host, `Sec-Fetch-Site` nicht `cross-site`; keine CORS-Header, `OPTIONS` abgelehnt, GET ohne Wirkung. (S-4) |
+| W-S6 | WebSocket-Upgrade mit Host-, Origin- und Token-Prüfung; nur Push; ≤ 512 B; Ping alle 15 s, Trennen nach 30 s ohne Pong. (S-10) |
+| W-S7 | Header: CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, `nosniff`, `Referrer-Policy: no-referrer`; `/api/*` mit `no-store`. (S-7) |
+| W-S8 | Fremde Zeichenketten im Browser nur über `textContent`/DOM, nie `innerHTML`; JSON nur über ArduinoJson. (S-7) |
+| W-S9 | Vor LVGL und JSON läuft jede fremde Zeichenkette durch `sanitize`; Scan-Liste ≤ 15, kein Recolor; LVGL-Assert → Neustart. (S-14, C-3) |
+| W-S10 | Body ≤ 1 KB (413), Multipart/Chunked 415, URL ≤ 256 B, Header ≤ 2 KB, 10 s Timeout; ≤ 3 WebSocket- und ≤ 4 HTTP-Verbindungen; < 24 KB Heap → 503. (S-13) |
+| W-S11 | ≤ 20 Schreibbefehle/s je Quelle (429), Scan ≤ alle 10 s, nach 5 Login-Fehlern 30 s Sperre (verdoppelnd). (S-9, S-13) |
+| W-S12 | Netzänderungen zweistufig mit Rückfall nach 120 s, ohne Web-Passwort zusätzlich am Touch; statische IP ≠ Gateway, im Subnetz, keine Netz-/Broadcast-Adresse. (S-15) |
+| W-S13 | Web-Passwort ≥ 8 Zeichen, PBKDF2-Hash (mbedTLS); Cookie `HttpOnly; SameSite=Strict`, 12 h; kaputte `Authorization`/`Cookie` abgelehnt. (S-9) |
+| W-S14 | WPA2-PSK als PMK, `WiFi.persistent(false)`; Werksreset löscht `hfnet`, `nvs.net80211`, Coredump; Passwörter nie in Ausgaben. (S-8) |
+| W-S15 | STA mit PMF „capable“ und mindestens WPA2; AP als WPA2/WPA3-SAE-Übergang, falls stabil (sonst WPA2). (S-28) |
+| W-S16 | Gerätename RFC-1123, AP-SSID druckbares ASCII ≤ 32 B; mDNS-TXT ohne Version und Commit. (S-26) |
+| W-S17 | SCPI-Zeilen ≤ 256 B, Überlänge bis `\n` verwerfen (−363), ≤ 16 Befehle je Zeile, NUL/Nicht-ASCII verwirft. (S-11) |
+| W-S18 | SCPI über TCP schließt ohne Ausführung bei HTTP-artigen Zeilen (`^[A-Z]+ \S+ HTTP/1\.[01]`, `^[A-Za-z0-9-]+:\s`). (S-6) |
+| W-S19 | Parameter im vollen Typ prüfen (endlich, ganzzahlig, im Bereich), erst dann verengen; Frequenzen ganzzahlig in Hz. (S-12, C-4) |
+| W-S20 | SCPI: Leerlauf 10 min, TCP-Keepalive, IP auf der Info-Karte, `Disconnect` am Gerät; auf offenem AP aus. (S-17) |
+| W-S21 | `Remote outputs: local only`: Einschalten aus Web/REST/SCPI abgelehnt (403 / −221), Ausschalten erlaubt, nur am Touch änderbar; Statusleiste `REMOTE <Quelle>`. (S-18) |
+| W-S22 | Während SCPI-USB keine Logzeilen auf `Serial`. (C-16, S-25) |
+| W-S23 | `loop()` vom Task-Watchdog überwacht (seit 1.3.1); kein Netz-Task blockiert > 100 ms; Stack-Reserve ≥ 1 KB nach 24 h. (S-23) |
+| W-S24 | Abhängigkeiten exakt gepinnt, Advisory-Check je Release; CI mit SHA-gepinnten Actions und `permissions: contents: read`. (S-20, S-27) |
+| W-S25 | Fuzzing von `line_framer`, SCPI-Kern, `request_guard`, `sanitize`, JSON-Abbildung: libFuzzer mit ASan/UBSan ≥ 10 Mio. Ausführungen vor jedem Release; Zufallstest mit festem Seed (100 000 Eingaben) in `native-win`. (S-11, S-13) |
+
+Bewusst nicht: TLS/HTTPS (kein Zertifikat verwaltbar), Secure Boot und Flash Encryption (S-22). Das Handbuch nennt die Folgen (Klartext, Gast-/IoT-WLAN empfohlen, physischer Zugriff = Vollzugriff).
+
+### 3.8 Tests und Risiken
+
+**Neue Host-Suites:** `test_command` (Befehle, `Result`, Quelle und Speicherfristen, Dirty je Schlüssel, `*RST`, W-E25, Rate-Limit, volle Queue), `test_scpi` (Kurz-/Langform, Einheiten, MIN/MAX/DEF, NAN/INF/Hex, Grenzen, Fehlerwarteschlange, IEEE 488.2), `test_line_framer` (Überlänge, `;`-Fluten, NUL, HTTP-Erkennung), `test_http_guard`, `test_sanitize` (`"\xF0A"`, `"\xC3"`, `\n`, `\0`, 32 B), `test_rest_json` (Escaping, Ablehnung unbekannter Schlüssel und falscher Typen), `test_net_settings` (`hfnet`, PMK, IP-Plausibilität, Export ohne Passwörter); Fuzzing als CI-Job. Hardware: MESSPLAN L und L-S.
+
+| Risiko | Gegenmaßnahme |
+|---|---|
+| TFT_eSPI mit Core 3.x | Spike S37; gepinnter Fork; LovyanGFX nur als letzter Ausweg |
+| Wire im neuen IDF-Treiber anders | `I2CBus` gebündelt (S39), Annahmen als Fake-Tests, MESSPLAN J |
+| WLAN-Nebenlinien | Vorab-Messung S49; WLAN abschaltbar, Standard aus |
+| Heap-Fragmentierung | W-S10, Heap-Schutz, 24-h-Dauertest |
+| Nebenläufigkeit | Regeln 3.3, Host-Tests, Review auf direkte Aufrufe aus Netz-Tasks |
+| Angriffe über LAN und fremde Webseiten | W-S4 bis W-S8, W-S18 |
+| Unbeabsichtigtes Senden | W-E25, `REMOTE` in der Statusleiste, Handbuch: nie ungefiltert an eine Antenne |
+| Flash-Verschleiß | W-E17 (30 s, nur geänderte Schlüssel) |
+
+Spätere Optionen: OTA (neue Partitionstabelle), VXI-11/LXI, HTTPS.
+
+---
+
+## 4. Aufgabenliste
+
+Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird beim nächsten Aufräumen entfernt).
+
+### Phase 3 – Laborbetrieb 1.3.3 (≈ 2–3 d, `dev`)
+
+- [ ] **S31 · Sperre, Grundzustand, Werksreset (U-13).** Sperre durch 2 s Halten mit `LOCK` in der Statusleiste und im Header; `Reset to defaults (keep calibration)` (Frequenz- und Touch-Abgleich bleiben) und Werksreset (NVS löschen) mit Bestätigung; Host-Tests für den Grundzustand. *Commit:* `S31: Add screen lock, reset to defaults and factory reset (U-13)`
+- [ ] **S32 · Korrektur per Numpad (U-11).** `Corr.`-Wert antippen öffnet das Numpad für ppm mit Vorzeichen (±50,00); optional Assistent „gemessene Frequenz eingeben“. *Commit:* `S32: Enter correction via numpad (U-11)`
+- [ ] **S33 · CH3-Seite und Halten (U-16, U-20).** Masterfrequenz und Master-Schalter auf der CH3-Seite, Kanalwahl im Header; Wiederholung nach 2 s beschleunigen, Druckaussetzer bis 60–80 ms überbrücken (Touch-Log prüft es). *Commit:* `S33: Add master controls on the CH3 page, tune touch repeat (U-16, U-20)`
+- [ ] **S34 · Fix um 112,5 MHz.** Abschnitt 2.1; Host-Test 112 500 004 Hz, `TEST_IGNORE_MESSAGE` entfernen. *Commit:* `S34: Fix tuning accuracy around 112.5 MHz`
+- [ ] **S35 · Bereich 8 kHz bis 160 MHz (E-16).** Abschnitt 2.1; Spezifikation A-1/E-16, Handbuch DE/EN, README. *Commit:* `S35: Extend CH1/CH2 range to 8 kHz-160 MHz (E-16)`
+- [ ] **S36 · Release 1.3.3.** Version, README, Smoke-Test beider Boards, lokaler Tag `v1.3.3`. *Commit:* `S36: Release 1.3.3`
+
+### Phase 4 – Migration Core 3.x (≈ 2,5–3 d, `feature/core3`)
+
+- [ ] **S37 · Spike.** `espressif32@8.0.0` gegen pioarduino 55.03.312-1, TFT_eSPI/XPT2046/LVGL unverändert; Flash, RAM, Heap gegen 1.3.x (Abschnitt 1.2); Ergebnis in Abschnitt 2.4. *Prüfung:* startet auf beiden Boards. *Commit:* `S37: Spike espressif32@8.0.0 with Arduino 3.3.12`
+- [ ] **S38 · LEDC.** `ledcAttach()`/`ledcWrite(pin, …)` samt Fake. *Commit:* `S38: Port backlight PWM to the Arduino 3 LEDC API`
+- [ ] **S39 · I2CBus bündeln (C-14, V-7).** `writeRegs`/`readRegs` in `I2CBus`; 2.0.x-Annahmen als benannte Fake-Tests (Rückgabecode 5, `end()`/`begin()`, Lock). *Commit:* `S39: Bundle I2C register transfers in I2CBus (C-14)`
+- [ ] **S40 · Compiler.** GCC-14-Warnungen beheben; Host-Env mit `-std=gnu++17`; CI erweitern. *Commit:* `S40: Fix GCC 14 warnings and add gnu++17 host environment`
+- [ ] **S41 · Abnahme.** Beide Cores als Envs bis zur Abnahme, dann 2.x-Env entfernen; Spezifikation A-46, README, `CLAUDE.md`; S-16 prüfen (`IP_FORWARD`/`NAPT`); Stufe-1-Auswahl nach der Migration (MESSPLAN 5.10, ≈ 4 h), Q4/Q5 wiederholen, Smoke-Test beider Boards; Merge nach `dev` (lokal). *Commit:* `S41: Switch to the official espressif32@8.0.0 platform`
+
+### Phase 5 – WEB-HMI-Vorarbeiten (≈ 4 d, `feature/web-hmi`)
 
 - [ ] **S42 · Ergebniscodes (V-1).** Setter liefern `Result {Ok, OutOfRange, Invalid, Conflict, NoChange, HwError}`, Klemmen nur in `adjust*`, Kanalindex streng (S-12). *Commit:* `S42: Return result codes from controller setters (V-1)`
-- [ ] **S43 · Änderungszähler (V-2).** `AppController::revision()`; GUI-Neuzeichnen läuft darüber. *Commit:* `S43: Add controller revision counter (V-2)`
+- [ ] **S43 · Änderungszähler (V-2).** `AppController::revision()` für Zustand, Status, `fault_`, Verbindung, `actualHz`; GUI-Neuzeichnen darüber. *Commit:* `S43: Add controller revision counter (V-2)`
 - [ ] **S44 · Ereignisse (V-3).** `Event {code, category, source}` mit mehreren Empfängern statt `ErrorCallback`; Fernbefehle öffnen am Gerät keinen Dialog. *Commit:* `S44: Replace error callback with events (V-3)`
-- [ ] **S45 · Speichern je Quelle und Schlüssel (V-4, C-17).** Fristen 5 s / 30 s, Dirty je Schlüssel, `saveNow()`, `*RST`-Semantik, `Storage` mit String-API und Fake mit mehreren Namespaces. *Commit:* `S45: Save per source and per key (V-4, C-17)`
-- [ ] **S46 · Logger umschaltbar (V-5, C-16).** Serial / Ringpuffer / aus, mit Mutex; LVGL- und IDF-Log auf den Logger. *Commit:* `S46: Make logger output switchable (V-5, C-16)`
-- [ ] **S47 · Ausführer und Schnappschuss (V-6).** Touch synchron, Netz über FreeRTOS-Queue (16 Einträge), Schnappschuss mit Sequenzzähler. *Commit:* `S47: Add command executor and state snapshot (V-6)`
-- [ ] **S48 · Gehärteter Netz-Parser (V-11).** Ganzzahl in Hz oder Dezimalzahl mit Einheit, Komma und Leerzeichen, keine Exponenten/Hex. *Commit:* `S48: Add hardened frequency parser for remote input (V-11)`
+- [ ] **S45 · Speichern je Quelle und Schlüssel (V-4, C-17).** `markDirty(key, Source)`, Fristen 5 s / 30 s, Schattenkopie, `saveNow()`, `*RST`-Semantik, `Storage` mit String-API, Fake mit mehreren Namespaces. *Commit:* `S45: Save per source and per key (V-4, C-17)`
+- [ ] **S46 · Logger umschaltbar (V-5, C-16).** Serial / Ringpuffer / aus mit Mutex; LVGL- und IDF-Log auf den Logger. *Commit:* `S46: Make logger output switchable (V-5, C-16)`
+- [ ] **S47 · Ausführer und Schnappschuss (V-6).** Touch synchron, Netz über FreeRTOS-Queue (16), Schnappschuss mit Sequenzzähler. *Commit:* `S47: Add command executor and state snapshot (V-6)`
+- [ ] **S48 · Netz-Parser (V-11).** Ganzzahl in Hz oder Dezimalzahl mit Einheit, Komma und Leerzeichen, keine Exponenten/Hex. *Commit:* `S48: Add hardened frequency parser for remote input (V-11)`
 
-### Phase 6 – WEB-HMI 1.4.0 (≈ 13,75 d, Konzept-Schritte 0–9)
+### Phase 6 – WEB-HMI 1.4.0 (≈ 13,75 d)
 
-Netzcode wird nach W-S geprüft; reine Module (`request_guard`, `sanitize`, `line_framer`, SCPI-Kern) frei von Arduino-Abhängigkeiten.
+- [ ] **S49 · Vorab-Messung WLAN (0,5 d).** Client mit Dauerverkehr und AP, Spektrum an CLK0 bei 10 MHz (Span 200 kHz und 20 kHz), Modem-Sleep an/aus, Heap-Bilanz; Ergebnis in Abschnitt 3. *Commit:* `S49: Record WLAN spectrum pre-measurement and modem-sleep decision`
+- [ ] **S50 · Befehlskern (0,75 d).** `command`, `state_snapshot`, Quelle, W-E25; `test_command`. *Commit:* `S50: Add command core with source and remote-outputs option`
+- [ ] **S51 · SCPI über USB (1,5 d).** `line_framer`, scpi-parser v2.3, Befehlsbaum 3.5, Logger-Umschaltung, `SYSTem:LOG?`; `test_scpi`, `test_line_framer`; PyVISA mit DTR/RTS aus, 1000 × `*IDN?`. *Commit:* `S51: Add SCPI over USB serial`
+- [ ] **S52 · WLAN-Manager (1,5 d).** Betriebsarten, `WiFiMulti`, Rückfall-AP, `net_settings` (PMK, Zufallspasswort), mDNS, Captive-DNS nur im AP, kein Routing; `test_net_settings`. *Commit:* `S52: Add WiFi manager and network settings storage`
+- [ ] **S53 · WLAN am Gerät (2 d).** Statusleisten-Symbole, CONFIG `WiFi` und `Remote outputs`, Seiten WIFI mit Tastatur, QR, Spinner, `sanitize`; Info-Karte mit WLAN, Heap und LVGL-Heap (V-8); `test_sanitize`. *Commit:* `S53: Add WiFi setup pages with keyboard and QR`
+- [ ] **S54 · SCPI über TCP (0,5 d).** Port 5025 mit HTTP-Erkennung, Leerlauf-Timeout, eine Verbindung, mDNS `_scpi-raw._tcp`. *Commit:* `S54: Add SCPI over TCP`
+- [ ] **S55 · Webserver (2 d).** `request_guard`, REST, WebSocket, Login, Header, CSP; `test_http_guard`, `test_rest_json`. *Commit:* `S55: Add guarded web server and REST API`
+- [ ] **S56 · Weboberfläche (2,5 d).** Alle Bereiche, Tastatur, responsiv, Live-Hervorhebung, zweistufige Netzänderung, Identify. *Commit:* `S56: Add web user interface`
+- [ ] **S57 · Fuzzing und Dauertest (1 d + Laufzeit).** libFuzzer-CI-Job (≥ 10 Mio.), Zufallstest mit festem Seed; 24-h-Lauf mit Heap- und Stack-Bilanz. *Commit:* `S57: Add fuzzing job and long-run test`
+- [ ] **S58 · Doku und Release-Kandidat (1,5 d).** Handbuch DE/EN (WLAN, Web, SCPI-Referenz, REST, Python-Beispiel, Sicherheitshinweise, Fernbetrieb und Antenne), Spezifikation, README, `CLAUDE.md`, diese Datei; Version 1.4.0, lokaler Tag `v1.4.0-rc1`; Smoke-Test einschließlich L1 und `*IDN?`. *Commit:* `S58: Document WEB-HMI, release candidate 1.4.0-rc1`
 
-- [ ] **S49 · Vorab-Messung WLAN (Konzept-Schritt 0, 0,5 d).** Kurze Messung mit SPEKTRUM (Ausnahme zur Reihenfolge, weil das Ergebnis die Architektur betrifft): Client mit Dauerverkehr und AP, Spektrum an CLK0 bei 10 MHz (Span 200 kHz und 20 kHz), Modem-Sleep an/aus, Heap-Bilanz; Ergebnis in `KONZEPT_WEB_HMI.md`. *Commit:* `S49: Record WLAN spectrum pre-measurement and modem-sleep decision`
-- [ ] **S50 · Befehlskern (Schritt 1, 0,75 d).** `command`, `state_snapshot`, Quelle, Option `Remote outputs` (W-E25); `test_command`. *Commit:* `S50: Add command core with source and remote-outputs option`
-- [ ] **S51 · SCPI über USB (Schritt 2, 1,5 d).** `line_framer`, scpi-parser v2.3 (Commit gepinnt), Befehlsbaum, Logger-Umschaltung, `SYSTem:LOG?`; `test_scpi`, `test_line_framer`; PyVISA mit DTR/RTS aus, 1000 × `*IDN?`. *Commit:* `S51: Add SCPI over USB serial`
-- [ ] **S52 · WLAN-Manager (Schritt 3, 1,5 d).** Betriebsarten, `WiFiMulti`, Rückfall-AP, `net_settings` (PMK, Zufallspasswort), mDNS, Captive-DNS nur im AP, kein Routing; `test_net_settings`. *Commit:* `S52: Add WiFi manager and network settings storage`
-- [ ] **S53 · WLAN am Gerät (Schritt 4, 2 d).** WLAN-Symbole in der Statusleiste, CONFIG-Zeilen `WiFi` und `Remote outputs`, Seiten WIFI mit Tastatur, QR, Spinner, `sanitize`; Info-Karte mit WLAN, Heap und LVGL-Heap (V-8, aus S09); `test_sanitize`. *Commit:* `S53: Add WiFi setup pages with keyboard and QR`
-- [ ] **S54 · SCPI über TCP (Schritt 5, 0,5 d).** Port 5025 mit HTTP-Erkennung, Leerlauf-Timeout, eine Verbindung, mDNS `_scpi-raw._tcp`. *Commit:* `S54: Add SCPI over TCP`
-- [ ] **S55 · Webserver (Schritt 6, 2 d).** `request_guard` (Host, Origin, Sec-Fetch-Site, Content-Type, Token, Sitzung, Limits), REST, WebSocket, Login, Header, CSP; `test_http_guard`, `test_rest_json`. *Commit:* `S55: Add guarded web server and REST API`
-- [ ] **S56 · Weboberfläche (Schritt 7, 2,5 d).** Alle Bereiche, Tastatur, responsiv, Live-Hervorhebung, zweistufige Netzänderung, Identify. *Commit:* `S56: Add web user interface`
-- [ ] **S57 · Fuzzing und Dauertest (Schritt 8, 1 d + Laufzeit).** libFuzzer mit ASan/UBSan als CI-Job (≥ 10 Mio. Ausführungen), Zufallstest mit festem Seed in `native-win`; 24-h-Lauf mit Heap- und Stack-Bilanz (MESSPLAN L14 als Vorabprobe). *Commit:* `S57: Add fuzzing job and long-run test`
-- [ ] **S58 · Doku und Release-Kandidat (Schritt 9, 1,5 d).** Handbuch DE/EN (WLAN, Web, SCPI-Referenz, REST, Python-Beispiel, Sicherheitshinweise), Spezifikation (A-n, E-n), README, `CLAUDE.md`, `todo.md`; Version 1.4.0, lokaler Tag `v1.4.0-rc1`; Smoke-Test beider Boards einschließlich L1 und `*IDN?`. *Commit:* `S58: Document WEB-HMI, release candidate 1.4.0-rc1`
+### Phase 7 – Messungen ([MESSPLAN.md](MESSPLAN.md))
 
-### Phase 7 – Messkampagne ([MESSPLAN.md](MESSPLAN.md), ≈ 10–11 d)
+Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md` (ohne Medien); Befunde (M-n) sofort in Abschnitt 2 eintragen. Stufe 1 und 2 laufen **sobald Zähler und Oszilloskop verfügbar sind** (auch vor Phase 4); dieser Lauf ist die Referenz R0 für den Vergleich nach der Migration (MESSPLAN 9.2).
 
-Je Tag ein Commit mit dem Messprotokoll (Datei `messungen/<Datum>_<Board>_<Firmware>.md`, ohne Medien). Befunde (M-n) sofort in `todo.md` eintragen.
+- [ ] **S59 · Stufe 1 (Pflicht, ≈ 7 h).** MESSPLAN Abschnitt 5 auf beiden Boards, mit den offenen Smoke-Test-Schritten 5 und 6; danach je Release nur die geänderten Blöcke (MESSPLAN 5.10). *Commit:* `S59: Record tier-1 measurements`
+- [ ] **S60 · Stufe 2 (Entscheidungen, ≈ 6 h).** MESSPLAN Abschnitt 6: Standard-Tuning (K5, F3, K6), IQ ohne Reset (D3, D5, E9), ungerade Teiler und Phasenfehler (E3, E4, E5), Störquellen und PDN (F6, F7), Pegel (F2), Drift (C7); Entscheidungen als E-n in die Spezifikation, N1–N8 bestätigen oder streichen. *Commit:* `S60: Record tier-2 measurements and decisions`
+- [ ] **S61 · Stufe 1W (Pflicht ab WEB-HMI, ≈ 8 h + 24 h).** MESSPLAN 5.11 nach S58 auf beiden Boards; dazu L13, L15, Q1 aus Stufe 2. *Commit:* `S61: Record network and security measurements`
+- [ ] **S62 · Stufe 3 (optional).** Charakterisierung und Bedientests mit Personen nach Bedarf (MESSPLAN Abschnitt 7). *Commit:* `S62: Record optional characterization measurements`
+- [ ] **S63 · Handbuchwerte.** Pegeltabelle (F2), Tastverhältnis (E5), Aufwärmzeit (C7), WLAN-Hinweis (L13), „SI5351 läuft beim Flashen weiter“ (A10), Hardware-Hinweise; DE und EN. *Commit:* `S63: Add measured values to the manuals`
+- [ ] **S64 · Freigabe 1.4.0.** Kriterien MESSPLAN 9.4 erfüllt; Version, README, Tag `v1.4.0`; Merge nach `dev` und `main` nur auf Anweisung. *Commit:* `S64: Release 1.4.0`
 
-- [ ] **S59 · Eintrittskriterien und Testbuilds.** EK-1 bis EK-9 (MESSPLAN 4.2), Testbuilds `Debug`, `IQ-Fehler`, `Touch-Log`, `Trefferkarte`, `PLL ohne Reset`, `Assert/WDT`. *Commit:* `S59: Prepare test builds for the measurement campaign` (falls Dateien fehlen)
-- [ ] **S60 · Vorbereitung V1 bis V5.** Boards und Ports zuordnen (COM7/COM13), Firmware sichern, Messgeräte prüfen, Eigenmessung des Aufbaus, Protokoll anlegen. *Commit:* `S60: Add measurement protocol header and setup measurements`
-- [ ] **S61 · Referenz R0 (Firmware 1.3.0).** Auswahl aus MESSPLAN 5.3 auf dem Messboard. *Commit:* `S61: Record reference measurements for firmware 1.3.0`
-- [ ] **S62 · Tag 1.** V-Schritte, A (außer A7), K1, K2, A9 bis A11. *Commit:* `S62: Measurement day 1 (robustness)`
-- [ ] **S63 · Tag 2.** Modul umstecken: A6, A7, B6, B7, I1 bis I8, K10. *Commit:* `S63: Measurement day 2 (display detection)`
-- [ ] **S64 · Tag 3.** J1 bis J15; C7 am Morgen starten. *Commit:* `S64: Measurement day 3 (I2C detection)`
-- [ ] **S65 · Tag 4.** C1 bis C8, D1 bis D5. *Commit:* `S65: Measurement day 4 (accuracy and tuning)`
-- [ ] **S66 · Tag 5.** E1 bis E10. *Commit:* `S66: Measurement day 5 (IQ)`
-- [ ] **S67 · Tag 6.** F1 bis F9, G1, G2, K3 bis K7, H falls umgesetzt. *Commit:* `S67: Measurement day 6 (spectrum)`
-- [ ] **S68 · Tag 7.** L1 bis L15, L22 bis L24; L14 starten. *Commit:* `S68: Measurement day 7 (network function)`
-- [ ] **S69 · Tag 8.** L-S1 bis L-S13. *Commit:* `S69: Measurement day 8 (security)`
-- [ ] **S70 · Tag 9.** Q1 bis Q5; Auswertung L14, C7; Bedientests B8 bis B20, L16 bis L21 mit Personen. *Commit:* `S70: Measurement day 9 (quality and usability)`
-- [ ] **S71 · Auswertung und Entscheidungen.** MESSPLAN Abschnitt 7: Zusammenfassung, Vergleich R0/R1, Entscheidungsblatt (Standard-Tuning, IQ ohne Reset, ungerade Teiler, PDN, TCXO, Tastverhältnis, Störquellen, Stift, WLAN, Heap, Klone, Phasen-Feinabgleich); neue E-n in der Spezifikation; Folgeaufgaben in `todo.md`. *Commit:* `S71: Evaluate measurements and record decisions`
-- [ ] **S72 · Handbuchwerte aus den Messungen.** Pegeltabelle (F2), Tastverhältnis (E5), Aufwärmzeit (C7), WLAN-Hinweis (L13), „SI5351 läuft beim Flashen weiter“ (A10), Hardware-Hinweise, Anwendungskapitel Mischer (G1, G2) beginnen; DE und EN. *Commit:* `S72: Add measured values to the manuals`
-- [ ] **S73 · Freigabe 1.4.0.** Kriterien MESSPLAN 7.4 erfüllt; Version, README, Tag `v1.4.0`; Merge nach `dev` und `main` **nur auf Anweisung**. *Commit:* `S73: Release 1.4.0`
+### Phase 8 – Folgearbeiten (je ein Commit, nach Messergebnis oder Rückfrage)
 
-### Phase 8 – Folgearbeiten (je nach Messergebnis, je ein Commit)
-
-- [ ] **N1 · Standard-Tuning** ändern, wenn K5/K6/K7 es tragen (Rückfrage 9.2, E-19).
-- [ ] **N2 · IQ-Abstimmen ohne Aussetzer** (Teiler mit Hysterese, PLL ohne Reset), wenn D3 bis D5 und E9 es zeigen.
+- [ ] **N1 · Standard-Tuning** ändern, wenn die Stufe-2-Messungen es tragen (Rückfrage 2, E-19).
+- [ ] **N2 · IQ-Abstimmen ohne Aussetzer** (Abschnitt 2.1).
 - [ ] **N3 · Ungerade IQ-Teiler bei 180°/270°**, wenn E4 einen Fehler > 1° zeigt.
-- [ ] **N4 · Phasen-Feinabgleich und freie Phase**, wenn E1 bis E3 systematische Fehler zeigen; Info-Seite „Synthesizer“ nach Rückfrage 9.1.
-- [ ] **N5 · MultiSynth abgeschalteter Kanäle abschalten** und **PDN-Strategie** nach K2 und F7.
-- [ ] **N6 · Störquellen-Abhilfen** (Backlight-PWM ≥ 20 kHz oder ohne PWM, Ruhemodus der Überwachung, Neuzeichnen nur bei Änderung) nach F6, F9.
+- [ ] **N4 · Phasen-Feinabgleich, freie Phase, Info-Seite „Synthesizer“** nach E1–E3 und Rückfrage 1.
+- [ ] **N5 · MultiSynth abgeschalteter Kanäle abschalten, PDN-Strategie** nach K2 und F7.
+- [ ] **N6 · Störquellen-Abhilfen** (Backlight-PWM ≥ 20 kHz, Ruhemodus der Überwachung, Neuzeichnen nur bei Änderung) nach F6, F9.
 - [ ] **N7 · TCXO-Option** nach C7, C8.
-- [ ] **N8 · Anwendungskapitel „Mischer-Experimente“** vollständig (beide Handbücher) nach F2, G1, G2, E10.
-- [ ] **N9 · Spannungseinbruch über Sticky-Bit erkennen**.
-- [ ] **N10 · Hardware-Hinweise** (eigener LDO mit Ferrit, kurze Masse, Abschirmung) in den Handbüchern.
-- [ ] **N11 · Spätere Updates:** LVGL 8.4.0, Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release (nicht: LVGL 9, espressif32 6.13.0).
-- [ ] **N12 · Feste Koordinaten in den Pages** durch das Layoutgitter ersetzen.
-- [ ] **N13 · Display-Ausgabe mit DMA und Doppelpuffer** (nach der Migration, gleicher SPI-Treiber).
-- [ ] **N14 · Erweiterungen nach Rückfrage 9.1:** Speicherplätze, Wobbeln, Drive je Kanal, gekoppelter Betrieb, Modulationsarten, externe Referenz (SI5351C).
+- [ ] **N8 · Anwendungskapitel „Mischer-Experimente“** (Abschnitt 2.5) nach F2, G1, G2, E10.
+- [ ] **N9 · Sticky-Bit und „PLL locked“** (Abschnitt 2.1).
+- [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
+- [ ] **N11 · Spätere Updates:** LVGL 8.4.0, Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release.
+- [ ] **N12 · Feste Koordinaten** durch das Layoutgitter ersetzen.
+- [ ] **N13 · DMA und Doppelpuffer** (Abschnitt 2.3, nach der Migration).
+- [ ] **N14 · Erweiterungen nach Rückfrage 1:** Speicherplätze, Wobbeln, Drive je Kanal, gekoppelter Betrieb CH2 = CH1 ± Offset (Überlagerungsempfänger mit fester ZF), Modulationsarten (AM/FM über den PLL-Bruchteil), externe Referenz (SI5351C mit `CLKIN`), Kalibrierassistent (falls nicht in S32).
 
 ---
 
-## 3. Pflege dieser Datei
+## 5. Pflege dieser Datei
 
-- Nach jedem Commit steht der Haken im selben Commit (Abschnitt 0, Punkt 3).
-- Kommt ein Befund dazu (M-n, neue Audit-Punkte), wird er mit Priorität in [todo.md](todo.md) eingetragen und hier als Schritt eingeordnet; die Nummern bestehender Schritte bleiben stabil.
-- Änderungen der Reihenfolge werden in Abschnitt 1.6 vermerkt (Entscheidung mit Datum).
+- Der Haken eines Schritts steht im selben Commit wie die Änderung; erledigte Schritte und Befunde werden beim nächsten Aufräumen entfernt (Abschnitt 1.1 fasst sie zusammen).
+- Neue Befunde (M-n aus Messungen, B-n aus Bedientests) kommen mit Bezug in Abschnitt 2 und als Schritt in Abschnitt 4; bestehende Schrittnummern bleiben stabil.
+- Neue Entscheidungen mit Datum in Abschnitt 1.3; dauerhafte Entscheidungen zusätzlich als E-n in der Spezifikation.

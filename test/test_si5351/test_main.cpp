@@ -261,10 +261,10 @@ static double maxErrAbove100MHz(uint64_t freq) {
 }
 
 static void test_standalone_above_100_mhz() {
-    // Planned range extension up to 160 MHz (todo.md 2.4). Known issue: next to 112.5 MHz the
+    // Planned range extension up to 160 MHz (ARBEITSPLAN S35). Known issue: next to 112.5 MHz the
     // MultiSynth ratio rounds to exactly 8 and the integer-divider path is not tried, e.g.
     // 112 500 004 Hz is off by 5.1 Hz with correction 0.
-    TEST_IGNORE_MESSAGE("known issue next to 112.5 MHz, see todo.md 2.4");
+    TEST_IGNORE_MESSAGE("known issue next to 112.5 MHz, see ARBEITSPLAN S34");
     for (int32_t corr : CORRECTIONS) {
         TEST_ASSERT_TRUE(si.begin(corr));
         lcgState = 13;
