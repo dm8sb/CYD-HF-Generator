@@ -40,7 +40,7 @@ void Gui::refreshChannel_() {
     char buf[64];
 
     const ChannelStatus status = app.channelStatus(channel_);
-    setHeaderState_(c.enabled, status == ChannelStatus::Error);
+    setHeaderState_(c.enabled, StatusText::channel(status));
     // The digit that +/- changes is shown in the channel color.
     FrequencyUtils::format(c.frequency, freqText_, sizeof(freqText_));
     InputLogic::stepMarkup(freqText_, app.system().delta_step, lv_color_to32(Colors::forChannel(channel_)), buf,

@@ -8,6 +8,7 @@
 #include <drivers/touch.h>
 #include <utils/input_logic.h>
 #include <utils/message_queue.h>
+#include <utils/status_text.h>
 
 // Pages are built once per navigation. Actions change the AppController state and then
 // refresh_() updates the existing widgets, so no widget is deleted inside its own event.
@@ -88,7 +89,8 @@ private:
     // Returns the header bar for page-specific additions.
     lv_obj_t* createHeader_(const char* title, lv_color_t color, uint8_t switchChannel);
     // Switch = requested state; the label shows ERR in red when the output failed.
-    void setHeaderState_(bool on, bool error);
+    // Switch = request, text = actual state (as on MAIN).
+    void setHeaderState_(bool on, const StatusText::Text& state);
     // w_.info = actual output frequency of ch 1..3; deviations from 1 Hz on in the warning color.
     void showOutput_(uint8_t ch, uint64_t requested);
     // CONFIG: a row card at position `index` of the list (title optional), and a row with a dropdown.

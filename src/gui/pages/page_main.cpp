@@ -6,7 +6,18 @@
 using namespace Layout;
 
 static constexpr int CARD_H = 58;
-static constexpr int FREQ_X = 58;
+// Frequency column; "NO HW" in the state line below the name needs 47 px.
+static constexpr int FREQ_X = 50;
+// Switch column at the right edge of the card content (288 px): a 44 px switch with 6 px extra
+// touch area starts at 238, 13 px after the longest frequency ("100.000 000 MHz" ends at 225),
+// so a tap on the unit cannot switch the output (audit U-3). A line marks the column.
+static constexpr int SWITCH_W = 44;
+static constexpr int SWITCH_H = 24;
+static constexpr int DIVIDER_X = 231;
+// Frequencies are right-aligned before the divider, so point and unit line up on all cards and
+// a "~" (Integer raster) has room before two-digit MHz values. The label starts after the name.
+static constexpr int FREQ_RIGHT = DIVIDER_X - 6;
+static constexpr int NAME_W = 42;
 static constexpr int NAV_Y = 194;
 static constexpr int NAV_H = 42;
 static constexpr int NAV_W = 72;
@@ -27,12 +38,23 @@ void Gui::createMain_() {
 
         addLabel_(card, names[i], &lv_font_montserrat_20, color, 0, 0);
         w_.cardState[i] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 0, 26);
-        w_.cardFreq[i] = addLabel_(card, "", &lv_font_montserrat_20, Colors::text(), FREQ_X, 0);
+        w_.cardFreq[i] = addLabel_(card, "", &lv_font_montserrat_20, Colors::text(), NAME_W, 0);
+        lv_obj_set_width(w_.cardFreq[i], FREQ_RIGHT - NAME_W);
+        lv_obj_set_style_text_align(w_.cardFreq[i], LV_TEXT_ALIGN_RIGHT, 0);
+        lv_label_set_long_mode(w_.cardFreq[i], LV_LABEL_LONG_CLIP);
         w_.cardDetail[i] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), FREQ_X, 26);
-        // Keep the detail line clear of the switch (50 px at the right edge).
-        lv_obj_set_width(w_.cardDetail[i], 172);
+        // Keep the detail line clear of the switch column.
+        lv_obj_set_width(w_.cardDetail[i], DIVIDER_X - 4 - FREQ_X);
         lv_label_set_long_mode(w_.cardDetail[i], LV_LABEL_LONG_DOT);
+        lv_obj_t* divider = lv_obj_create(card);
+        lv_obj_remove_style_all(divider);
+        lv_obj_set_style_bg_color(divider, Colors::chipOff(), 0);
+        lv_obj_set_style_bg_opa(divider, LV_OPA_COVER, 0);
+        lv_obj_set_size(divider, 1, CARD_H - 2 * (CARD_PAD + CARD_BORDER));
+        lv_obj_set_pos(divider, DIVIDER_X, 0);
+        lv_obj_clear_flag(divider, LV_OBJ_FLAG_CLICKABLE);
         w_.cardSwitch[i] = addSwitch_(card, ch, color);
+        lv_obj_set_size(w_.cardSwitch[i], SWITCH_W, SWITCH_H);
         lv_obj_align(w_.cardSwitch[i], LV_ALIGN_RIGHT_MID, 0, 0);
     }
 
@@ -42,13 +64,13 @@ void Gui::createMain_() {
     addButton_(root_, "CONFIG", MARGIN + 3 * (NAV_W + GAP), NAV_Y, NAV_W, NAV_H, Colors::config(), Action::Navigate, (uint8_t)PageId::Config);
 }
 
-static void setState(lv_obj_t* label, const char* text, lv_color_t color) {
-    lv_label_set_text(label, text);
-    lv_obj_set_style_text_color(label, color, 0);
+static void setState(lv_obj_t* label, const StatusText::Text& state) {
+    lv_label_set_text(label, state.text);
+    lv_obj_set_style_text_color(label, Colors::forTone(state.tone), 0);
 }
 
 // The requested frequency of a card. In Integer mode the output lies on a raster; "~" marks
-// a deviation from 1 Hz on. It sits left of the digits, which stay aligned with the other cards.
+// a deviation from 1 Hz on. The label is right-aligned, so the digits stay aligned.
 static void setCardFrequency(lv_obj_t* label, const AppController& app, uint8_t ch, uint64_t requested) {
     const double actual = app.actualHz(ch);
     const bool approx = app.system().tuning_mode == TuningMode::Integer && app.hardwareReady() && actual > 0 &&
@@ -57,8 +79,6 @@ static void setCardFrequency(lv_obj_t* label, const AppController& app, uint8_t 
     buf[0] = '~';
     FrequencyUtils::format(requested, buf + 1, sizeof(buf) - 1);
     lv_label_set_text(label, approx ? buf : buf + 1);
-    const lv_font_t* font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
-    lv_obj_set_x(label, FREQ_X - (approx ? lv_txt_get_width("~", 1, font, 0, LV_TEXT_FLAG_NONE) : 0));
 }
 
 void Gui::refreshMain_() {
@@ -69,12 +89,7 @@ void Gui::refreshMain_() {
         const uint8_t i = ch - 1;
         const Channel& c = app.channel(ch);
         setCardFrequency(w_.cardFreq[i], app, ch, c.frequency);
-        switch (app.channelStatus(ch)) {
-            case ChannelStatus::Off: setState(w_.cardState[i], "OFF", Colors::muted()); break;
-            case ChannelStatus::On: setState(w_.cardState[i], "ON", Colors::ok()); break;
-            case ChannelStatus::Error: setState(w_.cardState[i], "ERR", Colors::error()); break;
-            case ChannelStatus::NoDevice: setState(w_.cardState[i], "NO HW", Colors::error()); break;
-        }
+        setState(w_.cardState[i], StatusText::channel(app.channelStatus(ch)));
         const bool iqMaster = app.ch3().master == ch && app.ch3Status() != Ch3Status::Off;
         lv_label_set_text(w_.cardDetail[i], iqMaster ? "IQ master of CH3" : "");
         if (c.enabled) lv_obj_add_state(w_.cardSwitch[i], LV_STATE_CHECKED);
@@ -89,15 +104,17 @@ void Gui::refreshMain_() {
     snprintf(tooLow, sizeof(tooLow), " / < %s MHz", iqLimit);
     FrequencyUtils::formatIqLimit(app.iqMaxHz(), false, 2, false, iqLimit, sizeof(iqLimit));
     snprintf(tooHigh, sizeof(tooHigh), " / > %s MHz", iqLimit);
+    const Ch3Status st3 = app.ch3Status();
+    setState(w_.cardState[2], StatusText::ch3(st3));
     const char* reason = "";
-    switch (app.ch3Status()) {
-        case Ch3Status::Off: setState(w_.cardState[2], "OFF", Colors::muted()); break;
-        case Ch3Status::Active: setState(w_.cardState[2], "ON", Colors::ok()); break;
-        case Ch3Status::MasterOff: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = " / master off"; break;
-        case Ch3Status::FreqTooLow: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = tooLow; break;
-        case Ch3Status::FreqTooHigh: setState(w_.cardState[2], "WAIT", Colors::warn()); reason = tooHigh; break;
-        case Ch3Status::Error: setState(w_.cardState[2], "ERR", Colors::error()); reason = " / setup failed"; break;
-        case Ch3Status::NoDevice: setState(w_.cardState[2], "NO HW", Colors::error()); break;
+    switch (st3) {
+        case Ch3Status::MasterOff: reason = " / master off"; break;
+        case Ch3Status::FreqTooLow: reason = tooLow; break;
+        case Ch3Status::FreqTooHigh: reason = tooHigh; break;
+        case Ch3Status::Error: reason = " / setup failed"; break;
+        case Ch3Status::Off:
+        case Ch3Status::Active:
+        case Ch3Status::NoDevice: break;
     }
     snprintf(buf, sizeof(buf), "CH%u / %u deg%s", c3.master, c3.phase, reason);
     lv_label_set_text(w_.cardDetail[2], buf);

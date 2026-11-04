@@ -107,9 +107,7 @@ Jede Phase endet mit den Gates aus Audit 5.8: Host-Tests in `native-win` und `na
 
 Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Abschnitt 2.3. Reihenfolge: Phase 2 (schnelle Verbesserungen), Phase 3 (Laborbetrieb).
 
-- [ ] **P1 Header zeigt den Ist-Zustand** (U-1): Heute folgt der Text nur der Anforderung („ON“ bei WAIT oder NO HW). `setHeaderState_()` bekommt den Status (ON / OFF / WAIT / ERR / NO HW wie auf MAIN); der Schalter zeigt weiter die Anforderung. Handbuch §11 „Kanal steht auf ON?“ → „MAIN zeigt ON“.
 - [ ] **P1 Sondermodi sichtbar** (U-2): Off state High/High-Z, Spread, Integer, Low noise und Drive sind nur in CONFIG sichtbar und überleben Neustarts; MAIN zeigt „OFF“, obwohl am Ausgang HIGH/DC liegt. Detailzeile der MAIN-Karten und der Kanalseite (z. B. „SSC -0.5 % · INT · 8 mA“, „OFF = HIGH“ in Warnfarbe); Off state „High“ einmal bestätigen.
-- [ ] **P1 Kartenschalter abgrenzen** (U-3): Trefferzone des Schalters endet 0,5 mm neben „100.000 000 MHz“ – ein Tipp auf „MHz“ kann den Ausgang einschalten. Schalter in eigene Spalte, ≥ 12 px Abstand.
 - [ ] **P2 Dialog- und Randtasten** (U-4, U-5): OK ≈ 80 × 23 px mit 1,10:1 Flächenkontrast → ≥ 120 × 40 px, ≥ 3:1. MAIN-Taste 30 px hoch in der Ecke, Ecken-Tipps werden auf (319, 0) geklemmt und verfehlen sie → Randtasten bis an den Bildrand (`ext_click_area`), MAIN 36 px.
 - [ ] **P2 Phasen-Chips** (U-6): 2 px Abstand, ein Fehltipp vertauscht das Seitenband → 6 px.
 - [ ] **P2 Kontraste** (U-7, U-19): Weiß auf CH1/CH2/CH3 nur 3,66 / 2,86 / 3,19:1 → Textfarbe nach Kontrast (dunkel); Schalter-Spur und Chip-Rand ≥ 3:1; Zustände zusätzlich über Form („!“ bei ERR, gefülltes ON-Kennzeichen) für Farbsehschwäche.

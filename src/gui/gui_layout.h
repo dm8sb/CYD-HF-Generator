@@ -1,6 +1,7 @@
 #pragma once
 
 #include <lvgl.h>
+#include <utils/status_text.h>
 
 // Layout grid for the 320x240 landscape screen. All page coordinates derive from these values.
 namespace Layout {
@@ -11,6 +12,9 @@ static constexpr int CONTENT_Y = HEADER_H + 4;
 static constexpr int CONTENT_W = 320 - 2 * MARGIN;
 static constexpr int CARD_PAD = 6;
 static constexpr int CARD_BORDER = 2;
+// Header: switch and state text right after the title, so "NO HW" fits before MAIN (U-1).
+static constexpr int HEADER_SWITCH_X = 66;
+static constexpr int HEADER_STATE_X = 126;
 }
 
 // Color scheme (PROJECT_SPECIFICATION.md A-27).
@@ -33,4 +37,13 @@ inline lv_color_t warn() { return lv_color_hex(0xFFA726); }
 inline lv_color_t error() { return lv_color_hex(0xEF5350); }
 
 inline lv_color_t forChannel(uint8_t ch) { return ch == 1 ? ch1() : (ch == 2 ? ch2() : ch3()); }
+inline lv_color_t forTone(StatusText::Tone t) {
+    switch (t) {
+        case StatusText::Tone::Ok: return ok();
+        case StatusText::Tone::Warn: return warn();
+        case StatusText::Tone::Error: return error();
+        case StatusText::Tone::Muted: break;
+    }
+    return muted();
+}
 }

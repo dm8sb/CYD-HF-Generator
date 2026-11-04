@@ -40,7 +40,7 @@ void Gui::refreshCH3_() {
     char buf[64];
 
     const Ch3Status status = app.ch3Status();
-    setHeaderState_(c3.enabled, status == Ch3Status::Error);
+    setHeaderState_(c3.enabled, StatusText::ch3(status));
     FrequencyUtils::format(app.ch3Frequency(), buf, sizeof(buf));
     lv_label_set_text(w_.freq, buf);
 

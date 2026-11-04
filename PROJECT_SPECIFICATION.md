@@ -139,7 +139,7 @@ This table is authoritative; README and manual repeat parts of it.
 - **A-26** Frequently used controls are at least about 36 px high; yellow buttons use dark text.
 - **A-27** Colors: CH1 red, CH2 green, CH3 blue, CONFIG yellow, MAIN and back buttons gray. The RGB LED shows the color of the open channel page and is off on all other pages (E-3).
 - **A-28** Frequencies are shown in MHz with grouped digits (`10.700 000 MHz`).
-- **A-29** MAIN has no title header; it shows one tappable card per channel with state, frequency and its own switch, plus navigation buttons. The channel pages (CH1–CH3) and CONFIG have a header with title and `MAIN` button; channel pages add the ON/OFF switch with a state text `ON` / `OFF` / `ERR` (E-13).
+- **A-29** MAIN has no title header; it shows one tappable card per channel with state, frequency and its own switch, plus navigation buttons. The channel pages (CH1–CH3) and CONFIG have a header with title and `MAIN` button; channel pages add the ON/OFF switch (request) with the actual state as on MAIN, `ON` / `OFF` / `WAIT` / `ERR` / `NO HW` (E-13). The card switches sit in their own column, at least 12 px from other touch targets (audit U-3).
 - **A-30** Frequency entry for CH1/CH2: step presets 1 Hz … 1 MHz, `+`/`−` with hold-to-repeat, tap on a digit selects the step, numeric keypad with validation (E-5).
 - **A-31** CONFIG contains backlight (10–100 % in 10 % steps, E-23), step, correction (E-6), drive strength, tuning mode, spread spectrum, off state and an info card (firmware version, branch, commit with dirty mark, build time, display controller with its source, SI5351 pins or state). The save state is visible in every scroll position.
 - **A-32** Touch: XPT2046 with fixed calibration (E-1), jitter filter and debounce; no calibration UI.
@@ -213,7 +213,7 @@ This table is authoritative; README and manual repeat parts of it.
 *1.2.0, 2026-10-27.* A setup that fails while the SI5351 answers is not a lost device: it is shown as ERR, the switch keeps the request, one dialog appears and the setup is retried every 2 s without further dialogs. Test hook `TEST_FAULT_IQ=1` (`config.h`) makes the IQ setup fail at 270°.
 
 ### E-13 ON/OFF text next to the header switch
-*2026-10-27.* The text state stays next to the switch; it is readable without interpreting the switch graphic and also shows ERR.
+*2026-10-27, changed 2026-11-04 (audit U-1).* The text state stays next to the switch; it is readable without interpreting the switch graphic. Since 1.3.2 it shows the actual state like MAIN (also WAIT and NO HW) instead of the request, which the switch already shows: before, the header said ON while CH3 was waiting or the SI5351 was missing.
 
 ### E-14 Verbose logging only with LOG_DEBUG
 *1.2.0; bus scan 2026-10-28, frequency changes 1.3.0.* Blocking serial output slows down the GUI. `CORE_DEBUG_LEVEL=1`, because the I2C detection re-initializes the bus, which the core logs at info level.
