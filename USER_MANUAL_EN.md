@@ -771,6 +771,10 @@ If setting up an output fails although the SI5351 responds, a dialog appears. Th
 
 If the flash storage (NVS) is not available at startup, a dialog appears and CONFIG shows `Not saved`. If saving fails, a dialog appears and CONFIG shows `Save failed`.
 
+### Restart After an Internal Error
+
+If the user interface runs out of memory or the firmware hangs for more than 5 s, the device restarts by itself instead of freezing with running outputs. Afterwards, as after every power-up, all outputs are off; the stored settings are kept. Until the firmware re-initializes the SI5351, its outputs keep running briefly. The serial monitor shows the reason (section 12).
+
 ### No Output Signal
 
 Check:
@@ -858,6 +862,8 @@ Error messages start with `[ERROR]`, e.g.:
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Unusual register 183, e.g. a clone; the module is used anyway |
 | `[ERROR][APP] I2C fails at 400 kHz; staying at 100 kHz` | The bus only works at 100 kHz (e.g. weak pull-ups) |
 | `[ERROR][SETTINGS] Saving to NVS failed` | Saving failed |
+| `[ERROR][FATAL] LVGL assert; restarting` | User interface out of memory or similar; the device restarts |
+| `task_wdt: Task watchdog got triggered … loopTask` | The firmware hung for 5 s; the device restarts |
 
 Dialog texts also appear in the log, e.g. `[ERROR][SI5351] Frequency set failed`.
 

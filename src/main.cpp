@@ -123,6 +123,27 @@ void setup() {
 
     Logger::info("BOOT", "Setup complete");
     MemMonitor::log("boot");
+
+    // A blocked loop() restarts the device after 5 s instead of freezing with running outputs
+    // (task watchdog with panic and reboot in the core configuration, audit C-3 / S-23).
+    enableLoopWDT();
+}
+
+// Test hooks for the restart paths (config.h, MESSPLAN Q4/Q5); compiled out by default.
+static void runRestartTests() {
+    if (!TEST_LVGL_ASSERT && !TEST_LOOP_HANG) return;
+    static bool done = false;
+    if (done || millis() < TEST_TRIGGER_MS) return;
+    done = true;
+    if (TEST_LVGL_ASSERT) {
+        Logger::info("TEST", "Filling the LVGL pool, then creating a label");
+        while (lv_mem_alloc(256) != nullptr) {}
+        lv_label_create(lv_scr_act());
+    }
+    if (TEST_LOOP_HANG) {
+        Logger::info("TEST", "Blocking loop()");
+        while (true) {}
+    }
 }
 
 void loop() {
@@ -130,5 +151,6 @@ void loop() {
     app.update();
     gui.update();
     MemMonitor::update();
+    runRestartTests();
     delay(5);
 }

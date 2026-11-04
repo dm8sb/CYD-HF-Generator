@@ -18,3 +18,13 @@
 #ifndef TEST_FAULT_IQ
 #define TEST_FAULT_IQ 0
 #endif
+
+// 1 = test hooks for the restart paths (MESSPLAN Q4, Q5), triggered TEST_TRIGGER_MS after boot:
+// TEST_LVGL_ASSERT fills the LVGL pool and creates a widget (malloc assert),
+// TEST_LOOP_HANG blocks loop() so the task watchdog restarts the device.
+#ifndef TEST_LVGL_ASSERT
+#define TEST_LVGL_ASSERT 0
+#endif
+#ifndef TEST_LOOP_HANG
+#define TEST_LOOP_HANG 0
+#endif

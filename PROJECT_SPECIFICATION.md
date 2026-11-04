@@ -154,6 +154,7 @@ This table is authoritative; README and manual repeat parts of it.
 - **A-38** Dialogs: at most one is open, further ones are queued, identical ones are not repeated; `OK` closes. Connection dialogs close by themselves after a reconnect; output error dialogs stay.
 - **A-39** Serial log at 115 200 baud: boot line with version, branch, commit and build time; I2C, SI5351 connection and errors, display detection, touch, settings. Verbose output (frequency changes, register values, bus scan) only with `LOG_DEBUG 1` (E-14).
 - **A-40** `Wire` is never accessed while the bus is not open (`I2CBus::isOpen()`).
+- **A-51** An internal error never freezes the device with running outputs: a failed LVGL assert (e.g. pool full) and a `loop()` blocked for 5 s (task watchdog) restart it; after the restart all outputs are off (A-4). Test hooks `TEST_LVGL_ASSERT` and `TEST_LOOP_HANG` (`config.h`) trigger both 20 s after boot.
 
 ### 3.7 Hardware detection
 
