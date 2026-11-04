@@ -65,6 +65,7 @@ void setUp() {
     Wire.failBegin = false;
     Wire.failEnd = false;
     Wire.resetCounters();
+    Fake::serialLog().clear();
 }
 void tearDown() { TEST_ASSERT_FALSE(Fake::wireMisuse()); }
 
@@ -658,6 +659,17 @@ static void test_boot_with_straight_cable() {
     TEST_ASSERT_EQUAL_UINT16(I2C_TIMEOUT_MS, Wire.timeOutMs);
 }
 
+// Finding M-1 (2026-11-04, CYD2USB): a successful first connection at boot was not logged,
+// because the link state started as Connected.
+static void test_boot_logs_the_connection() {
+    Device d;
+    TEST_ASSERT_TRUE(Fake::serialLog().contains("[APP] SI5351 at 0x60, SDA=22 SCL=27"));
+    setUp();
+    chip.present = false;
+    Device e;
+    TEST_ASSERT_TRUE(Fake::serialLog().contains("[APP] SI5351 not found"));
+}
+
 static void test_boot_with_swapped_cable() {
     chip.swapWires();
     Device d;
@@ -1071,6 +1083,7 @@ int main() {
     RUN_TEST(test_spread_and_off_state_reach_the_chip);
     RUN_TEST(test_spread_narrows_the_iq_range_without_error);
     RUN_TEST(test_boot_with_straight_cable);
+    RUN_TEST(test_boot_logs_the_connection);
     RUN_TEST(test_boot_with_swapped_cable);
     RUN_TEST(test_boot_without_module_searches_quietly);
     RUN_TEST(test_hot_plug_straight_then_swapped);

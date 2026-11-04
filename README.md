@@ -44,6 +44,10 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - Dialogs for NVS errors; dialogs are queued
 - Channel page: tap a digit to select the step, tap the unit to open the numpad
 
+## Changes in 1.3.2 (in progress)
+
+- Boot log shows `[APP] SI5351 at 0x60, SDA=... SCL=...` also when the first connection succeeds (was missing since the SDA/SCL detection)
+
 ## Changes in 1.3.1
 
 - CH3 in `ERR`: switching the master off and on no longer enables CLK2 (with off state `High`/`High-Z` it output a signal again)

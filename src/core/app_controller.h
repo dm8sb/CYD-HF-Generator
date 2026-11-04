@@ -103,8 +103,9 @@ private:
     PersistentState state_ {};
     ErrorCallback errorCb_ = nullptr;
     uint32_t lastHwCheckMs_ = 0;
-    // Starts as Connected so the first result is logged as a change.
-    LinkState link_ = LinkState::Connected;
+    LinkState link_ = LinkState::NotFound;
+    // False until the first connection attempt: its result is always logged (finding M-1).
+    bool linkKnown_ = false;
     // Assignment (I2CMap) with a device at 0x60 that is no SI5351, -1 = none.
     int8_t foreignOn_ = -1;
     // The marked device passed the read-only check but kept no register: never retried.
