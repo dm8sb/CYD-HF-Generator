@@ -1,0 +1,67 @@
+# Host unit tests (Linux, gcc) and firmware build.
+# Actions are pinned by commit SHA (audit S-20, S-27); the token is read-only.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLATFORMIO_VERSION: "6.2.0"
+
+jobs:
+  host-tests:
+    name: Host tests (native)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-native-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
+      - name: Install PlatformIO
+        run: pip install "platformio==${PLATFORMIO_VERSION}"
+      - name: Host unit tests
+        run: pio test -e native
+
+  firmware:
+    name: Firmware build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-esp32-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
+      - name: Install PlatformIO
+        run: pip install "platformio==${PLATFORMIO_VERSION}"
+      - name: Build firmware
+        run: pio run -e esp32-2432S028R
+      # Audit T-16: the image must carry the checked-out commit without the dirty mark.
+      - name: Check build information
+        run: |
+          commit="$(git rev-parse --short HEAD)"
+          bin=.pio/build/esp32-2432S028R/firmware.bin
+          grep -a -q -- "$commit" "$bin" || { echo "commit $commit not found in $bin"; exit 1; }
+          if grep -a -q -- "$commit+" "$bin"; then echo "image is marked dirty"; exit 1; fi
+          echo "build information OK: $commit"
