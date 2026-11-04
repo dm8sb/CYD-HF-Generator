@@ -316,8 +316,8 @@ void Gui::update() {
     if (hwState != lastHwState_) {
         lastHwState_ = hwState;
         refresh_();
-    } else if (currentPage_ == PageId::Config) {
-        refreshSaveState_();
+    } else {
+        refreshSaveState_(); // MAIN status bar and CONFIG header; no-op on the other pages
     }
 }
 

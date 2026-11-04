@@ -59,8 +59,9 @@ Bedienung auf der Hauptseite:
 - **Karte antippen** öffnet die Seite des Kanals.
 - **Schalter auf der Karte** (rechts, durch eine Linie abgetrennt) schaltet den Ausgang direkt ein oder aus, ohne die Seite zu wechseln. Ein Tipp auf die Frequenz oder `MHz` öffnet nur die Kanalseite.
 - Die Frequenzen stehen rechtsbündig, Dezimalpunkt und `MHz` aller Karten untereinander.
-- Die Buttons unten führen zu CH1, CH2, CH3 und CONFIG. Auf farbigen Tasten und gewählten Chips ist die Schrift dunkel, ausgeschaltete Schalter haben eine hellgraue Spur, nicht gewählte Chips einen grauen Rand.
-- Tasten am Bildschirmrand (z. B. `MAIN` oben rechts, die Buttons unten, die äußeren NUMPAD-Tasten) reagieren bis an den Rand, auch auf einen Tipp knapp daneben in Richtung Rand. Der Abstand zwischen zwei Tasten bleibt frei.
+- Die Statusleiste unten zeigt links den Speicherzustand (Abschnitt 8, `Saved`, `Saving...`, rot `Save failed` / `Not saved`) und hat rechts den Button `CONFIG` (gelb). Die Kanäle öffnen sich über ihre Karten.
+- Auf farbigen Tasten und gewählten Chips ist die Schrift dunkel, ausgeschaltete Schalter haben eine hellgraue Spur, nicht gewählte Chips einen grauen Rand.
+- Tasten am Bildschirmrand (z. B. `MAIN` oben rechts, `CONFIG` unten rechts, die äußeren NUMPAD-Tasten) reagieren bis an den Rand, auch auf einen Tipp knapp daneben in Richtung Rand. Der Abstand zwischen zwei Tasten bleibt frei.
 
 Statusanzeige unter dem Kanalnamen (in der Titelzeile der Kanalseiten ebenso). Jeder Zustand außer `OFF` steht als farbiges Feld mit dunkler Schrift; Fehler beginnen mit `!`. So sind aktive und gestörte Ausgänge auch ohne Farbunterscheidung und aus der Entfernung erkennbar.
 
@@ -72,14 +73,7 @@ Statusanzeige unter dem Kanalnamen (in der Titelzeile der Kanalseiten ebenso). J
 | `WAIT` (oranges Feld) | CH3 ist eingeschaltet, kann aber gerade nicht laufen (Master aus oder Masterfrequenz außerhalb des IQ-Bereichs: unter 4,730 MHz, mit `Spread CH1` auf Master CH1 etwas enger, Abschnitt 8) |
 | `! NO HW` (rotes Feld) | SI5351 nicht gefunden oder Verbindung verloren; die Firmware verbindet automatisch neu |
 
-Die Navigationsbuttons sind farbig:
-
-| Button | Farbe |
-|---|---|
-| CH1 | Rot |
-| CH2 | Grün |
-| CH3 | Blau |
-| CONFIG | Gelb |
+Die Farben der Kanäle: CH1 rot, CH2 grün, CH3 blau, CONFIG gelb.
 
 Die Kanalseiten und CONFIG haben eine Titelzeile mit dem Button `MAIN` rechts zur Rückkehr auf die Hauptseite. Auf den Kanalseiten enthält sie zusätzlich den ON/OFF-Schalter und daneben den tatsächlichen Zustand wie auf der Hauptseite: `ON`, `OFF`, `WAIT` (nur CH3), `! ERR` oder `! NO HW`. Der Schalter zeigt, was eingestellt ist, der Text, was der Ausgang gerade tut; bei CH3 kann der Schalter also auf ON stehen, während der Text `WAIT` zeigt. Das NUMPAD hat stattdessen die Taste `◀` (Abschnitt 6).
 
@@ -126,7 +120,7 @@ CH1 und CH2 sind frei einstellbare Frequenzausgänge.
 
 ### CH1 oder CH2 einschalten
 
-1. Auf der Hauptseite die Karte oder den Button `CH1` bzw. `CH2` antippen.
+1. Auf der Hauptseite die Karte `CH1` bzw. `CH2` antippen.
 2. Den ON/OFF-Schalter in der Titelzeile einschalten.
 3. Die Anzeige wechselt auf `ON`.
 4. Am entsprechenden SI5351-Ausgang liegt ein Signal an:
@@ -445,7 +439,7 @@ Die Titelzeile mit Speicheranzeige und `MAIN` bleibt stehen. Der Bereich darunte
 
 ### Speicheranzeige
 
-In der Titelzeile zwischen `CONFIG` und `MAIN` steht der Speicherzustand. Er ist in jeder Scrollposition sichtbar:
+In der Titelzeile zwischen `CONFIG` und `MAIN` steht der Speicherzustand, in jeder Scrollposition; die Statusleiste der Hauptseite zeigt ihn ebenso:
 
 | Anzeige | Bedeutung |
 |---|---|

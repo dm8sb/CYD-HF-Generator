@@ -69,7 +69,7 @@ private:
         lv_obj_t* spreadDd;
         lv_obj_t* offStateDd;
         lv_obj_t* si5351Info;
-        lv_obj_t* saveState;
+        lv_obj_t* saveState;   // CONFIG header, MAIN status bar
         lv_obj_t* ta;
     };
 
