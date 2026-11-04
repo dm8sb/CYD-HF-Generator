@@ -771,6 +771,10 @@ Schlägt das Einstellen eines Ausgangs fehl, obwohl der SI5351 antwortet, ersche
 
 Ist der Flash-Speicher (NVS) beim Start nicht verfügbar, erscheint ein Dialog und CONFIG zeigt `Not saved`. Schlägt ein Speichervorgang fehl, erscheint ein Dialog und CONFIG zeigt `Save failed`.
 
+### Neustart nach internem Fehler
+
+Geht der Speicher der Bedienoberfläche aus oder hängt die Firmware länger als 5 s, startet das Gerät selbst neu, statt mit laufenden Ausgängen einzufrieren. Danach sind wie nach jedem Einschalten alle Ausgänge aus; die gespeicherten Einstellungen bleiben erhalten. Bis die Firmware den SI5351 neu initialisiert, laufen seine Ausgänge kurz weiter. Im Serial Monitor steht der Grund (Abschnitt 12).
+
 ### Kein Ausgangssignal
 
 Prüfen:
@@ -858,6 +862,8 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Ungewöhnliches Register 183, z. B. Nachbau; das Modul wird trotzdem verwendet |
 | `[ERROR][APP] I2C fails at 400 kHz; staying at 100 kHz` | Bus läuft nur mit 100 kHz (z. B. schwache Pull-ups) |
 | `[ERROR][SETTINGS] Saving to NVS failed` | Speichern fehlgeschlagen |
+| `[ERROR][FATAL] LVGL assert; restarting` | Speicher der Bedienoberfläche erschöpft o. Ä.; das Gerät startet neu |
+| `task_wdt: Task watchdog got triggered … loopTask` | Firmware hing 5 s; das Gerät startet neu |
 
 Dialogtexte erscheinen zusätzlich im Log, z. B. `[ERROR][SI5351] Frequency set failed`.
 

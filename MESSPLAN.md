@@ -90,17 +90,17 @@ Spalte „Vorhanden“ vor Beginn ausfüllen (Modell, Seriennummer, Kalibrierdat
 
 | Code | Gerät | Mindestanforderung | Wofür | Vorhanden | Ohne das Gerät |
 |---|---|---|---|---|---|
-| **ZÄHLER** | Frequenzzähler | Eingang ≥ 200 MHz, 50 Ω, Auflösung ≤ 0,1 Hz bei 100 MHz in 1 s Torzeit (≥ 10 Stellen/s), Eingang für externe 10-MHz-Referenz | C, D5, H, K7 | ☐ | C, H, K7 entfallen; Ersatz nur mit SPEKTRUM und Referenzeingang, dann Auflösung ≈ 1 Hz |
-| **REF** | 10-MHz-Referenz | GPS-gestützt oder Rubidium; für relative Prüfungen genügt ≤ 0,1 ppm (Abschnitt 3.3); Verteiler für ZÄHLER und SPEKTRUM | C, E8 | ☐ | Absolute Genauigkeit unbekannt; C3 bis C6 gelten nur relativ |
-| **OSZI** | Oszilloskop | ≥ 2 Kanäle (besser 4), Bandbreite ≥ 500 MHz, ≥ 2 GS/s (besser 5), Persistenz („Nachleuchten“), Single-Trigger, **Timeout-/Dropout-Trigger**, Δt-Messung mit Mittelung, 50-Ω-Eingang oder 50-Ω-Durchgangsabschlüsse | A9, A10, D, E, K1, K6 | ☐ | E, D entfallen |
-| **SPEKTRUM** | Spektrumanalysator | bis ≥ 1 GHz (Oberwellen bis zur 5. bei 160 MHz), RBW ≤ 10 Hz, Rauschmarker (dBc/Hz), Eingang 50 Ω, zulässiger Dauerpegel ≥ +20 dBm, DC-Eingang nicht belastbar, Anschluss für externe 10-MHz-Referenz | F, G, K3, K5, L13, L15 | ☐ | F, K3, K5 entfallen; Ersatz: SDR (Abschnitt 2.2), dann nur Nebenlinien, kein Phasenrauschen |
-| **LOGIK** | Logikanalysator | ≥ 8 Kanäle, ≥ 24 MS/s, I2C-Dekoder, 3,3-V-Pegel | J6, J11, Q | ☐ | J6, J11 entfallen |
-| **DMM** | Multimeter | DC-Spannung, Eingang 10 MΩ | A9, K1, K2, V3 | ☐ | mit OSZI (1 MΩ) möglich |
-| **STROM** | USB-Leistungsmesser | 5 V, Auflösung ≤ 1 mA, Mittelwert über ≥ 10 s | Q2 | ☐ | Q2 entfällt |
-| **LUX** | Luxmeter | 10 … 1000 lx | B14 | ☐ | Beleuchtung nur beschreiben |
-| **SONDE** | Nahfeldsonde (H-Feld, ≈ 1 cm) | 1 MHz … 1 GHz | F9 | ☐ | F9 entfällt |
-| **THERMO** | Thermometer | Raumtemperatur, Auflösung 0,1 K | C7, E8 | ☐ | Temperatur nur schätzen |
-| **VIDEO** | Smartphone mit Slow-Motion und Stoppuhr | ≥ 120 Bilder/s | A2, A6, B, I | ☐ | Zeiten nur mit Stoppuhr |
+| **ZÄHLER** | Frequenzzähler | Eingang ≥ 200 MHz, 50 Ω, Auflösung ≤ 0,1 Hz bei 100 MHz in 1 s Torzeit (≥ 10 Stellen/s), Eingang für externe 10-MHz-Referenz | C, D5, H, K7 | Ja | C, H, K7 entfallen; Ersatz nur mit SPEKTRUM und Referenzeingang, dann Auflösung ≈ 1 Hz |
+| **REF** | 10-MHz-Referenz | GPS-gestützt oder Rubidium; für relative Prüfungen genügt ≤ 0,1 ppm (Abschnitt 3.3); Verteiler für ZÄHLER und SPEKTRUM | C, E8 | JA, GPS-TCXO 10MHz | Absolute Genauigkeit unbekannt; C3 bis C6 gelten nur relativ |
+| **OSZI** | Oszilloskop | ≥ 2 Kanäle (besser 4), Bandbreite ≥ 500 MHz, ≥ 2 GS/s (besser 5), Persistenz („Nachleuchten“), Single-Trigger, **Timeout-/Dropout-Trigger**, Δt-Messung mit Mittelung, 50-Ω-Eingang oder 50-Ω-Durchgangsabschlüsse | A9, A10, D, E, K1, K6 | Ja R&S RTO 2GHz Bandbreite | E, D entfallen |
+| **SPEKTRUM** | Spektrumanalysator | bis ≥ 1 GHz (Oberwellen bis zur 5. bei 160 MHz), RBW ≤ 10 Hz, Rauschmarker (dBc/Hz), Eingang 50 Ω, zulässiger Dauerpegel ≥ +20 dBm, DC-Eingang nicht belastbar, Anschluss für externe 10-MHz-Referenz | F, G, K3, K5, L13, L15 | Ja Siglent 3,2GHz | F, K3, K5 entfallen; Ersatz: SDR (Abschnitt 2.2), dann nur Nebenlinien, kein Phasenrauschen |
+| **LOGIK** | Logikanalysator | ≥ 8 Kanäle, ≥ 24 MS/s, I2C-Dekoder, 3,3-V-Pegel | J6, J11, Q | Ja Salea | J6, J11 entfallen |
+| **DMM** | Multimeter | DC-Spannung, Eingang 10 MΩ | A9, K1, K2, V3 | Ja Agilent 34401A | mit OSZI (1 MΩ) möglich |
+| **STROM** | USB-Leistungsmesser | 5 V, Auflösung ≤ 1 mA, Mittelwert über ≥ 10 s | Q2 | nein | Q2 entfällt |
+| **LUX** | Luxmeter | 10 … 1000 lx | B14 | nein | Beleuchtung nur beschreiben |
+| **SONDE** | Nahfeldsonde (H-Feld, ≈ 1 cm) | 1 MHz … 1 GHz | F9 | Ja | F9 entfällt |
+| **THERMO** | Thermometer | Raumtemperatur, Auflösung 0,1 K | C7, E8 | Ja | Temperatur nur schätzen |
+| **VIDEO** | Smartphone mit Slow-Motion und Stoppuhr | ≥ 120 Bilder/s | A2, A6, B, I | eventuell | Zeiten nur mit Stoppuhr |
 
 ### 2.2 Zubehör
 
@@ -2041,7 +2041,7 @@ Nur im eigenen Labornetz und mit eigenen Geräten. `<IP>`: Geräteadresse, `<TOK
 `Geräte` OSZI, PC (Log) · `Läufe` R1 · `Bezug` C-3, W-S9 · `Dauer` 20 min · Build: `TEST_LVGL_ASSERT`
 
 1. CH1 = 10 MHz an; OSZI auf CLK0 (Timeout-Trigger) und auf EN.
-2. Testbuild löst im Betrieb einen LVGL-Malloc-Assert aus (z. B. nach Tipp auf eine Testtaste).
+2. Der Testbuild füllt 20 s nach dem Boot den LVGL-Speicher und löst damit einen Malloc-Assert aus.
 3. Log und Zeit bis zum Neustart; Zustand der Ausgänge danach.
 
 **Soll:** Logzeile mit Ursache und Neustart innerhalb 5 s (kein dauerhaftes Einfrieren); nach dem Neustart alle Ausgänge aus.
@@ -2051,10 +2051,10 @@ Nur im eigenen Labornetz und mit eigenen Geräten. `<IP>`: Geräteadresse, `<TOK
 
 `Geräte` OSZI, PC (Log) · `Läufe` R1 · `Bezug` W-S23 · `Dauer` 20 min · Build: `TEST_LOOP_HANG`
 
-1. CH1 = 10 MHz an; Testbuild blockiert `loop()` (Endlosschleife) nach Tipp auf eine Testtaste.
+1. CH1 = 10 MHz an (innerhalb von 20 s nach dem Boot); der Testbuild blockiert danach `loop()` (Endlosschleife).
 2. Zeit bis zum Watchdog-Reset (Log: Reset-Grund), Ausgang an CLK0 währenddessen.
 
-**Soll:** Watchdog-Reset innerhalb der konfigurierten Zeit (Vorschlag ≤ 10 s); Ausgänge nach dem Neustart aus; Dauer des Weiterlaufens im Hängezustand dokumentieren.
+**Soll:** Watchdog-Reset 5 s nach dem Blockieren (Task-Watchdog des Cores); Ausgänge nach dem Neustart aus; Dauer des Weiterlaufens im Hängezustand dokumentieren.
 **Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
 
 ---

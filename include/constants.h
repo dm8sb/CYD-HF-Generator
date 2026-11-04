@@ -37,6 +37,8 @@ static constexpr uint32_t SETTINGS_AUTOSAVE_MS = 5000;
 static constexpr uint32_t HW_CHECK_INTERVAL_MS = 2000;
 // Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).
 static constexpr uint32_t MEM_LOG_INTERVAL_MS = 30000;
+// Delay of the restart test hooks (TEST_LVGL_ASSERT, TEST_LOOP_HANG): time to switch outputs on.
+static constexpr uint32_t TEST_TRIGGER_MS = 20000;
 static constexpr const char* SETTINGS_NAMESPACE = "hfgen";
 
 // Touch calibration is fixed; there is no runtime calibration UI.

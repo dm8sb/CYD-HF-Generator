@@ -13,6 +13,9 @@
 #define LV_LOG_PRINTF 1
 #define LV_USE_ASSERT_NULL 1
 #define LV_USE_ASSERT_MALLOC 1
+// A failed assert (e.g. LVGL pool full) restarts instead of the default while(1) (audit C-3).
+#define LV_ASSERT_HANDLER_INCLUDE <app_fatal.h>
+#define LV_ASSERT_HANDLER app_fatal_restart("LVGL assert");
 #define LV_USE_PERF_MONITOR 0
 #define LV_USE_MEM_MONITOR 0
 
