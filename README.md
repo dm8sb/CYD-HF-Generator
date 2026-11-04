@@ -1,100 +1,55 @@
 # CYD HF Generator
 
-PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow Display based 3-channel HF square-wave generator using an SI5351.
+PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator with an SI5351 on the ESP32-2432S028R "Cheap Yellow Display" (original CYD and CYD2USB).
 
 ## Documentation
 
-- User manual (reference for all behavior): [USER_MANUAL_DE.md](USER_MANUAL_DE.md), German
-- English translation: [USER_MANUAL_EN.md](USER_MANUAL_EN.md)
-- Requirements and decisions: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md)
-- Architecture and development rules: [CLAUDE.md](CLAUDE.md)
+- [USER_MANUAL_DE.md](USER_MANUAL_DE.md): user manual, reference for all behavior (German); [USER_MANUAL_EN.md](USER_MANUAL_EN.md): English translation
+- [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md): requirements and decisions
+- [ARBEITSPLAN.md](ARBEITSPLAN.md): open findings, WEB-HMI concept and task list (German)
+- [MESSPLAN.md](MESSPLAN.md): hardware measurement plan by priority (German)
+- [CLAUDE.md](CLAUDE.md): architecture and development rules
 
 ## Features
 
-- ILI9341 (original CYD) or ST7789 (CYD2USB) 320x240 landscape GUI with LVGL; one firmware, the display controller is detected at boot
-- XPT2046 touch on a separate VSPI bus
-- SI5351 clock generator on CN1 (GPIO22 / GPIO27); SDA and SCL are detected automatically, the wires may be swapped
-- CH1 and CH2 independent 1-100 MHz outputs; the channel pages show the actual output frequency
-- CH3 IQ follower of CH1 or CH2 with selectable 0/90/180/270 degree phase setting (4.730-100 MHz, 180/270 via output inversion)
-- Independent output enable per channel; switched-off outputs Low, High or High-Z (CONFIG `Off state`)
-- Tuning modes `Fractional` (finest steps, no dropouts), `Low noise` (integer MultiSynth) and `Integer` (integer PLL and MultiSynth, frequency on a raster)
-- Optional spread spectrum on CH1 (PLL A): -0.5 %, -1.5 %, +/-0.5 %
-- 2/4/6/8 mA drive strength for all outputs
-- Backlight PWM on GPIO21 only, 10-100 % in 10 % steps
-- Preferences/NVS persistence with 5 second autosave debounce
-- CONFIG info card with firmware version, git branch/commit, build time, display controller and SI5351 wiring
-- Serial logging for boot (with version and build info), I2C, SI5351, display, touch, output and settings events (frequency changes and verbose SI5351 logs with `LOG_DEBUG 1` in `include/config.h`)
+- CH1 and CH2: independent outputs 1–100 MHz with the actual output frequency on the channel pages
+- CH3: IQ follower of CH1 or CH2 with 0/90/180/270° (4.730–100 MHz; 180/270° via output inversion)
+- Tuning modes `Fractional` (no dropouts), `Low noise` (integer MultiSynth) and `Integer` (frequency on a raster); spread spectrum on CH1; switched-off outputs Low, High or High-Z; drive 2–8 mA; frequency correction in ppm
+- SI5351 on CN1 (GPIO22/27) with SDA/SCL in either order, identity check, supervision and automatic reconnect
+- One firmware for both boards: the display controller (ILI9341 / ST7789) is detected at every boot
+- LVGL GUI: MAIN with a status bar and a mode line for settings that differ from the defaults; touch calibration at the first start
+- NVS persistence with 5 s autosave; all outputs start off
+- Serial log with version, branch, commit and build time; host tests and CI
 
-## Changes in 1.1.0
+## Changes
 
-- Layout fixed: no clipped or overlapping controls, no scrollbars (header padding, card sizes, layout grid in `gui/gui_layout.h`)
-- Main page cards are tappable and have their own ON/OFF switch; status ON / OFF / WAIT / NO HW
-- Step presets (1 Hz-1 MHz) on the channel pages, hold-to-repeat for +/-, SI5351 deviation shown
-- New numpad (4x4, back button, input validation instead of silent clamping)
-- Frequency correction in ppm (0.01/0.1/1 ppm steps), no SI5351 re-init on change
-- CH3 IQ only from 4.730 MHz (VCO >= 600 MHz), all phases in the whole range, CH3 stays requested while waiting
-- Only the affected PLL is reset on frequency changes; backlight minimum 5 %; error dialogs close with OK and do not stack
+### 1.3.2
 
-## Changes in 1.2.0
+- Header shows the actual state; mode line on MAIN and the channel pages; `Off state` = `High` needs a confirmation
+- MAIN status bar (save state, `CONFIG`) instead of the buttons CH1–CH3; CONFIG ordered by signal settings, `Step` row removed
+- Larger dialog and edge buttons, better contrast, states as filled labels (`! ERR`, `! NO HW`), step chips in digit order
+- Numpad keeps a rejected input and shows why; output error dialogs name the channel
+- Touch calibration at the first start and via CONFIG `Touch`; boot gesture removed
+- Test builds for touch log and hit map; manual with quick start, glossary and symptom table
 
-- All outputs start off after power-up
-- Own SI5351 register driver: exact frequency correction, glitch-free tuning (no PLL reset), ≤ 0.5 Hz error, unused MultiSynth powered down
-- SI5351 supervision with automatic reconnect
-- Backlight switches on after the first frame (no noise at boot)
-- Dialogs for NVS errors; dialogs are queued
-- Channel page: tap a digit to select the step, tap the unit to open the numpad
+### 1.3.1
 
-## Changes in 1.3.2
+- Fixes: CLK2 stays off while CH3 is in `ERR`; `~` on MAIN right after boot; integer VCO limits with ±50 ppm; reconnect in the same supervision cycle
+- Saving only on a real change and retried every 30 s; stricter frequency parser
+- Restart instead of freezing on an LVGL assert or a blocked `loop()` (task watchdog)
+- `-Wall -Wextra` without warnings, dependencies pinned, CI
 
-- Channel page headers show the actual state like MAIN (`ON`/`OFF`/`WAIT`/`ERR`/`NO HW`), not the request; switch and state text sit right after the title
-- MAIN: card switches in their own column with a divider, 13 px from the frequency (a tap on `MHz` could switch the output); frequencies right-aligned
-- Mode line on MAIN and the channel pages lists settings that differ from the defaults (`OFF = High | SSC -0.5 % | Low noise | 8 mA`), orange with off state `High`; `Off state` = `High` needs a confirmation
-- Dialog buttons 120 x 40 px with 6.7:1 contrast (were about 80 x 23 px, 1.1:1); buttons near the screen edge take taps up to the edge, `MAIN` 36 px high; CH3 master and phase chips 6 px apart (were 2 px)
-- Step chips on the channel pages from `1M` (left) to `1` (right), like the digits of the frequency
-- MAIN: a status bar with the save state and `CONFIG` replaces the buttons CH1-CH3 (the cards open the channels); taller cards, state and detail lines in 14 px instead of 12 px
-- User manual (DE/EN): table of contents, quick start, page sketches, glossary and symptom table; the step applies to CH1 and CH2 together; notes on physical access and foreign devices at 0x60
-- Touch calibration at the first start and via CONFIG `Touch` -> `Calibrate`: 4 crosses near the corners and a check cross (<= 8 px), stored per board; the fixed calibration put the hits up to 19 px off
-- Touch test builds `esp32-2432S028R-touchlog` and `esp32-2432S028R-hitmap` (flags `TEST_TOUCH_LOG`, `TEST_HIT_MAP`) for the operating tests; release firmware unchanged
-- Boot gesture removed: the display controller is detected at every boot, a choice stored by the gesture of 1.3.0/1.3.1 is deleted; `DISPLAY_FORCE_PANEL` stays for unknown boards
-- Numpad keeps a rejected input and shows why (`Allowed 1 - 100 MHz`, `Enter a number`, `Max. 9 characters`), the current frequency as `Now ...`; a tap on a point or gap of the frequency selects the nearer digit; channel page shows `Off | Out ...` when off and `IQ master of CH3 (90°)`; `°` instead of `deg`; output error dialogs name the channel (`CH1: frequency setup failed. Retrying every 2 s.`)
-- CONFIG: signal settings first (Drive, Off state, Tuning, Spread, Corr., Backlight), `Step` row removed (the channel pages set the step), buttons 40 px, wider scrollbar, `Spread CH1` shows `Off (Integer)` when locked
-- Contrast: dark text on channel-colored buttons and selected chips (white had 2.9-3.7:1), switch track and chip border at least 3:1; states other than OFF as filled labels, errors as `! ERR` / `! NO HW` (palette in `include/palette.h`, checked by `test_contrast`)
-- GUI input logic (numpad, tap on a digit, colored step digit) and the dialog queue as pure functions with host tests (`utils/input_logic.*`, `utils/message_queue.*`); IQ limits formatted in one place; timing constants in `constants.h`; touch filter, boot gesture threshold and display probe retries host-tested (`drivers/touch_filter.*`, `DisplayDetect::probeWithRetries()`); behavior unchanged
-- Boot log shows `[APP] SI5351 at 0x60, SDA=... SCL=...` also when the first connection succeeds (was missing since the SDA/SCL detection)
+### 1.3.0
 
-## Changes in 1.3.1
+- SDA/SCL in either order, SI5351 identity check, new connection messages
+- One firmware for both boards (display detection)
+- CONFIG options `Tuning`, `Spread CH1`, `Off state`; CONFIG scrolls and has an info card; backlight in 10 % steps
+- Actual output frequency on the channel pages; divider planning host-tested
 
-- CH3 in `ERR`: switching the master off and on no longer enables CLK2 (with off state `High`/`High-Z` it output a signal again)
-- MAIN shows the `~` of a rastered frequency (`Integer`) right after boot
-- A failed output switch or off state write reports `Connection lost` (the messages `Output switch failed`, `Off state setup failed` and `Spread spectrum setup failed` could not appear and are gone); unused code removed
-- `Integer`: the PLL ratio is limited with the corrected crystal, so the VCO stays within 600-900 MHz also at +-50 ppm
-- A lost SI5351 is reconnected in the same supervision cycle: after a power glitch the outputs run again within about 2 s (before: up to 4 s)
-- A failed save is retried every 30 s without further dialogs; before, the change was lost until the next one
-- Switching outputs on/off and setting a value to its current value no longer trigger an autosave (before: all 11 keys written 5 s later)
-- Frequency parser accepts only digits and one decimal point and the units Hz/kHz/MHz (rejected before: NaN, infinity, exponents, hex, signs)
-- A failed LVGL assert (pool full) or a `loop()` blocked for 5 s (task watchdog) restarts the device instead of freezing with running outputs; test hooks `TEST_LVGL_ASSERT`, `TEST_LOOP_HANG`
-- Build: `src/` compiles with `-Wall -Wextra` without warnings; XPT2046 pinned by commit; heap and LVGL memory in the debug log; CI for host tests and the firmware build
-- Host tests: environments `native-fault` / `native-win-fault` (IQ error state with `TEST_FAULT_IQ`)
+### 1.2.0 and older
 
-## Changes in 1.3.0
-
-- SDA/SCL at CN1 in either order: the firmware tries both assignments at boot and on every reconnect (hot plug, replugging during operation); no pin setting in `pins.h` any more
-- SI5351 identity check (registers 0, 183, read-back of register 3): another device at 0x60 is not programmed
-- New connection messages (`SI5351 not found`, `I2C line stays low`, `not an SI5351`); connection dialogs close by themselves after reconnecting
-- Detection at 100 kHz, then 400 kHz; stays at 100 kHz if the bus does not work at 400 kHz (weak pull-ups)
-- Boot no longer hangs after a failed I2C init; a line held low by the SI5351 after a reset is released at boot
-- Bus scan only with `LOG_DEBUG`, `CORE_DEBUG_LEVEL=1`
-- One firmware for both boards: the display controller (ILI9341 / ST7789) is detected at boot; boot gesture as fallback; the `esp32-2432S028R-usbc` environment is gone
-- CONFIG page scrolls (all other pages stay fixed); the save state moved into the CONFIG header
-- Backlight with `-`/`+` in 10 % steps, 10-100 % (was a slider, 5-100 %); older stored values are rounded
-- New CONFIG options, stored in NVS; without them (settings from 1.2.0) the 1.2.0 behavior applies:
-  - `Tuning`: `Fractional` (default, as before), `Low noise`, `Integer`
-  - `Spread CH1`: `Off` (default), `-0.5 %`, `-1.5 %`, `+/-0.5 %`; written explicitly at init, so a module with programmed NVM cannot start with spread spectrum on
-  - `Off state`: `Low` (default, as before), `High`, `High-Z`; register 24 is written at init
-- Channel and CH3 pages show the actual output frequency (`Out 10.000 000 MHz (+0.3 Hz)`) instead of step and deviation; MAIN marks a rastered frequency in `Integer` mode with `~`
-- CONFIG info card and boot log line with version, branch, commit and build time (`tools/build_info.py`)
-- Divider planning as pure functions (`drivers/si5351_plan.*`), host-tested
-- Removed unused code and the per-channel drive fields; frequency changes are logged only with `LOG_DEBUG`; TFT_eSPI pinned to exactly 2.5.43
+- 1.2.0: own SI5351 register driver (exact correction, tuning without PLL reset), supervision with reconnect, outputs start off, tap a digit to select the step
+- 1.1.0: layout without clipping, tappable MAIN cards with switches, step presets and hold-to-repeat, numpad, frequency correction, CH3 IQ from 4.730 MHz
 
 ## Pinout
 
@@ -102,111 +57,67 @@ The authoritative pin table is in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATI
 
 | Function | Bus | GPIO |
 |---|---:|---:|
-| TFT MOSI | HSPI | 13 |
-| TFT MISO | HSPI | 12 |
-| TFT SCK | HSPI | 14 |
-| TFT CS | HSPI | 15 |
-| TFT DC | - | 2 |
-| TFT RST | - | -1 / EN |
-| Touch MOSI | VSPI | 32 |
-| Touch MISO | VSPI | 39 |
-| Touch SCK | VSPI | 25 |
-| Touch CS | VSPI | 33 |
+| TFT MOSI / MISO / SCK / CS | HSPI | 13 / 12 / 14 / 15 |
+| TFT DC / RST | - | 2 / -1 (EN) |
+| Touch MOSI / MISO / SCK / CS | VSPI | 32 / 39 / 25 / 33 |
 | Touch IRQ | - | 36 |
 | SI5351 SDA / SCL (CN1, either order) | I2C | 22 / 27 |
 | Backlight PWM | LEDC | 21 |
-| RGB LED R | active low | 4 |
-| RGB LED G | active low | 16 |
-| RGB LED B | active low | 17 |
+| RGB LED R / G / B | active low | 4 / 16 / 17 |
 | Free input only | - | 35 |
 
-Note: the original hardware specification listed SDA=27/SCL=22, the verified device uses SDA=22/SCL=27. The firmware tries SDA=22 first and then the swapped assignment, so both wirings work. The serial log shows the result, e.g. `[APP] SI5351 at 0x60, SDA=27 SCL=22 (swapped)`.
+The firmware tries SDA=22 first, then the swapped assignment; the log shows the result, e.g. `[APP] SI5351 at 0x60, SDA=27 SCL=22 (swapped)`.
 
 ## Libraries
 
-Pinned in `platformio.ini`:
-
-- Arduino-ESP32 via `espressif32@6.7.0`
-- `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it)
-- `lvgl/lvgl@8.3.11`
-- XPT2046_Touchscreen from `https://github.com/PaulStoffregen/XPT2046_Touchscreen.git`, pinned to commit `d57f64c` (tag v1.4)
-- `Preferences` from Arduino-ESP32
+Pinned in `platformio.ini`: Arduino-ESP32 via `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it), `lvgl/lvgl@8.3.11`, XPT2046_Touchscreen at commit `d57f64c` (tag v1.4), `Preferences` from Arduino-ESP32.
 
 ## Build and Flash
-
-Two board variants are sold as ESP32-2432S028R. They differ only in the display controller, and the same firmware runs on both:
 
 | Board | Display controller | Detected by (RDDID, command 04h) |
 |---|---|---|
 | Original CYD, micro-USB only | ILI9341 | ID `00 00 00` |
-| CYD2USB, additional USB-C port | ST7789 type | any other ID (measured `81 81 B3`, datasheet `85 85 52`) |
+| CYD2USB, additional USB-C port | ST7789 type | any other ID (measured `81 81 B3`) |
 
 ```bash
-cd CYD-HF-Generator
 pio run -t upload            # both boards
 pio device monitor -b 115200
 ```
 
-At boot the firmware reads the controller over SPI (MISO GPIO12) before the display is initialized and logs the result, e.g. `[DISPLAY] ST7789 (detected); detected ST7789: ID 8181B3, ...`. Nothing is stored; the detection runs at every boot. For a board whose controller is not recognized (display shows only noise), build with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789).
+The controller is read over SPI before the display init at every boot; nothing is stored. For an unrecognized board (display shows only noise), build with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789). `tools/build_info.py` passes branch, commit (`+` = uncommitted changes) and build time to `src/utils/build_info.cpp` only. Partition table `huge_app.csv`; a standard 4 MB module is sufficient.
 
-The pre-build script `tools/build_info.py` takes branch, commit and build time from git (`unknown` without git, `+` after the commit for uncommitted changes); only `src/utils/build_info.cpp` is recompiled for it.
-
-The project uses `huge_app.csv`. A standard 4 MB ESP32 module is sufficient.
-
-## Unit Tests
-
-Host tests run without hardware: frequency helpers, the SI5351 driver and its divider planner against a register model of the chip, the AppController with settings, supervision and CH3 IQ logic, and the display detection against a panel model (`test/helpers/panel_model.h`, read behavior as measured on both boards).
+## Tests
 
 ```bash
-pio test -e native-win   # Windows, uses the MinGW toolchain bundled with PlatformIO
-pio test -e native       # Linux/macOS/CI, needs gcc in PATH
+pio test -e native-win         # host tests on Windows (MinGW bundled with PlatformIO)
+pio test -e native             # host tests on Linux/macOS/CI (gcc in PATH)
 pio test -e native-win-fault   # IQ error state (TEST_FAULT_IQ); native-fault on Linux
 ```
 
-Touch test builds for the measurement plan (MESSPLAN B8, B9, B12), not built by a plain `pio run` and never released; CI builds the hit map env so it keeps compiling:
+Host tests cover the SI5351 driver and planner against a register model (`test/helpers/si5351_model.h`, decoded independently of the driver), the AppController with settings and supervision, display detection against a panel model, touch filter and calibration, GUI input logic, status texts and the color contrast. `test/fakes` replaces the Arduino core, `Wire` (with fault injection, swapped wiring, line held low, foreign device) and `Preferences`.
+
+Touch test builds for the measurement plan (not built by a plain `pio run`, never released; CI builds the hit map env):
 
 ```bash
 pio run -e esp32-2432S028R-touchlog -t upload   # normal GUI, one [TOUCH] log line per touch
-pio run -e esp32-2432S028R-hitmap -t upload     # 20 target crosses instead of the GUI, [HITMAP] and [TOUCH] lines
+pio run -e esp32-2432S028R-hitmap -t upload     # 20 target crosses, [HITMAP] and [TOUCH] lines
 ```
-
-`test/fakes` replaces the Arduino core, `Wire` (SI5351 register model with fault injection, straight or swapped wiring, line held low, foreign device at 0x60) and `Preferences`. `test/helpers/si5351_model.h` decodes the written registers back into frequencies (AN619), independently of the driver's own arithmetic.
-
-## Operation
-
-See the user manual for details.
-
-- Main page shows all channel states; tap a card to open the channel, use its switch to toggle the output.
-- CH1/CH2 pages allow step preset selection, +/- adjustment (hold to repeat), ON/OFF, and numpad entry, and show the actual output frequency.
-- Numpad accepts max 9 characters; a unit key (Hz/kHz/MHz) confirms, the back key cancels. Input outside 1-100 MHz is rejected.
-- CH3 page selects master, phase and follower enable.
-- Config page (scrollable) sets backlight (10-100 %), frequency step, SI5351 correction in ppm, one global drive strength for all channels, tuning mode, spread spectrum on CH1 and the off state, and shows firmware, build, display and SI5351 info.
 
 ## Notes and Limitations
 
-- CH3 always shares the PLL of its master (CH1 = PLL A, CH2 = PLL B). The driver configures master and CH3 as an IQ pair with an integer MultiSynth divider and resets only the affected PLL to align the phases.
-- The SI5351 phase register is 7-bit. 90 degrees uses the register (= MultiSynth divider, <= 127 in the IQ range); 180/270 degrees invert the CH3 output (CLK_INV) in addition, so every phase works from 4.730 to 100 MHz.
-- The touch screen is calibrated per board with a wizard (4 corner crosses, 1 check cross) at the first start or via CONFIG `Touch`; without a stored calibration the built-in defaults x 300-3800, y 300-3800 apply.
-- Drive strength is a single global CONFIG value for CH1, CH2 and CH3; CH3 has no independent drive setting.
-- Below 4.730 MHz CH3 waits (output off, switch stays ON) and starts automatically once the master frequency allows IQ mode.
-- Switching artifacts are allowed by design. In `Fractional` mode standalone outputs are retuned without a PLL reset; IQ pairs are disabled, reconfigured and realigned.
-- Spread spectrum exists only on PLL A (CH1, and CH3 with master CH1) and is not available in `Integer` mode.
-- In `Integer` mode the frequency lies on a raster (e.g. 7.1 MHz → 7.102 273 MHz); the correction only shifts the displayed actual frequency.
+- CH3 shares the PLL of its master (CH1 = PLL A, CH2 = PLL B); IQ pairs use an integer MultiSynth divider and a PLL reset to align the phases. Below 4.730 MHz CH3 waits and starts automatically.
+- Spread spectrum exists only on PLL A and not in `Integer` mode; in `Integer` the frequency lies on a raster (7.1 MHz → 7.102 273 MHz).
+- Drive strength is one value for all outputs.
+- Switching artifacts are allowed by design; `Fractional` retunes standalone outputs without a PLL reset.
 
 ## Architecture
 
-The project follows a modular structure:
-
 - `main.cpp`: initialization order and loop
-- `core/app_controller.*`: single source of truth for runtime state and SI5351 coordination
-- `drivers/si5351_manager.*`: SI5351 register driver (register cache, PLL reset only on change, supervision, spread spectrum, off state)
-- `drivers/si5351_plan.*`: PLL / MultiSynth planning per tuning mode as pure functions, host-tested
-- `drivers/*`: display (`display_detect.*`: controller detection, host-testable; `display_panel.*`: TFT_eSPI, ST7789 init), touch, backlight and RGB status LED drivers
+- `core/app_controller.*`: single source of truth for runtime state, the only user of the SI5351 driver
+- `drivers/si5351_manager.*`, `drivers/si5351_plan.*`: SI5351 register driver and PLL/MultiSynth planning per tuning mode (pure functions)
+- `drivers/display_detect.*`, `drivers/display_panel.*`: controller detection (host-testable) and TFT_eSPI with the ST7789 init
+- `drivers/touch*`, `drivers/backlight.*`, `drivers/status_led.*`: touch with filter, backlight PWM, RGB LED
+- `hal/i2c_bus.*`: owns `Wire`, opens either SDA/SCL assignment
 - `services/*`: Preferences storage and autosave
-- `hal/i2c_bus.*`: owns `Wire`; opens either SDA/SCL assignment, bus release at boot; the detection itself runs in `AppController::connect_()`
-- `gui/gui.cpp`: LVGL setup, deferred navigation, shared widgets, action dispatch and message box
-- `gui/gui_layout.h`: layout grid and color scheme
-- `gui/pages/*`: page creation and refresh for Main, channel (CH1/CH2), CH3, Config and Numpad pages
-- `utils/build_info.*`: version, branch, commit and build time
-- `utils/*`: logging and frequency helpers
-- `tools/build_info.py`: PlatformIO pre-build script; passes the git information only to `build_info.cpp`
+- `gui/gui.cpp`, `gui/gui_layout.h`, `gui/pages/*`: LVGL setup, navigation and dialogs, layout grid and colors, pages
+- `utils/*`: pure, host-tested logic (`frequency_utils`, `input_logic`, `message_queue`, `status_text`, `contrast`, `touch_cal`, `touch_test`), logger, build info
