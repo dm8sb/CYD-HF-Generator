@@ -371,16 +371,6 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::SetStep:
             app.setDeltaStep(DELTA_STEPS[arg]);
             break;
-        case Action::StepUp: {
-            uint8_t i = FrequencyUtils::stepIndex(sys.delta_step);
-            if (i + 1 < DELTA_STEP_COUNT) app.setDeltaStep(DELTA_STEPS[i + 1]);
-            break;
-        }
-        case Action::StepDown: {
-            uint8_t i = FrequencyUtils::stepIndex(sys.delta_step);
-            if (i > 0) app.setDeltaStep(DELTA_STEPS[i - 1]);
-            break;
-        }
         case Action::Ch3Master:
             app.setCH3Master(arg);
             break;

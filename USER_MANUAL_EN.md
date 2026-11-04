@@ -422,16 +422,16 @@ The title bar with the save indicator and `MAIN` stays fixed. The area below it 
 
 | Row | Controls |
 |---|---|
-| `Backlight` | `−`, value, `+` |
-| `Step` | value, `/10`, `x10` |
-| `Corr.` | value in ppm, step button, `−`, `+` |
 | `Drive all` | drop-down list `2 mA` … `8 mA` |
+| `Off state` | drop-down list `Low`, `High`, `High-Z` |
 | `Tuning` | drop-down list `Fractional`, `Low noise`, `Integer` |
 | `Spread CH1` | drop-down list `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
-| `Off state` | drop-down list `Low`, `High`, `High-Z` |
+| `Corr.` | value in ppm, step button, `−`, `+` |
+| `Backlight` | `−`, value, `+` |
 | Info card | Firmware, Build, Display, SI5351 |
 
-- When the page opens, the first four rows are visible and the fifth extends past the bottom edge. The scroll bar on the right is always visible.
+- The settings that change the signal come first. The frequency step is set with the step buttons of the channel pages (section 5).
+- When the page opens, three rows and the upper half of the fourth are visible. The wide scroll bar on the right is always visible and shows that the list continues.
 - The page snaps to the rows.
 - Scrolling only starts after about 10 px of finger movement; a short tap remains a tap. If a swipe starts on a button, the button does not trigger, and neither does the repeat function of `Corr.`.
 - Drop-down lists open upward when there is no room below.
@@ -448,63 +448,6 @@ The save state is shown in the title bar between `CONFIG` and `MAIN`, at every s
 | `Save failed` (red) | Saving to flash failed; a dialog also appears; the firmware tries again every 30 s |
 | `Not saved` (red) | Flash storage (NVS) not available at startup; changes are lost at power-off |
 
-### Backlight
-
-`−` and `+` change the display brightness in 10 % steps:
-
-```text
-10 % to 100 %
-```
-
-The current value is shown between the buttons. Holding a button does not repeat. The 10 % minimum prevents the display from accidentally going completely dark and thus becoming unusable. Values stored by older firmware are rounded to the nearest 10 % step; values below 5 % (e.g. 0 % from firmware 1.0.0) are set to 80 %.
-
-### Step (Frequency Step)
-
-The step determines how much `+` and `−` change the frequency. The same presets as on the channel pages are used:
-
-```text
-1 Hz, 10 Hz, 100 Hz, 1 kHz, 10 kHz, 100 kHz, 1 MHz
-```
-
-| Button | Function |
-|---|---|
-| x10 | Next larger preset |
-| /10 | Next smaller preset |
-
-Example:
-
-```text
-Step: 1 kHz
-Press x10
-Step: 10 kHz
-```
-
-### Frequency Correction (`Corr.`)
-
-The correction compensates for the tolerance of the SI5351 crystal. It is shown in **ppm**, e.g. `+9.70 ppm`.
-
-| Element | Function |
-|---|---|
-| Step button (`0.01` / `0.1` / `1`) | Step size in ppm; each tap switches to the next one |
-| `−` / `+` | Change the correction by the step size; holding repeats |
-
-Range: ±50 ppm. A positive value means that without correction, the output was too high.
-
-The outputs are reconfigured after each change; the SI5351 is not re-initialized. In `Integer` mode, the correction cannot be applied to the output; it only shifts the displayed actual frequency (see `Tuning`).
-
-**Calibration:**
-
-1. Set CH1 to 10 MHz and switch it on (`Tuning` = `Fractional` or `Low noise`).
-2. Measure with a frequency counter.
-3. Divide the deviation in Hz by 10 = correction in ppm.
-4. Add this value to the current correction.
-
-Example:
-
-```text
-Measured: 10 000 097 Hz  ->  +97 Hz at 10 MHz  ->  set +9.70 ppm
-```
-
 ### Drive all
 
 The drive strength applies globally to all channels (CH1, CH2 and CH3); CH3 has no setting of its own.
@@ -517,6 +460,24 @@ Options:
 6 mA
 8 mA
 ```
+
+### Off state (State of Switched-Off Outputs)
+
+Determines the level that a switched-off output carries (SI5351 register 24). The setting applies to CLK0, CLK1 and CLK2.
+
+| Option | Output in the OFF state |
+|---|---|
+| `Low` (default) | LOW (0 V), as up to firmware 1.2.0 |
+| `High` | HIGH (supply voltage of the outputs, usually 3.3 V) |
+| `High-Z` | high impedance |
+
+- `High` needs a confirmation: the dialog `Off state High` explains the DC voltage on a switched-off output. `High` (orange) applies the setting, `Cancel` keeps the previous one. `Low` and `High-Z` apply without a question.
+- The change takes effect immediately; running outputs are not affected.
+- If the setting differs from `Low`, the main page and the channel pages show `OFF = High` or `OFF = High-Z` in the mode line (section 2).
+- The firmware writes the state when connecting to the SI5351, before any output can be switched on.
+- **`High`:** A continuous current flows into a DC-coupled load (e.g. 50 Ω), limited by the drive strength; a DC-coupled mixer sees a DC voltage.
+- For DC-coupled diode ring mixers, use `Low` or `High-Z`.
+- Until hardware check K2 (`MESSPLAN.md`), with `High` and `High-Z` the output driver of switched-off outputs stays powered, including that of CLK2 when CH3 is off. With `Low`, CLK2 is powered down completely as before, as long as CH3 is not running in IQ operation.
 
 ### Tuning (Divider Scheme)
 
@@ -563,27 +524,45 @@ Spread spectrum (SSC) modulates the frequency of PLL A at about 31.5 kHz and spr
 Example: CH1 = 10 MHz with `-0.5 %` occupies the band 9.95–10.00 MHz; the channel page shows the mean frequency `Out 9.975 000 MHz mean, SSC -0.5 %`.
 
 - Switching resets PLL A: CH1 drops out briefly. If CH3 is running in IQ operation with master CH1, its phase is realigned afterwards.
-- In `Integer` mode, the option is locked (grayed out, `Off`). Switching to `Integer` turns spread spectrum off; after switching back, it has to be selected again.
+- In `Integer` mode, the option is locked and shows a grayed-out `Off (Integer)`. Switching to `Integer` turns spread spectrum off; after switching back, it has to be selected again.
 - With spread, too, the SI5351 oscillator (VCO) must stay within 600–900 MHz. With master CH1 the IQ range of CH3 therefore becomes slightly narrower: `-0.5 %` from 4.749 MHz, `-1.5 %` from 4.797 MHz, `+/-0.5 %` from 4.749 to 99.502 MHz. Outside it, CH3 waits (`WAIT`) as below 4.730 MHz. The CH3 page shows the valid range.
 - For mixer and receiver experiments with a clean carrier, leave it `Off`.
 
-### Off state (State of Switched-Off Outputs)
+### Frequency Correction (`Corr.`)
 
-Determines the level that a switched-off output carries (SI5351 register 24). The setting applies to CLK0, CLK1 and CLK2.
+The correction compensates for the tolerance of the SI5351 crystal. It is shown in **ppm**, e.g. `+9.70 ppm`.
 
-| Option | Output in the OFF state |
+| Element | Function |
 |---|---|
-| `Low` (default) | LOW (0 V), as up to firmware 1.2.0 |
-| `High` | HIGH (supply voltage of the outputs, usually 3.3 V) |
-| `High-Z` | high impedance |
+| Step button (`0.01` / `0.1` / `1`) | Step size in ppm; each tap switches to the next one |
+| `−` / `+` | Change the correction by the step size; holding repeats |
 
-- `High` needs a confirmation: the dialog `Off state High` explains the DC voltage on a switched-off output. `High` (orange) applies the setting, `Cancel` keeps the previous one. `Low` and `High-Z` apply without a question.
-- The change takes effect immediately; running outputs are not affected.
-- If the setting differs from `Low`, the main page and the channel pages show `OFF = High` or `OFF = High-Z` in the mode line (section 2).
-- The firmware writes the state when connecting to the SI5351, before any output can be switched on.
-- **`High`:** A continuous current flows into a DC-coupled load (e.g. 50 Ω), limited by the drive strength; a DC-coupled mixer sees a DC voltage.
-- For DC-coupled diode ring mixers, use `Low` or `High-Z`.
-- Until hardware check K2 (`MESSPLAN.md`), with `High` and `High-Z` the output driver of switched-off outputs stays powered, including that of CLK2 when CH3 is off. With `Low`, CLK2 is powered down completely as before, as long as CH3 is not running in IQ operation.
+Range: ±50 ppm. A positive value means that without correction, the output was too high.
+
+The outputs are reconfigured after each change; the SI5351 is not re-initialized. In `Integer` mode, the correction cannot be applied to the output; it only shifts the displayed actual frequency (see `Tuning`).
+
+**Calibration:**
+
+1. Set CH1 to 10 MHz and switch it on (`Tuning` = `Fractional` or `Low noise`).
+2. Measure with a frequency counter.
+3. Divide the deviation in Hz by 10 = correction in ppm.
+4. Add this value to the current correction.
+
+Example:
+
+```text
+Measured: 10 000 097 Hz  ->  +97 Hz at 10 MHz  ->  set +9.70 ppm
+```
+
+### Backlight
+
+`−` and `+` change the display brightness in 10 % steps:
+
+```text
+10 % to 100 %
+```
+
+The current value is shown between the buttons. Holding a button does not repeat. The 10 % minimum prevents the display from accidentally going completely dark and thus becoming unusable. Values stored by older firmware are rounded to the nearest 10 % step; values below 5 % (e.g. 0 % from firmware 1.0.0) are set to 80 %.
 
 ### Info Card
 

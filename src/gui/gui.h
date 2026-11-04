@@ -31,8 +31,6 @@ private:
         FreqDown,
         FreqTap,        // tap on the frequency: digit selects the step, unit opens the numpad
         SetStep,        // arg: DELTA_STEPS index
-        StepUp,
-        StepDown,
         Ch3Master,      // arg: 1/2
         Ch3Phase,       // arg: phase / 90
         CorrUp,
@@ -61,7 +59,6 @@ private:
         lv_obj_t* cardSwitch[3];
         lv_obj_t* cfgList;      // scroll container of the CONFIG rows
         lv_obj_t* blValue;
-        lv_obj_t* stepValue;
         lv_obj_t* corrValue;
         lv_obj_t* corrStep;
         lv_obj_t* driveDd;

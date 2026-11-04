@@ -6,21 +6,23 @@
 using namespace Layout;
 
 // CONFIG is the only page that scrolls: below the fixed header the rows sit in a list that
-// snaps to row tops, the settings used most first.
-static constexpr int ROW_H = 44;
+// snaps to row tops, the settings that change the signal first (audit U-14). 3 rows and 36 px
+// of the next one and the 6 px scrollbar show that the list continues (U-24).
+static constexpr int ROW_H = 50;
 static constexpr int ROW_PITCH = ROW_H + 4;
 static constexpr int ROW_PAD = 4;
 static constexpr int ROW_CONTENT_W = CONTENT_W - 2 * ROW_PAD - 2; // border 1
 static constexpr int ROW_CONTENT_H = ROW_H - 2 * ROW_PAD - 2;
-static constexpr uint8_t ROW_COUNT = 7;                            // setting rows above the info card
+static constexpr uint8_t ROW_COUNT = 6;                            // setting rows above the info card
 static constexpr uint8_t INFO_LINES = 4;
 static constexpr int INFO_LINE_H = 15;                             // montserrat 12
 static constexpr int INFO_H = INFO_LINES * INFO_LINE_H + 2 * ROW_PAD + 2;
 static constexpr int VALUE_X = 92;                                 // values and dropdowns
-static constexpr int BTN_W = 52;
+static constexpr int BTN_W = 52;                                   // buttons 40 px high (U-18)
+static constexpr int DROPDOWN_H = 34;
 static constexpr int BTN_RIGHT_X = 236;                            // right button of a row
 static constexpr int DROPDOWN_W = 140;
-static constexpr int DROPDOWN_LINE_SPACE = 10;                     // opened list: 26 px per entry
+static constexpr int DROPDOWN_LINE_SPACE = 9;                      // opened list: 25 px per entry
 static constexpr int DROPDOWN_LIST_PAD = 4;
 static constexpr int LIST_PAD = 4;                                 // above the first and below the last card
 static constexpr int LIST_HEIGHT = SCREEN_HEIGHT - HEADER_H;
@@ -70,12 +72,12 @@ lv_obj_t* Gui::addOptionRow_(lv_obj_t* list, uint8_t index, const char* title, c
     lv_obj_t* row = addConfigRow_(list, index, ROW_H, title);
     lv_obj_t* dd = lv_dropdown_create(row);
     lv_dropdown_set_options(dd, options);
-    lv_obj_set_size(dd, DROPDOWN_W, ROW_CONTENT_H);
+    lv_obj_set_size(dd, DROPDOWN_W, DROPDOWN_H);
     lv_obj_align(dd, LV_ALIGN_LEFT_MID, VALUE_X, 0);
     // Grayed out while the option does not apply (the arrow inherits the color).
     lv_obj_set_style_text_color(dd, Colors::muted(), LV_STATE_DISABLED);
-    // Denser than the theme (line space 16, pad 13): a 4-entry list needs 106 px and so opens
-    // completely in every snap position (at most 111 px free above or below a row mid-screen).
+    // Denser than the theme (line space 16, pad 13): a 4-entry list needs 103 px and so opens
+    // completely in every snap position (the second visible row has 104 px above its dropdown).
     lv_obj_t* opts = lv_dropdown_get_list(dd);
     lv_obj_set_style_text_line_space(opts, DROPDOWN_LINE_SPACE, 0);
     lv_obj_set_style_pad_ver(opts, DROPDOWN_LIST_PAD, 0);
@@ -103,17 +105,34 @@ void Gui::createConfig_() {
     lv_obj_set_scroll_snap_y(list, LV_SCROLL_SNAP_START);
     // Momentum stays; no elastic overscroll at the ends.
     lv_obj_clear_flag(list, LV_OBJ_FLAG_SCROLL_ELASTIC);
-    // Always visible (the list continues), 4 px in the right margin next to the cards.
+    // Always visible (the list continues), 6 px in the right margin next to the cards, 5.7:1
+    // against the background (U-24).
     lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_ON);
-    lv_obj_set_style_width(list, 4, LV_PART_SCROLLBAR);
-    lv_obj_set_style_pad_right(list, 2, LV_PART_SCROLLBAR);
+    lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
+    lv_obj_set_style_pad_right(list, 1, LV_PART_SCROLLBAR);
     lv_obj_set_style_pad_ver(list, 2, LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_color(list, Colors::muted(), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(list, Colors::outline(), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(list, LV_OPA_COVER, LV_PART_SCROLLBAR);
     lv_obj_add_event_cb(list, scrollBeginCb, LV_EVENT_SCROLL_BEGIN, nullptr);
     lv_obj_t* row;
 
+    // Options that change the signal first; the dropdown entries are in the order of the enum values.
+    w_.driveDd = addOptionRow_(list, 0, "Drive all", "2 mA\n4 mA\n6 mA\n8 mA", Action::Drive);
+    w_.offStateDd = addOptionRow_(list, 1, "Off state", "Low\nHigh\nHigh-Z", Action::OffState);
+    w_.tuningDd = addOptionRow_(list, 2, "Tuning", "Fractional\nLow noise\nInteger", Action::Tuning);
+    w_.spreadDd = addOptionRow_(list, 3, "Spread CH1", "Off\n-0.5 %\n-1.5 %\n+/-0.5 %", Action::Spread);
+
+    // Frequency correction in ppm; the step chip cycles 0.01 / 0.1 / 1 ppm.
+    // The widest value ("+48.44 ppm", 100 px) ends 4 px before the chip.
+    row = addConfigRow_(list, 4, ROW_H, "Corr.");
+    w_.corrValue = addLabel_(row, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
+    lv_obj_align(w_.corrValue, LV_ALIGN_LEFT_MID, 40, 0);
+    w_.corrStep = addChip_(row, "", 144, 0, 42, ROW_CONTENT_H, btnColor, Action::CorrStepCycle, 0);
+    addButton_(row, LV_SYMBOL_MINUS, 190, 0, 47, ROW_CONTENT_H, btnColor, Action::CorrDown, 0, true);
+    addButton_(row, LV_SYMBOL_PLUS, 241, 0, 47, ROW_CONTENT_H, btnColor, Action::CorrUp, 0, true);
+
     // Backlight in BACKLIGHT_STEP_PERCENT steps, value centered between the buttons
-    row = addConfigRow_(list, 0, ROW_H, "Backlight");
+    row = addConfigRow_(list, 5, ROW_H, "Backlight");
     addButton_(row, LV_SYMBOL_MINUS, VALUE_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::BacklightDown);
     w_.blValue = addLabel_(row, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
     lv_obj_set_width(w_.blValue, BTN_RIGHT_X - (VALUE_X + BTN_W));
@@ -121,27 +140,6 @@ void Gui::createConfig_() {
     lv_obj_align(w_.blValue, LV_ALIGN_LEFT_MID, VALUE_X + BTN_W, 0);
     addButton_(row, LV_SYMBOL_PLUS, BTN_RIGHT_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::BacklightUp);
 
-    // Frequency step (same presets as the chips on the channel pages)
-    row = addConfigRow_(list, 1, ROW_H, "Step");
-    w_.stepValue = addLabel_(row, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
-    lv_obj_align(w_.stepValue, LV_ALIGN_LEFT_MID, VALUE_X, 0);
-    addButton_(row, "/10", BTN_RIGHT_X - BTN_W - 4, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::StepDown);
-    addButton_(row, "x10", BTN_RIGHT_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::StepUp);
-
-    // Frequency correction in ppm; the step chip cycles 0.01 / 0.1 / 1 ppm.
-    // The widest value ("+48.44 ppm", 100 px) ends 4 px before the chip.
-    row = addConfigRow_(list, 2, ROW_H, "Corr.");
-    w_.corrValue = addLabel_(row, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
-    lv_obj_align(w_.corrValue, LV_ALIGN_LEFT_MID, 40, 0);
-    w_.corrStep = addChip_(row, "", 144, 0, 42, ROW_CONTENT_H, btnColor, Action::CorrStepCycle, 0);
-    addButton_(row, LV_SYMBOL_MINUS, 190, 0, 47, ROW_CONTENT_H, btnColor, Action::CorrDown, 0, true);
-    addButton_(row, LV_SYMBOL_PLUS, 241, 0, 47, ROW_CONTENT_H, btnColor, Action::CorrUp, 0, true);
-
-    // Options; the dropdown entries are in the order of the enum values.
-    w_.driveDd = addOptionRow_(list, 3, "Drive all", "2 mA\n4 mA\n6 mA\n8 mA", Action::Drive);
-    w_.tuningDd = addOptionRow_(list, 4, "Tuning", "Fractional\nLow noise\nInteger", Action::Tuning);
-    w_.spreadDd = addOptionRow_(list, 5, "Spread CH1", "Off\n-0.5 %\n-1.5 %\n+/-0.5 %", Action::Spread);
-    w_.offStateDd = addOptionRow_(list, 6, "Off state", "Low\nHigh\nHigh-Z", Action::OffState);
 
     // Info card: firmware, build, display controller and SI5351 link (refreshConfig_).
     row = addConfigRow_(list, ROW_COUNT, INFO_H, nullptr);
@@ -183,9 +181,6 @@ void Gui::refreshConfig_() {
     snprintf(buf, sizeof(buf), "%u %%", sys.backlight);
     lv_label_set_text(w_.blValue, buf);
 
-    FrequencyUtils::formatStep(sys.delta_step, buf, sizeof(buf));
-    lv_label_set_text(w_.stepValue, buf);
-
     FrequencyUtils::formatPpm(sys.freq_correction, buf, sizeof(buf));
     lv_label_set_text(w_.corrValue, buf);
     static const char* corrStepLabels[CORRECTION_STEP_COUNT] = {"0.01", "0.1", "1"};
@@ -195,8 +190,14 @@ void Gui::refreshConfig_() {
     setSelected(w_.tuningDd, (uint16_t)sys.tuning_mode);
     // Spread spectrum needs a fractional PLL A; the controller keeps it Off in Integer mode.
     setSelected(w_.spreadDd, (uint16_t)sys.spread);
-    if (sys.tuning_mode == TuningMode::Integer) lv_obj_add_state(w_.spreadDd, LV_STATE_DISABLED);
-    else lv_obj_clear_state(w_.spreadDd, LV_STATE_DISABLED);
+    // Locked with a reason instead of a silently grayed "Off" (U-18).
+    if (sys.tuning_mode == TuningMode::Integer) {
+        lv_obj_add_state(w_.spreadDd, LV_STATE_DISABLED);
+        lv_dropdown_set_text(w_.spreadDd, "Off (Integer)");
+    } else {
+        lv_obj_clear_state(w_.spreadDd, LV_STATE_DISABLED);
+        lv_dropdown_set_text(w_.spreadDd, nullptr);
+    }
     setSelected(w_.offStateDd, (uint16_t)sys.off_state);
 
     if (app.hardwareReady()) {

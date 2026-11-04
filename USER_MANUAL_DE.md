@@ -422,16 +422,16 @@ Die Titelzeile mit Speicheranzeige und `MAIN` bleibt stehen. Der Bereich darunte
 
 | Zeile | Bedienelemente |
 |---|---|
-| `Backlight` | `−`, Wert, `+` |
-| `Step` | Wert, `/10`, `x10` |
-| `Corr.` | Wert in ppm, Schritt-Taste, `−`, `+` |
 | `Drive all` | Auswahlliste `2 mA` … `8 mA` |
+| `Off state` | Auswahlliste `Low`, `High`, `High-Z` |
 | `Tuning` | Auswahlliste `Fractional`, `Low noise`, `Integer` |
 | `Spread CH1` | Auswahlliste `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
-| `Off state` | Auswahlliste `Low`, `High`, `High-Z` |
+| `Corr.` | Wert in ppm, Schritt-Taste, `−`, `+` |
+| `Backlight` | `−`, Wert, `+` |
 | Info-Karte | Firmware, Build, Display, SI5351 |
 
-- Beim Öffnen sind die ersten vier Zeilen zu sehen, die fünfte ragt über den unteren Rand. Die Scrollleiste rechts ist immer sichtbar.
+- Oben stehen die Einstellungen, die das Signal verändern. Den Frequenzschritt stellen die Schritt-Tasten der Kanalseiten ein (Abschnitt 5).
+- Beim Öffnen sind drei Zeilen ganz und die obere Hälfte der vierten zu sehen. Die breite Scrollleiste rechts ist immer sichtbar und zeigt, dass die Liste weitergeht.
 - Die Seite rastet an den Zeilen ein.
 - Gescrollt wird erst ab etwa 10 px Fingerbewegung; ein kurzer Tipp bleibt ein Tipp. Beginnt das Wischen auf einer Taste, löst die Taste nicht aus, auch nicht die Wiederholung bei `Corr.`.
 - Auswahllisten öffnen sich nach oben, wenn unten kein Platz ist.
@@ -448,63 +448,6 @@ In der Titelzeile zwischen `CONFIG` und `MAIN` steht der Speicherzustand, in jed
 | `Save failed` (rot) | Speichern im Flash ist fehlgeschlagen, zusätzlich erscheint ein Dialog; die Firmware versucht es alle 30 s erneut |
 | `Not saved` (rot) | Flash-Speicher (NVS) beim Start nicht verfügbar, Änderungen gehen beim Ausschalten verloren |
 
-### Backlight
-
-`−` und `+` ändern die Display-Helligkeit in 10-%-Schritten:
-
-```text
-10 % bis 100 %
-```
-
-Der aktuelle Wert steht zwischen den Tasten. Gedrückt halten wiederholt nicht. Das Minimum von 10 % verhindert, dass das Display versehentlich ganz dunkel und damit unbedienbar wird. Gespeicherte Werte älterer Firmware werden auf die nächste 10-%-Stufe gerundet; Werte unter 5 % (z. B. 0 % aus Firmware 1.0.0) werden auf 80 % gesetzt.
-
-### Step (Frequenzschritt)
-
-Der Schritt bestimmt, wie stark `+` und `−` die Frequenz ändern. Es sind dieselben Stufen wie auf den Kanalseiten:
-
-```text
-1 Hz, 10 Hz, 100 Hz, 1 kHz, 10 kHz, 100 kHz, 1 MHz
-```
-
-| Button | Funktion |
-|---|---|
-| x10 | Nächstgrößere Stufe |
-| /10 | Nächstkleinere Stufe |
-
-Beispiel:
-
-```text
-Step: 1 kHz
-x10 drücken
-Step: 10 kHz
-```
-
-### Frequenzkorrektur (`Corr.`)
-
-Die Korrektur gleicht die Toleranz des SI5351-Quarzes aus. Sie wird in **ppm** angezeigt, z. B. `+9.70 ppm`.
-
-| Element | Funktion |
-|---|---|
-| Schritt-Taste (`0.01` / `0.1` / `1`) | Schrittweite in ppm, jedes Antippen wechselt zur nächsten |
-| `−` / `+` | Korrektur um die Schrittweite ändern, gedrückt halten wiederholt |
-
-Bereich: ±50 ppm. Ein positiver Wert bedeutet: Der Ausgang war ohne Korrektur zu hoch.
-
-Die Ausgänge werden nach jeder Änderung neu konfiguriert; der SI5351 wird dabei nicht neu initialisiert. Im Modus `Integer` kann die Korrektur nicht ausgeglichen werden, sie verschiebt nur die angezeigte tatsächliche Frequenz (siehe `Tuning`).
-
-**Kalibrieren:**
-
-1. CH1 auf 10 MHz stellen und einschalten (`Tuning` = `Fractional` oder `Low noise`).
-2. Mit Frequenzzähler messen.
-3. Abweichung in Hz durch 10 teilen = Korrektur in ppm.
-4. Diesen Wert zur aktuellen Korrektur addieren.
-
-Beispiel:
-
-```text
-Gemessen: 10 000 097 Hz  ->  +97 Hz bei 10 MHz  ->  +9.70 ppm einstellen
-```
-
 ### Drive all
 
 Die Drive-Strength gilt global für alle Kanäle (CH1, CH2 und CH3); CH3 hat keine eigene Einstellung.
@@ -517,6 +460,24 @@ Auswahl:
 6 mA
 8 mA
 ```
+
+### Off state (Zustand abgeschalteter Ausgänge)
+
+Legt fest, welchen Pegel ein ausgeschalteter Ausgang führt (SI5351-Register 24). Die Einstellung gilt für CLK0, CLK1 und CLK2.
+
+| Option | Ausgang im Zustand OFF |
+|---|---|
+| `Low` (Standard) | LOW (0 V), wie bis Firmware 1.2.0 |
+| `High` | HIGH (Versorgungsspannung der Ausgänge, meist 3,3 V) |
+| `High-Z` | hochohmig |
+
+- `High` muss bestätigt werden: Der Dialog `Off state High` erklärt die Gleichspannung am ausgeschalteten Ausgang. `High` (orange) übernimmt die Einstellung, `Cancel` lässt die bisherige stehen. `Low` und `High-Z` wirken ohne Rückfrage.
+- Die Änderung wirkt sofort; laufende Ausgänge bleiben unberührt.
+- Weicht die Einstellung von `Low` ab, zeigen Hauptseite und Kanalseiten `OFF = High` bzw. `OFF = High-Z` in der Moduszeile (Abschnitt 2).
+- Die Firmware schreibt den Zustand beim Verbinden mit dem SI5351, bevor ein Ausgang eingeschaltet werden kann.
+- **`High`:** In eine DC-gekoppelte Last (z. B. 50 Ω) fließt ein Dauerstrom, begrenzt durch die Drive-Strength; an einem DC-gekoppelten Mischer liegt eine Gleichspannung an.
+- Für DC-gekoppelte Diodenringmischer `Low` oder `High-Z` verwenden.
+- Bis zur Hardwareprüfung K2 (`MESSPLAN.md`) bleibt bei `High` und `High-Z` der Ausgangstreiber abgeschalteter Ausgänge versorgt, auch der von CLK2 bei ausgeschaltetem CH3. Bei `Low` wird CLK2 wie bisher ganz abgeschaltet, solange CH3 nicht im IQ-Betrieb läuft.
 
 ### Tuning (Teilerverfahren)
 
@@ -563,27 +524,45 @@ Spread Spectrum (SSC) moduliert die Frequenz von PLL A mit etwa 31,5 kHz und ver
 Beispiel: CH1 = 10 MHz mit `-0.5 %` belegt das Band 9,95–10,00 MHz; die Kanalseite zeigt die mittlere Frequenz `Out 9.975 000 MHz mean, SSC -0.5 %`.
 
 - Beim Umschalten startet PLL A neu: CH1 setzt kurz aus. Läuft CH3 im IQ-Betrieb mit Master CH1, wird die Phasenlage danach neu ausgerichtet.
-- Im Modus `Integer` ist die Option gesperrt (ausgegraut, `Off`). Ein Wechsel auf `Integer` schaltet Spread Spectrum aus; nach dem Zurückwechseln muss es neu gewählt werden.
+- Im Modus `Integer` ist die Option gesperrt und zeigt ausgegraut `Off (Integer)`. Ein Wechsel auf `Integer` schaltet Spread Spectrum aus; nach dem Zurückwechseln muss es neu gewählt werden.
 - Auch mit Spread muss der SI5351-Oszillator (VCO) im Bereich 600–900 MHz bleiben. Mit Master CH1 wird der IQ-Bereich von CH3 deshalb etwas schmaler: `-0.5 %` ab 4,749 MHz, `-1.5 %` ab 4,797 MHz, `+/-0.5 %` von 4,749 bis 99,502 MHz. Außerhalb wartet CH3 (`WAIT`) wie unter 4,730 MHz. Die CH3-Seite zeigt den gültigen Bereich an.
 - Für Mischer- und Empfängerversuche mit sauberem Träger `Off` lassen.
 
-### Off state (Zustand abgeschalteter Ausgänge)
+### Frequenzkorrektur (`Corr.`)
 
-Legt fest, welchen Pegel ein ausgeschalteter Ausgang führt (SI5351-Register 24). Die Einstellung gilt für CLK0, CLK1 und CLK2.
+Die Korrektur gleicht die Toleranz des SI5351-Quarzes aus. Sie wird in **ppm** angezeigt, z. B. `+9.70 ppm`.
 
-| Option | Ausgang im Zustand OFF |
+| Element | Funktion |
 |---|---|
-| `Low` (Standard) | LOW (0 V), wie bis Firmware 1.2.0 |
-| `High` | HIGH (Versorgungsspannung der Ausgänge, meist 3,3 V) |
-| `High-Z` | hochohmig |
+| Schritt-Taste (`0.01` / `0.1` / `1`) | Schrittweite in ppm, jedes Antippen wechselt zur nächsten |
+| `−` / `+` | Korrektur um die Schrittweite ändern, gedrückt halten wiederholt |
 
-- `High` muss bestätigt werden: Der Dialog `Off state High` erklärt die Gleichspannung am ausgeschalteten Ausgang. `High` (orange) übernimmt die Einstellung, `Cancel` lässt die bisherige stehen. `Low` und `High-Z` wirken ohne Rückfrage.
-- Die Änderung wirkt sofort; laufende Ausgänge bleiben unberührt.
-- Weicht die Einstellung von `Low` ab, zeigen Hauptseite und Kanalseiten `OFF = High` bzw. `OFF = High-Z` in der Moduszeile (Abschnitt 2).
-- Die Firmware schreibt den Zustand beim Verbinden mit dem SI5351, bevor ein Ausgang eingeschaltet werden kann.
-- **`High`:** In eine DC-gekoppelte Last (z. B. 50 Ω) fließt ein Dauerstrom, begrenzt durch die Drive-Strength; an einem DC-gekoppelten Mischer liegt eine Gleichspannung an.
-- Für DC-gekoppelte Diodenringmischer `Low` oder `High-Z` verwenden.
-- Bis zur Hardwareprüfung K2 (`MESSPLAN.md`) bleibt bei `High` und `High-Z` der Ausgangstreiber abgeschalteter Ausgänge versorgt, auch der von CLK2 bei ausgeschaltetem CH3. Bei `Low` wird CLK2 wie bisher ganz abgeschaltet, solange CH3 nicht im IQ-Betrieb läuft.
+Bereich: ±50 ppm. Ein positiver Wert bedeutet: Der Ausgang war ohne Korrektur zu hoch.
+
+Die Ausgänge werden nach jeder Änderung neu konfiguriert; der SI5351 wird dabei nicht neu initialisiert. Im Modus `Integer` kann die Korrektur nicht ausgeglichen werden, sie verschiebt nur die angezeigte tatsächliche Frequenz (siehe `Tuning`).
+
+**Kalibrieren:**
+
+1. CH1 auf 10 MHz stellen und einschalten (`Tuning` = `Fractional` oder `Low noise`).
+2. Mit Frequenzzähler messen.
+3. Abweichung in Hz durch 10 teilen = Korrektur in ppm.
+4. Diesen Wert zur aktuellen Korrektur addieren.
+
+Beispiel:
+
+```text
+Gemessen: 10 000 097 Hz  ->  +97 Hz bei 10 MHz  ->  +9.70 ppm einstellen
+```
+
+### Backlight
+
+`−` und `+` ändern die Display-Helligkeit in 10-%-Schritten:
+
+```text
+10 % bis 100 %
+```
+
+Der aktuelle Wert steht zwischen den Tasten. Gedrückt halten wiederholt nicht. Das Minimum von 10 % verhindert, dass das Display versehentlich ganz dunkel und damit unbedienbar wird. Gespeicherte Werte älterer Firmware werden auf die nächste 10-%-Stufe gerundet; Werte unter 5 % (z. B. 0 % aus Firmware 1.0.0) werden auf 80 % gesetzt.
 
 ### Info-Karte
 
