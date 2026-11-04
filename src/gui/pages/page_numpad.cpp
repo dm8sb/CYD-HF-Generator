@@ -42,11 +42,15 @@ void Gui::createNumpad_(uint8_t ch) {
 
     lv_obj_t* m = lv_btnmatrix_create(root_);
     lv_btnmatrix_set_map(m, btnmMap);
-    lv_obj_set_pos(m, 4, 46);
-    lv_obj_set_size(m, SCREEN_WIDTH - 8, SCREEN_HEIGHT - 50);
+    // Up to the screen edge; the padding keeps the keys where they were (6 px from the edge).
+    // Keys in the outer rows and columns take taps in the padding, so up to the edge (U-5).
+    lv_obj_set_pos(m, 0, 44);
+    lv_obj_set_size(m, SCREEN_WIDTH, SCREEN_HEIGHT - 44);
     lv_obj_set_style_bg_opa(m, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(m, 0, 0);
-    lv_obj_set_style_pad_all(m, 2, 0);
+    lv_obj_set_style_pad_hor(m, 6, 0);
+    lv_obj_set_style_pad_top(m, 4, 0);
+    lv_obj_set_style_pad_bottom(m, 6, 0);
     lv_obj_set_style_pad_gap(m, 4, 0);
     lv_obj_set_style_text_font(m, &lv_font_montserrat_20, LV_PART_ITEMS);
     // Trigger on release: a unit key navigates away, and a press-trigger would let the

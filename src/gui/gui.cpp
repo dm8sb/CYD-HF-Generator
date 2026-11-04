@@ -75,6 +75,24 @@ lv_obj_t* Gui::addLabel_(lv_obj_t* parent, const char* txt, const lv_font_t* fon
     return l;
 }
 
+// Buttons near the screen edge take taps up to the edge (audit U-5): the click area grows by
+// EDGE_REACH on all sides, the hit test keeps only the sides that face an edge.
+static void edgeHitTestCb(lv_event_t* e) {
+    lv_obj_t* obj = lv_event_get_current_target(e);
+    lv_hit_test_info_t* info = (lv_hit_test_info_t*)lv_event_get_param(e);
+    lv_area_t c;
+    lv_obj_get_coords(obj, &c);
+    const InputLogic::Area a = InputLogic::edgeArea({(int16_t)c.x1, (int16_t)c.y1, (int16_t)c.x2, (int16_t)c.y2},
+                                                    InputLogic::EDGE_REACH, SCREEN_WIDTH, SCREEN_HEIGHT);
+    info->res = InputLogic::contains(a, (int16_t)info->point->x, (int16_t)info->point->y);
+}
+
+static void reachEdges(lv_obj_t* obj) {
+    lv_obj_set_ext_click_area(obj, InputLogic::EDGE_REACH);
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_ADV_HITTEST);
+    lv_obj_add_event_cb(obj, edgeHitTestCb, LV_EVENT_HIT_TEST, nullptr);
+}
+
 lv_obj_t* Gui::addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w, int h, lv_color_t color,
                           Action action, uint8_t arg, bool repeat) {
     lv_obj_t* b = lv_btn_create(parent);
@@ -90,6 +108,7 @@ lv_obj_t* Gui::addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w
     lv_obj_set_style_text_font(l, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l, lv_color_brightness(color) > 170 ? Colors::textDark() : Colors::text(), 0);
     lv_obj_center(l);
+    reachEdges(b);
     // A press that starts scrolling a parent (CONFIG) triggers nothing: once scrolling, LVGL 8.3
     // sends neither CLICKED / SHORT_CLICKED nor LONG_PRESSED(_REPEAT), only RELEASED.
     if (repeat) {
@@ -118,6 +137,7 @@ lv_obj_t* Gui::addChip_(lv_obj_t* parent, const char* txt, int x, int y, int w, 
     lv_obj_t* l = lv_label_create(b);
     lv_label_set_text(l, txt);
     lv_obj_center(l);
+    reachEdges(b);
     on_(b, LV_EVENT_CLICKED, action, arg);
     return b;
 }
@@ -177,7 +197,8 @@ lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switch
         lv_obj_align(w_.hdrState, LV_ALIGN_LEFT_MID, Layout::HEADER_STATE_X, 0);
     }
 
-    addButton_(bar, "MAIN", SCREEN_WIDTH - 66, 4, 62, Layout::HEADER_H - 8, Colors::gray(), Action::Navigate, (uint8_t)PageId::Main);
+    // 36 px high and up to the top and right edge (audit U-5).
+    addButton_(bar, "MAIN", SCREEN_WIDTH - 66, 1, 62, Layout::HEADER_H - 2, Colors::gray(), Action::Navigate, (uint8_t)PageId::Main);
     return bar;
 }
 
@@ -398,11 +419,38 @@ void Gui::showMessage(const char* title, const char* text) {
     }
 }
 
+// Dialog with large buttons (audit U-4): 300 px wide, buttons 120 x 40 px with 6.7:1 against the
+// dialog, centered. A button with LV_BTNMATRIX_CTRL_CHECKED is drawn in the warning color.
+static void styleDialog(lv_obj_t* box, uint8_t buttons) {
+    static constexpr int DIALOG_W = 300;
+    static constexpr int BTN_W = 120;
+    static constexpr int BTN_H = 40;
+    static constexpr int BTN_GAP = 12;
+    lv_obj_set_width(box, DIALOG_W);
+    lv_obj_set_style_bg_color(box, Colors::cardBg(), 0);
+    lv_obj_set_style_border_color(box, Colors::muted(), 0);
+    lv_obj_set_style_border_width(box, 1, 0);
+    lv_obj_set_flex_align(box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_t* btns = lv_msgbox_get_btns(box);
+    lv_obj_set_size(btns, buttons * BTN_W + (buttons - 1) * BTN_GAP, BTN_H);
+    lv_obj_set_style_pad_all(btns, 0, 0);
+    lv_obj_set_style_pad_column(btns, BTN_GAP, 0);
+    lv_obj_set_style_bg_opa(btns, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(btns, 0, 0);
+    lv_obj_set_style_bg_color(btns, Colors::dialogButton(), LV_PART_ITEMS);
+    lv_obj_set_style_bg_opa(btns, LV_OPA_COVER, LV_PART_ITEMS);
+    lv_obj_set_style_text_color(btns, Colors::textDark(), LV_PART_ITEMS);
+    lv_obj_set_style_text_font(btns, &lv_font_montserrat_16, LV_PART_ITEMS);
+    lv_obj_set_style_bg_color(btns, Colors::warn(), LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_text_color(btns, Colors::textDark(), LV_PART_ITEMS | LV_STATE_CHECKED);
+}
+
 // Creates the box of the open message unless it exists (several async calls may be pending).
 void Gui::openMessage_() {
     static const char* buttons[] = {"OK", ""};
     if (shownBox_ || !messages_.isOpen()) return;
     msgbox_ = shownBox_ = lv_msgbox_create(nullptr, messages_.openTitle(), messages_.openText(), buttons, false);
+    styleDialog(msgbox_, 1);
     lv_obj_center(msgbox_);
     lv_obj_add_event_cb(msgbox_, msgboxEventCb_, LV_EVENT_VALUE_CHANGED, nullptr);
     lv_obj_add_event_cb(msgbox_, msgboxEventCb_, LV_EVENT_DELETE, nullptr);
@@ -437,6 +485,8 @@ void Gui::confirmOffStateHigh_() {
                                      "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
                                      "Do not use with DC-coupled mixers or inputs.",
                                      buttons, false);
+    styleDialog(box, 2);
+    lv_btnmatrix_set_btn_ctrl(lv_msgbox_get_btns(box), 1, LV_BTNMATRIX_CTRL_CHECKED);
     lv_obj_center(box);
     lv_obj_add_event_cb(box, confirmEventCb_, LV_EVENT_VALUE_CHANGED, nullptr);
     refresh_();

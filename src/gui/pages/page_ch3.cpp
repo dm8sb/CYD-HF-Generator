@@ -16,12 +16,13 @@ void Gui::createCH3_() {
     w_.modes = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 2, 50);
 
     addLabel_(root_, "Master", &lv_font_montserrat_14, Colors::muted(), MARGIN + 2, 128);
-    addLabel_(root_, "Phase (deg)", &lv_font_montserrat_14, Colors::muted(), 152, 128);
+    addLabel_(root_, "Phase (deg)", &lv_font_montserrat_14, Colors::muted(), 148, 128);
 
-    w_.masterChips[0] = addChip_(root_, "CH1", MARGIN, 146, 64, 40, Colors::ch1(), Action::Ch3Master, 1);
-    w_.masterChips[1] = addChip_(root_, "CH2", MARGIN + 70, 146, 64, 40, Colors::ch2(), Action::Ch3Master, 2);
+    // Chips 6 px apart, a mistap would swap the sideband (audit U-6); 8 px between the groups.
+    w_.masterChips[0] = addChip_(root_, "CH1", MARGIN, 146, 62, 40, Colors::ch1(), Action::Ch3Master, 1);
+    w_.masterChips[1] = addChip_(root_, "CH2", MARGIN + 68, 146, 62, 40, Colors::ch2(), Action::Ch3Master, 2);
     for (uint8_t i = 0; i < 4; ++i) {
-        w_.chips[i] = addChip_(root_, PHASE_LABELS[i], 150 + i * 41, 146, 39, 40, color, Action::Ch3Phase, i);
+        w_.chips[i] = addChip_(root_, PHASE_LABELS[i], 146 + i * 43, 146, 37, 40, color, Action::Ch3Phase, i);
     }
 
     char lo[12], hi[12], text[128];

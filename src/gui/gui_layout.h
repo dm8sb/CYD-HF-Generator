@@ -35,6 +35,8 @@ inline lv_color_t muted() { return lv_color_hex(0x90A4AE); }
 inline lv_color_t ok() { return lv_color_hex(0x66BB6A); }
 inline lv_color_t warn() { return lv_color_hex(0xFFA726); }
 inline lv_color_t error() { return lv_color_hex(0xEF5350); }
+// Dialog buttons (audit U-4): 6.7:1 against cardBg(), dark text 6.9:1.
+inline lv_color_t dialogButton() { return lv_color_hex(0x90A4AE); }
 
 inline lv_color_t forChannel(uint8_t ch) { return ch == 1 ? ch1() : (ch == 2 ? ch2() : ch3()); }
 inline lv_color_t forTone(StatusText::Tone t) {

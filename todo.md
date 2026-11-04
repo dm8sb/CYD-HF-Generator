@@ -107,8 +107,6 @@ Jede Phase endet mit den Gates aus Audit 5.8: Host-Tests in `native-win` und `na
 
 Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Abschnitt 2.3. Reihenfolge: Phase 2 (schnelle Verbesserungen), Phase 3 (Laborbetrieb).
 
-- [ ] **P2 Dialog- und Randtasten** (U-4, U-5): OK ≈ 80 × 23 px mit 1,10:1 Flächenkontrast → ≥ 120 × 40 px, ≥ 3:1. MAIN-Taste 30 px hoch in der Ecke, Ecken-Tipps werden auf (319, 0) geklemmt und verfehlen sie → Randtasten bis an den Bildrand (`ext_click_area`), MAIN 36 px.
-- [ ] **P2 Phasen-Chips** (U-6): 2 px Abstand, ein Fehltipp vertauscht das Seitenband → 6 px.
 - [ ] **P2 Kontraste** (U-7, U-19): Weiß auf CH1/CH2/CH3 nur 3,66 / 2,86 / 3,19:1 → Textfarbe nach Kontrast (dunkel); Schalter-Spur und Chip-Rand ≥ 3:1; Zustände zusätzlich über Form („!“ bei ERR, gefülltes ON-Kennzeichen) für Farbsehschwäche.
 - [ ] **P2 Lesbarkeit im Unterricht** (U-8): ON/OFF auf MAIN in 12 px ist nur bis ≈ 33 cm lesbar → gefülltes Kennzeichen 16 px, Status- und Detailzeilen 14 px. Die Navigationstasten CH1–CH3 auf MAIN werden durch die Statusleiste ersetzt (entschieden 2026-11-03, Konzept WEB-HMI W-E26; kann vor WEB-HMI kommen).
 - [ ] **P2 Numpad** (U-9): Fehleingabe löscht die Eingabe; Hinweis nur als Platzhalter mit 2,29:1; 10. Zeichen still ignoriert → Eingabe stehen lassen, Fehlerlabel, aktuelle Frequenz als feste Zeile.

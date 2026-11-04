@@ -49,4 +49,21 @@ TapTarget tapTarget(const char* text, size_t index, uint32_t* step);
 // "#RRGGBB d#". Stops before out would overflow.
 void stepMarkup(const char* text, uint32_t step, uint32_t rgb, char* out, size_t outSize);
 
+// ---------------------------------------------------------------------------
+// Buttons at the screen edge (audit U-5). The touch mapping clamps taps beyond the panel to its
+// outermost pixel, so a button a few px from the edge misses taps at the very edge.
+
+// Inclusive screen area, as lv_area_t.
+struct Area {
+    int16_t x1, y1, x2, y2;
+};
+
+// Buttons at most this far from an edge reach it (the page margin).
+static constexpr int16_t EDGE_REACH = 8;
+
+// Tap area of a button: its own area, extended to the screen edge on each side at most `reach`
+// px from it. The sides towards neighbors stay, so the gaps between buttons stay free.
+Area edgeArea(const Area& button, int16_t reach, int16_t screenW, int16_t screenH);
+bool contains(const Area& a, int16_t x, int16_t y);
+
 }

@@ -235,6 +235,35 @@ static void test_mode_summary_lists_only_deviations() {
     TEST_ASSERT_TRUE(strlen(small) < sizeof(small));
 }
 
+// Buttons at the screen edge take taps up to the edge (audit U-5)
+static void test_edge_area_reaches_only_near_edges() {
+    using namespace InputLogic;
+    // MAIN in the header (254..315 x 1..36): to the right and top edge, not left or down.
+    Area a = edgeArea({254, 1, 315, 36}, EDGE_REACH, 320, 240);
+    TEST_ASSERT_EQUAL(254, a.x1);
+    TEST_ASSERT_EQUAL(0, a.y1);
+    TEST_ASSERT_EQUAL(319, a.x2);
+    TEST_ASSERT_EQUAL(36, a.y2);
+    TEST_ASSERT_TRUE(contains(a, 319, 0)); // clamped corner tap
+    TEST_ASSERT_FALSE(contains(a, 253, 10));
+    TEST_ASSERT_FALSE(contains(a, 300, 37));
+    // CH1 at the bottom left (8..79 x 194..235): left and bottom edge.
+    a = edgeArea({8, 194, 79, 235}, EDGE_REACH, 320, 240);
+    TEST_ASSERT_TRUE(contains(a, 0, 239));
+    TEST_ASSERT_FALSE(contains(a, 80, 239)); // the gap to CH2 stays free
+    TEST_ASSERT_FALSE(contains(a, 40, 193));
+    // A button in the middle keeps its area.
+    a = edgeArea({100, 100, 150, 140}, EDGE_REACH, 320, 240);
+    TEST_ASSERT_EQUAL(100, a.x1);
+    TEST_ASSERT_EQUAL(100, a.y1);
+    TEST_ASSERT_EQUAL(150, a.x2);
+    TEST_ASSERT_EQUAL(140, a.y2);
+    // 9 px from the edge is too far.
+    a = edgeArea({9, 9, 50, 50}, EDGE_REACH, 320, 240);
+    TEST_ASSERT_EQUAL(9, a.x1);
+    TEST_ASSERT_EQUAL(9, a.y1);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_numpad_digits_and_one_point);
@@ -251,5 +280,6 @@ int main(int, char**) {
     RUN_TEST(test_iq_limit_is_rounded_towards_the_inside);
     RUN_TEST(test_status_texts_show_the_actual_state);
     RUN_TEST(test_mode_summary_lists_only_deviations);
+    RUN_TEST(test_edge_area_reaches_only_near_edges);
     return UNITY_END();
 }
