@@ -83,6 +83,7 @@ private:
     void reportError_(const char* title, const char* text);
     // Reports a lost SI5351 instead of `text` when the failure came from the I2C bus.
     void reportHardwareError_(const char* text);
+    void reportLinkLost_();
     void superviseHardware_();
     // Tries the open SDA/SCL assignment first, then the other one.
     bool connect_();

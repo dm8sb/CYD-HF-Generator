@@ -386,6 +386,25 @@ static void test_reconnect_restores_spread_spectrum() {
     TEST_ASSERT_TRUE(enabled(0));
 }
 
+// Audit C-6: a failed output switch or off state write is a failed transfer, after which the
+// driver has marked the SI5351 as lost; the dialog says so (no "Output switch failed").
+static void test_failed_switch_or_off_state_reports_connection_lost() {
+    {
+        Device d;
+        chip.failAfter = 0;
+        d.app.setChannelEnabled(1, true);
+        TEST_ASSERT_EQUAL_UINT(1, errorCount);
+        TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
+        TEST_ASSERT_FALSE(d.app.hardwareReady());
+    }
+    setUp();
+    Device d;
+    chip.failAfter = 0;
+    d.app.setOffState(OffState::High);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
+}
+
 static void test_bus_failure_while_tuning_shows_no_hw() {
     Device d;
     d.app.setChannelEnabled(1, true);
@@ -1037,6 +1056,7 @@ int main() {
     RUN_TEST(test_millis_wrap_keeps_supervision_and_autosave);
     RUN_TEST(test_failing_bus_reinit_is_survived);
     RUN_TEST(test_reconnect_restores_spread_spectrum);
+    RUN_TEST(test_failed_switch_or_off_state_reports_connection_lost);
     RUN_TEST(test_bus_failure_while_tuning_shows_no_hw);
     RUN_TEST(test_healthy_device_is_not_reconfigured);
     RUN_TEST(test_backlight_steps);

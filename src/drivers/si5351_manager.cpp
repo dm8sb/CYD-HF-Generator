@@ -173,7 +173,6 @@ bool SI5351Manager::begin(int32_t correction) {
 
     ready_ = true;
     lastError_ = Error::None;
-    revId_ = status & 0x03;
     Logger::debugValue("SI5351", "Device status reg0", status);
     Logger::info("SI5351", "Init OK; all outputs off");
     return true;
@@ -203,10 +202,9 @@ bool SI5351Manager::fail_(Error e) {
     return false;
 }
 
-bool SI5351Manager::setSpread(Spread s) {
+void SI5351Manager::setSpread(Spread s) {
     // The VCO range depends on it, so PLL A may need other values: applied by the next setup.
     spread_ = s;
-    return true;
 }
 
 bool SI5351Manager::setOffState(OffState s) {

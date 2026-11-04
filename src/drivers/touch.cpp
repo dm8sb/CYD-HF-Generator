@@ -34,7 +34,7 @@ bool TouchDriver::mapPoint(int16_t rx, int16_t ry, lv_coord_t* x, lv_coord_t* y)
     return true;
 }
 
-bool TouchDriver::readLvgl(lv_indev_drv_t*, lv_indev_data_t* data) {
+void TouchDriver::readLvgl(lv_indev_drv_t*, lv_indev_data_t* data) {
     const uint32_t now = millis();
     bool pressed = touch_.touched();
 
@@ -43,26 +43,28 @@ bool TouchDriver::readLvgl(lv_indev_drv_t*, lv_indev_data_t* data) {
             data->state = LV_INDEV_STATE_PR;
             data->point.x = filtX_;
             data->point.y = filtY_;
-            return false;
+            return;
         }
         lastPressed_ = false;
         data->state = LV_INDEV_STATE_REL;
         data->point.x = filtX_;
         data->point.y = filtY_;
-        return false;
+        return;
     }
 
     TS_Point p = touch_.getPoint();
+    // Defensive: touched() and getPoint() share one cached sample (3 ms), so z is above the
+    // library threshold here; a slower call sequence could return a released sample.
     if (p.z < 150) {
         data->state = LV_INDEV_STATE_REL;
-        return false;
+        return;
     }
 
     lv_coord_t x = 0, y = 0;
     if (!mapPoint(p.x, p.y, &x, &y)) {
         Logger::error("TOUCH", "Calibration invalid");
         data->state = LV_INDEV_STATE_REL;
-        return false;
+        return;
     }
 
     // IIR jitter filter.
@@ -78,5 +80,4 @@ bool TouchDriver::readLvgl(lv_indev_drv_t*, lv_indev_data_t* data) {
     data->state = LV_INDEV_STATE_PR;
     data->point.x = filtX_;
     data->point.y = filtY_;
-    return false;
 }

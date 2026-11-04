@@ -763,9 +763,6 @@ Schlägt das Einstellen eines Ausgangs fehl, obwohl der SI5351 antwortet, ersche
 |---|---|
 | `Frequency set failed` | CH1 oder CH2 ließ sich nicht einstellen |
 | `CH3 IQ setup failed` | Das IQ-Paar ließ sich nicht einstellen |
-| `Output switch failed` | Ein- oder Ausschalten eines Ausgangs fehlgeschlagen |
-| `Spread spectrum setup failed` | `Spread CH1` ließ sich nicht schreiben |
-| `Off state setup failed` | `Off state` ließ sich nicht schreiben |
 
 ### Einstellungen werden nicht gespeichert
 

@@ -763,9 +763,6 @@ If setting up an output fails although the SI5351 responds, a dialog appears. Th
 |---|---|
 | `Frequency set failed` | CH1 or CH2 could not be set |
 | `CH3 IQ setup failed` | The IQ pair could not be set up |
-| `Output switch failed` | Switching an output on or off failed |
-| `Spread spectrum setup failed` | `Spread CH1` could not be written |
-| `Off state setup failed` | `Off state` could not be written |
 
 ### Settings Are Not Saved
 

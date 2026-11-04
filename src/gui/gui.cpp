@@ -10,7 +10,7 @@ lv_color_t Gui::buf1_[SCREEN_WIDTH * 24];
 
 static void* packAction(uint8_t action, uint8_t arg) { return (void*)(uintptr_t)((action << 8) | arg); }
 
-bool Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
+void Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
     app_ = &app;
     touch_ = &touch;
     display_ = &display;
@@ -40,7 +40,6 @@ bool Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
     lastHwState_ = hardwareState_();
     navigate(PageId::Main);
     Logger::info("GUI", "LVGL initialized");
-    return true;
 }
 
 Gui* Gui::from_(lv_obj_t* obj) {

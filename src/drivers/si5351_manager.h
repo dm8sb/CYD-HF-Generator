@@ -24,7 +24,6 @@ public:
     Error lastError() const { return lastError_; }
     // Register 183 bits 5:0 differ from the documented reset value (e.g. a clone).
     bool idUnverified() const { return idUnverified_; }
-    uint8_t revId() const { return revId_; }
     // Reads back the output registers. Returns false and drops ready() if the chip
     // does not answer or lost its configuration (e.g. after a power interruption).
     bool checkAlive();
@@ -37,8 +36,8 @@ public:
     // PLL A only (AN619): CH1 and CH3 with master CH1. Takes effect with the next setup call on
     // PLL A: it plans PLL A so that the modulated VCO stays within 600..900 MHz (see si5351_plan.h),
     // writes the parameters and resets PLL A (short dropout, an IQ pair is realigned). FBA_INT
-    // stays 0 while it is on. Always true; I2C errors show up in the setup call.
-    bool setSpread(Spread s);
+    // stays 0 while it is on. Stores the option only; I2C errors show up in the setup call.
+    void setSpread(Spread s);
     // Level of disabled outputs (register 24). Written at once if the chip is ready; running
     // outputs are not touched. powerDown() depends on it.
     bool setOffState(OffState s);
@@ -108,7 +107,6 @@ private:
     OffState offState_ = OffState::Low;
     Error lastError_ = Error::None;
     bool idUnverified_ = false;
-    uint8_t revId_ = 0;
     int32_t correction_ = 0;
     uint8_t outputMask_ = 0;
     OutputCache out_[3] {};
