@@ -6,8 +6,9 @@
 using namespace Layout;
 
 static constexpr int CARD_H = 58;
-// Frequency column; "NO HW" in the state line below the name needs 47 px.
-static constexpr int FREQ_X = 50;
+// Detail line after the state label below the name; the widest one ("! NO HW", filled) needs
+// 57 px.
+static constexpr int DETAIL_X = 60;
 // Switch column at the right edge of the card content (288 px): a 44 px switch with 6 px extra
 // touch area starts at 238, 13 px after the longest frequency ("100.000 000 MHz" ends at 225),
 // so a tap on the unit cannot switch the output (audit U-3). A line marks the column.
@@ -38,13 +39,14 @@ void Gui::createMain_() {
 
         addLabel_(card, names[i], &lv_font_montserrat_20, color, 0, 0);
         w_.cardState[i] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 0, 26);
+        styleState_(w_.cardState[i]);
         w_.cardFreq[i] = addLabel_(card, "", &lv_font_montserrat_20, Colors::text(), NAME_W, 0);
         lv_obj_set_width(w_.cardFreq[i], FREQ_RIGHT - NAME_W);
         lv_obj_set_style_text_align(w_.cardFreq[i], LV_TEXT_ALIGN_RIGHT, 0);
         lv_label_set_long_mode(w_.cardFreq[i], LV_LABEL_LONG_CLIP);
-        w_.cardDetail[i] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), FREQ_X, 26);
+        w_.cardDetail[i] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), DETAIL_X, 26);
         // Keep the detail line clear of the switch column.
-        lv_obj_set_width(w_.cardDetail[i], DIVIDER_X - 4 - FREQ_X);
+        lv_obj_set_width(w_.cardDetail[i], DIVIDER_X - 4 - DETAIL_X);
         lv_label_set_long_mode(w_.cardDetail[i], LV_LABEL_LONG_DOT);
         lv_obj_t* divider = lv_obj_create(card);
         lv_obj_remove_style_all(divider);
@@ -62,11 +64,6 @@ void Gui::createMain_() {
     addButton_(root_, "CH2", MARGIN + (NAV_W + GAP), NAV_Y, NAV_W, NAV_H, Colors::ch2(), Action::Navigate, (uint8_t)PageId::CH2);
     addButton_(root_, "CH3", MARGIN + 2 * (NAV_W + GAP), NAV_Y, NAV_W, NAV_H, Colors::ch3(), Action::Navigate, (uint8_t)PageId::CH3);
     addButton_(root_, "CONFIG", MARGIN + 3 * (NAV_W + GAP), NAV_Y, NAV_W, NAV_H, Colors::config(), Action::Navigate, (uint8_t)PageId::Config);
-}
-
-static void setState(lv_obj_t* label, const StatusText::Text& state) {
-    lv_label_set_text(label, state.text);
-    lv_obj_set_style_text_color(label, Colors::forTone(state.tone), 0);
 }
 
 // The requested frequency of a card. In Integer mode the output lies on a raster; "~" marks
@@ -89,7 +86,7 @@ void Gui::refreshMain_() {
         const uint8_t i = ch - 1;
         const Channel& c = app.channel(ch);
         setCardFrequency(w_.cardFreq[i], app, ch, c.frequency);
-        setState(w_.cardState[i], StatusText::channel(app.channelStatus(ch)));
+        showState_(w_.cardState[i], StatusText::channel(app.channelStatus(ch)));
         // Special modes first (they change the signal); a long line ends in "...".
         showModes_(w_.cardDetail[i], ch);
         const bool iqMaster = app.ch3().master == ch && app.ch3Status() != Ch3Status::Off;
@@ -115,7 +112,7 @@ void Gui::refreshMain_() {
     FrequencyUtils::formatIqLimit(app.iqMaxHz(), false, 2, false, iqLimit, sizeof(iqLimit));
     snprintf(tooHigh, sizeof(tooHigh), " / > %s MHz", iqLimit);
     const Ch3Status st3 = app.ch3Status();
-    setState(w_.cardState[2], StatusText::ch3(st3));
+    showState_(w_.cardState[2], StatusText::ch3(st3));
     const char* reason = "";
     switch (st3) {
         case Ch3Status::MasterOff: reason = " / master off"; break;

@@ -58,6 +58,7 @@ void Gui::createNumpad_(uint8_t ch) {
     lv_btnmatrix_set_btn_ctrl_all(m, LV_BTNMATRIX_CTRL_CLICK_TRIG);
     // Unit keys confirm the input; highlight them in the channel color.
     lv_obj_set_style_bg_color(m, color, LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_text_color(m, Colors::textOn(color), LV_PART_ITEMS | LV_STATE_CHECKED);
     for (uint16_t id : UNIT_BTN_IDS) lv_btnmatrix_set_btn_ctrl(m, id, LV_BTNMATRIX_CTRL_CHECKED);
     on_(m, LV_EVENT_VALUE_CHANGED, Action::NumpadKey, 0);
 }

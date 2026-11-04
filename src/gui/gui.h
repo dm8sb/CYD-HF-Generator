@@ -122,6 +122,9 @@ private:
     static void nextMessageCb_(void* gui);
     // Special modes of channel ch (1..3) into a label, colored by tone (U-2).
     void showModes_(lv_obj_t* label, uint8_t ch);
+    // State label (MAIN cards, header): padding and corners once, text and fill per refresh.
+    static void styleState_(lv_obj_t* label);
+    static void showState_(lv_obj_t* label, const StatusText::Text& state);
     // Off state High needs a confirmation: a switched-off output then carries DC.
     void confirmOffStateHigh_();
     static void confirmEventCb_(lv_event_t* e);

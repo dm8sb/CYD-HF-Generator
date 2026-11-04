@@ -37,7 +37,7 @@ The main page shows one card per channel with:
 - channel name and status
 - the frequency you set (requested frequency)
 - its own ON/OFF switch
-- an extra line: on CH1/CH2 the mode line (see below) and `IQ master of CH3` when CH3 is switched on and follows this channel (shortened to `| IQ master` after a mode line); on CH3 the master and phase, e.g. `CH1 / 90 deg`, and with `WAIT` and `ERR` also the reason (e.g. `CH1 / 90 deg / master off`)
+- an extra line: on CH1/CH2 the mode line (see below) and `IQ master of CH3` when CH3 is switched on and follows this channel (shortened to `| IQ master` after a mode line); on CH3 the master and phase, e.g. `CH1 / 90 deg`, and with `WAIT` and `! ERR` also the reason (e.g. `CH1 / 90 deg / master off`)
 
 In mode `Tuning` = `Integer`, the frequency is preceded by a `~` when the actual frequency deviates from the requested frequency by 1 Hz or more (section 8).
 
@@ -59,18 +59,18 @@ Operation on the main page:
 - **Tapping a card** opens the channel's page.
 - **The switch on a card** (on the right, separated by a line) turns the output on or off directly, without leaving the page. A tap on the frequency or `MHz` only opens the channel page.
 - The frequencies are right-aligned; decimal point and `MHz` of all cards line up.
-- The buttons at the bottom lead to CH1, CH2, CH3 and CONFIG.
+- The buttons at the bottom lead to CH1, CH2, CH3 and CONFIG. Colored buttons and selected chips have dark text, switched-off switches a light gray track, unselected chips a gray border.
 - Buttons at the screen edge (e.g. `MAIN` top right, the buttons at the bottom, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.
 
-Status display below the channel name:
+Status display below the channel name (the same in the title bar of the channel pages). Every state except `OFF` appears as a colored field with dark text; errors start with `!`. Active and faulty outputs can thus be recognized without telling colors apart and from a distance.
 
 | Status | Meaning |
 |---|---|
-| `ON` (green) | Output active |
-| `OFF` (gray) | Output off |
-| `ERR` (red) | Setting up the output failed although the SI5351 responds; the firmware retries every 2 s. The switch keeps showing the desired setting |
-| `WAIT` (orange) | CH3 is switched on but cannot run at the moment (master off or master frequency outside the IQ range: below 4.730 MHz, slightly narrower with `Spread CH1` on master CH1, section 8) |
-| `NO HW` (red) | SI5351 not found or connection lost; the firmware reconnects automatically |
+| `ON` (green field) | Output active |
+| `OFF` (gray text, no field) | Output off |
+| `! ERR` (red field) | Setting up the output failed although the SI5351 responds; the firmware retries every 2 s. The switch keeps showing the desired setting |
+| `WAIT` (orange field) | CH3 is switched on but cannot run at the moment (master off or master frequency outside the IQ range: below 4.730 MHz, slightly narrower with `Spread CH1` on master CH1, section 8) |
+| `! NO HW` (red field) | SI5351 not found or connection lost; the firmware reconnects automatically |
 
 The navigation buttons are color-coded:
 
@@ -81,7 +81,7 @@ The navigation buttons are color-coded:
 | CH3 | Blue |
 | CONFIG | Yellow |
 
-The channel pages and CONFIG have a title bar with the `MAIN` button on the right to return to the main page. On the channel pages, it also contains the ON/OFF switch and next to it the actual state as on the main page: `ON`, `OFF`, `WAIT` (CH3 only), `ERR` or `NO HW`. The switch shows what is set, the text what the output is doing; for CH3 the switch can therefore be ON while the text shows `WAIT`. The NUMPAD has the `◀` button instead (section 6).
+The channel pages and CONFIG have a title bar with the `MAIN` button on the right to return to the main page. On the channel pages, it also contains the ON/OFF switch and next to it the actual state as on the main page: `ON`, `OFF`, `WAIT` (CH3 only), `! ERR` or `! NO HW`. The switch shows what is set, the text what the output is doing; for CH3 the switch can therefore be ON while the text shows `WAIT`. The NUMPAD has the `◀` button instead (section 6).
 
 On the channel pages, the RGB LED also shows the channel color:
 
@@ -195,8 +195,8 @@ In case of errors, the following is shown in red instead of the frequency:
 
 | Display | Meaning |
 |---|---|
-| `SI5351 not found` | SI5351 missing or connection lost (status `NO HW`) |
-| `Output error, retrying` | Setting failed; the firmware retries every 2 s (status `ERR`) |
+| `SI5351 not found` | SI5351 missing or connection lost (status `! NO HW`) |
+| `Output error, retrying` | Setting failed; the firmware retries every 2 s (status `! ERR`) |
 
 Example:
 
@@ -360,7 +360,7 @@ Below the frequency, the CH3 page shows the current state:
 | `Waiting: master CHx is off` | CH3 switched on, master off |
 | `Waiting: CHx below 4.730 MHz` | CH3 switched on, master frequency too low (higher with spread spectrum on CH1, e.g. `4.749`) |
 | `Waiting: CHx above 99.502 MHz` | CH3 switched on, master frequency too high; only with spread `+/-0.5 %` on master CH1 |
-| `IQ setup failed, retrying` | Setting up the IQ pair failed (status `ERR`); CLK2 is off, the master keeps running, the firmware retries every 2 s |
+| `IQ setup failed, retrying` | Setting up the IQ pair failed (status `! ERR`); CLK2 is off, the master keeps running, the firmware retries every 2 s |
 | `SI5351 not found` | SI5351 missing |
 
 **Important:** If CH3 is switched on but cannot run at the moment (master off or below 4.730 MHz), the switch stays ON. Output CLK2 stays off until the conditions are met – then CH3 starts **automatically**. No error message appears.
@@ -756,9 +756,9 @@ Errors are shown as a dialog. `OK` (large light gray button at the bottom) close
 
 ### SI5351 Not Found
 
-If the SI5351 is not found at startup, **one** message appears. After that, the channels on the main page show `NO HW` and the channel pages show `SI5351 not found`. Settings can still be changed and are saved.
+If the SI5351 is not found at startup, **one** message appears. After that, the channels on the main page show `! NO HW` and the channel pages show `SI5351 not found`. Settings can still be changed and are saved.
 
-The firmware checks every 2 seconds whether the SI5351 responds. If it is connected later or a loose contact is fixed, the firmware reconnects automatically, restores the set frequencies and ON/OFF states and closes the connection message. If the connection is lost during operation (or the SI5351 briefly loses power), the message `Connection lost` appears and the channels show `NO HW` until the connection is restored. The firmware tries to reconnect right after detecting the loss; after a short power interruption the outputs therefore run again after about 2 s at the latest.
+The firmware checks every 2 seconds whether the SI5351 responds. If it is connected later or a loose contact is fixed, the firmware reconnects automatically, restores the set frequencies and ON/OFF states and closes the connection message. If the connection is lost during operation (or the SI5351 briefly loses power), the message `Connection lost` appears and the channels show `! NO HW` until the connection is restored. The firmware tries to reconnect right after detecting the loss; after a short power interruption the outputs therefore run again after about 2 s at the latest.
 
 SDA and SCL may be connected to CN1 in either order (GPIO22/GPIO27). The firmware tries both assignments, also after replugging during operation. The info card on CONFIG and the serial monitor show the assignment found, with the suffix `(swapped)` for swapped wires.
 
@@ -774,7 +774,7 @@ Note: If an SI5351 module stays powered while its cable is unplugged, its output
 
 ### Output Errors
 
-If setting up an output fails although the SI5351 responds, a dialog appears. The channel shows `ERR` (main page, title bar), the channel page shows `Output error, retrying`, and the CH3 page `IQ setup failed, retrying`. The switch keeps the desired setting; the firmware retries every 2 s without another dialog. In case of an IQ error, the master keeps running.
+If setting up an output fails although the SI5351 responds, a dialog appears. The channel shows `! ERR` (main page, title bar), the channel page shows `Output error, retrying`, and the CH3 page `IQ setup failed, retrying`. The switch keeps the desired setting; the firmware retries every 2 s without another dialog. In case of an IQ error, the master keeps running.
 
 | Message | Meaning |
 |---|---|
@@ -869,7 +869,7 @@ Important messages:
 | `[BOOT] Setup complete` | Startup complete |
 | `[SETTINGS] Saved to NVS` | Autosave |
 | `[APP] Restoring outputs` | After reconnecting, the outputs are being restored |
-| `[APP] Output error cleared` | An output error (`ERR`) has been cleared |
+| `[APP] Output error cleared` | An output error (`! ERR`) has been cleared |
 
 Error messages start with `[ERROR]`, e.g.:
 

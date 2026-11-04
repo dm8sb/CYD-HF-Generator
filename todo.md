@@ -107,7 +107,6 @@ Jede Phase endet mit den Gates aus Audit 5.8: Host-Tests in `native-win` und `na
 
 Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Abschnitt 2.3. Reihenfolge: Phase 2 (schnelle Verbesserungen), Phase 3 (Laborbetrieb).
 
-- [ ] **P2 Kontraste** (U-7, U-19): Weiß auf CH1/CH2/CH3 nur 3,66 / 2,86 / 3,19:1 → Textfarbe nach Kontrast (dunkel); Schalter-Spur und Chip-Rand ≥ 3:1; Zustände zusätzlich über Form („!“ bei ERR, gefülltes ON-Kennzeichen) für Farbsehschwäche.
 - [ ] **P2 Lesbarkeit im Unterricht** (U-8): ON/OFF auf MAIN in 12 px ist nur bis ≈ 33 cm lesbar → gefülltes Kennzeichen 16 px, Status- und Detailzeilen 14 px. Die Navigationstasten CH1–CH3 auf MAIN werden durch die Statusleiste ersetzt (entschieden 2026-11-03, Konzept WEB-HMI W-E26; kann vor WEB-HMI kommen).
 - [ ] **P2 Numpad** (U-9): Fehleingabe löscht die Eingabe; Hinweis nur als Platzhalter mit 2,29:1; 10. Zeichen still ignoriert → Eingabe stehen lassen, Fehlerlabel, aktuelle Frequenz als feste Zeile.
 - [ ] **P2 Boot-Geste absichern** (U-10): Versehentliche Geste speichert den falschen Controller → Dialog „Display OK?“, ohne Tipp nach 10 s zurück und nichts speichern; Hinweis auch im Handbuch §11.

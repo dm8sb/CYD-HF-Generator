@@ -204,8 +204,8 @@ static void test_status_texts_show_the_actual_state() {
     TEST_ASSERT_EQUAL(Tone::Ok, channel(ChannelStatus::On).tone);
     TEST_ASSERT_EQUAL_STRING("OFF", channel(ChannelStatus::Off).text);
     TEST_ASSERT_EQUAL(Tone::Muted, channel(ChannelStatus::Off).tone);
-    TEST_ASSERT_EQUAL_STRING("ERR", channel(ChannelStatus::Error).text);
-    TEST_ASSERT_EQUAL_STRING("NO HW", channel(ChannelStatus::NoDevice).text);
+    TEST_ASSERT_EQUAL_STRING("! ERR", channel(ChannelStatus::Error).text);
+    TEST_ASSERT_EQUAL_STRING("! NO HW", channel(ChannelStatus::NoDevice).text);
     TEST_ASSERT_EQUAL(Tone::Error, channel(ChannelStatus::NoDevice).tone);
     // CH3 switched on but waiting is not "ON" (before, the header showed the request).
     TEST_ASSERT_EQUAL_STRING("WAIT", ch3(Ch3Status::MasterOff).text);
@@ -213,8 +213,8 @@ static void test_status_texts_show_the_actual_state() {
     TEST_ASSERT_EQUAL_STRING("WAIT", ch3(Ch3Status::FreqTooHigh).text);
     TEST_ASSERT_EQUAL(Tone::Warn, ch3(Ch3Status::FreqTooHigh).tone);
     TEST_ASSERT_EQUAL_STRING("ON", ch3(Ch3Status::Active).text);
-    TEST_ASSERT_EQUAL_STRING("ERR", ch3(Ch3Status::Error).text);
-    TEST_ASSERT_EQUAL_STRING("NO HW", ch3(Ch3Status::NoDevice).text);
+    TEST_ASSERT_EQUAL_STRING("! ERR", ch3(Ch3Status::Error).text);
+    TEST_ASSERT_EQUAL_STRING("! NO HW", ch3(Ch3Status::NoDevice).text);
     TEST_ASSERT_EQUAL_STRING("OFF", ch3(Ch3Status::Off).text);
 }
 
