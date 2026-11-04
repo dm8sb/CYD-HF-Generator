@@ -1,8 +1,8 @@
 # User Manual – CYD HF Generator
 
-Firmware version: 1.3.1
+Firmware version: 1.3.2
 
-This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 1.3.1); the German manual is the reference for the firmware's behavior.
+This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 1.3.2); the German manual is the reference for the firmware's behavior.
 
 ## Contents
 
@@ -634,8 +634,8 @@ It starts automatically as long as no calibration is stored (first start, after 
 At the end of the page, a card shows information for troubleshooting without a serial monitor, for example:
 
 ```text
-Firmware 1.3.1 | dev 641ebe6+
-Build 2026-10-28 16:42
+Firmware 1.3.2 | dev 47d9307
+Build 2026-11-04 18:30
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
@@ -899,7 +899,7 @@ Important messages:
 
 | Message | Meaning |
 |---|---|
-| `[BOOT] CYD HF Generator 1.3.1 (dev 641ebe6+, 2026-10-28 16:42)` | Startup: version, branch, commit and build time as on the info card |
+| `[BOOT] CYD HF Generator 1.3.2 (dev 47d9307, 2026-11-04 18:30)` | Startup: version, branch, commit and build time as on the info card |
 | `[I2C] Line held low; releasing bus` | An I2C line was LOW at startup and was released |
 | `[SETTINGS] Loaded from NVS` | Settings loaded |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Once after updating from 1.3.0/1.3.1: the choice of the former boot gesture was deleted (section 13) |

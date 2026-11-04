@@ -44,7 +44,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - Dialogs for NVS errors; dialogs are queued
 - Channel page: tap a digit to select the step, tap the unit to open the numpad
 
-## Changes in 1.3.2 (in progress)
+## Changes in 1.3.2
 
 - Channel page headers show the actual state like MAIN (`ON`/`OFF`/`WAIT`/`ERR`/`NO HW`), not the request; switch and state text sit right after the title
 - MAIN: card switches in their own column with a divider, 13 px from the frequency (a tap on `MHz` could switch the output); frequencies right-aligned
