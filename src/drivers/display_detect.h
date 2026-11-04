@@ -43,6 +43,9 @@ constexpr uint32_t ID_CYD2USB = 0x8181B3;
 
 // SWRESET, MADCTL read-back and RDDID; leaves MADCTL at 00h. Run before the panel init.
 ProbeResult probe(PanelBus& bus);
+// probe() until a controller is recognized, at most maxAttempts times (one bad read on the weak
+// CYD2USB MISO must not select the wrong controller); *attempts = probes made.
+ProbeResult probeWithRetries(PanelBus& bus, uint8_t maxAttempts, uint8_t* attempts);
 bool knownId(uint32_t id);
 // buildForce: DISPLAY_FORCE_PANEL (0 = detect). The boot gesture switches to the other
 // panel; it stores the choice, or "automatic" when it matches the detection.

@@ -166,7 +166,7 @@ Jeder Fix kommt zusammen mit seinem Host-Test; der Test scheitert vor dem Fix (G
 
 - [x] **S18 · Numpad und Ziffer-Antippen testbar (T-10, T-11).** `NumpadInput` (ein Dezimalpunkt, Länge, ⌫/C, Einheiten, Grenzen) und `charIndexAt`/`stepMarkup` als reine Funktionen. *Commit:* `S18: Extract numpad and digit-tap logic for host tests`
 - [x] **S19 · Message-Queue, Formatierung, Konstanten (T-12, T-13, C-11).** `FrequencyUtils::formatIqLimit()`, Zeiten nach `constants.h`, Textbausteine und Dropdown-Index ↔ Enum mit `static_assert`. *Commit:* `S19: Extract formatting and message queue logic (C-11)`
-- [ ] **S20 · Touch-Filter und Display-Erkennung testbar (T-14, T-15).** Touch-Filter, Schwelle der Boot-Geste, Erkennung mit Wiederholungen. *Commit:* `S20: Make touch filter and display detection host-testable`
+- [x] **S20 · Touch-Filter und Display-Erkennung testbar (T-14, T-15).** Touch-Filter, Schwelle der Boot-Geste, Erkennung mit Wiederholungen. *Commit:* `S20: Make touch filter and display detection host-testable`
 - [ ] **S21 · Header Ist-Zustand und Kartenschalter (U-1, U-3).** Header zeigt ON/OFF/WAIT/ERR/NO HW wie MAIN; Schalter in eigene Spalte, ≥ 12 px Abstand. *Commit:* `S21: Show actual channel state in header, separate card switch (U-1, U-3)`
 - [ ] **S22 · Sondermodi sichtbar (U-2).** Detailzeile auf MAIN und Kanalseite („SSC -0.5 % · INT · 8 mA“, „OFF = HIGH“); Off state `High` einmal bestätigen. *Commit:* `S22: Show special modes on MAIN and channel pages (U-2)`
 - [ ] **S23 · Tasten (U-4, U-5, U-6).** Dialog-OK ≥ 120 × 40 px mit ≥ 3:1 Kontrast, Randtasten bis an den Bildrand (`ext_click_area`), MAIN 36 px, Phasen-Chips 6 px Abstand. *Commit:* `S23: Enlarge dialog and edge buttons, space phase chips (U-4..U-6)`

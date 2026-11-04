@@ -233,6 +233,43 @@ static void test_display_panel_setting_without_nvs() {
     TEST_ASSERT_FALSE(s.saveDisplayPanel(1));
 }
 
+// Audit T-15: a disturbed read gives Unknown; the retry finds the controller, a floating bus
+// stays Unknown after DISPLAY_PROBE_ATTEMPTS probes.
+class FlakyBus : public PanelBus {
+public:
+    FlakyBus(Panel& p, unsigned badReads) : p_(p), bad_(badReads) {}
+    void write(uint8_t cmd, const uint8_t* data, uint8_t len) override { p_.write(cmd, data, len); }
+    void read(uint8_t cmd, uint8_t* buf, uint8_t len) override {
+        p_.read(cmd, buf, len);
+        if (bad_ > 0) {
+            --bad_;
+            for (uint8_t i = 0; i < len; ++i) buf[i] = 0xFF;
+        }
+    }
+    void delayMs(uint32_t ms) override { p_.delayMs(ms); }
+
+private:
+    Panel& p_;
+    unsigned bad_;
+};
+
+static void test_probe_retries_after_a_bad_read() {
+    Panel st(Kind::St7789);
+    FlakyBus bus(st, 1);
+    uint8_t attempts = 0;
+    const ProbeResult r = probeWithRetries(bus, 3, &attempts);
+    TEST_ASSERT_EQUAL(PanelType::ST7789, r.panel);
+    TEST_ASSERT_EQUAL_UINT8(2, attempts);
+
+    Panel ili(Kind::Ili9341);
+    TEST_ASSERT_EQUAL(PanelType::ILI9341, probeWithRetries(ili, 3, &attempts).panel);
+    TEST_ASSERT_EQUAL_UINT8(1, attempts);
+
+    Panel floating(Kind::Floating);
+    TEST_ASSERT_EQUAL(PanelType::Unknown, probeWithRetries(floating, 3, &attempts).panel);
+    TEST_ASSERT_EQUAL_UINT8(3, attempts);
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_probe_sends_only_safe_commands);
@@ -255,5 +292,6 @@ int main() {
     RUN_TEST(test_post_init_st7789);
     RUN_TEST(test_display_panel_setting);
     RUN_TEST(test_display_panel_setting_without_nvs);
+    RUN_TEST(test_probe_retries_after_a_bad_read);
     return UNITY_END();
 }

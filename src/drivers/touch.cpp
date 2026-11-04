@@ -6,7 +6,7 @@
 TouchDriver::TouchDriver() : spi_(VSPI), touch_(PIN_TOUCH_CS, PIN_TOUCH_IRQ) {}
 
 bool TouchDriver::begin(const TouchCalibration& cal) {
-    cal_ = cal;
+    filter_ = TouchFilter::Filter(cal);
     spi_.begin(PIN_TOUCH_SCK, PIN_TOUCH_MISO, PIN_TOUCH_MOSI, PIN_TOUCH_CS);
     bool ok = touch_.begin(spi_);
     touch_.setRotation(1);
@@ -18,66 +18,20 @@ bool TouchDriver::begin(const TouchCalibration& cal) {
 bool TouchDriver::pressed() {
     if (!touch_.touched()) return false;
     const TS_Point p = touch_.getPoint();
-    return p.x > 0 && p.x < 4095 && p.y > 0 && p.y < 4095;
-}
-
-bool TouchDriver::mapPoint(int16_t rx, int16_t ry, lv_coord_t* x, lv_coord_t* y) {
-    if (cal_.x_max == cal_.x_min || cal_.y_max == cal_.y_min) return false;
-    long mx = map(rx, cal_.x_min, cal_.x_max, 0, SCREEN_WIDTH - 1);
-    long my = map(ry, cal_.y_min, cal_.y_max, 0, SCREEN_HEIGHT - 1);
-    if (mx < 0) mx = 0;
-    if (mx >= SCREEN_WIDTH) mx = SCREEN_WIDTH - 1;
-    if (my < 0) my = 0;
-    if (my >= SCREEN_HEIGHT) my = SCREEN_HEIGHT - 1;
-    *x = (lv_coord_t)mx;
-    *y = (lv_coord_t)my;
-    return true;
+    return TouchFilter::plausibleRaw(p.x, p.y);
 }
 
 void TouchDriver::readLvgl(lv_indev_drv_t*, lv_indev_data_t* data) {
-    const uint32_t now = millis();
-    bool pressed = touch_.touched();
-
-    if (!pressed) {
-        if (now - lastTouchMs_ < TOUCH_RELEASE_BRIDGE_MS && lastPressed_) {
-            data->state = LV_INDEV_STATE_PR;
-            data->point.x = filtX_;
-            data->point.y = filtY_;
-            return;
-        }
-        lastPressed_ = false;
-        data->state = LV_INDEV_STATE_REL;
-        data->point.x = filtX_;
-        data->point.y = filtY_;
-        return;
+    TouchFilter::Sample s {touch_.touched(), 0, 0, 0};
+    if (s.touched) {
+        const TS_Point p = touch_.getPoint();
+        s.rawX = p.x;
+        s.rawY = p.y;
+        s.z = p.z;
     }
-
-    TS_Point p = touch_.getPoint();
-    // Defensive: touched() and getPoint() share one cached sample (3 ms), so z is above the
-    // library threshold here; a slower call sequence could return a released sample.
-    if (p.z < 150) {
-        data->state = LV_INDEV_STATE_REL;
-        return;
-    }
-
-    lv_coord_t x = 0, y = 0;
-    if (!mapPoint(p.x, p.y, &x, &y)) {
-        Logger::error("TOUCH", "Calibration invalid");
-        data->state = LV_INDEV_STATE_REL;
-        return;
-    }
-
-    // IIR jitter filter.
-    if (!lastPressed_) {
-        filtX_ = x; filtY_ = y;
-    } else {
-        filtX_ = (lv_coord_t)((3 * filtX_ + x) / 4);
-        filtY_ = (lv_coord_t)((3 * filtY_ + y) / 4);
-    }
-
-    lastTouchMs_ = now;
-    lastPressed_ = true;
-    data->state = LV_INDEV_STATE_PR;
-    data->point.x = filtX_;
-    data->point.y = filtY_;
+    const TouchFilter::Output o = filter_.update(s, millis());
+    if (o.calibrationError) Logger::error("TOUCH", "Calibration invalid");
+    data->state = o.pressed ? LV_INDEV_STATE_PR : LV_INDEV_STATE_REL;
+    data->point.x = o.x;
+    data->point.y = o.y;
 }

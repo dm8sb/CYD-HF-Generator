@@ -76,6 +76,17 @@ ProbeResult probe(PanelBus& bus) {
     return p;
 }
 
+ProbeResult probeWithRetries(PanelBus& bus, uint8_t maxAttempts, uint8_t* attempts) {
+    ProbeResult r {};
+    uint8_t n = 0;
+    do {
+        r = probe(bus);
+        ++n;
+    } while (r.panel == PanelType::Unknown && n < maxAttempts);
+    if (attempts) *attempts = n;
+    return r;
+}
+
 bool knownId(uint32_t id) { return id == 0 || id == ID_ST7789V || id == ID_CYD2USB; }
 
 static PanelType other(PanelType t) { return t == PanelType::ST7789 ? PanelType::ILI9341 : PanelType::ST7789; }
