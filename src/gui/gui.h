@@ -6,6 +6,7 @@
 #include <core/app_controller.h>
 #include <drivers/display_panel.h>
 #include <drivers/touch.h>
+#include <utils/input_logic.h>
 
 // Pages are built once per navigation. Actions change the AppController state and then
 // refresh_() updates the existing widgets, so no widget is deleted inside its own event.
@@ -130,6 +131,7 @@ private:
     uint8_t lastHwState_ = 0;
     uint16_t lastConnections_ = 0;
     char freqText_[24] {};      // plain frequency text on the channel page, for hit testing
+    InputLogic::Numpad numpad_; // numpad input (InputLogic, host-tested)
     Widgets w_ {};
     lv_obj_t* root_ = nullptr;
     lv_obj_t* msgbox_ = nullptr;

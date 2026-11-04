@@ -1,7 +1,7 @@
 #include "../gui.h"
 #include "../gui_layout.h"
 #include <utils/frequency_utils.h>
-#include <cstring>
+#include <utils/input_logic.h>
 
 static const char* btnmMap[] = {
     "7", "8", "9", "MHz", "\n",
@@ -25,11 +25,12 @@ void Gui::createNumpad_(uint8_t ch) {
                (uint8_t)(ch == 1 ? PageId::CH1 : PageId::CH2));
     addLabel_(root_, ch == 1 ? "CH1" : "CH2", &lv_font_montserrat_20, color, 64, 10);
 
+    numpad_ = InputLogic::Numpad {};
     w_.ta = lv_textarea_create(root_);
     lv_obj_set_pos(w_.ta, 112, 2);
     lv_obj_set_size(w_.ta, SCREEN_WIDTH - 116, 40);
     lv_textarea_set_one_line(w_.ta, true);
-    lv_textarea_set_max_length(w_.ta, 9);
+    lv_textarea_set_max_length(w_.ta, InputLogic::NUMPAD_MAX_LEN);
     lv_textarea_set_accepted_chars(w_.ta, "0123456789.");
     lv_obj_set_style_text_font(w_.ta, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_align(w_.ta, LV_TEXT_ALIGN_RIGHT, 0);
@@ -61,23 +62,20 @@ void Gui::handleNumpadKey_(lv_obj_t* matrix) {
     lv_obj_t* ta = w_.ta;
     const char* key = lv_btnmatrix_get_btn_text(matrix, lv_btnmatrix_get_selected_btn(matrix));
     if (!key || !ta) return;
-    lv_obj_set_style_border_color(ta, Colors::forChannel(channel_), 0);
-
-    if (!strcmp(key, LV_SYMBOL_BACKSPACE)) {
-        lv_textarea_del_char(ta);
-    } else if (!strcmp(key, "C")) {
-        lv_textarea_set_text(ta, "");
-    } else if (!strcmp(key, "Hz") || !strcmp(key, "kHz") || !strcmp(key, "MHz")) {
-        uint64_t hz;
-        if (!FrequencyUtils::parseFrequency(lv_textarea_get_text(ta), key, &hz)) {
+    uint64_t hz = 0;
+    switch (InputLogic::numpadKey(numpad_, key, &hz)) {
+        case InputLogic::NumpadEvent::Confirmed:
+            app_->setChannelFrequency(channel_, hz);
+            requestNavigate_(channel_ == 1 ? PageId::CH1 : PageId::CH2);
+            return;
+        case InputLogic::NumpadEvent::Rejected:
             showInputError(ta);
             return;
-        }
-        app_->setChannelFrequency(channel_, hz);
-        requestNavigate_(channel_ == 1 ? PageId::CH1 : PageId::CH2);
-    } else if (!strcmp(key, ".") && strchr(lv_textarea_get_text(ta), '.')) {
-        // Only one decimal point.
-    } else {
-        lv_textarea_add_text(ta, key);
+        case InputLogic::NumpadEvent::Edited:
+            lv_textarea_set_text(ta, numpad_.text);
+            break;
+        case InputLogic::NumpadEvent::Ignored:
+            break;
     }
+    lv_obj_set_style_border_color(ta, Colors::forChannel(channel_), 0);
 }
