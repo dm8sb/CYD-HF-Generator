@@ -70,7 +70,7 @@ Voraussetzungen:
 
 | Bereich | Änderung | Prüfung |
 |---|---|---|
-| Plattform | **Spike (0,5 d)**: `platform = espressif32@8.0.0` gegen `pioarduino 55.03.312-1`, beide exakt gepinnt. pioarduino nur, falls `custom_sdkconfig` nötig ist. | Build, Flash/RAM/Heap gegen die Basis aus Audit-Phase 0 |
+| Plattform | **Spike (0,5 d)**: `platform = espressif32@8.0.0` gegen `pioarduino 55.03.312-1`, beide exakt gepinnt. pioarduino nur, falls `custom_sdkconfig` nötig ist. | Build, Flash/RAM/Heap gegen die Referenz 1.3.0 (Tag `v1.3.0`, MESSPLAN Q1) |
 | Übergang | beide Cores als eigene Umgebungen (A/B), bis die Abnahme steht; danach die 2.x-Umgebung entfernen | – |
 | LEDC (Backlight) | `ledcAttach(pin, freq, bits)`, `ledcWrite(pin, duty)` | Fake in `test/fakes/Arduino.h` mitziehen |
 | Wire | IDF 5.4+: neuer `i2c_master`-Treiber. Alle Transfers in `I2CBus` bündeln (`writeRegs`/`readRegs`, C-14). Die Annahmen aus 2.0.x stehen als benannte Fake-Tests fest und werden gegen den 3.x-Quelltext geprüft: Rückgabecode 5, `end()`/`begin()`, Lock. | Messplan J1–J4, J6, J9, J14 wiederholen |
