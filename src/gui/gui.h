@@ -52,6 +52,7 @@ private:
         lv_obj_t* hdrState;
         lv_obj_t* freq;
         lv_obj_t* info;
+        lv_obj_t* modes;       // special modes of the channel (U-2)
         lv_obj_t* chips[DELTA_STEP_COUNT];
         lv_obj_t* masterChips[2];
         lv_obj_t* cardFreq[3];
@@ -119,6 +120,11 @@ private:
     static void msgboxEventCb_(lv_event_t* e);
     static void asyncNavigateCb_(void* gui);
     static void nextMessageCb_(void* gui);
+    // Special modes of channel ch (1..3) into a label, colored by tone (U-2).
+    void showModes_(lv_obj_t* label, uint8_t ch);
+    // Off state High needs a confirmation: a switched-off output then carries DC.
+    void confirmOffStateHigh_();
+    static void confirmEventCb_(lv_event_t* e);
     static void flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p);
     static void touchCb_(lv_indev_drv_t* drv, lv_indev_data_t* data);
 

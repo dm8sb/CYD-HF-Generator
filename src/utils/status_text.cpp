@@ -1,5 +1,9 @@
 #include "status_text.h"
 
+#include <constants.h>
+#include <stdio.h>
+#include <utils/frequency_utils.h>
+
 namespace StatusText {
 
 Text channel(ChannelStatus s) {
@@ -23,6 +27,33 @@ Text ch3(Ch3Status s) {
         case Ch3Status::Off: break;
     }
     return {"OFF", Tone::Muted};
+}
+
+static void append(char* out, size_t outSize, size_t& n, const char* token) {
+    if (n >= outSize) return;
+    const int w = snprintf(out + n, outSize - n, "%s%s", n ? " | " : "", token);
+    if (w > 0) n += (size_t)w;
+}
+
+Tone modeSummary(TuningMode tuning, Spread spread, uint8_t driveMa, OffState off, char* out, size_t outSize) {
+    if (!out || outSize == 0) return Tone::Muted;
+    out[0] = '\0';
+    size_t n = 0;
+    if (off == OffState::High) append(out, outSize, n, "OFF = High");
+    else if (off == OffState::HighZ) append(out, outSize, n, "OFF = High-Z");
+    if (spread != Spread::Off) {
+        char t[16];
+        snprintf(t, sizeof(t), "SSC %s", FrequencyUtils::spreadLabel(spread));
+        append(out, outSize, n, t);
+    }
+    if (tuning == TuningMode::LowNoise) append(out, outSize, n, "Low noise");
+    else if (tuning == TuningMode::Integer) append(out, outSize, n, "Integer");
+    if (driveMa != DEFAULT_DRIVE_MA) {
+        char t[8];
+        snprintf(t, sizeof(t), "%u mA", (unsigned)driveMa);
+        append(out, outSize, n, t);
+    }
+    return off == OffState::High ? Tone::Warn : Tone::Muted;
 }
 
 }

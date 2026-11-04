@@ -218,6 +218,23 @@ static void test_status_texts_show_the_actual_state() {
     TEST_ASSERT_EQUAL_STRING("OFF", ch3(Ch3Status::Off).text);
 }
 
+// Special modes line (audit U-2)
+static void test_mode_summary_lists_only_deviations() {
+    using namespace StatusText;
+    char buf[64];
+    TEST_ASSERT_EQUAL(Tone::Muted, modeSummary(TuningMode::Fractional, Spread::Off, DEFAULT_DRIVE_MA, OffState::Low, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("", buf);
+    TEST_ASSERT_EQUAL(Tone::Warn, modeSummary(TuningMode::LowNoise, Spread::Down05, 8, OffState::High, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("OFF = High | SSC -0.5 % | Low noise | 8 mA", buf);
+    TEST_ASSERT_EQUAL(Tone::Muted, modeSummary(TuningMode::Integer, Spread::Off, 2, OffState::HighZ, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("OFF = High-Z | Integer | 2 mA", buf);
+    modeSummary(TuningMode::Fractional, Spread::Center05, DEFAULT_DRIVE_MA, OffState::Low, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("SSC +/-0.5 %", buf);
+    char small[12];
+    modeSummary(TuningMode::LowNoise, Spread::Down15, 8, OffState::High, small, sizeof(small));
+    TEST_ASSERT_TRUE(strlen(small) < sizeof(small));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_numpad_digits_and_one_point);
@@ -233,5 +250,6 @@ int main(int, char**) {
     RUN_TEST(test_queue_drops_link_messages_after_reconnect);
     RUN_TEST(test_iq_limit_is_rounded_towards_the_inside);
     RUN_TEST(test_status_texts_show_the_actual_state);
+    RUN_TEST(test_mode_summary_lists_only_deviations);
     return UNITY_END();
 }

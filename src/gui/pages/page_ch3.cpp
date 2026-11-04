@@ -10,17 +10,18 @@ void Gui::createCH3_() {
     const lv_color_t color = Colors::ch3();
     createHeader_("CH3 IQ", color, 3);
 
-    lv_obj_t* card = addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, 66, color);
+    lv_obj_t* card = addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, 80, color);
     w_.freq = addLabel_(card, "", &lv_font_montserrat_28, Colors::text(), 2, 0);
     w_.info = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), 2, 32);
+    w_.modes = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 2, 50);
 
-    addLabel_(root_, "Master", &lv_font_montserrat_14, Colors::muted(), MARGIN + 2, 114);
-    addLabel_(root_, "Phase (deg)", &lv_font_montserrat_14, Colors::muted(), 152, 114);
+    addLabel_(root_, "Master", &lv_font_montserrat_14, Colors::muted(), MARGIN + 2, 128);
+    addLabel_(root_, "Phase (deg)", &lv_font_montserrat_14, Colors::muted(), 152, 128);
 
-    w_.masterChips[0] = addChip_(root_, "CH1", MARGIN, 134, 64, 40, Colors::ch1(), Action::Ch3Master, 1);
-    w_.masterChips[1] = addChip_(root_, "CH2", MARGIN + 70, 134, 64, 40, Colors::ch2(), Action::Ch3Master, 2);
+    w_.masterChips[0] = addChip_(root_, "CH1", MARGIN, 146, 64, 40, Colors::ch1(), Action::Ch3Master, 1);
+    w_.masterChips[1] = addChip_(root_, "CH2", MARGIN + 70, 146, 64, 40, Colors::ch2(), Action::Ch3Master, 2);
     for (uint8_t i = 0; i < 4; ++i) {
-        w_.chips[i] = addChip_(root_, PHASE_LABELS[i], 150 + i * 41, 134, 39, 40, color, Action::Ch3Phase, i);
+        w_.chips[i] = addChip_(root_, PHASE_LABELS[i], 150 + i * 41, 146, 39, 40, color, Action::Ch3Phase, i);
     }
 
     char lo[12], hi[12], text[128];
@@ -29,7 +30,7 @@ void Gui::createCH3_() {
     FrequencyUtils::formatIqLimit(app_->iqMaxHz(), false, 3, true, hi, sizeof(hi));
     snprintf(text, sizeof(text), "IQ range %s - %s MHz. 180/270 deg use output inversion. "
                                  "Drive strength is set globally in CONFIG.", lo, hi);
-    lv_obj_t* note = addLabel_(root_, text, &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, 186);
+    lv_obj_t* note = addLabel_(root_, text, &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, 194);
     lv_obj_set_width(note, CONTENT_W - 4);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
 }
@@ -81,6 +82,8 @@ void Gui::refreshCH3_() {
         lv_label_set_text(w_.info, buf);
         lv_obj_set_style_text_color(w_.info, infoColor, 0);
     }
+
+    showModes_(w_.modes, 3);
 
     for (uint8_t i = 0; i < 2; ++i) {
         if (c3.master == i + 1) lv_obj_add_state(w_.masterChips[i], LV_STATE_CHECKED);

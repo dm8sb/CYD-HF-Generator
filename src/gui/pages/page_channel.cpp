@@ -12,7 +12,8 @@ void Gui::createChannelPage_(uint8_t ch) {
     const lv_color_t color = Colors::forChannel(ch);
     createHeader_(ch == 1 ? "CH1" : "CH2", color, ch);
 
-    lv_obj_t* card = addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, 66, color);
+    // Frequency, actual output (Out) and special modes (U-2).
+    lv_obj_t* card = addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, 80, color);
     w_.freq = addLabel_(card, "", &lv_font_montserrat_28, Colors::text(), 2, 0);
     // Tap a digit to select it as step, tap the unit to open the numpad.
     lv_label_set_recolor(w_.freq, true);
@@ -20,15 +21,16 @@ void Gui::createChannelPage_(uint8_t ch) {
     lv_obj_set_ext_click_area(w_.freq, 4);
     on_(w_.freq, LV_EVENT_CLICKED, Action::FreqTap, 0);
     w_.info = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), 2, 32);
+    w_.modes = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 2, 50);
 
     // Step presets in Hz.
     const int chipW = (CONTENT_W - (DELTA_STEP_COUNT - 1) * 4) / DELTA_STEP_COUNT;
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) {
-        w_.chips[i] = addChip_(root_, STEP_LABELS[i], MARGIN + i * (chipW + 4), 116, chipW, 36, color, Action::SetStep, i);
+        w_.chips[i] = addChip_(root_, STEP_LABELS[i], MARGIN + i * (chipW + 4), 128, chipW, 36, color, Action::SetStep, i);
     }
 
-    const int btnY = 160;
-    const int btnH = 72;
+    const int btnY = 170;
+    const int btnH = 62;
     addButton_(root_, LV_SYMBOL_MINUS, MARGIN, btnY, 96, btnH, color, Action::FreqDown, 0, true);
     addButton_(root_, LV_SYMBOL_PLUS, MARGIN + 102, btnY, 96, btnH, color, Action::FreqUp, 0, true);
     addButton_(root_, "NUMPAD", MARGIN + 204, btnY, CONTENT_W - 204, btnH, Colors::gray(), Action::Navigate, (uint8_t)PageId::Numpad);
@@ -55,6 +57,8 @@ void Gui::refreshChannel_() {
     } else {
         showOutput_(channel_, c.frequency);
     }
+
+    showModes_(w_.modes, channel_);
 
     const uint8_t sel = FrequencyUtils::stepIndex(app.system().delta_step);
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) {

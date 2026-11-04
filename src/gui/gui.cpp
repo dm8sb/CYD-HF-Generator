@@ -370,9 +370,15 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::Spread:
             app.setSpread((Spread)lv_dropdown_get_selected(obj));
             break;
-        case Action::OffState:
-            app.setOffState((OffState)lv_dropdown_get_selected(obj));
+        case Action::OffState: {
+            const OffState s = (OffState)lv_dropdown_get_selected(obj);
+            if (s == OffState::High && sys.off_state != OffState::High) {
+                confirmOffStateHigh_(); // the dropdown shows the old value until confirmed
+                break;
+            }
+            app.setOffState(s);
             break;
+        }
         case Action::NumpadKey:
             handleNumpadKey_(obj);
             return;
@@ -415,6 +421,36 @@ void Gui::dismissLinkMessages_() {
 }
 
 void Gui::nextMessageCb_(void* gui) { static_cast<Gui*>(gui)->openMessage_(); }
+
+void Gui::showModes_(lv_obj_t* label, uint8_t ch) {
+    const SystemSettings& sys = app_->system();
+    char buf[64];
+    const StatusText::Tone tone =
+        StatusText::modeSummary(sys.tuning_mode, app_->spreadOf(ch), sys.drive_ma, sys.off_state, buf, sizeof(buf));
+    lv_label_set_text(label, buf);
+    lv_obj_set_style_text_color(label, Colors::forTone(tone), 0);
+}
+
+void Gui::confirmOffStateHigh_() {
+    static const char* buttons[] = {"Cancel", "High", ""};
+    lv_obj_t* box = lv_msgbox_create(nullptr, "Off state High",
+                                     "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
+                                     "Do not use with DC-coupled mixers or inputs.",
+                                     buttons, false);
+    lv_obj_center(box);
+    lv_obj_add_event_cb(box, confirmEventCb_, LV_EVENT_VALUE_CHANGED, nullptr);
+    refresh_();
+}
+
+void Gui::confirmEventCb_(lv_event_t* e) {
+    lv_obj_t* box = lv_event_get_current_target(e);
+    Gui* g = from_(box);
+    const char* btn = lv_msgbox_get_active_btn_text(box);
+    if (btn && strcmp(btn, "High") == 0) g->app_->setOffState(OffState::High);
+    lv_obj_clear_flag(lv_msgbox_get_btns(box), LV_OBJ_FLAG_CLICKABLE);
+    lv_msgbox_close_async(box);
+    g->refresh_();
+}
 
 void Gui::msgboxEventCb_(lv_event_t* e) {
     lv_obj_t* box = lv_event_get_current_target(e);

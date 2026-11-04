@@ -37,9 +37,22 @@ Die Hauptseite zeigt für jeden Kanal eine Karte mit:
 - Kanalname und Status
 - eingestellter Frequenz (Sollfrequenz)
 - eigenem ON/OFF-Schalter
-- Zusatzzeile: bei CH1/CH2 `IQ master of CH3`, wenn CH3 eingeschaltet ist und diesem Kanal folgt; bei CH3 Master und Phase, z. B. `CH1 / 90 deg`, bei `WAIT` und `ERR` mit dem Grund (z. B. `CH1 / 90 deg / master off`)
+- Zusatzzeile: bei CH1/CH2 die Moduszeile (siehe unten) und `IQ master of CH3`, wenn CH3 eingeschaltet ist und diesem Kanal folgt (mit Moduszeile kurz `| IQ master`); bei CH3 Master und Phase, z. B. `CH1 / 90 deg`, bei `WAIT` und `ERR` mit dem Grund (z. B. `CH1 / 90 deg / master off`)
 
 Im Modus `Tuning` = `Integer` steht vor der Frequenz ein `~`, wenn die tatsächliche Frequenz um 1 Hz oder mehr von der Sollfrequenz abweicht (Abschnitt 8).
+
+### Moduszeile
+
+CONFIG-Einstellungen, die das Signal eines Kanals gegenüber den Werkseinstellungen verändern, stehen als Moduszeile auf der Hauptseite (Karten CH1 und CH2) und auf den Kanalseiten (CH1 bis CH3, in der Karte unter der `Out`-Zeile). Mit den Werkseinstellungen ist sie leer. Die Einträge stehen in dieser Reihenfolge, getrennt durch ` | `:
+
+| Eintrag | Erscheint bei |
+|---|---|
+| `OFF = High` / `OFF = High-Z` | `Off state` ≠ `Low` |
+| `SSC -0.5 %`, `SSC -1.5 %`, `SSC +/-0.5 %` | `Spread CH1` ≠ `Off`, nur bei CH1 und bei CH3 mit Master CH1 |
+| `Low noise` / `Integer` | `Tuning` ≠ `Fractional` |
+| `2 mA`, `6 mA`, `8 mA` | `Drive all` ≠ `4 mA` |
+
+Beispiel: `SSC -0.5 % | Low noise | 8 mA` auf CH1, `Low noise | 8 mA` auf CH2. Mit `OFF = High` ist die Zeile orange, weil ein ausgeschalteter Ausgang dann Gleichspannung führt; sonst grau. Ist die Zeile auf der Hauptseite zu lang, endet sie mit `...`; die Kanalseite zeigt sie vollständig.
 
 Bedienung auf der Hauptseite:
 
@@ -569,11 +582,13 @@ Legt fest, welchen Pegel ein ausgeschalteter Ausgang führt (SI5351-Register 24)
 | `High` | HIGH (Versorgungsspannung der Ausgänge, meist 3,3 V) |
 | `High-Z` | hochohmig |
 
+- `High` muss bestätigt werden: Der Dialog `Off state High` erklärt die Gleichspannung am ausgeschalteten Ausgang. `High` übernimmt die Einstellung, `Cancel` lässt die bisherige stehen. `Low` und `High-Z` wirken ohne Rückfrage.
 - Die Änderung wirkt sofort; laufende Ausgänge bleiben unberührt.
+- Weicht die Einstellung von `Low` ab, zeigen Hauptseite und Kanalseiten `OFF = High` bzw. `OFF = High-Z` in der Moduszeile (Abschnitt 2).
 - Die Firmware schreibt den Zustand beim Verbinden mit dem SI5351, bevor ein Ausgang eingeschaltet werden kann.
 - **`High`:** In eine DC-gekoppelte Last (z. B. 50 Ω) fließt ein Dauerstrom, begrenzt durch die Drive-Strength; an einem DC-gekoppelten Mischer liegt eine Gleichspannung an.
 - Für DC-gekoppelte Diodenringmischer `Low` oder `High-Z` verwenden.
-- Bis zur Hardwareprüfung K2 (Messplan in `todo.md`) bleibt bei `High` und `High-Z` der Ausgangstreiber abgeschalteter Ausgänge versorgt, auch der von CLK2 bei ausgeschaltetem CH3. Bei `Low` wird CLK2 wie bisher ganz abgeschaltet, solange CH3 nicht im IQ-Betrieb läuft.
+- Bis zur Hardwareprüfung K2 (`MESSPLAN.md`) bleibt bei `High` und `High-Z` der Ausgangstreiber abgeschalteter Ausgänge versorgt, auch der von CLK2 bei ausgeschaltetem CH3. Bei `Low` wird CLK2 wie bisher ganz abgeschaltet, solange CH3 nicht im IQ-Betrieb läuft.
 
 ### Info-Karte
 
