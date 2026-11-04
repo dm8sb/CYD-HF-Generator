@@ -157,7 +157,7 @@ Jeder Fix kommt zusammen mit seinem Host-Test; der Test scheitert vor dem Fix (G
 - [x] **S13 · Wiederverbinden im selben Zyklus (C-12, T-3, T-6).** `connect_()` im selben 2-s-Zyklus; Tests für `millis()`-Überlauf und Fehlerinjektion `Wire.end()`/`begin()`. *Commit:* `S13: Reconnect in the same supervision cycle (C-12)`
 - [x] **S14 · Integer-Grenzen und Spread bei Neuverbindung (C-7, T-8, T-9).** Grenzen aus `xtal4`; Test mit ±50 ppm; Neuverbindung mit Spread. *Commit:* `S14: Compute integer-mode VCO limits from the corrected crystal (C-7)`
 - [x] **S15 · Unerreichbare Dialoge und toter Code (C-6, C-10).** Zweige entfernen bzw. auf Ergebniscodes vorbereiten; Handbuch DE/EN §11. *Commit:* `S15: Remove unreachable dialogs and dead code (C-6, C-10)`
-- [ ] **S16 · Doku-Abgleich (C-8, C-9).** Low noise „≈ 1,4 Hz“ gegen Test 1,5 Hz (A-12, Handbuch), WAIT-Gründe mit Spread-Grenzen, Kommentare in `pins.h` und `app_controller.cpp`, `todo.md` 2.2/2.4. *Commit:* `S16: Align documentation with code (C-8, C-9)`
+- [x] **S16 · Doku-Abgleich (C-8, C-9).** Low noise „≈ 1,4 Hz“ gegen Test 1,5 Hz (A-12, Handbuch), WAIT-Gründe mit Spread-Grenzen, Kommentare in `pins.h` und `app_controller.cpp`, `todo.md` 2.2/2.4. *Commit:* `S16: Align documentation with code (C-8, C-9)`
 - [ ] **S17 · Release 1.3.1.** `APP_VERSION`, README „Changes“; Smoke-Test auf beiden Boards (MESSPLAN 4.3); lokaler Tag `v1.3.1`. *Commit:* `S17: Release 1.3.1`
 
 ### Phase 2 – Bedienung 1.3.2 (≈ 3–4 d)

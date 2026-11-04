@@ -54,7 +54,7 @@ Status display below the channel name:
 | `ON` (green) | Output active |
 | `OFF` (gray) | Output off |
 | `ERR` (red) | Setting up the output failed although the SI5351 responds; the firmware retries every 2 s. The switch keeps showing the desired setting |
-| `WAIT` (orange) | CH3 is switched on but cannot run at the moment (master off or master frequency below 4.730 MHz) |
+| `WAIT` (orange) | CH3 is switched on but cannot run at the moment (master off or master frequency outside the IQ range: below 4.730 MHz, slightly narrower with `Spread CH1` on master CH1, section 8) |
 | `NO HW` (red) | SI5351 not found or connection lost; the firmware reconnects automatically |
 
 The navigation buttons are color-coded:
@@ -164,7 +164,7 @@ Out 10.000 000 MHz (+0.3 Hz)
 
 - The values assume that the frequency correction (section 8) is right.
 - From a deviation of 1 Hz upward, the line is shown in orange.
-- Deviation per mode: `Fractional` ≤ 0.5 Hz, `Low noise` up to ≈ 1.4 Hz. In `Integer` mode, the frequency lies on a grid and can deviate by a few kHz, e.g. at 7.1 MHz:
+- Deviation per mode: `Fractional` ≤ 0.5 Hz, `Low noise` up to 1.5 Hz. In `Integer` mode, the frequency lies on a grid and can deviate by a few kHz, e.g. at 7.1 MHz:
 
 ```text
 Out 7.102 273 MHz (+2272.7 Hz)
@@ -516,7 +516,7 @@ The SI5351 generates every frequency in two stages: a PLL multiplies the 25 MHz 
 | Option | PLL | Divider (MultiSynth) | Properties |
 |---|---|---|---|
 | `Fractional` (default) | fixed 900 or 887.5 MHz | fractional | finest steps, tuning without dropouts, deviation ≤ 0.5 Hz; spurs from the fractional divider possible |
-| `Low noise` | fractional | even, integer | fewer spurs; short dropout when the divider changes; deviation up to ≈ 1.4 Hz |
+| `Low noise` | fractional | even, integer | fewer spurs; short dropout when the divider changes; deviation up to 1.5 Hz |
 | `Integer` | integer | even, integer | lowest spurs; frequency on a grid, deviation up to the kHz range |
 
 Changing the mode reconfigures all outputs; running outputs drop out briefly once.
@@ -809,12 +809,15 @@ Possible causes:
 ```text
 The master is switched off.
 The master frequency is below 4.730 MHz.
+With spread spectrum on master CH1: master frequency outside the narrower IQ range
+(-0.5 %: from 4.749 MHz, -1.5 %: from 4.797 MHz, +/-0.5 %: 4.749 to 99.502 MHz).
 ```
 
 Solution:
 
 - switch the master on
-- set the master frequency to at least 4.730 MHz
+- set the master frequency to at least 4.730 MHz (with spread, to the range shown on the CH3 page)
+- or set `Spread CH1` to `Off`
 
 CH3 then starts automatically; the switch does not need to be operated again.
 

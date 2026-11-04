@@ -54,7 +54,7 @@ Statusanzeige unter dem Kanalnamen:
 | `ON` (grün) | Ausgang aktiv |
 | `OFF` (grau) | Ausgang aus |
 | `ERR` (rot) | Einstellen des Ausgangs ist fehlgeschlagen, obwohl der SI5351 antwortet; die Firmware versucht es alle 2 s erneut. Der Schalter zeigt weiter die gewünschte Einstellung |
-| `WAIT` (orange) | CH3 ist eingeschaltet, kann aber gerade nicht laufen (Master aus oder Masterfrequenz unter 4,730 MHz) |
+| `WAIT` (orange) | CH3 ist eingeschaltet, kann aber gerade nicht laufen (Master aus oder Masterfrequenz außerhalb des IQ-Bereichs: unter 4,730 MHz, mit `Spread CH1` auf Master CH1 etwas enger, Abschnitt 8) |
 | `NO HW` (rot) | SI5351 nicht gefunden oder Verbindung verloren; die Firmware verbindet automatisch neu |
 
 Die Navigationsbuttons sind farbig:
@@ -164,7 +164,7 @@ Out 10.000 000 MHz (+0.3 Hz)
 
 - Die Werte setzen voraus, dass die Frequenzkorrektur (Abschnitt 8) stimmt.
 - Ab 1 Hz Abweichung erscheint die Zeile orange.
-- Abweichung je Modus: `Fractional` ≤ 0,5 Hz, `Low noise` bis ≈ 1,4 Hz. Im Modus `Integer` liegt die Frequenz auf einem Raster und kann um einige kHz abweichen, z. B. bei 7,1 MHz:
+- Abweichung je Modus: `Fractional` ≤ 0,5 Hz, `Low noise` bis 1,5 Hz. Im Modus `Integer` liegt die Frequenz auf einem Raster und kann um einige kHz abweichen, z. B. bei 7,1 MHz:
 
 ```text
 Out 7.102 273 MHz (+2272.7 Hz)
@@ -516,7 +516,7 @@ Der SI5351 erzeugt jede Frequenz in zwei Stufen: Eine PLL vervielfacht den 25-MH
 | Option | PLL | Teiler (MultiSynth) | Eigenschaften |
 |---|---|---|---|
 | `Fractional` (Standard) | fest 900 bzw. 887,5 MHz | fraktional | feinste Schritte, Abstimmen ohne Aussetzer, Abweichung ≤ 0,5 Hz; Nebenlinien durch den fraktionalen Teiler möglich |
-| `Low noise` | fraktional | gerade, ganzzahlig | weniger Nebenlinien; kurzer Aussetzer, wenn der Teiler wechselt; Abweichung bis ≈ 1,4 Hz |
+| `Low noise` | fraktional | gerade, ganzzahlig | weniger Nebenlinien; kurzer Aussetzer, wenn der Teiler wechselt; Abweichung bis 1,5 Hz |
 | `Integer` | ganzzahlig | gerade, ganzzahlig | geringste Nebenlinien; Frequenz auf einem Raster, Abweichung bis in den kHz-Bereich |
 
 Ein Wechsel des Modus stellt alle Ausgänge neu ein; laufende Ausgänge setzen dabei einmal kurz aus.
@@ -809,12 +809,15 @@ Mögliche Ursachen:
 ```text
 Master ist ausgeschaltet.
 Masterfrequenz liegt unter 4,730 MHz.
+Mit Spread Spectrum auf Master CH1: Masterfrequenz außerhalb des schmaleren IQ-Bereichs
+(-0.5 %: ab 4,749 MHz, -1.5 %: ab 4,797 MHz, +/-0.5 %: 4,749 bis 99,502 MHz).
 ```
 
 Lösung:
 
 - Master einschalten
-- Masterfrequenz auf mindestens 4,730 MHz stellen
+- Masterfrequenz auf mindestens 4,730 MHz stellen (mit Spread auf den Bereich, den die CH3-Seite anzeigt)
+- oder `Spread CH1` auf `Off` stellen
 
 CH3 startet dann automatisch; der Schalter muss nicht erneut betätigt werden.
 

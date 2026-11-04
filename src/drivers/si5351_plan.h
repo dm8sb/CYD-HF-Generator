@@ -40,7 +40,7 @@ inline bool isCenterSpread(Spread s) { return s == Spread::Center05; }
 //   VCO range (900 / 887.5 MHz without center spread). Keeps currentPll while its error is
 //   <= 0.25 Hz, so tuning rarely changes the PLL. Error <= 0.5 Hz up to 100 MHz.
 // - LowNoise: even integer MultiSynth, fractional PLL. Keeps currentMs while the VCO stays in
-//   range, otherwise the largest even divider. Error <= 1.5 Hz up to 100 MHz.
+//   range, otherwise the largest even divider. Error <= 1.5 Hz up to 100 MHz (25 MHz / 2^21 / 8).
 // - Integer: integer PLL (24..36 x crystal) and even integer MultiSynth: the point
 //   crystal * a / (ms * R) nearest to freq; on a tie the one with an even PLL ratio (FBx_INT).
 // currentPll / currentMs: what the PLL and the MultiSynth run with now, nullptr if unknown.
