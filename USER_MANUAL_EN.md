@@ -152,7 +152,7 @@ Alternatively, the channel can be switched on directly with the switch on its ca
 The CH1 and CH2 channel pages contain:
 
 - the frequency card with the `Out` line
-- a row of step buttons: `1`, `10`, `100`, `1k`, `10k`, `100k`, `1M` (in Hz)
+- a row of step buttons: `1M`, `100k`, `10k`, `1k`, `100`, `10`, `1` (in Hz), like the digits of the frequency above: large steps on the left, small ones on the right
 - large `−` (left) and `+` (right) buttons
 - the `NUMPAD` button
 
