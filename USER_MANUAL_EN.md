@@ -37,7 +37,7 @@ The main page shows one card per channel with:
 - channel name and status
 - the frequency you set (requested frequency)
 - its own ON/OFF switch
-- an extra line: on CH1/CH2 the mode line (see below) and `IQ master of CH3` when CH3 is switched on and follows this channel (shortened to `| IQ master` after a mode line); on CH3 the master and phase, e.g. `CH1 / 90 deg`, and with `WAIT` and `! ERR` also the reason (e.g. `CH1 / 90 deg / master off`)
+- an extra line: on CH1/CH2 the mode line (see below) and `IQ master of CH3` when CH3 is switched on and follows this channel (shortened to `| IQ master` after a mode line); on CH3 the master and phase, e.g. `CH1 / 90°`, and with `WAIT` and `! ERR` also the reason (e.g. `CH1 / 90° / master off`)
 
 In mode `Tuning` = `Integer`, the frequency is preceded by a `~` when the actual frequency deviates from the requested frequency by 1 Hz or more (section 8).
 
@@ -152,7 +152,7 @@ The CH1 and CH2 channel pages contain:
 
 The `−` and `+` buttons change the frequency by the currently selected step. The selected step is highlighted in color and is chosen directly on the channel page (or in CONFIG).
 
-**Tapping a digit directly:** Tapping a digit of the frequency display selects that digit position as the step (e.g. the third decimal place = 1 kHz). The digit changed by `−`/`+` is highlighted in the channel color. Digits above 1 MHz (10 MHz, 100 MHz) select the largest step, 1 MHz. Tapping the unit `MHz` opens the NUMPAD.
+**Tapping a digit directly:** Tapping a digit of the frequency display selects that digit position as the step (e.g. the third decimal place = 1 kHz). The digit changed by `−`/`+` is highlighted in the channel color. Digits above 1 MHz (10 MHz, 100 MHz) select the largest step, 1 MHz. Tapping the unit `MHz` opens the NUMPAD. Tapping is a shortcut to the step buttons: the digits are only 2–3 mm wide, and a tap on the point or a gap selects the nearer neighboring digit.
 
 **Press and hold:** After about 0.4 s, the step repeats automatically about every 0.1 s until the button is released.
 
@@ -184,6 +184,9 @@ Out 7.102 273 MHz (+2272.7 Hz)
 ```text
 Out 9.975 000 MHz mean, SSC -0.5 %
 ```
+
+- With the channel switched off, the line starts with `Off | `, e.g. `Off | Out 10.000 000 MHz (+0.3 Hz)`: this is how the output would run after switching on.
+- If CH3 follows this channel, the mode line below shows `IQ master of CH3 (90°)` with the phase of CH3; frequency changes then move both outputs.
 
 In case of errors, the following is shown in red instead of the frequency:
 
@@ -219,7 +222,7 @@ The frequency always stays within the range 1 MHz to 100 MHz.
 On CH1 or CH2:
 
 1. Press `NUMPAD`.
-2. Enter digits. The current frequency is shown in gray as a placeholder in the input field.
+2. Enter digits. Below the input field, the current frequency is shown on the left, e.g. `Now 10.000 000 MHz`.
 3. Optionally use a decimal point (only one is allowed).
 4. Press a unit:
    - `Hz`
@@ -250,11 +253,19 @@ The `◀` button at the top left returns to the channel page **without any chang
 | MHz | Apply value as MHz |
 | `◀` | Back to the channel page without any change |
 
-A maximum of 9 characters is allowed.
+A maximum of 9 characters is allowed; a tenth shows `Max. 9 characters`.
 
 ### Invalid Input
 
-If the value is outside 1–100 MHz, or the input is empty or invalid, it is **not applied**. The input field is cleared, its border turns red and the hint `1 - 100 MHz` appears. With the next key press you can start a new entry.
+If the value is outside 1–100 MHz, or the input is empty or invalid, it is **not applied**. The input stays, the border turns red and the reason appears in red to the right below the field:
+
+| Display | Meaning |
+|---|---|
+| `Allowed 1 - 100 MHz` | value out of range, e.g. `500` `MHz` |
+| `Enter a number` | no digit entered (empty or only `.`) |
+| `Max. 9 characters` | field full |
+
+Correct the input with `⌫` or clear it with `C`; the next key clears the hint.
 
 ### Example 1: Enter 10 MHz
 
@@ -747,12 +758,12 @@ Note: If an SI5351 module stays powered while its cable is unplugged, its output
 
 ### Output Errors
 
-If setting up an output fails although the SI5351 responds, a dialog appears. The channel shows `! ERR` (main page, title bar), the channel page shows `Output error, retrying`, and the CH3 page `IQ setup failed, retrying`. The switch keeps the desired setting; the firmware retries every 2 s without another dialog. In case of an IQ error, the master keeps running.
+If setting up an output fails although the SI5351 responds, a dialog appears. The channel shows `! ERR` (main page, title bar), the channel page shows `Output error, retrying`, and the CH3 page `IQ setup failed, retrying`. The dialog names the channel and what keeps running. The switch keeps the desired setting; the firmware retries every 2 s without another dialog. In case of an IQ error, the master keeps running.
 
 | Message | Meaning |
 |---|---|
-| `Frequency set failed` | CH1 or CH2 could not be set |
-| `CH3 IQ setup failed` | The IQ pair could not be set up |
+| `CH1: frequency setup failed. Retrying every 2 s.` | CH1 (or CH2) could not be set |
+| `CH3: IQ setup failed, CLK2 stays off. CH1 keeps running. Retrying every 2 s.` | The IQ pair could not be set up; CLK2 stays off, the master (here CH1) keeps running |
 
 ### Settings Are Not Saved
 
@@ -855,7 +866,7 @@ Error messages start with `[ERROR]`, e.g.:
 | `[ERROR][FATAL] LVGL assert; restarting` | User interface out of memory or similar; the device restarts |
 | `task_wdt: Task watchdog got triggered … loopTask` | The firmware hung for 5 s; the device restarts |
 
-Dialog texts also appear in the log, e.g. `[ERROR][SI5351] Frequency set failed`.
+Dialog texts also appear in the log, e.g. `[ERROR][SI5351] CH1: frequency setup failed. Retrying every 2 s.`.
 
 Frequency changes and detailed SI5351 messages (output mask, phase register, I2C scan, etc.) only appear if the firmware was built with `LOG_DEBUG 1` (in `include/config.h`). They are off in normal operation because serial output slows down the user interface.
 

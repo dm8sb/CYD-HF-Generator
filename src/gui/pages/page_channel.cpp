@@ -22,6 +22,8 @@ void Gui::createChannelPage_(uint8_t ch) {
     on_(w_.freq, LV_EVENT_CLICKED, Action::FreqTap, 0);
     w_.info = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), 2, 32);
     w_.modes = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 2, 50);
+    lv_obj_set_width(w_.modes, CONTENT_W - 2 * (CARD_PAD + CARD_BORDER) - 4);
+    lv_label_set_long_mode(w_.modes, LV_LABEL_LONG_DOT);
 
     // Step presets in Hz.
     const int chipW = (CONTENT_W - (DELTA_STEP_COUNT - 1) * 4) / DELTA_STEP_COUNT;
@@ -57,10 +59,19 @@ void Gui::refreshChannel_() {
         lv_label_set_text(w_.info, status == ChannelStatus::NoDevice ? "SI5351 not found" : "Output error, retrying");
         lv_obj_set_style_text_color(w_.info, Colors::error(), 0);
     } else {
-        showOutput_(channel_, c.frequency);
+        // Switched off, the line shows what the output will deliver (U-17).
+        showOutput_(channel_, c.frequency, status == ChannelStatus::Off ? "Off | " : "");
     }
 
     showModes_(w_.modes, channel_);
+    // CH3 follows this channel: frequency changes move both (U-17).
+    if (app.ch3().master == channel_ && app.ch3Status() != Ch3Status::Off) {
+        const char* modes = lv_label_get_text(w_.modes);
+        char line[96];
+        snprintf(line, sizeof(line), "%s%sIQ master of CH3 (%u\xC2\xB0)", modes, modes[0] ? " | " : "",
+                 (unsigned)app.ch3().phase);
+        lv_label_set_text(w_.modes, line);
+    }
 
     const uint8_t sel = FrequencyUtils::stepIndex(app.system().delta_step);
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) {
@@ -83,7 +94,7 @@ void Gui::handleFreqTap_(lv_obj_t* label) {
 
     // Find the tapped character in the plain text; the recolor commands take no space.
     lv_font_t* font = const_cast<lv_font_t*>(lv_obj_get_style_text_font(label, LV_PART_MAIN));
-    const size_t index = InputLogic::charIndexAt(freqText_, p.x - area.x1, glyphWidth, font);
+    const size_t index = InputLogic::tapIndexAt(freqText_, p.x - area.x1, glyphWidth, font);
     uint32_t step = 0;
     switch (InputLogic::tapTarget(freqText_, index, &step)) {
         case InputLogic::TapTarget::Numpad:

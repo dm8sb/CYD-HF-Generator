@@ -107,12 +107,11 @@ Jede Phase endet mit den Gates aus Audit 5.8: Host-Tests in `native-win` und `na
 
 Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Abschnitt 2.3. Reihenfolge: Phase 2 (schnelle Verbesserungen), Phase 3 (Laborbetrieb).
 
-- [ ] **P2 Numpad** (U-9): Fehleingabe löscht die Eingabe; Hinweis nur als Platzhalter mit 2,29:1; 10. Zeichen still ignoriert → Eingabe stehen lassen, Fehlerlabel, aktuelle Frequenz als feste Zeile.
 - [ ] **P2 Boot-Geste entfernen** (U-10): Versehentliche Geste speichert den falschen Controller; die automatische Erkennung reicht (entschieden 2026-11-04) → Geste und `disp_panel` entfernen, `DISPLAY_FORCE_PANEL` behalten (ARBEITSPLAN S27).
 - [ ] **P2 Bildschirmsperre und Grundzustand** (U-13, war P3): Sperre durch 2 s Halten mit Anzeige „LOCK“ (unterdrückt auch Neuzeichnen, 2.1); „Reset to defaults (keep calibration)“ mit Bestätigung; **Werksreset** (NVS löschen inkl. künftigem `hfnet`) als weitere Zeile auf der CONFIG-Seite.
 - [ ] **P2 Kalibrieren** (U-11): heute Kopfrechnen und ≈ 20 Tipps → Wert antippen öffnet das Numpad (ppm mit Vorzeichen); Assistent siehe 6.
 - [ ] **P3 Masterfrequenz und Master-Schalter auf der CH3-Seite** (U-16), Kanalwahl im Header (CH1 → CH2 heute 2 Tipps).
-- [ ] **P3 Kleinere Punkte**: „°“ statt „deg“ (U-12, der Font hat das Zeichen); Ziffer-Antippen als Komfortfunktion beschreiben, Trennzeichen der Nachbarziffer zuordnen (U-15); Kanalseite bei OFF „Off \| …“ und Hinweis „IQ master of CH3“ (U-17); Wiederholung beim Halten beschleunigen, Druckaussetzer bis 60–80 ms überbrücken (U-20); Meldungen mit Kanal und Abhilfe, z. B. „CH1: frequency setup failed – retrying every 2 s“ (U-21).
+- [ ] **P3 Wiederholung beim Halten** (U-20): beschleunigen, Druckaussetzer bis 60–80 ms überbrücken. (Die übrigen kleineren Punkte U-12, U-15, U-17, U-21 sind mit S26 erledigt.)
 
 ## 4. Code-Qualität & Wartbarkeit
 

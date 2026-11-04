@@ -1,9 +1,11 @@
 #include "app_controller.h"
+
 #include <constants.h>
 #include <hal/i2c_bus.h>
 #include <drivers/si5351_plan.h>
 #include <utils/logger.h>
 #include <utils/frequency_utils.h>
+#include <utils/status_text.h>
 
 static const char* MSG_HW_LOST = "Connection lost. Check the cable; SDA/SCL may be in either order. Reconnecting automatically.";
 
@@ -210,7 +212,11 @@ void AppController::configureStandalone_(uint8_t ch) {
                     si5351_.enableOutput(clk, c.enabled);
     // A lost SI5351 is shown as NO HW, not as an output error.
     fault_[clk] = !ok && si5351_.ready();
-    if (!ok) reportHardwareError_("Frequency set failed");
+    if (!ok) {
+        char text[96];
+        StatusText::outputErrorText(ch, 0, text, sizeof(text));
+        reportHardwareError_(text);
+    }
 }
 
 void AppController::configureMasterGroup_() {
@@ -226,7 +232,9 @@ void AppController::configureMasterGroup_() {
     if (!si5351_.setupIQPair(masterClk, CLK_CH3, pllForChannel_(master), masterFrequency_(),
                              state_.sys.drive_ma, state_.ch3.phase)) {
         fault_[CLK_CH3] = si5351_.ready();
-        reportHardwareError_("CH3 IQ setup failed");
+        char text[96];
+        StatusText::outputErrorText(3, master, text, sizeof(text));
+        reportHardwareError_(text);
         // Keep at least the master running.
         si5351_.powerDown(CLK_CH3);
         configureStandalone_(master);

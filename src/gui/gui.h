@@ -68,6 +68,7 @@ private:
         lv_obj_t* si5351Info;
         lv_obj_t* saveState;   // CONFIG header, MAIN status bar
         lv_obj_t* ta;
+        lv_obj_t* npError;     // numpad: why the last key was rejected (U-9)
     };
 
     void createMain_();
@@ -90,7 +91,8 @@ private:
     // Switch = request, text = actual state (as on MAIN).
     void setHeaderState_(bool on, const StatusText::Text& state);
     // w_.info = actual output frequency of ch 1..3; deviations from 1 Hz on in the warning color.
-    void showOutput_(uint8_t ch, uint64_t requested);
+    // Out line of a channel page; prefix (e.g. "Off | ") goes before it (U-17).
+    void showOutput_(uint8_t ch, uint64_t requested, const char* prefix = "");
     // CONFIG: a row card at position `index` of the list (title optional), and a row with a dropdown.
     lv_obj_t* addConfigRow_(lv_obj_t* list, uint8_t index, int h, const char* title);
     lv_obj_t* addOptionRow_(lv_obj_t* list, uint8_t index, const char* title, const char* options, Action action);

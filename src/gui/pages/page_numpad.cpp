@@ -10,12 +10,6 @@ static const char* btnmMap[] = {
     ".", "0", LV_SYMBOL_BACKSPACE, "C", ""};
 static const uint16_t UNIT_BTN_IDS[] = {3, 7, 11};
 
-static void showInputError(lv_obj_t* ta) {
-    lv_textarea_set_text(ta, "");
-    lv_textarea_set_placeholder_text(ta, "1 - 100 MHz");
-    lv_obj_set_style_border_color(ta, Colors::error(), 0);
-}
-
 void Gui::createNumpad_(uint8_t ch) {
     const lv_color_t color = Colors::forChannel(ch);
     char buf[32];
@@ -37,19 +31,24 @@ void Gui::createNumpad_(uint8_t ch) {
     lv_obj_set_style_pad_ver(w_.ta, 6, 0);
     lv_obj_set_style_border_color(w_.ta, color, 0);
     lv_obj_clear_flag(w_.ta, LV_OBJ_FLAG_CLICKABLE);
-    FrequencyUtils::format(app_->channel(ch).frequency, buf, sizeof(buf));
-    lv_textarea_set_placeholder_text(w_.ta, buf);
+    // The current frequency stays visible while typing, the error text on the right (U-9).
+    char freq[24];
+    FrequencyUtils::format(app_->channel(ch).frequency, freq, sizeof(freq));
+    snprintf(buf, sizeof(buf), "Now %s", freq);
+    addLabel_(root_, buf, &lv_font_montserrat_14, Colors::muted(), 8, 45);
+    w_.npError = addLabel_(root_, "", &lv_font_montserrat_14, Colors::error(), 0, 0);
+    lv_obj_align(w_.npError, LV_ALIGN_TOP_RIGHT, -8, 45);
 
     lv_obj_t* m = lv_btnmatrix_create(root_);
     lv_btnmatrix_set_map(m, btnmMap);
     // Up to the screen edge; the padding keeps the keys where they were (6 px from the edge).
     // Keys in the outer rows and columns take taps in the padding, so up to the edge (U-5).
-    lv_obj_set_pos(m, 0, 44);
-    lv_obj_set_size(m, SCREEN_WIDTH, SCREEN_HEIGHT - 44);
+    lv_obj_set_pos(m, 0, 62);
+    lv_obj_set_size(m, SCREEN_WIDTH, SCREEN_HEIGHT - 62);
     lv_obj_set_style_bg_opa(m, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(m, 0, 0);
     lv_obj_set_style_pad_hor(m, 6, 0);
-    lv_obj_set_style_pad_top(m, 4, 0);
+    lv_obj_set_style_pad_top(m, 2, 0);
     lv_obj_set_style_pad_bottom(m, 6, 0);
     lv_obj_set_style_pad_gap(m, 4, 0);
     lv_obj_set_style_text_font(m, &lv_font_montserrat_20, LV_PART_ITEMS);
@@ -74,7 +73,8 @@ void Gui::handleNumpadKey_(lv_obj_t* matrix) {
             requestNavigate_(channel_ == 1 ? PageId::CH1 : PageId::CH2);
             return;
         case InputLogic::NumpadEvent::Rejected:
-            showInputError(ta);
+            lv_label_set_text(w_.npError, InputLogic::numpadErrorText(numpad_.error));
+            lv_obj_set_style_border_color(ta, Colors::error(), 0);
             return;
         case InputLogic::NumpadEvent::Edited:
             lv_textarea_set_text(ta, numpad_.text);
@@ -82,5 +82,6 @@ void Gui::handleNumpadKey_(lv_obj_t* matrix) {
         case InputLogic::NumpadEvent::Ignored:
             break;
     }
+    lv_label_set_text(w_.npError, "");
     lv_obj_set_style_border_color(ta, Colors::forChannel(channel_), 0);
 }

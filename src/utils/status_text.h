@@ -24,4 +24,8 @@ Text ch3(Ch3Status s);
 // switched-off output carries DC), otherwise Tone::Muted. Returns the tone.
 Tone modeSummary(TuningMode tuning, Spread spread, uint8_t driveMa, OffState off, char* out, size_t outSize);
 
+// Dialog text of an output error (audit U-21): channel, what is off, what keeps running and the
+// retry. ch 1/2: standalone output; ch 3: IQ pair with master (1/2).
+void outputErrorText(uint8_t ch, uint8_t master, char* out, size_t outSize);
+
 }

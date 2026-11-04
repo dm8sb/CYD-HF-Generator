@@ -149,7 +149,7 @@ void Gui::refreshMain_() {
         case Ch3Status::Active:
         case Ch3Status::NoDevice: break;
     }
-    snprintf(buf, sizeof(buf), "CH%u / %u deg%s", c3.master, c3.phase, reason);
+    snprintf(buf, sizeof(buf), "CH%u / %u\xC2\xB0%s", c3.master, c3.phase, reason);
     lv_label_set_text(w_.cardDetail[2], buf);
     placeDetail(w_.cardDetail[2], w_.cardState[2]);
     if (c3.enabled) lv_obj_add_state(w_.cardSwitch[2], LV_STATE_CHECKED);
