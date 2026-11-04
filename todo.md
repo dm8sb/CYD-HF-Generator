@@ -107,7 +107,6 @@ Jede Phase endet mit den Gates aus Audit 5.8: Host-Tests in `native-win` und `na
 
 Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Abschnitt 2.3. Reihenfolge: Phase 2 (schnelle Verbesserungen), Phase 3 (Laborbetrieb).
 
-- [ ] **P2 Lesbarkeit im Unterricht** (U-8): ON/OFF auf MAIN in 12 px ist nur bis ≈ 33 cm lesbar → gefülltes Kennzeichen 16 px, Status- und Detailzeilen 14 px. Die Navigationstasten CH1–CH3 auf MAIN werden durch die Statusleiste ersetzt (entschieden 2026-11-03, Konzept WEB-HMI W-E26; kann vor WEB-HMI kommen).
 - [ ] **P2 Numpad** (U-9): Fehleingabe löscht die Eingabe; Hinweis nur als Platzhalter mit 2,29:1; 10. Zeichen still ignoriert → Eingabe stehen lassen, Fehlerlabel, aktuelle Frequenz als feste Zeile.
 - [ ] **P2 Boot-Geste entfernen** (U-10): Versehentliche Geste speichert den falschen Controller; die automatische Erkennung reicht (entschieden 2026-11-04) → Geste und `disp_panel` entfernen, `DISPLAY_FORCE_PANEL` behalten (ARBEITSPLAN S27).
 - [ ] **P2 Bildschirmsperre und Grundzustand** (U-13, war P3): Sperre durch 2 s Halten mit Anzeige „LOCK“ (unterdrückt auch Neuzeichnen, 2.1); „Reset to defaults (keep calibration)“ mit Bestätigung; **Werksreset** (NVS löschen inkl. künftigem `hfnet`) als weitere Zeile auf der CONFIG-Seite.
@@ -115,7 +114,7 @@ Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Absch
 - [ ] **P3 Masterfrequenz und Master-Schalter auf der CH3-Seite** (U-16), Kanalwahl im Header (CH1 → CH2 heute 2 Tipps).
 - [ ] **P2 Scrollbarkeit von CONFIG sichtbar machen** (U-24, Beobachtung am Gerät 2026-11-04): Der Bildlauf funktioniert, ist aber nicht erkennbar; die 4-px-Scrollleiste und die angeschnittene fünfte Zeile (E-22) reichen nicht. Vorschläge: breitere Scrollleiste mit Kontrast ≥ 3:1, deutlich sichtbarer Anschnitt der nächsten Zeile (≥ 20 px, U-14), Hinweis am unteren Rand („▼ more“ bzw. Verlauf), der verschwindet, wenn das Ende erreicht ist; Prüfung MESSPLAN K10 Schritt 3. Arbeitsplan S25.
 - [ ] **P3 CONFIG-Reihenfolge** (U-14): Drive, Off state, Tuning, Spread, Corr., Backlight; Zeile „Step“ streichen (doppelt die Chips; entschieden 2026-11-03); 20 px der nächsten Zeile zeigen. CONFIG-Tasten 40 px, Hinweis „(Integer: off)“ bei gesperrtem Spread (U-18).
-- [ ] **P3 Kleinere Punkte**: „°“ statt „deg“ (U-12, der Font hat das Zeichen); Ziffer-Antippen als Komfortfunktion beschreiben, Trennzeichen der Nachbarziffer zuordnen (U-15); Kanalseite bei OFF „Off \| …“ und Hinweis „IQ master of CH3“ (U-17); Wiederholung beim Halten beschleunigen, Druckaussetzer bis 60–80 ms überbrücken (U-20); Meldungen mit Kanal und Abhilfe, z. B. „CH1: frequency setup failed – retrying every 2 s“ (U-21); Speicherzustand in der Statusleiste (U-22).
+- [ ] **P3 Kleinere Punkte**: „°“ statt „deg“ (U-12, der Font hat das Zeichen); Ziffer-Antippen als Komfortfunktion beschreiben, Trennzeichen der Nachbarziffer zuordnen (U-15); Kanalseite bei OFF „Off \| …“ und Hinweis „IQ master of CH3“ (U-17); Wiederholung beim Halten beschleunigen, Druckaussetzer bis 60–80 ms überbrücken (U-20); Meldungen mit Kanal und Abhilfe, z. B. „CH1: frequency setup failed – retrying every 2 s“ (U-21).
 
 ## 4. Code-Qualität & Wartbarkeit
 

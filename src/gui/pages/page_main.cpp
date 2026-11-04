@@ -5,10 +5,17 @@
 
 using namespace Layout;
 
-static constexpr int CARD_H = 58;
-// Detail line after the state label below the name; the widest one ("! NO HW", filled) needs
-// 57 px.
-static constexpr int DETAIL_X = 60;
+// Three cards above the status bar (W-E26); the bar replaces the navigation buttons CH1-CH3,
+// the cards open the channel pages.
+static constexpr int CARD_H = 62;
+static constexpr int CARD_Y = 4;
+static constexpr int BAR_H = 38;
+static constexpr int BAR_Y = SCREEN_HEIGHT - BAR_H;
+static_assert(CARD_Y + 3 * CARD_H + 3 * 4 <= BAR_Y, "cards above the status bar");
+// Second row: state (14 px, filled, audit U-8) and detail line (14 px). The detail starts after
+// the widest usual state ("WAIT", 43 px with padding) and moves right only for "! NO HW".
+static constexpr int ROW2_Y = 27;
+static constexpr int DETAIL_X = 50;
 // Switch column at the right edge of the card content (288 px): a 44 px switch with 6 px extra
 // touch area starts at 238, 13 px after the longest frequency ("100.000 000 MHz" ends at 225),
 // so a tap on the unit cannot switch the output (audit U-3). A line marks the column.
@@ -19,9 +26,6 @@ static constexpr int DIVIDER_X = 231;
 // a "~" (Integer raster) has room before two-digit MHz values. The label starts after the name.
 static constexpr int FREQ_RIGHT = DIVIDER_X - 6;
 static constexpr int NAME_W = 42;
-static constexpr int NAV_Y = 194;
-static constexpr int NAV_H = 42;
-static constexpr int NAV_W = 72;
 
 void Gui::createMain_() {
     // Main page intentionally has no project-title header to maximize status space.
@@ -31,20 +35,20 @@ void Gui::createMain_() {
     for (uint8_t i = 0; i < 3; ++i) {
         const uint8_t ch = i + 1;
         const lv_color_t color = Colors::forChannel(ch);
-        lv_obj_t* card = addCard_(root_, MARGIN, 6 + i * (CARD_H + 4), CONTENT_W, CARD_H, color);
+        lv_obj_t* card = addCard_(root_, MARGIN, CARD_Y + i * (CARD_H + 4), CONTENT_W, CARD_H, color);
         // Tapping the card opens the channel page; the switch toggles the output directly.
         lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_style_bg_color(card, Colors::cardPressed(), LV_STATE_PRESSED);
         on_(card, LV_EVENT_CLICKED, Action::Navigate, (uint8_t)pages[i]);
 
         addLabel_(card, names[i], &lv_font_montserrat_20, color, 0, 0);
-        w_.cardState[i] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 0, 26);
+        w_.cardState[i] = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), 0, ROW2_Y);
         styleState_(w_.cardState[i]);
         w_.cardFreq[i] = addLabel_(card, "", &lv_font_montserrat_20, Colors::text(), NAME_W, 0);
         lv_obj_set_width(w_.cardFreq[i], FREQ_RIGHT - NAME_W);
         lv_obj_set_style_text_align(w_.cardFreq[i], LV_TEXT_ALIGN_RIGHT, 0);
         lv_label_set_long_mode(w_.cardFreq[i], LV_LABEL_LONG_CLIP);
-        w_.cardDetail[i] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), DETAIL_X, 26);
+        w_.cardDetail[i] = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), DETAIL_X, ROW2_Y);
         // Keep the detail line clear of the switch column.
         lv_obj_set_width(w_.cardDetail[i], DIVIDER_X - 4 - DETAIL_X);
         lv_label_set_long_mode(w_.cardDetail[i], LV_LABEL_LONG_DOT);
@@ -60,10 +64,31 @@ void Gui::createMain_() {
         lv_obj_align(w_.cardSwitch[i], LV_ALIGN_RIGHT_MID, 0, 0);
     }
 
-    addButton_(root_, "CH1", MARGIN, NAV_Y, NAV_W, NAV_H, Colors::ch1(), Action::Navigate, (uint8_t)PageId::CH1);
-    addButton_(root_, "CH2", MARGIN + (NAV_W + GAP), NAV_Y, NAV_W, NAV_H, Colors::ch2(), Action::Navigate, (uint8_t)PageId::CH2);
-    addButton_(root_, "CH3", MARGIN + 2 * (NAV_W + GAP), NAV_Y, NAV_W, NAV_H, Colors::ch3(), Action::Navigate, (uint8_t)PageId::CH3);
-    addButton_(root_, "CONFIG", MARGIN + 3 * (NAV_W + GAP), NAV_Y, NAV_W, NAV_H, Colors::config(), Action::Navigate, (uint8_t)PageId::Config);
+    // Status bar like the header: save state on the left (later WLAN symbols, S53), CONFIG at the
+    // right edge.
+    lv_obj_t* bar = lv_obj_create(root_);
+    lv_obj_set_pos(bar, 0, BAR_Y);
+    lv_obj_set_size(bar, SCREEN_WIDTH, BAR_H);
+    lv_obj_set_style_bg_color(bar, Colors::headerBg(), 0);
+    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(bar, 0, 0);
+    lv_obj_set_style_radius(bar, 0, 0);
+    lv_obj_set_style_pad_all(bar, 0, 0);
+    lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(bar, LV_OBJ_FLAG_CLICKABLE);
+    w_.saveState = addLabel_(bar, "", &lv_font_montserrat_14, Colors::muted(), 0, 0);
+    lv_obj_align(w_.saveState, LV_ALIGN_LEFT_MID, MARGIN + 2, 0);
+    addButton_(bar, "CONFIG", SCREEN_WIDTH - 86, 1, 82, BAR_H - 2, Colors::config(), Action::Navigate,
+               (uint8_t)PageId::Config);
+}
+
+// Detail line after the state label: at DETAIL_X, further right after a wider state.
+static void placeDetail(lv_obj_t* detail, lv_obj_t* state) {
+    lv_point_t size;
+    lv_txt_get_size(&size, lv_label_get_text(state), &lv_font_montserrat_14, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const int x = LV_MAX(DETAIL_X, size.x + 2 * 2 + 6); // state padding 2 px per side
+    lv_obj_set_x(detail, x);
+    lv_obj_set_width(detail, DIVIDER_X - 4 - x);
 }
 
 // The requested frequency of a card. In Integer mode the output lies on a raster; "~" marks
@@ -99,6 +124,7 @@ void Gui::refreshMain_() {
                 lv_label_set_text(w_.cardDetail[i], "IQ master of CH3");
             }
         }
+        placeDetail(w_.cardDetail[i], w_.cardState[i]);
         if (c.enabled) lv_obj_add_state(w_.cardSwitch[i], LV_STATE_CHECKED);
         else lv_obj_clear_state(w_.cardSwitch[i], LV_STATE_CHECKED);
     }
@@ -125,6 +151,8 @@ void Gui::refreshMain_() {
     }
     snprintf(buf, sizeof(buf), "CH%u / %u deg%s", c3.master, c3.phase, reason);
     lv_label_set_text(w_.cardDetail[2], buf);
+    placeDetail(w_.cardDetail[2], w_.cardState[2]);
     if (c3.enabled) lv_obj_add_state(w_.cardSwitch[2], LV_STATE_CHECKED);
     else lv_obj_clear_state(w_.cardSwitch[2], LV_STATE_CHECKED);
+    refreshSaveState_();
 }

@@ -59,8 +59,9 @@ Operation on the main page:
 - **Tapping a card** opens the channel's page.
 - **The switch on a card** (on the right, separated by a line) turns the output on or off directly, without leaving the page. A tap on the frequency or `MHz` only opens the channel page.
 - The frequencies are right-aligned; decimal point and `MHz` of all cards line up.
-- The buttons at the bottom lead to CH1, CH2, CH3 and CONFIG. Colored buttons and selected chips have dark text, switched-off switches a light gray track, unselected chips a gray border.
-- Buttons at the screen edge (e.g. `MAIN` top right, the buttons at the bottom, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.
+- The status bar at the bottom shows the save state on the left (section 8, `Saved`, `Saving...`, red `Save failed` / `Not saved`) and has the `CONFIG` button (yellow) on the right. The channels open via their cards.
+- Colored buttons and selected chips have dark text, switched-off switches a light gray track, unselected chips a gray border.
+- Buttons at the screen edge (e.g. `MAIN` top right, `CONFIG` bottom right, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.
 
 Status display below the channel name (the same in the title bar of the channel pages). Every state except `OFF` appears as a colored field with dark text; errors start with `!`. Active and faulty outputs can thus be recognized without telling colors apart and from a distance.
 
@@ -72,14 +73,7 @@ Status display below the channel name (the same in the title bar of the channel 
 | `WAIT` (orange field) | CH3 is switched on but cannot run at the moment (master off or master frequency outside the IQ range: below 4.730 MHz, slightly narrower with `Spread CH1` on master CH1, section 8) |
 | `! NO HW` (red field) | SI5351 not found or connection lost; the firmware reconnects automatically |
 
-The navigation buttons are color-coded:
-
-| Button | Color |
-|---|---|
-| CH1 | Red |
-| CH2 | Green |
-| CH3 | Blue |
-| CONFIG | Yellow |
+The channel colors: CH1 red, CH2 green, CH3 blue, CONFIG yellow.
 
 The channel pages and CONFIG have a title bar with the `MAIN` button on the right to return to the main page. On the channel pages, it also contains the ON/OFF switch and next to it the actual state as on the main page: `ON`, `OFF`, `WAIT` (CH3 only), `! ERR` or `! NO HW`. The switch shows what is set, the text what the output is doing; for CH3 the switch can therefore be ON while the text shows `WAIT`. The NUMPAD has the `◀` button instead (section 6).
 
@@ -126,7 +120,7 @@ CH1 and CH2 are freely adjustable frequency outputs.
 
 ### Turning CH1 or CH2 ON
 
-1. On the main page, tap the card or the `CH1` or `CH2` button.
+1. On the main page, tap the `CH1` or `CH2` card.
 2. Turn on the ON/OFF switch in the title bar.
 3. The display changes to `ON`.
 4. A signal is present at the corresponding SI5351 output:
@@ -445,7 +439,7 @@ The title bar with the save indicator and `MAIN` stays fixed. The area below it 
 
 ### Save Indicator
 
-The save state is shown in the title bar between `CONFIG` and `MAIN`. It is visible at every scroll position:
+The save state is shown in the title bar between `CONFIG` and `MAIN`, at every scroll position; the status bar of the main page shows it as well:
 
 | Display | Meaning |
 |---|---|
