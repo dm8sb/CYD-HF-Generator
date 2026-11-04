@@ -4,7 +4,8 @@
 #include <types.h>
 
 // State texts of MAIN and the page headers (audit U-1): both show the actual state, the
-// switches show the request. Pure functions, host-tested in test_input_logic.
+// switches show the request. Errors start with "!", so they differ from ON also without color
+// (audit U-19); the GUI fills every state except OFF with its tone color. Pure functions, host-tested in test_input_logic.
 namespace StatusText {
 
 enum class Tone : uint8_t { Muted, Ok, Warn, Error };
