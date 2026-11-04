@@ -53,7 +53,7 @@ Zuerst werden WEB-HMI und Qualität umgesetzt (Audit-Phasen 1, 2, 4, 5, 6), dana
 | Board A | Original-CYD | nur Micro-USB | ILI9341 |
 | Board B | CYD2USB | zusätzlich USB-C | ST7789 |
 
-Stand 2026-11-04: Die Boards hängen an **COM7 und COM13**, die Zuordnung ist unbekannt (am 2026-10-28 war COM13 Board A, COM7 Board B), und **nur ein Board hat das SI5351-Modul angeschlossen**. Folgen:
+Stand 2026-11-04: Die Boards hängen an **COM7 und COM13**, und **nur ein Board hat das SI5351-Modul angeschlossen**. Beim Schritt S06 des Arbeitsplans zeigte COM7: Original-CYD (ILI9341), **ohne** SI5351; COM13 ist demnach das CYD2USB mit Modul (noch nicht geprüft; am 2026-10-28 war es umgekehrt). Folgen:
 
 - Schritt V1 ordnet Ports, Boards und Modul zu.
 - Alle HF-Messungen (C bis H, K) laufen auf dem Board mit Modul („**Messboard**“). Das Modul bestimmt die HF-Werte, das Board nur Störungen (F6, F9).

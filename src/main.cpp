@@ -13,6 +13,7 @@
 #include <gui/gui.h>
 #include <utils/build_info.h>
 #include <utils/logger.h>
+#include <utils/mem_monitor.h>
 
 static SettingsService settings;
 static BacklightDriver backlight;
@@ -119,11 +120,13 @@ void setup() {
     app.applyStoredChannelSettings();
 
     Logger::info("BOOT", "Setup complete");
+    MemMonitor::log("boot");
 }
 
 void loop() {
     lv_timer_handler();
     app.update();
     gui.update();
+    MemMonitor::update();
     delay(5);
 }
