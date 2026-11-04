@@ -10,6 +10,7 @@
 #include <utils/input_logic.h>
 #include <utils/message_queue.h>
 #include <utils/status_text.h>
+#include <utils/touch_cal.h>
 
 // Pages are built once per navigation. Actions change the AppController state and then
 // refresh_() updates the existing widgets, so no widget is deleted inside its own event.
@@ -23,6 +24,11 @@ public:
     // One dialog at a time; further messages are queued, identical ones dropped.
     void showMessage(const char* title, const char* text);
     void navigate(PageId page);
+    // Touch calibration wizard (U-26). firstStart: no calibration stored; a timeout continues
+    // with the default calibration on MAIN (otherwise back to CONFIG, unchanged).
+    void calibrateTouch(bool firstStart);
+    // Saves a successful calibration (SettingsService, set by main).
+    void setTouchCalibrationStore(bool (*store)(const TouchCalibration&)) { storeTouchCal_ = store; }
 
 private:
     enum class Action : uint8_t {
@@ -43,7 +49,8 @@ private:
         Tuning,
         Spread,
         OffState,
-        NumpadKey
+        NumpadKey,
+        TouchCal        // CONFIG: start the touch calibration
     };
 
     struct Widgets {
@@ -69,6 +76,10 @@ private:
         lv_obj_t* si5351Info;
         lv_obj_t* saveState;   // CONFIG header, MAIN status bar
         lv_obj_t* ta;
+        lv_obj_t* calCross[2]; // touch calibration: horizontal and vertical line
+        lv_obj_t* calText;
+        lv_obj_t* calStatus;
+        lv_obj_t* touchInfo;   // CONFIG info card
         lv_obj_t* npError;     // numpad: why the last key was rejected (U-9)
     };
 
@@ -77,6 +88,10 @@ private:
     void createCH3_();
     void createConfig_();
     void createNumpad_(uint8_t ch);
+    void createTouchCal_();
+    // Feeds raw touch samples to the wizard and moves the cross (every loop on that page).
+    void tickTouchCal_();
+    void showCalTarget_();
 #if TEST_HIT_MAP
     // Test build only (MESSPLAN B8): target crosses instead of the GUI.
     void createHitMap_();
@@ -156,6 +171,11 @@ private:
     lv_obj_t* shownBox_ = nullptr; // box of the open message, also while it closes
 
     MessageQueue messages_;     // open dialog and waiting ones (host-tested)
+    TouchCal::Wizard calWizard_; // touch calibration (host-tested)
+    bool calFirstStart_ = false;
+    uint8_t calShownTarget_ = 0xFF;
+    TouchCal::Phase calShownPhase_ = TouchCal::Phase::Touch;
+    bool (*storeTouchCal_)(const TouchCalibration&) = nullptr;
 
     lv_disp_draw_buf_t drawBuf_;
     static lv_color_t buf1_[SCREEN_WIDTH * 24];

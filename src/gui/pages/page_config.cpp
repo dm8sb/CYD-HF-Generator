@@ -13,8 +13,8 @@ static constexpr int ROW_PITCH = ROW_H + 4;
 static constexpr int ROW_PAD = 4;
 static constexpr int ROW_CONTENT_W = CONTENT_W - 2 * ROW_PAD - 2; // border 1
 static constexpr int ROW_CONTENT_H = ROW_H - 2 * ROW_PAD - 2;
-static constexpr uint8_t ROW_COUNT = 6;                            // setting rows above the info card
-static constexpr uint8_t INFO_LINES = 4;
+static constexpr uint8_t ROW_COUNT = 7;                            // setting rows above the info card
+static constexpr uint8_t INFO_LINES = 5;
 static constexpr int INFO_LINE_H = 15;                             // montserrat 12
 static constexpr int INFO_H = INFO_LINES * INFO_LINE_H + 2 * ROW_PAD + 2;
 static constexpr int VALUE_X = 92;                                 // values and dropdowns
@@ -141,7 +141,11 @@ void Gui::createConfig_() {
     addButton_(row, LV_SYMBOL_PLUS, BTN_RIGHT_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::BacklightUp);
 
 
-    // Info card: firmware, build, display controller and SI5351 link (refreshConfig_).
+    // Touch calibration (U-26): the wizard with crosses near the corners.
+    row = addConfigRow_(list, 6, ROW_H, "Touch");
+    addButton_(row, "Calibrate", VALUE_X, 0, DROPDOWN_W, ROW_CONTENT_H, btnColor, Action::TouchCal);
+
+    // Info card: firmware, build, display controller, touch and SI5351 link (refreshConfig_).
     row = addConfigRow_(list, ROW_COUNT, INFO_H, nullptr);
     lv_obj_t* info[INFO_LINES];
     for (uint8_t i = 0; i < INFO_LINES; ++i) {
@@ -158,7 +162,8 @@ void Gui::createConfig_() {
     snprintf(buf, sizeof(buf), "Display %s (%s)", DisplayDetect::name(display_->panel()),
              DisplayDetect::sourceName(display_->source()));
     lv_label_set_text(info[2], buf);
-    w_.si5351Info = info[3];
+    w_.touchInfo = info[3];
+    w_.si5351Info = info[4];
 
     // Snap point for the end of the list: the rows below SCROLL_MAX are not snappable, this
     // invisible stop shows the info card completely.
@@ -199,6 +204,15 @@ void Gui::refreshConfig_() {
         lv_dropdown_set_text(w_.spreadDd, nullptr);
     }
     setSelected(w_.offStateDd, (uint16_t)sys.off_state);
+
+    const TouchCalibration& tc = touch_->calibration();
+    if (touch_->calibrated()) {
+        snprintf(buf, sizeof(buf), "Touch calibrated x %ld-%ld y %ld-%ld", (long)tc.x_min, (long)tc.x_max,
+                 (long)tc.y_min, (long)tc.y_max);
+    } else {
+        snprintf(buf, sizeof(buf), "Touch not calibrated (default)");
+    }
+    lv_label_set_text(w_.touchInfo, buf);
 
     if (app.hardwareReady()) {
         snprintf(buf, sizeof(buf), "SI5351 SDA %d SCL %d%s%s", app.i2cSdaPin(), app.i2cSclPin(),

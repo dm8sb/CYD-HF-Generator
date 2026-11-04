@@ -30,7 +30,7 @@ Auf der CONFIG-Seite lassen sich außerdem das Teilerverfahren des SI5351 (`Tuni
 
 ## 2. Grundbedienung
 
-Nach dem Einschalten bleibt das Display dunkel, bis das erste Bild gezeichnet ist; dann erscheint die Hauptseite. **Alle Ausgänge sind nach dem Einschalten aus**, auch wenn sie beim Ausschalten an waren. Frequenzen, CH3-Master und -Phase sowie alle CONFIG-Einstellungen bleiben gespeichert.
+Nach dem Einschalten bleibt das Display dunkel, bis das erste Bild gezeichnet ist; dann erscheint die Hauptseite. Beim allerersten Start (noch kein Touch-Abgleich gespeichert) erscheint vorher der Touch-Abgleich (Abschnitt 8, `Touch`). **Alle Ausgänge sind nach dem Einschalten aus**, auch wenn sie beim Ausschalten an waren. Frequenzen, CH3-Master und -Phase sowie alle CONFIG-Einstellungen bleiben gespeichert.
 
 Die Hauptseite zeigt für jeden Kanal eine Karte mit:
 
@@ -439,6 +439,7 @@ Die Titelzeile mit Speicheranzeige und `MAIN` bleibt stehen. Der Bereich darunte
 | `Spread CH1` | Auswahlliste `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
 | `Corr.` | Wert in ppm, Schritt-Taste, `−`, `+` |
 | `Backlight` | `−`, Wert, `+` |
+| `Touch` | Taste `Calibrate` (Touch-Abgleich) |
 | Info-Karte | Firmware, Build, Display, SI5351 |
 
 - Oben stehen die Einstellungen, die das Signal verändern. Den Frequenzschritt stellen die Schritt-Tasten der Kanalseiten ein (Abschnitt 5).
@@ -575,6 +576,22 @@ Gemessen: 10 000 097 Hz  ->  +97 Hz bei 10 MHz  ->  +9.70 ppm einstellen
 
 Der aktuelle Wert steht zwischen den Tasten. Gedrückt halten wiederholt nicht. Das Minimum von 10 % verhindert, dass das Display versehentlich ganz dunkel und damit unbedienbar wird. Gespeicherte Werte älterer Firmware werden auf die nächste 10-%-Stufe gerundet; Werte unter 5 % (z. B. 0 % aus Firmware 1.0.0) werden auf 80 % gesetzt.
 
+### Touch (Touch-Abgleich)
+
+Der Abgleich passt die Touch-Erkennung an das Board an: Mit fest eingestellten Werten lagen die Treffer je nach Board bis zu 19 px daneben, am rechten Rand war die Ecke nicht erreichbar.
+
+Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nach dem Löschen des Speichers), und jederzeit mit `Touch` → `Calibrate`:
+
+1. Ein oranges Kreuz erscheint nahe der linken oberen Ecke, darüber `Hold the cross (1/4)`.
+2. Die Kreuzmitte antippen und halten, bis das Kreuz grün wird (etwa ½ s, Anzeige `Release`), dann loslassen.
+3. Ebenso rechts oben, rechts unten und links unten.
+4. Zur Prüfung das Kreuz in der Mitte halten (`Check: hold the cross`).
+
+- Liegt das Prüfkreuz höchstens 8 px daneben, wird der Abgleich gespeichert und gilt sofort; danach erscheint die Hauptseite (erster Start) bzw. CONFIG.
+- Sonst erscheint unter dem Kreuz in Orange der Grund (`Check cross off by … px. Again, please.` oder `The corners did not match. Again, please.`) und der Abgleich beginnt von vorn.
+- Ohne Berührung für 30 s endet der Abgleich: beim ersten Start mit den festen Werten (er erscheint beim nächsten Start wieder), aus CONFIG ohne Änderung.
+- Während des Abgleichs warten Meldungen (z. B. `SI5351 not found`), bis er beendet ist.
+
 ### Info-Karte
 
 Am Ende der Seite zeigt eine Karte Angaben für die Fehlersuche ohne seriellen Monitor, zum Beispiel:
@@ -583,6 +600,7 @@ Am Ende der Seite zeigt eine Karte Angaben für die Fehlersuche ohne seriellen M
 Firmware 1.3.1 | dev 641ebe6+
 Build 2026-10-28 16:42
 Display ST7789 (detected)
+Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
 ```
 
@@ -591,6 +609,7 @@ SI5351 SDA 22 SCL 27
 | `Firmware` | Version, Branch und Commit, aus dem die Firmware gebaut wurde. `+` hinter dem Commit: mit nicht eingecheckten Änderungen gebaut. Ohne git steht `unknown` |
 | `Build` | Datum und Uhrzeit des Builds |
 | `Display` | Display-Controller (`ILI9341` oder `ST7789`) und Herkunft: `detected` (erkannt), `default` (nichts erkannt, ILI9341 angenommen), `build flag` (beim Bauen festgelegt) |
+| `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
 
 ---
@@ -621,12 +640,13 @@ Gespeichert werden:
 - Frequenzkorrektur
 - globale Drive-Strength
 - `Tuning`, `Spread CH1` und `Off state`
+- der Touch-Abgleich (sofort nach dem Abgleich, nicht über Autosave)
 
 Fehlen die drei neuen Optionen im Speicher (Einstellungen aus Firmware 1.2.0), gelten die Standardwerte `Fractional`, `Off` und `Low`, also das Verhalten von 1.2.0. Ungültige gespeicherte Werte werden beim Start durch den Standardwert ersetzt.
 
 Der Display-Controller wird nicht gespeichert, sondern bei jedem Start erkannt (Abschnitt 13).
 
-Touch-Kalibrierung wird nicht gespeichert. Es werden immer Default-Werte verwendet.
+Der Touch-Abgleich wird je Board gespeichert; ein unplausibler gespeicherter Wert wird nicht verwendet (der Abgleich startet dann erneut).
 
 Der ON/OFF-Zustand der Ausgänge wird nicht gespeichert; nach dem Einschalten sind alle Ausgänge aus. Ein- und Ausschalten löst deshalb kein Speichern aus, ebenso wenig eine Einstellung, die schon den gewählten Wert hat. Das schont den Flash-Speicher.
 
@@ -824,7 +844,7 @@ CH3 startet dann automatisch; der Schalter muss nicht erneut betätigt werden.
 
 ### Grenzen
 
-- Touch-Kalibrierung ist fest eingestellt und lässt sich nicht ändern.
+- Der Touch-Abgleich ist linear je Achse (Versatz und Steigung); eine Verdrehung des Touch-Panels gegen das Display gleicht er nicht aus.
 - Die angezeigte tatsächliche Frequenz setzt voraus, dass die Frequenzkorrektur stimmt.
 - IQ-Betrieb erst ab 4,730 MHz Masterfrequenz.
 
@@ -850,6 +870,11 @@ Wichtige Meldungen:
 | `[APP] SI5351 at 0x60, SDA=22 SCL=27` | Verbunden; bei vertauschten Adern `SDA=27 SCL=22 (swapped)` |
 | `[APP] SI5351 not found` | Kein SI5351 gefunden, die Suche läuft weiter |
 | `[TOUCH] XPT2046 init OK on VSPI` | Touch bereit |
+| `[TOUCH] Calibration started` | Touch-Abgleich beginnt |
+| `[TOUCH] Calibrated: x 161..3778, y 245..3830, check -2/+2 px` | Abgleich gespeichert: Rohwerte der Bildränder, Abweichung des Prüfkreuzes |
+| `[TOUCH] Calibration skipped; default calibration` / `Calibration cancelled` | 30 s ohne Berührung (erster Start bzw. aus CONFIG) |
+| `[ERROR][TOUCH] Check cross off by … px. Again, please.` | Prüfung nicht bestanden, Abgleich beginnt von vorn |
+| `[ERROR][SETTINGS] Stored touch calibration implausible; using the default` | Gespeicherter Abgleich unbrauchbar; der Abgleich startet |
 | `[DISPLAY] ST7789 (detected); ...` | Display-Controller, Herkunft und Messwerte der Erkennung |
 | `[BOOT] Setup complete` | Start abgeschlossen |
 | `[SETTINGS] Saved to NVS` | Autosave |

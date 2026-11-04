@@ -110,7 +110,6 @@ Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Absch
 - [ ] **P2 Bildschirmsperre und Grundzustand** (U-13, war P3): Sperre durch 2 s Halten mit Anzeige „LOCK“ (unterdrückt auch Neuzeichnen, 2.1); „Reset to defaults (keep calibration)“ mit Bestätigung; **Werksreset** (NVS löschen inkl. künftigem `hfnet`) als weitere Zeile auf der CONFIG-Seite.
 - [ ] **P2 Kalibrieren** (U-11): heute Kopfrechnen und ≈ 20 Tipps → Wert antippen öffnet das Numpad (ppm mit Vorzeichen); Assistent siehe 6.
 - [ ] **P3 Masterfrequenz und Master-Schalter auf der CH3-Seite** (U-16), Kanalwahl im Header (CH1 → CH2 heute 2 Tipps).
-- [ ] **P1 Touch-Abgleich beim ersten Start** (U-26, Befund 2026-11-04 mit der Trefferkarte): Auf dem Original-CYD liegen die Treffer mit der festen Kalibrierung 11–19 px zu weit links, rechts ist nur x ≈ 305–308 erreichbar. Abgleich mit 4 Kreuzen nahe den Ecken und einem Prüfkreuz in der Mitte; automatisch ohne gespeicherte Kalibrierung, erneut über CONFIG; speichern nur nach bestandener Prüfung (ARBEITSPLAN S28a, neue Entscheidung zu A-32).
 - [ ] **P3 Wiederholung beim Halten** (U-20): beschleunigen, Druckaussetzer bis 60–80 ms überbrücken. (Die übrigen kleineren Punkte U-12, U-15, U-17, U-21 sind mit S26 erledigt.)
 
 ## 4. Code-Qualität & Wartbarkeit

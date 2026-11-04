@@ -30,7 +30,7 @@ The CONFIG page also lets you select the SI5351 divider scheme (`Tuning`), sprea
 
 ## 2. Basic Operation
 
-After power-up, the display stays dark until the first screen has been drawn; then the main page appears. **All outputs are off after power-up**, even if they were on when the device was switched off. Frequencies, CH3 master and phase, and all CONFIG settings are retained.
+After power-up, the display stays dark until the first screen has been drawn; then the main page appears. At the very first start (no touch calibration stored yet) the touch calibration comes first (section 8, `Touch`). **All outputs are off after power-up**, even if they were on when the device was switched off. Frequencies, CH3 master and phase, and all CONFIG settings are retained.
 
 The main page shows one card per channel with:
 
@@ -439,6 +439,7 @@ The title bar with the save indicator and `MAIN` stays fixed. The area below it 
 | `Spread CH1` | drop-down list `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
 | `Corr.` | value in ppm, step button, `−`, `+` |
 | `Backlight` | `−`, value, `+` |
+| `Touch` | `Calibrate` button (touch calibration) |
 | Info card | Firmware, Build, Display, SI5351 |
 
 - The settings that change the signal come first. The frequency step is set with the step buttons of the channel pages (section 5).
@@ -575,6 +576,22 @@ Measured: 10 000 097 Hz  ->  +97 Hz at 10 MHz  ->  set +9.70 ppm
 
 The current value is shown between the buttons. Holding a button does not repeat. The 10 % minimum prevents the display from accidentally going completely dark and thus becoming unusable. Values stored by older firmware are rounded to the nearest 10 % step; values below 5 % (e.g. 0 % from firmware 1.0.0) are set to 80 %.
 
+### Touch (Touch Calibration)
+
+The calibration adapts the touch detection to the board: with fixed values, hits were up to 19 px off depending on the board, and the corner at the right edge could not be reached.
+
+It starts automatically as long as no calibration is stored (first start, after erasing the memory), and at any time with `Touch` → `Calibrate`:
+
+1. An orange cross appears near the top left corner, above it `Hold the cross (1/4)`.
+2. Tap the center of the cross and hold until the cross turns green (about ½ s, display `Release`), then let go.
+3. The same at the top right, bottom right and bottom left.
+4. As a check, hold the cross in the middle (`Check: hold the cross`).
+
+- If the check cross is at most 8 px off, the calibration is stored and applies at once; then the main page (first start) or CONFIG appears.
+- Otherwise the reason appears in orange below the cross (`Check cross off by … px. Again, please.` or `The corners did not match. Again, please.`) and the calibration starts over.
+- Without a touch for 30 s the calibration ends: at the first start with the fixed values (it appears again at the next start), from CONFIG without a change.
+- During the calibration, messages (e.g. `SI5351 not found`) wait until it has ended.
+
 ### Info Card
 
 At the end of the page, a card shows information for troubleshooting without a serial monitor, for example:
@@ -583,6 +600,7 @@ At the end of the page, a card shows information for troubleshooting without a s
 Firmware 1.3.1 | dev 641ebe6+
 Build 2026-10-28 16:42
 Display ST7789 (detected)
+Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
 ```
 
@@ -591,6 +609,7 @@ SI5351 SDA 22 SCL 27
 | `Firmware` | Version, branch and commit the firmware was built from. `+` after the commit: built with uncommitted changes. Without git, `unknown` is shown |
 | `Build` | Date and time of the build |
 | `Display` | Display controller (`ILI9341` or `ST7789`) and source: `detected` (detected automatically), `default` (nothing detected, ILI9341 assumed), `build flag` (set at build time) |
+| `Touch` | `Touch calibrated x … y …`: stored calibration with the raw values of the screen edges; `Touch not calibrated (default)`: fixed values |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
 
 ---
@@ -621,12 +640,13 @@ The following are saved:
 - Frequency correction
 - Global drive strength
 - `Tuning`, `Spread CH1` and `Off state`
+- the touch calibration (right after the calibration, not by autosave)
 
 If the three new options are missing from storage (settings from firmware 1.2.0), the defaults `Fractional`, `Off` and `Low` apply, i.e. the behavior of 1.2.0. Invalid stored values are replaced by the default value at startup.
 
 The display controller is not stored but detected at every startup (section 13).
 
-Touch calibration is not saved. Default values are always used.
+The touch calibration is stored per board; an implausible stored value is not used (the calibration then starts again).
 
 The ON/OFF state of the outputs is not saved; all outputs are off after power-up. Switching outputs on or off therefore does not trigger saving, nor does a setting that already has the selected value. This spares the flash memory.
 
@@ -824,7 +844,7 @@ CH3 then starts automatically; the switch does not need to be operated again.
 
 ### Limitations
 
-- Touch calibration is fixed and cannot be changed.
+- The touch calibration is linear per axis (offset and slope); it does not compensate a rotation of the touch panel against the display.
 - The displayed actual frequency assumes that the frequency correction is right.
 - IQ operation only from a master frequency of 4.730 MHz.
 
@@ -850,6 +870,11 @@ Important messages:
 | `[APP] SI5351 at 0x60, SDA=22 SCL=27` | Connected; with swapped wires `SDA=27 SCL=22 (swapped)` |
 | `[APP] SI5351 not found` | No SI5351 found; the search continues |
 | `[TOUCH] XPT2046 init OK on VSPI` | Touch ready |
+| `[TOUCH] Calibration started` | Touch calibration begins |
+| `[TOUCH] Calibrated: x 161..3778, y 245..3830, check -2/+2 px` | Calibration stored: raw values of the screen edges, deviation of the check cross |
+| `[TOUCH] Calibration skipped; default calibration` / `Calibration cancelled` | 30 s without a touch (first start or from CONFIG) |
+| `[ERROR][TOUCH] Check cross off by … px. Again, please.` | Check failed, the calibration starts over |
+| `[ERROR][SETTINGS] Stored touch calibration implausible; using the default` | Stored calibration unusable; the calibration starts |
 | `[DISPLAY] ST7789 (detected); ...` | Display controller, source and detection readings |
 | `[BOOT] Setup complete` | Startup complete |
 | `[SETTINGS] Saved to NVS` | Autosave |

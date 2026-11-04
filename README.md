@@ -52,6 +52,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 - Dialog buttons 120 x 40 px with 6.7:1 contrast (were about 80 x 23 px, 1.1:1); buttons near the screen edge take taps up to the edge, `MAIN` 36 px high; CH3 master and phase chips 6 px apart (were 2 px)
 - Step chips on the channel pages from `1M` (left) to `1` (right), like the digits of the frequency
 - MAIN: a status bar with the save state and `CONFIG` replaces the buttons CH1-CH3 (the cards open the channels); taller cards, state and detail lines in 14 px instead of 12 px
+- Touch calibration at the first start and via CONFIG `Touch` -> `Calibrate`: 4 crosses near the corners and a check cross (<= 8 px), stored per board; the fixed calibration put the hits up to 19 px off
 - Touch test builds `esp32-2432S028R-touchlog` and `esp32-2432S028R-hitmap` (flags `TEST_TOUCH_LOG`, `TEST_HIT_MAP`) for the operating tests; release firmware unchanged
 - Boot gesture removed: the display controller is detected at every boot, a choice stored by the gesture of 1.3.0/1.3.1 is deleted; `DISPLAY_FORCE_PANEL` stays for unknown boards
 - Numpad keeps a rejected input and shows why (`Allowed 1 - 100 MHz`, `Enter a number`, `Max. 9 characters`), the current frequency as `Now ...`; a tap on a point or gap of the frequency selects the nearer digit; channel page shows `Off | Out ...` when off and `IQ master of CH3 (90°)`; `°` instead of `deg`; output error dialogs name the channel (`CH1: frequency setup failed. Retrying every 2 s.`)
@@ -184,7 +185,7 @@ See the user manual for details.
 
 - CH3 always shares the PLL of its master (CH1 = PLL A, CH2 = PLL B). The driver configures master and CH3 as an IQ pair with an integer MultiSynth divider and resets only the affected PLL to align the phases.
 - The SI5351 phase register is 7-bit. 90 degrees uses the register (= MultiSynth divider, <= 127 in the IQ range); 180/270 degrees invert the CH3 output (CLK_INV) in addition, so every phase works from 4.730 to 100 MHz.
-- Touch calibration UI and runtime calibration code are disabled. The firmware always uses the built-in default XPT2046 calibration values: x_min=300, x_max=3800, y_min=300, y_max=3800.
+- The touch screen is calibrated per board with a wizard (4 corner crosses, 1 check cross) at the first start or via CONFIG `Touch`; without a stored calibration the built-in defaults x 300-3800, y 300-3800 apply.
 - Drive strength is a single global CONFIG value for CH1, CH2 and CH3; CH3 has no independent drive setting.
 - Below 4.730 MHz CH3 waits (output off, switch stays ON) and starts automatically once the master frequency allows IQ mode.
 - Switching artifacts are allowed by design. In `Fractional` mode standalone outputs are retuned without a PLL reset; IQ pairs are disabled, reconfigured and realigned.

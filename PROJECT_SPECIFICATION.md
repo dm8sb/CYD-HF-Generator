@@ -126,9 +126,10 @@ This table is authoritative; README and manual repeat parts of it.
   | `tune` | U8 | 0 Fractional, 1 Low noise, 2 Integer | 0 | invalid → default |
   | `ssc` | U8 | 0 Off, 1 −0.5 %, 2 −1.5 %, 3 ±0.5 % | 0 | invalid → default; Off in Integer |
   | `off_st` | U8 | 0 Low, 1 High, 2 High-Z | 0 | invalid → default |
+  | `tc_x0`, `tc_x1`, `tc_y0`, `tc_y1` | I32 | raw touch values of the screen edges (x 0 / 319, y 0 / 239) | none | written by the calibration wizard; missing or implausible → default and wizard (E-27) |
   | `disp_panel` | U8 | removed in 1.3.2 | – | was written by the boot gesture (1.3.0–1.3.1); deleted at boot (E-26) |
 
-- **A-21** Missing keys give the defaults, so NVS contents from 1.2.0 keep the 1.2.0 behavior. Keys `ch1_en` / `ch2_en` / `ch3_en` from 1.1.0 are ignored. Output states, touch calibration and the SDA/SCL assignment are not stored.
+- **A-21** Missing keys give the defaults, so NVS contents from 1.2.0 keep the 1.2.0 behavior. Keys `ch1_en` / `ch2_en` / `ch3_en` from 1.1.0 are ignored. Output states and the SDA/SCL assignment are not stored; the touch calibration is stored by its wizard, outside the autosave (E-27).
 - **A-22** Autosave writes all settings 5 s after the last change (`SETTINGS_AUTOSAVE_MS`).
 - **A-23** Without NVS the firmware runs with defaults and saves nothing. NVS unavailable at boot and a failed save each produce a dialog and a save state on CONFIG. A failed save keeps the change and is retried every 30 s (`SETTINGS_RETRY_MS`); the dialog appears once per series of failures.
 
@@ -145,7 +146,7 @@ This table is authoritative; README and manual repeat parts of it.
 - **A-54** Contrast (WCAG 2.x, checked by `test_contrast`): text on colored buttons and chips in the color with the higher contrast (dark on CH1/CH2/CH3, at least 4.2:1), switch track and chip border at least 3:1 against the background (audit U-7). States other than OFF are filled labels, errors start with `!`, so they differ also without color (U-19).
 - **A-30** Frequency entry for CH1/CH2: step presets 1 Hz … 1 MHz, `+`/`−` with hold-to-repeat, tap on a digit selects the step (a separator selects the nearer neighbor, audit U-15), numeric keypad with validation (E-5); a rejected input stays editable with the reason shown, the current frequency stays visible (U-9).
 - **A-31** CONFIG contains, signal settings first, drive strength, off state, tuning mode, spread spectrum, correction (E-6), backlight (10–100 % in 10 % steps, E-23) and an info card (firmware version, branch, commit with dirty mark, build time, display controller with its source, SI5351 pins or state). The save state is visible in every scroll position.
-- **A-32** Touch: XPT2046 with fixed calibration (E-1), jitter filter and debounce; no calibration UI.
+- **A-32** Touch: XPT2046 with a calibration per board (wizard with four corner crosses and a check cross, stored in NVS; fixed default calibration without one, E-27), jitter filter and debounce.
 - **A-33** The backlight stays off until the first frame is drawn (the uninitialized panel shows noise).
 
 ### 3.6 Robustness and errors
@@ -181,7 +182,7 @@ This table is authoritative; README and manual repeat parts of it.
 ## 4. Decisions
 
 ### E-1 Fixed touch calibration
-*Original specification.* Runtime calibration and its UI are disabled; all devices use `TOUCH_CAL_DEFAULT` (x 300–3800, y 300–3800). Touch works with these values on both boards (hardware tests I1, I2); hits at the screen edges are checked by B7.
+*Original specification; superseded by E-27 (1.3.2).* Runtime calibration and its UI are disabled; all devices use `TOUCH_CAL_DEFAULT` (x 300–3800, y 300–3800). Touch works with these values on both boards (hardware tests I1, I2); hits at the screen edges are checked by B7.
 
 ### E-2 Global drive strength
 *Original specification.* One CONFIG value `Drive all` for CH1–CH3; CH3 has no own setting, so master and follower of an IQ pair always drive alike. The per-channel fields were removed in 1.3.0 (stored key `drv_def` unchanged). Drive per channel is an open question (`todo.md` 9).
@@ -285,3 +286,6 @@ Whether `CLKx_PDN` leaves a pin high-impedance or pulls it low is unmeasured (ha
 
 ### E-26 Boot gesture removed, detection only
 *2026-11-04 (1.3.2).* The boot gesture (touch held 1.5 s from power-on: use the other controller and store it) could fire by accident with a thumb on the screen while plugging in, and stored a wrong controller that only a second gesture without a readable screen undid (audit U-10). The detection (MADCTL read-back, RDDID read twice, up to 3 attempts) worked reliably on both boards in all tests. Decision: no runtime override; the build flag `DISPLAY_FORCE_PANEL` stays as the fallback for an unknown board. The NVS key `disp_panel` would otherwise override the detection forever and is deleted at boot. A touch at power-on is still kept away from LVGL.
+
+### E-27 Touch calibration per board
+*2026-11-04 (1.3.2).* The hit map (MESSPLAN B8, test build of S28) showed the fixed calibration (x 300–3800) off on both boards: hits 11–19 px too far left on the original CYD, x = 80 by about −17 px and the right edge by −1 … −7 px on the CYD2USB; the right corner was not reachable on the original CYD (audit U-26). Requested by the user: a calibration at the very first start. Four crosses 20 px from the corners give offset and slope per axis (linear, as `mapPoint()`), the cross in the middle checks it (≤ 8 px; the hit map scattered by about ±5 px with a good calibration); each cross is held 0.5 s, the first 0.1 s are not averaged. First results: x 161…3778 / y 245…3830 (CYD2USB) and x 166…3716 / y 280…3885 (original CYD), check −2/+2 and −2/+1 px. Stored in NVS outside the autosave; without a stored calibration the wizard runs at boot, 30 s without a touch continue with the default, so a board with a defective touch stays usable. A CONFIG row starts it again.
