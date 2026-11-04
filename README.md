@@ -48,6 +48,7 @@ PlatformIO + Arduino-ESP32 firmware for an ESP32-2432S028R / Sunton Cheap Yellow
 
 - CH3 in `ERR`: switching the master off and on no longer enables CLK2 (with off state `High`/`High-Z` it output a signal again)
 - MAIN shows the `~` of a rastered frequency (`Integer`) right after boot
+- `Integer`: the PLL ratio is limited with the corrected crystal, so the VCO stays within 600-900 MHz also at +-50 ppm
 - A lost SI5351 is reconnected in the same supervision cycle: after a power glitch the outputs run again within about 2 s (before: up to 4 s)
 - A failed save is retried every 30 s without further dialogs; before, the change was lost until the next one
 - Switching outputs on/off and setting a value to its current value no longer trigger an autosave (before: all 11 keys written 5 s later)

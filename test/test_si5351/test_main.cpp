@@ -667,9 +667,11 @@ static void test_low_noise_after_fractional_keeps_an_even_divider() {
 // Integer: integer PLL and MultiSynth, frequency on a raster
 
 // Distance of freq to the nearest point crystal * a / (div * 2^rLog2), a = 24..36, by brute force.
+// a is limited to a VCO of 600..900 MHz with the corrected crystal (audit C-7).
 static double rasterErr(uint64_t freq, int32_t corr, uint8_t rLog2, int divMin, int divMax, int divStep) {
     double best = 1e18;
-    for (int a = 24; a <= 36; ++a) {
+    for (int a = 23; a <= 37; ++a) {
+        if (xtalHz(corr) * a < 600e6 || xtalHz(corr) * a > 900e6) continue;
         for (int div = divMin; div <= divMax; div += divStep) {
             best = fmin(best, fabs(xtalHz(corr) * a / div / (double)(1U << rLog2) - (double)freq));
         }

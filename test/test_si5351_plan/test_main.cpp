@@ -29,10 +29,13 @@ static uint64_t randomHz(uint64_t lo, uint64_t hi) {
     return lo + (((uint64_t)a << 32) | lcgState) % (hi - lo + 1);
 }
 
-// Distance to the nearest point crystal * a / div (a = 24..36) by brute force.
+// Distance to the nearest point crystal * a / div by brute force; a is limited to a VCO of
+// 600..900 MHz with the corrected crystal (24..36 at correction 0).
 static double rasterErr(uint64_t msHz, uint64_t xtal4, uint32_t divMin, uint32_t divMax, uint32_t divStep) {
     double best = 1e18;
-    for (uint32_t a = 24; a <= 36; ++a) {
+    for (uint32_t a = 23; a <= 37; ++a) {
+        const double vco = xtal4 / 4.0 * a;
+        if (vco < 600e6 || vco > 900e6) continue;
         for (uint32_t div = divMin; div <= divMax; div += divStep) {
             best = fmin(best, fabs(xtal4 / 4.0 * a / div - (double)msHz));
         }
@@ -208,6 +211,26 @@ static void test_integer_picks_the_nearest_raster_point() {
             // actualHz is the raster point itself, from the corrected crystal.
             TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-6, xtal4 / 4.0 * p.pll.a / p.ms.a, p.actualHz, msg);
             TEST_ASSERT_TRUE_MESSAGE(fabs(p.actualHz - (double)f) <= rasterErr(f, xtal4, 4, 2048, 2) + 1e-6, msg);
+        }
+    }
+}
+
+// Audit C-7 / T-9: the integer PLL ratio is limited with the corrected crystal, so the VCO
+// stays within 600..900 MHz also at +-50 ppm (25 MHz x 36 at +50 ppm would be 900.045 MHz).
+static void test_integer_vco_in_range_with_correction() {
+    for (uint64_t xtal4 : XTALS) {
+        lcgState = 11;
+        for (int i = 0; i < 300; ++i) {
+            const uint64_t f = i == 0 ? 25000000ULL : i == 1 ? 6250000ULL : randomHz(FREQ_MIN_HZ, 160000000ULL);
+            const SynthPlan p = planStandalone(f, TuningMode::Integer, nullptr, nullptr, xtal4);
+            snprintf(msg, sizeof(msg), "%llu Hz, xtal4 %llu: a %u, VCO %.0f", (unsigned long long)f,
+                     (unsigned long long)xtal4, p.pll.a, vcoHz(p, xtal4));
+            TEST_ASSERT_TRUE_MESSAGE(vcoHz(p, xtal4) >= 600e6 && vcoHz(p, xtal4) <= 900e6, msg);
+            if (f < IQ_MIN_HZ || f > IQ_MAX_HZ) continue;
+            const SynthPlan q = planIQ(f, TuningMode::Integer, xtal4);
+            snprintf(msg, sizeof(msg), "IQ %llu Hz, xtal4 %llu: VCO %.0f", (unsigned long long)f,
+                     (unsigned long long)xtal4, vcoHz(q, xtal4));
+            TEST_ASSERT_TRUE_MESSAGE(!q.ok || (vcoHz(q, xtal4) >= 600e6 && vcoHz(q, xtal4) <= 900e6), msg);
         }
     }
 }
@@ -422,6 +445,7 @@ int main() {
     RUN_TEST(test_low_noise_accuracy_with_hysteresis);
     RUN_TEST(test_integer_example_7_1_mhz);
     RUN_TEST(test_integer_picks_the_nearest_raster_point);
+    RUN_TEST(test_integer_vco_in_range_with_correction);
     RUN_TEST(test_integer_tie_prefers_an_even_pll_ratio);
     RUN_TEST(test_integer_limits);
     RUN_TEST(test_iq_fractional_and_low_noise_are_the_same);
