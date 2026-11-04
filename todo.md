@@ -109,7 +109,7 @@ Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Absch
 
 - [ ] **P2 Lesbarkeit im Unterricht** (U-8): ON/OFF auf MAIN in 12 px ist nur bis ≈ 33 cm lesbar → gefülltes Kennzeichen 16 px, Status- und Detailzeilen 14 px. Die Navigationstasten CH1–CH3 auf MAIN werden durch die Statusleiste ersetzt (entschieden 2026-11-03, Konzept WEB-HMI W-E26; kann vor WEB-HMI kommen).
 - [ ] **P2 Numpad** (U-9): Fehleingabe löscht die Eingabe; Hinweis nur als Platzhalter mit 2,29:1; 10. Zeichen still ignoriert → Eingabe stehen lassen, Fehlerlabel, aktuelle Frequenz als feste Zeile.
-- [ ] **P2 Boot-Geste absichern** (U-10): Versehentliche Geste speichert den falschen Controller → Dialog „Display OK?“, ohne Tipp nach 10 s zurück und nichts speichern; Hinweis auch im Handbuch §11.
+- [ ] **P2 Boot-Geste entfernen** (U-10): Versehentliche Geste speichert den falschen Controller; die automatische Erkennung reicht (entschieden 2026-11-04) → Geste und `disp_panel` entfernen, `DISPLAY_FORCE_PANEL` behalten (ARBEITSPLAN S27).
 - [ ] **P2 Bildschirmsperre und Grundzustand** (U-13, war P3): Sperre durch 2 s Halten mit Anzeige „LOCK“ (unterdrückt auch Neuzeichnen, 2.1); „Reset to defaults (keep calibration)“ mit Bestätigung; **Werksreset** (NVS löschen inkl. künftigem `hfnet`) als weitere Zeile auf der CONFIG-Seite.
 - [ ] **P2 Kalibrieren** (U-11): heute Kopfrechnen und ≈ 20 Tipps → Wert antippen öffnet das Numpad (ppm mit Vorzeichen); Assistent siehe 6.
 - [ ] **P3 Masterfrequenz und Master-Schalter auf der CH3-Seite** (U-16), Kanalwahl im Header (CH1 → CH2 heute 2 Tipps).
