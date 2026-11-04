@@ -60,6 +60,7 @@ Operation on the main page:
 - **The switch on a card** (on the right, separated by a line) turns the output on or off directly, without leaving the page. A tap on the frequency or `MHz` only opens the channel page.
 - The frequencies are right-aligned; decimal point and `MHz` of all cards line up.
 - The buttons at the bottom lead to CH1, CH2, CH3 and CONFIG.
+- Buttons at the screen edge (e.g. `MAIN` top right, the buttons at the bottom, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.
 
 Status display below the channel name:
 
@@ -582,7 +583,7 @@ Determines the level that a switched-off output carries (SI5351 register 24). Th
 | `High` | HIGH (supply voltage of the outputs, usually 3.3 V) |
 | `High-Z` | high impedance |
 
-- `High` needs a confirmation: the dialog `Off state High` explains the DC voltage on a switched-off output. `High` applies the setting, `Cancel` keeps the previous one. `Low` and `High-Z` apply without a question.
+- `High` needs a confirmation: the dialog `Off state High` explains the DC voltage on a switched-off output. `High` (orange) applies the setting, `Cancel` keeps the previous one. `Low` and `High-Z` apply without a question.
 - The change takes effect immediately; running outputs are not affected.
 - If the setting differs from `Low`, the main page and the channel pages show `OFF = High` or `OFF = High-Z` in the mode line (section 2).
 - The firmware writes the state when connecting to the SI5351, before any output can be switched on.
@@ -751,7 +752,7 @@ This setting then applies to all channels.
 
 ### Error Messages
 
-Errors are shown as a dialog. `OK` closes the dialog. At most one dialog is open at any time; further messages appear one after another, identical messages only once. Connection messages close by themselves after reconnecting; messages about output errors stay open until they are closed with `OK`.
+Errors are shown as a dialog. `OK` (large light gray button at the bottom) closes the dialog. At most one dialog is open at any time; further messages appear one after another, identical messages only once. Connection messages close by themselves after reconnecting; messages about output errors stay open until they are closed with `OK`.
 
 ### SI5351 Not Found
 

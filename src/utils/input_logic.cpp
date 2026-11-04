@@ -82,4 +82,17 @@ void stepMarkup(const char* text, uint32_t step, uint32_t rgb, char* out, size_t
     out[n] = '\0';
 }
 
+Area edgeArea(const Area& b, int16_t reach, int16_t screenW, int16_t screenH) {
+    Area a = b;
+    if (a.x1 <= reach) a.x1 = 0;
+    if (a.y1 <= reach) a.y1 = 0;
+    if (a.x2 >= screenW - 1 - reach) a.x2 = screenW - 1;
+    if (a.y2 >= screenH - 1 - reach) a.y2 = screenH - 1;
+    return a;
+}
+
+bool contains(const Area& a, int16_t x, int16_t y) {
+    return x >= a.x1 && x <= a.x2 && y >= a.y1 && y <= a.y2;
+}
+
 }

@@ -60,6 +60,7 @@ Bedienung auf der Hauptseite:
 - **Schalter auf der Karte** (rechts, durch eine Linie abgetrennt) schaltet den Ausgang direkt ein oder aus, ohne die Seite zu wechseln. Ein Tipp auf die Frequenz oder `MHz` öffnet nur die Kanalseite.
 - Die Frequenzen stehen rechtsbündig, Dezimalpunkt und `MHz` aller Karten untereinander.
 - Die Buttons unten führen zu CH1, CH2, CH3 und CONFIG.
+- Tasten am Bildschirmrand (z. B. `MAIN` oben rechts, die Buttons unten, die äußeren NUMPAD-Tasten) reagieren bis an den Rand, auch auf einen Tipp knapp daneben in Richtung Rand. Der Abstand zwischen zwei Tasten bleibt frei.
 
 Statusanzeige unter dem Kanalnamen:
 
@@ -582,7 +583,7 @@ Legt fest, welchen Pegel ein ausgeschalteter Ausgang führt (SI5351-Register 24)
 | `High` | HIGH (Versorgungsspannung der Ausgänge, meist 3,3 V) |
 | `High-Z` | hochohmig |
 
-- `High` muss bestätigt werden: Der Dialog `Off state High` erklärt die Gleichspannung am ausgeschalteten Ausgang. `High` übernimmt die Einstellung, `Cancel` lässt die bisherige stehen. `Low` und `High-Z` wirken ohne Rückfrage.
+- `High` muss bestätigt werden: Der Dialog `Off state High` erklärt die Gleichspannung am ausgeschalteten Ausgang. `High` (orange) übernimmt die Einstellung, `Cancel` lässt die bisherige stehen. `Low` und `High-Z` wirken ohne Rückfrage.
 - Die Änderung wirkt sofort; laufende Ausgänge bleiben unberührt.
 - Weicht die Einstellung von `Low` ab, zeigen Hauptseite und Kanalseiten `OFF = High` bzw. `OFF = High-Z` in der Moduszeile (Abschnitt 2).
 - Die Firmware schreibt den Zustand beim Verbinden mit dem SI5351, bevor ein Ausgang eingeschaltet werden kann.
@@ -751,7 +752,7 @@ Diese Einstellung gilt danach für alle Kanäle.
 
 ### Fehlermeldungen
 
-Fehler werden als Dialog angezeigt. `OK` schließt den Dialog. Es ist immer höchstens ein Dialog offen; weitere Meldungen erscheinen nacheinander, gleiche Meldungen nur einmal. Verbindungsmeldungen schließen sich nach dem Wiederverbinden selbst, Meldungen zu Ausgangsfehlern bleiben offen, bis sie mit `OK` geschlossen werden.
+Fehler werden als Dialog angezeigt. `OK` (große hellgraue Taste unten) schließt den Dialog. Es ist immer höchstens ein Dialog offen; weitere Meldungen erscheinen nacheinander, gleiche Meldungen nur einmal. Verbindungsmeldungen schließen sich nach dem Wiederverbinden selbst, Meldungen zu Ausgangsfehlern bleiben offen, bis sie mit `OK` geschlossen werden.
 
 ### SI5351 nicht gefunden
 
