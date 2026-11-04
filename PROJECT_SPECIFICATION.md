@@ -1,6 +1,6 @@
 # CYD HF Generator – Project Specification
 
-Firmware 1.3.1 · Status 2026-11-04
+Firmware 1.3.2 · Status 2026-11-04
 
 This document contains only **requirements** (A-n, numbered and testable) and **decisions** (E-n, dated, with rationale and measured values where they exist). Behavior as seen by the user (pages, controls, messages, log lines, examples) is described only in [USER_MANUAL_DE.md](USER_MANUAL_DE.md); [USER_MANUAL_EN.md](USER_MANUAL_EN.md) is its translation. Build instructions and the change history are in [README.md](README.md), architecture and development rules in [CLAUDE.md](CLAUDE.md).
 
