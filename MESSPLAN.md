@@ -1537,8 +1537,9 @@ Die Identitätsprüfung (Register 0, 183, Rücklesen von Register 3) folgt AN619
 
 1. Auf freier Fläche, auf Tasten (`Corr. +` mit Wiederholung) und auf Dropdowns wischen; danach einzelne Tipps.
 2. Zu MAIN wechseln und zurück: Scrollposition?
+3. Eine Person, die CONFIG nicht kennt, öffnet die Seite und soll die Einstellung `Off state` finden, ohne Hinweis (U-24).
 
-**Soll:** rastet an Zeilenkanten ein; Wischen löst keine Aktion aus; Tipps treffen; Scrollposition nach MAIN → CONFIG erhalten.
+**Soll:** rastet an Zeilenkanten ein; Wischen löst keine Aktion aus; Tipps treffen; Scrollposition nach MAIN → CONFIG erhalten; die Person erkennt ohne Hinweis, dass die Seite scrollt.
 **Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
 
 #### K11 · `Integer` sperrt Spread
