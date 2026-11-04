@@ -92,8 +92,9 @@ static void integerDivider(SynthPlan& p, uint32_t div, uint64_t msHz, uint64_t x
 // range) and div = divMin, divMin + divStep, ... <= divMax. On a tie the even a wins (FBx_INT).
 static void nearestIntegerPoint(SynthPlan& p, uint64_t msHz, uint64_t xtal4, const VcoRange& range, uint32_t divMin,
                                 uint32_t divMax, uint32_t divStep) {
-    const uint32_t aMin = (uint32_t)((range.min + XTAL_HZ - 1) / XTAL_HZ);
-    const uint32_t aMax = (uint32_t)(range.max / XTAL_HZ);
+    // From the corrected crystal (xtal4 / 4), so the VCO stays in range at +-50 ppm (audit C-7).
+    const uint32_t aMin = (uint32_t)((4 * range.min + xtal4 - 1) / xtal4);
+    const uint32_t aMax = (uint32_t)(4 * range.max / xtal4);
     uint64_t bestErr = 0;
     uint32_t bestA = 0, bestDiv = 0;
     for (uint32_t div = divMin; div <= divMax; div += divStep) {

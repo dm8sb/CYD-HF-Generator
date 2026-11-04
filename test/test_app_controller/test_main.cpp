@@ -369,6 +369,23 @@ static void test_failing_bus_reinit_is_survived() {
     TEST_ASSERT_TRUE(d.app.hardwareReady());
 }
 
+// Audit T-8: a power glitch resets the spread spectrum registers; the reconnect writes them
+// again together with the outputs.
+static void test_reconnect_restores_spread_spectrum() {
+    Device d;
+    d.app.setSpread(Spread::Down05);
+    d.app.setChannelEnabled(1, true);
+    TEST_ASSERT_TRUE(spreadSpectrum().enabled);
+    chip.powerOn();
+    TEST_ASSERT_FALSE(spreadSpectrum().enabled);
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_TRUE(spreadSpectrum().enabled);
+    TEST_ASSERT_DOUBLE_WITHIN(0.0005, 0.005, spreadDownAmp());
+    TEST_ASSERT_NULL(limitViolation(0));
+    TEST_ASSERT_TRUE(enabled(0));
+}
+
 static void test_bus_failure_while_tuning_shows_no_hw() {
     Device d;
     d.app.setChannelEnabled(1, true);
@@ -1019,6 +1036,7 @@ int main() {
     RUN_TEST(test_power_glitch_is_restored_in_the_same_cycle);
     RUN_TEST(test_millis_wrap_keeps_supervision_and_autosave);
     RUN_TEST(test_failing_bus_reinit_is_survived);
+    RUN_TEST(test_reconnect_restores_spread_spectrum);
     RUN_TEST(test_bus_failure_while_tuning_shows_no_hw);
     RUN_TEST(test_healthy_device_is_not_reconfigured);
     RUN_TEST(test_backlight_steps);
