@@ -6,6 +6,7 @@
 #include <utils/frequency_utils.h>
 #include <utils/input_logic.h>
 #include <utils/message_queue.h>
+#include <utils/status_text.h>
 #include <string.h>
 
 using namespace InputLogic;
@@ -194,6 +195,29 @@ static void test_iq_limit_is_rounded_towards_the_inside() {
     TEST_ASSERT_EQUAL_STRING("100.000", buf);
 }
 
+// ---------------------------------------------------------------------------
+// State texts of MAIN and the headers (audit U-1)
+
+static void test_status_texts_show_the_actual_state() {
+    using namespace StatusText;
+    TEST_ASSERT_EQUAL_STRING("ON", channel(ChannelStatus::On).text);
+    TEST_ASSERT_EQUAL(Tone::Ok, channel(ChannelStatus::On).tone);
+    TEST_ASSERT_EQUAL_STRING("OFF", channel(ChannelStatus::Off).text);
+    TEST_ASSERT_EQUAL(Tone::Muted, channel(ChannelStatus::Off).tone);
+    TEST_ASSERT_EQUAL_STRING("ERR", channel(ChannelStatus::Error).text);
+    TEST_ASSERT_EQUAL_STRING("NO HW", channel(ChannelStatus::NoDevice).text);
+    TEST_ASSERT_EQUAL(Tone::Error, channel(ChannelStatus::NoDevice).tone);
+    // CH3 switched on but waiting is not "ON" (before, the header showed the request).
+    TEST_ASSERT_EQUAL_STRING("WAIT", ch3(Ch3Status::MasterOff).text);
+    TEST_ASSERT_EQUAL_STRING("WAIT", ch3(Ch3Status::FreqTooLow).text);
+    TEST_ASSERT_EQUAL_STRING("WAIT", ch3(Ch3Status::FreqTooHigh).text);
+    TEST_ASSERT_EQUAL(Tone::Warn, ch3(Ch3Status::FreqTooHigh).tone);
+    TEST_ASSERT_EQUAL_STRING("ON", ch3(Ch3Status::Active).text);
+    TEST_ASSERT_EQUAL_STRING("ERR", ch3(Ch3Status::Error).text);
+    TEST_ASSERT_EQUAL_STRING("NO HW", ch3(Ch3Status::NoDevice).text);
+    TEST_ASSERT_EQUAL_STRING("OFF", ch3(Ch3Status::Off).text);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_numpad_digits_and_one_point);
@@ -208,5 +232,6 @@ int main(int, char**) {
     RUN_TEST(test_queue_drops_duplicates_and_overflow);
     RUN_TEST(test_queue_drops_link_messages_after_reconnect);
     RUN_TEST(test_iq_limit_is_rounded_towards_the_inside);
+    RUN_TEST(test_status_texts_show_the_actual_state);
     return UNITY_END();
 }

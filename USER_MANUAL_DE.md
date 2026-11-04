@@ -44,7 +44,8 @@ Im Modus `Tuning` = `Integer` steht vor der Frequenz ein `~`, wenn die tatsächl
 Bedienung auf der Hauptseite:
 
 - **Karte antippen** öffnet die Seite des Kanals.
-- **Schalter auf der Karte** schaltet den Ausgang direkt ein oder aus, ohne die Seite zu wechseln.
+- **Schalter auf der Karte** (rechts, durch eine Linie abgetrennt) schaltet den Ausgang direkt ein oder aus, ohne die Seite zu wechseln. Ein Tipp auf die Frequenz oder `MHz` öffnet nur die Kanalseite.
+- Die Frequenzen stehen rechtsbündig, Dezimalpunkt und `MHz` aller Karten untereinander.
 - Die Buttons unten führen zu CH1, CH2, CH3 und CONFIG.
 
 Statusanzeige unter dem Kanalnamen:
@@ -66,7 +67,7 @@ Die Navigationsbuttons sind farbig:
 | CH3 | Blau |
 | CONFIG | Gelb |
 
-Die Kanalseiten und CONFIG haben eine Titelzeile mit dem Button `MAIN` rechts zur Rückkehr auf die Hauptseite. Auf den Kanalseiten enthält sie zusätzlich den ON/OFF-Schalter mit der Zustandsanzeige `ON`, `OFF` oder `ERR`. Das NUMPAD hat stattdessen die Taste `◀` (Abschnitt 6).
+Die Kanalseiten und CONFIG haben eine Titelzeile mit dem Button `MAIN` rechts zur Rückkehr auf die Hauptseite. Auf den Kanalseiten enthält sie zusätzlich den ON/OFF-Schalter und daneben den tatsächlichen Zustand wie auf der Hauptseite: `ON`, `OFF`, `WAIT` (nur CH3), `ERR` oder `NO HW`. Der Schalter zeigt, was eingestellt ist, der Text, was der Ausgang gerade tut; bei CH3 kann der Schalter also auf ON stehen, während der Text `WAIT` zeigt. Das NUMPAD hat stattdessen die Taste `◀` (Abschnitt 6).
 
 Die RGB-LED zeigt auf den Kanal-Seiten ebenfalls die Kanal-Farbe:
 
@@ -776,7 +777,7 @@ Geht der Speicher der Bedienoberfläche aus oder hängt die Firmware länger als
 
 Prüfen:
 
-1. Kanal steht auf `ON`?
+1. Zeigen Hauptseite bzw. Titelzeile `ON` (nicht nur der Schalter)?
 2. Richtiger Ausgang gemessen?
 
 ```text

@@ -44,7 +44,8 @@ In mode `Tuning` = `Integer`, the frequency is preceded by a `~` when the actual
 Operation on the main page:
 
 - **Tapping a card** opens the channel's page.
-- **The switch on a card** turns the output on or off directly, without leaving the page.
+- **The switch on a card** (on the right, separated by a line) turns the output on or off directly, without leaving the page. A tap on the frequency or `MHz` only opens the channel page.
+- The frequencies are right-aligned; decimal point and `MHz` of all cards line up.
 - The buttons at the bottom lead to CH1, CH2, CH3 and CONFIG.
 
 Status display below the channel name:
@@ -66,7 +67,7 @@ The navigation buttons are color-coded:
 | CH3 | Blue |
 | CONFIG | Yellow |
 
-The channel pages and CONFIG have a title bar with the `MAIN` button on the right to return to the main page. On the channel pages, it also contains the ON/OFF switch with the state label `ON`, `OFF` or `ERR`. The NUMPAD has the `◀` button instead (section 6).
+The channel pages and CONFIG have a title bar with the `MAIN` button on the right to return to the main page. On the channel pages, it also contains the ON/OFF switch and next to it the actual state as on the main page: `ON`, `OFF`, `WAIT` (CH3 only), `ERR` or `NO HW`. The switch shows what is set, the text what the output is doing; for CH3 the switch can therefore be ON while the text shows `WAIT`. The NUMPAD has the `◀` button instead (section 6).
 
 On the channel pages, the RGB LED also shows the channel color:
 
@@ -776,7 +777,7 @@ If the user interface runs out of memory or the firmware hangs for more than 5 s
 
 Check:
 
-1. Is the channel set to `ON`?
+1. Do the main page or the title bar show `ON` (not just the switch)?
 2. Are you measuring the correct output?
 
 ```text

@@ -172,21 +172,21 @@ lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switch
 
     if (switchChannel) {
         w_.hdrSwitch = addSwitch_(bar, switchChannel, color);
-        lv_obj_align(w_.hdrSwitch, LV_ALIGN_LEFT_MID, 158, 0);
+        lv_obj_align(w_.hdrSwitch, LV_ALIGN_LEFT_MID, Layout::HEADER_SWITCH_X, 0);
         w_.hdrState = addLabel_(bar, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
-        lv_obj_align(w_.hdrState, LV_ALIGN_LEFT_MID, 214, 0);
+        lv_obj_align(w_.hdrState, LV_ALIGN_LEFT_MID, Layout::HEADER_STATE_X, 0);
     }
 
     addButton_(bar, "MAIN", SCREEN_WIDTH - 66, 4, 62, Layout::HEADER_H - 8, Colors::gray(), Action::Navigate, (uint8_t)PageId::Main);
     return bar;
 }
 
-void Gui::setHeaderState_(bool on, bool error) {
+void Gui::setHeaderState_(bool on, const StatusText::Text& state) {
     if (!w_.hdrSwitch) return;
     if (on) lv_obj_add_state(w_.hdrSwitch, LV_STATE_CHECKED);
     else lv_obj_clear_state(w_.hdrSwitch, LV_STATE_CHECKED);
-    lv_label_set_text(w_.hdrState, error ? "ERR" : (on ? "ON" : "OFF"));
-    lv_obj_set_style_text_color(w_.hdrState, error ? Colors::error() : Colors::text(), 0);
+    lv_label_set_text(w_.hdrState, state.text);
+    lv_obj_set_style_text_color(w_.hdrState, Colors::forTone(state.tone), 0);
 }
 
 // Includes SI5351 rounding, the Integer raster and spread spectrum; assumes a correct
