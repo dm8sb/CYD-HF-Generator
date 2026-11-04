@@ -149,7 +149,7 @@ Entwicklung bis zur Messkampagne ≈ 29–33 Arbeitstage.
 Jeder Fix kommt zusammen mit seinem Host-Test; der Test scheitert vor dem Fix (Gegenprobe).
 
 - [x] **S07 · CLK2 bei ERR (C-1, T-1).** Bedingung `iqConfigured_() && !fault_[CLK_CH3]`; neue Umgebung `native-fault` mit `TEST_FAULT_IQ`. *Prüfung:* Test mit Off state High/High-Z; Hardware A8, A11 später. *Commit:* `S07: Keep CLK2 off while CH3 is in error (C-1)`
-- [ ] **S08 · „~“ nach dem Boot (C-2, T-2).** MAIN nach `applyStoredChannelSettings()` neu zeichnen; Test der Bootreihenfolge. *Commit:* `S08: Redraw MAIN after boot settings are applied (C-2)`
+- [x] **S08 · „~“ nach dem Boot (C-2, T-2).** MAIN nach `applyStoredChannelSettings()` neu zeichnen; Test der Bootreihenfolge. *Commit:* `S08: Redraw MAIN after boot settings are applied (C-2)`
 - [ ] **S09 · Assert-Handler und Loop-Watchdog (C-3, S-23).** `LV_ASSERT_HANDLER` (Log + `esp_restart()`), `enableLoopWDT()`, Test-Flags `TEST_LVGL_ASSERT` und `TEST_LOOP_HANG` für Q4/Q5; Heap-Werte auf die Info-Karte (V-8). *Prüfung:* Host-Build, Hardware-Probe der Test-Flags. *Commit:* `S09: Restart on LVGL assert, enable loop watchdog (C-3)`
 - [ ] **S10 · Parser härten (C-4, T-4).** `isfinite()`, nur Ziffern und ein Punkt; Tests `nan`, `inf`, `1e7`, `0x…`, `1..2`, `.`, leer. *Commit:* `S10: Harden frequency parser (C-4)`
 - [ ] **S11 · Keine unnötigen Schreibvorgänge (C-5, T-7).** `markChanged_()` nur bei geänderten gespeicherten Feldern; ON/OFF und unveränderte Schrittweite speichern nichts. *Commit:* `S11: Save only when a stored value changed (C-5)`
