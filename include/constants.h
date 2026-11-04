@@ -35,6 +35,8 @@ static constexpr uint8_t DEFAULT_DRIVE_MA = 4;
 static constexpr uint32_t SETTINGS_AUTOSAVE_MS = 5000;
 // SI5351 health check / reconnect interval.
 static constexpr uint32_t HW_CHECK_INTERVAL_MS = 2000;
+// Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).
+static constexpr uint32_t MEM_LOG_INTERVAL_MS = 30000;
 static constexpr const char* SETTINGS_NAMESPACE = "hfgen";
 
 // Touch calibration is fixed; there is no runtime calibration UI.
