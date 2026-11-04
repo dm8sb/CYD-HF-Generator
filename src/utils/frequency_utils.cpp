@@ -121,6 +121,13 @@ bool parseFrequency(const char* text, const char* unit, uint64_t* outHz) {
     return true;
 }
 
+void formatIqLimit(uint64_t hz, bool lowerLimit, uint8_t decimals, bool trimWhole, char* out, size_t outSize) {
+    if (decimals > 6) decimals = 6;
+    const uint64_t unit = powerOfTen(6 - decimals);
+    const uint64_t rounded = (lowerLimit ? hz + unit - 1 : hz) / unit * unit;
+    formatMHz(rounded, trimWhole && rounded % 1000000ULL == 0 ? 0 : decimals, out, outSize);
+}
+
 uint8_t stepIndex(uint32_t step) {
     uint8_t best = 0;
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) {

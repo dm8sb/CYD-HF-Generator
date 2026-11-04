@@ -125,7 +125,6 @@ Befunde und Rechnungen (Pixel, mm, Kontraste, Tippzahlen) stehen im Audit, Absch
 
 ## 4. Code-Qualität & Wartbarkeit
 
-- [ ] **P3 Doppelte Formatierung und Literale** (C-11): IQ-Grenze dreimal mit unterschiedlicher Rundung formatiert → `FrequencyUtils::formatIqLimit()`; Zeiten (300 ms, 35 ms, 75 × 20 ms, 10 s) nach `constants.h`.
 - [ ] **P3 Feste Koordinaten in den Pages**: Header (158/214), CH3 (114/134/186) usw. in [gui_layout.h](src/gui/gui_layout.h) bzw. als lokale Konstanten zusammenfassen, wie in [page_main.cpp](src/gui/pages/page_main.cpp) schon geschehen.
 - [ ] **P2 Display-Ausgabe mit DMA und Doppelpuffer** (Entscheidung 2026-10-28: ausgearbeitet, in 1.3.0 noch nicht umgesetzt). Heute: ein Puffer 320 × 24 px, LVGL rendert und `DisplayPanel::flush()` sendet abwechselnd mit `pushColors(…, swap = true)`; ein ganzer Bildschirm braucht allein auf dem Bus ≈ 31 ms. Plan:
   - Zwei Puffer à 320 × 40 px (je 25,6 KB, statisch, `DMA_ATTR`; `pushPixelsDMA()` erlaubt < 32 767 Pixel), `LV_COLOR_16_SWAP` = 1 und `setSwapBytes(false)`, damit die CPU die Bytes nicht mehr tauscht.

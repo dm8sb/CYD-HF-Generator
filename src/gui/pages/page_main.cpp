@@ -85,9 +85,9 @@ void Gui::refreshMain_() {
     // CLK2 has an actual frequency only while IQ runs.
     setCardFrequency(w_.cardFreq[2], app, 3, app.ch3Frequency());
     char iqLimit[12], tooLow[24], tooHigh[24];
-    FrequencyUtils::formatMHz((app.iqMinHz() + 9999) / 10000 * 10000, 2, iqLimit, sizeof(iqLimit));
+    FrequencyUtils::formatIqLimit(app.iqMinHz(), true, 2, false, iqLimit, sizeof(iqLimit));
     snprintf(tooLow, sizeof(tooLow), " / < %s MHz", iqLimit);
-    FrequencyUtils::formatMHz(app.iqMaxHz() / 10000 * 10000, 2, iqLimit, sizeof(iqLimit));
+    FrequencyUtils::formatIqLimit(app.iqMaxHz(), false, 2, false, iqLimit, sizeof(iqLimit));
     snprintf(tooHigh, sizeof(tooHigh), " / > %s MHz", iqLimit);
     const char* reason = "";
     switch (app.ch3Status()) {

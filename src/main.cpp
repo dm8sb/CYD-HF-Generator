@@ -33,19 +33,19 @@ static void showError(const char* title, const char* text) {
 static bool bootGesture() {
     if (!touch.pressed()) return false;
     uint8_t held = 0;
-    for (uint8_t i = 0; i < 75; ++i) {
+    for (uint8_t i = 0; i < BOOT_GESTURE_SAMPLES; ++i) {
         held += touch.pressed() ? 1 : 0;
-        delay(20);
+        delay(BOOT_GESTURE_SAMPLE_MS);
     }
-    return held >= 68; // 90 %
+    return held >= BOOT_GESTURE_MIN_HELD;
 }
 
 static void blinkBacklight(uint8_t times) {
     for (uint8_t i = 0; i < times; ++i) {
         backlight.setPercent(100);
-        delay(150);
+        delay(BOOT_GESTURE_BLINK_MS);
         backlight.setPercent(0);
-        delay(150);
+        delay(BOOT_GESTURE_BLINK_MS);
     }
 }
 
@@ -54,9 +54,9 @@ static void blinkBacklight(uint8_t times) {
 static void waitForRelease() {
     const uint32_t t0 = millis();
     uint8_t free = 0;
-    while (free < 10 && millis() - t0 < 10000) {
+    while (free < TOUCH_RELEASE_QUIET_SAMPLES && millis() - t0 < TOUCH_RELEASE_TIMEOUT_MS) {
         free = touch.pressed() ? 0 : free + 1;
-        delay(20);
+        delay(BOOT_GESTURE_SAMPLE_MS);
     }
 }
 

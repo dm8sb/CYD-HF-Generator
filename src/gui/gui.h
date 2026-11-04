@@ -7,6 +7,7 @@
 #include <drivers/display_panel.h>
 #include <drivers/touch.h>
 #include <utils/input_logic.h>
+#include <utils/message_queue.h>
 
 // Pages are built once per navigation. Actions change the AppController state and then
 // refresh_() updates the existing widgets, so no widget is deleted inside its own event.
@@ -105,7 +106,8 @@ private:
     void handleAction_(Action action, uint8_t arg, lv_obj_t* obj);
     void handleNumpadKey_(lv_obj_t* matrix);
     void handleFreqTap_(lv_obj_t* label);
-    void openMessage_(const char* title, const char* text);
+    // Creates the dialog for the open message of messages_.
+    void openMessage_();
     // Closes the open dialog and drops queued ones about the SI5351 connection.
     void dismissLinkMessages_();
     void requestNavigate_(PageId page);
@@ -134,16 +136,10 @@ private:
     InputLogic::Numpad numpad_; // numpad input (InputLogic, host-tested)
     Widgets w_ {};
     lv_obj_t* root_ = nullptr;
-    lv_obj_t* msgbox_ = nullptr;
+    lv_obj_t* msgbox_ = nullptr;   // dialog that can still be tapped or closed
+    lv_obj_t* shownBox_ = nullptr; // box of the open message, also while it closes
 
-    struct Message {
-        char title[24];
-        char text[160];
-    };
-    static constexpr uint8_t MSG_QUEUE_LEN = 3;
-    char msgText_[160] {};      // text of the open dialog
-    Message msgQueue_[MSG_QUEUE_LEN] {};
-    uint8_t msgCount_ = 0;
+    MessageQueue messages_;     // open dialog and waiting ones (host-tested)
 
     lv_disp_draw_buf_t drawBuf_;
     static lv_color_t buf1_[SCREEN_WIDTH * 24];
