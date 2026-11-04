@@ -130,7 +130,7 @@ This table is authoritative; README and manual repeat parts of it.
 
 - **A-21** Missing keys give the defaults, so NVS contents from 1.2.0 keep the 1.2.0 behavior. Keys `ch1_en` / `ch2_en` / `ch3_en` from 1.1.0 are ignored. Output states, touch calibration and the SDA/SCL assignment are not stored.
 - **A-22** Autosave writes all settings 5 s after the last change (`SETTINGS_AUTOSAVE_MS`).
-- **A-23** Without NVS the firmware runs with defaults and saves nothing. NVS unavailable at boot and a failed save each produce a dialog and a save state on CONFIG.
+- **A-23** Without NVS the firmware runs with defaults and saves nothing. NVS unavailable at boot and a failed save each produce a dialog and a save state on CONFIG. A failed save keeps the change and is retried every 30 s (`SETTINGS_RETRY_MS`); the dialog appears once per series of failures.
 
 ### 3.5 User interface
 

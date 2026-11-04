@@ -145,8 +145,9 @@ const char* AppController::linkText(LinkState s) {
 
 SaveState AppController::saveState() const {
     if (!settings_.available()) return SaveState::Unavailable;
-    if (settings_.isDirty()) return SaveState::Pending;
-    return settings_.lastSaveFailed() ? SaveState::Failed : SaveState::Saved;
+    // A failed save stays visible while its retries run (the change is still pending then).
+    if (settings_.lastSaveFailed()) return SaveState::Failed;
+    return settings_.isDirty() ? SaveState::Pending : SaveState::Saved;
 }
 
 Channel& AppController::channel_(uint8_t ch) { return (ch == 1) ? state_.ch1 : state_.ch2; }

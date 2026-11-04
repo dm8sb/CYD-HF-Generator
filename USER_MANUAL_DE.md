@@ -436,7 +436,7 @@ In der Titelzeile zwischen `CONFIG` und `MAIN` steht der Speicherzustand. Er ist
 |---|---|
 | `Saving...` | Änderung noch nicht gespeichert (Autosave nach 5 s) |
 | `Saved` | Alles gespeichert |
-| `Save failed` (rot) | Speichern im Flash ist fehlgeschlagen, zusätzlich erscheint ein Dialog |
+| `Save failed` (rot) | Speichern im Flash ist fehlgeschlagen, zusätzlich erscheint ein Dialog; die Firmware versucht es alle 30 s erneut |
 | `Not saved` (rot) | Flash-Speicher (NVS) beim Start nicht verfügbar, Änderungen gehen beim Ausschalten verloren |
 
 ### Backlight
@@ -769,7 +769,7 @@ Schlägt das Einstellen eines Ausgangs fehl, obwohl der SI5351 antwortet, ersche
 
 ### Einstellungen werden nicht gespeichert
 
-Ist der Flash-Speicher (NVS) beim Start nicht verfügbar, erscheint ein Dialog und CONFIG zeigt `Not saved`. Schlägt ein Speichervorgang fehl, erscheint ein Dialog und CONFIG zeigt `Save failed`.
+Ist der Flash-Speicher (NVS) beim Start nicht verfügbar, erscheint ein Dialog und CONFIG zeigt `Not saved`. Schlägt ein Speichervorgang fehl, erscheint ein Dialog und CONFIG zeigt `Save failed`. Die Änderung bleibt vorgemerkt: Die Firmware versucht alle 30 s erneut zu speichern, ohne weiteren Dialog, und zeigt `Save failed`, bis es gelingt. Eine neue Änderung wird wie gewohnt nach 5 s gespeichert.
 
 ### Neustart nach internem Fehler
 
