@@ -351,6 +351,20 @@ void AppController::setSpread(Spread spread) {
     markChanged_();
 }
 
+void AppController::resetToDefaults() {
+    PersistentState d;
+    SettingsService::defaults(d);
+    d.sys.freq_correction = state_.sys.freq_correction;
+    state_ = d;
+    si5351_.setTuningMode(d.sys.tuning_mode);
+    si5351_.setSpread(d.sys.spread);
+    if (!si5351_.setOffState(d.sys.off_state)) reportLinkLost_();
+    backlight_.setPercent(d.sys.backlight);
+    reconfigureOutputs_();
+    markChanged_();
+    Logger::info("APP", "Settings reset to defaults; correction kept");
+}
+
 void AppController::setOffState(OffState offState) {
     if (offState > OffState::HighZ || offState == state_.sys.off_state) return;
     state_.sys.off_state = offState;

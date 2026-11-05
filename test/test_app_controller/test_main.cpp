@@ -478,6 +478,68 @@ static void test_config_options_default_and_persist() {
     TEST_ASSERT_EQUAL(TuningMode::LowNoise, d.si.tuningMode());
 }
 
+// Grundzustand for the next group (audit U-13): everything back to the defaults except the
+// frequency correction (calibration), all outputs off, stored by the autosave.
+static void test_reset_to_defaults_keeps_the_correction() {
+    {
+        Device d;
+        d.app.setCorrection(970);
+        d.app.setChannelFrequency(1, 7100000);
+        d.app.setChannelFrequency(2, 455000);
+        d.app.setCH3Master(2);
+        d.app.setCH3Phase(270);
+        d.app.setDeltaStep(100);
+        d.app.setBacklight(30);
+        d.app.setGlobalDriveStrength(8);
+        d.app.setTuningMode(TuningMode::LowNoise);
+        d.app.setSpread(Spread::Down05);
+        d.app.setOffState(OffState::HighZ);
+        d.app.setChannelEnabled(1, true);
+        d.app.setChannelEnabled(3, true);
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+        d.app.resetToDefaults();
+        TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+        TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH2, d.app.channel(2).frequency);
+        TEST_ASSERT_FALSE(d.app.channel(1).enabled);
+        TEST_ASSERT_FALSE(d.app.ch3().enabled);
+        TEST_ASSERT_FALSE(enabled(0));
+        TEST_ASSERT_FALSE(enabled(2));
+        TEST_ASSERT_EQUAL_UINT8(1, d.app.ch3().master);
+        TEST_ASSERT_EQUAL_UINT16(90, d.app.ch3().phase);
+        TEST_ASSERT_EQUAL_UINT32(DEFAULT_DELTA_STEP, d.app.system().delta_step);
+        TEST_ASSERT_EQUAL_UINT8(DEFAULT_BACKLIGHT_PERCENT, d.app.system().backlight);
+        TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
+        TEST_ASSERT_EQUAL(TuningMode::Fractional, d.app.system().tuning_mode);
+        TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
+        TEST_ASSERT_EQUAL(OffState::Low, d.app.system().off_state);
+        TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[24]);
+        TEST_ASSERT_EQUAL_INT32(970, d.app.system().freq_correction); // calibration stays
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+    }
+    Device d; // stored
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL(TuningMode::Fractional, d.app.system().tuning_mode);
+    TEST_ASSERT_EQUAL_INT32(970, d.app.system().freq_correction);
+}
+
+// Factory reset: the NVS namespace is empty afterwards, the next start loads the defaults.
+static void test_erase_all_settings() {
+    {
+        Device d;
+        d.app.setCorrection(-500);
+        d.app.setChannelFrequency(1, 7100000);
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+        TEST_ASSERT_TRUE(d.settings.saveTouchCalibration(TouchCalibration {500, 3900, 300, 3800}));
+        TEST_ASSERT_TRUE(d.settings.eraseAll());
+    }
+    TEST_ASSERT_EQUAL_UINT(0, Fake::nvs().values.size());
+    Device d;
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL_INT32(0, d.app.system().freq_correction);
+    TouchCalibration c {};
+    TEST_ASSERT_FALSE(d.settings.loadTouchCalibration(&c));
+}
+
 static void test_config_options_invalid_nvs_values() {
     Preferences p;
     p.putUChar("tune", 7);
@@ -1097,6 +1159,8 @@ int main() {
     RUN_TEST(test_backlight_from_older_firmware_is_rounded);
     RUN_TEST(test_config_options_default_and_persist);
     RUN_TEST(test_config_options_invalid_nvs_values);
+    RUN_TEST(test_reset_to_defaults_keeps_the_correction);
+    RUN_TEST(test_erase_all_settings);
     RUN_TEST(test_integer_mode_turns_spread_off);
     RUN_TEST(test_spread_applies_to_pll_a_only);
     RUN_TEST(test_tuning_mode_change_reconfigures_all_outputs);

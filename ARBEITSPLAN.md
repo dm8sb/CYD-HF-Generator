@@ -36,7 +36,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 1 Robustheit | 1.3.1 | C-1 bis C-13, M-1; Assert- und Loop-Watchdog-Neustart (am Gerät geprüft), gehärteter Parser, Speichern nur bei Änderung und mit Wiederholung, Wiederverbinden im selben Zyklus |
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 
-Host-Tests: 218 Fälle in `native-win` und 4 in `native-win-fault` (Stand S35).
+Host-Tests: 221 Fälle in `native-win` und 4 in `native-win-fault` (Stand S31).
 
 ### 1.2 Referenzwerte
 
@@ -89,7 +89,6 @@ Host-Tests: 218 Fälle in `native-win` und 4 in `native-win-fault` (Stand S35).
 
 ### 2.2 Bedienung
 
-- [ ] **U-13 Sperre, Grundzustand, Werksreset:** keine Bildschirmsperre, kein Grundzustand für die nächste Gruppe (≈ 25–30 Tipps). Sperre durch 2 s Halten mit Anzeige `LOCK` (unterdrückt auch Neuzeichnen); `Reset to defaults (keep calibration)` mit Bestätigung; Werksreset (NVS löschen, später auch `hfnet`). → S31
 - [ ] **U-11 Kalibrieren:** heute ≈ 20 Tipps und Kopfrechnen für +9,70 ppm → Wert antippen öffnet das Numpad (ppm mit Vorzeichen); optional Assistent „gemessene Frequenz eingeben“ (6 Tipps). → S32
 - [ ] **U-16 CH3-Seite:** Masterfrequenz und Master-Schalter auf der CH3-Seite, Kanalwahl im Header (IQ-Aufbau 11 → 9 Tipps). → S33
 - [ ] **U-20 Halten:** 10 Schritte/s ohne Beschleunigung; Druckaussetzer > 35 ms beenden die Wiederholung (Touch-Log zeigte bridged dropouts bis 30 ms). Beschleunigung nach 2 s, Überbrückung 60–80 ms; auch schwacher Druck (`z < 150`) beendet heute sofort ohne Überbrückung. → S33
@@ -323,7 +322,7 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 
 ### Phase 3 – Laborbetrieb 1.3.3 (≈ 2–3 d, `dev`)
 
-- [ ] **S31 · Sperre, Grundzustand, Werksreset (U-13).** Sperre durch 2 s Halten mit `LOCK` in der Statusleiste und im Header; `Reset to defaults (keep calibration)` (Frequenz- und Touch-Abgleich bleiben) und Werksreset (NVS löschen) mit Bestätigung; Host-Tests für den Grundzustand. *Commit:* `S31: Add screen lock, reset to defaults and factory reset (U-13)`
+- [x] **S31 · Sperre, Grundzustand, Werksreset (U-13).** CONFIG-Zeilen `Screen` (`Lock`) und `Reset` (`Defaults`, `Factory`) mit Bestätigung; `InputLogic::ScreenLock` (2 s Halten entsperrt, die entsperrende Berührung wird verschluckt), `AppController::resetToDefaults()` (Korrektur bleibt, Touch-Abgleich liegt außerhalb), `SettingsService::eraseAll()`/`defaults()`; `LOCKED` in der MAIN-Statusleiste, Hinweis beim Berühren. Host-Tests für Sperre, Grundzustand und Löschen. **Bedientest offen.**
 - [ ] **S32 · Korrektur per Numpad (U-11).** `Corr.`-Wert antippen öffnet das Numpad für ppm mit Vorzeichen (±50,00); optional Assistent „gemessene Frequenz eingeben“. *Commit:* `S32: Enter correction via numpad (U-11)`
 - [ ] **S33 · CH3-Seite und Halten (U-16, U-20).** Masterfrequenz und Master-Schalter auf der CH3-Seite, Kanalwahl im Header; Wiederholung nach 2 s beschleunigen, Druckaussetzer bis 60–80 ms überbrücken (Touch-Log prüft es). *Commit:* `S33: Add master controls on the CH3 page, tune touch repeat (U-16, U-20)`
 - [x] **S34 · Fix um 112,5 MHz.** `planStandalone()` (Fractional) versucht über 100 MHz den größten geraden Integer-Teiler (8/6/4) mit fraktionaler PLL, wenn die festen PLLs schlechter als 0,25 Hz sind oder der MultiSynth unter 8 läge; der Zweig „aktuelle PLL behalten“ merkt sich seinen Fehler. Bis 100 MHz unverändert. Host-Tests 112 500 004 / 112 499 996 Hz (vorher 4 Hz Fehler), `test_standalone_above_100_mhz` läuft wieder (≤ 1,5 / 2 / 3 Hz bis 112,5 / 150 / 160 MHz). *Commit:* `S34: Fix tuning accuracy around 112.5 MHz`

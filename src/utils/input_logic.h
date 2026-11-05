@@ -58,6 +58,30 @@ TapTarget tapTarget(const char* text, size_t index, uint32_t* step);
 void stepMarkup(const char* text, uint32_t step, uint32_t rgb, char* out, size_t outSize);
 
 // ---------------------------------------------------------------------------
+// Screen lock (audit U-13): while locked no touch reaches LVGL; holding UNLOCK_HOLD_MS anywhere
+// unlocks, and that touch stays swallowed until it is released (no tap on what lies below).
+
+class ScreenLock {
+public:
+    enum class Event : uint8_t { None, Pressed, Released, Unlocked };
+    void lock() {
+        locked_ = true;
+        pressing_ = false;
+    }
+    bool locked() const { return locked_; }
+    // true while touches must not reach LVGL (locked, or the unlocking touch is still down).
+    bool blocking() const { return locked_ || swallow_; }
+    // One read of the input device (filtered press state).
+    Event update(bool pressed, uint32_t nowMs);
+
+private:
+    bool locked_ = false;
+    bool swallow_ = false;
+    bool pressing_ = false;
+    uint32_t pressStartMs_ = 0;
+};
+
+// ---------------------------------------------------------------------------
 // Buttons at the screen edge (audit U-5). The touch mapping clamps taps beyond the panel to its
 // outermost pixel, so a button a few px from the edge misses taps at the very edge.
 

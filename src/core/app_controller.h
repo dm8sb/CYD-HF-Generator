@@ -38,6 +38,9 @@ public:
     void stepBacklight(int8_t direction);
     void setDeltaStep(uint32_t step);
     void setCorrection(int32_t correction);
+    // Grundzustand for the next group (U-13): all settings and frequencies back to the defaults,
+    // all outputs off; only the frequency correction (calibration) stays. Saved by the autosave.
+    void resetToDefaults();
     // CONFIG options; each reconfigures the outputs as needed. Spread is ignored (stays Off)
     // in TuningMode::Integer; switching to Integer turns it off.
     void setTuningMode(TuningMode mode);

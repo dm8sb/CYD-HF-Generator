@@ -324,6 +324,32 @@ static void test_range_note() {
     TEST_ASSERT_EQUAL_STRING("Below 1 MHz: filter harmonics", rangeNote(999999ULL));
 }
 
+// Screen lock (audit U-13): while locked no touch reaches LVGL; holding 2 s unlocks, and
+// that touch is swallowed until it is released.
+static void test_screen_lock() {
+    ScreenLock l;
+    TEST_ASSERT_FALSE(l.blocking());
+    TEST_ASSERT_EQUAL(ScreenLock::Event::None, l.update(true, 0)); // unlocked: passes through
+    l.update(false, 10);
+    l.lock();
+    TEST_ASSERT_TRUE(l.locked());
+    TEST_ASSERT_TRUE(l.blocking());
+    // A short tap does nothing but shows the hint.
+    TEST_ASSERT_EQUAL(ScreenLock::Event::Pressed, l.update(true, 100));
+    TEST_ASSERT_EQUAL(ScreenLock::Event::None, l.update(true, 1000));
+    TEST_ASSERT_EQUAL(ScreenLock::Event::Released, l.update(false, 1100));
+    TEST_ASSERT_TRUE(l.locked());
+    // Held for UNLOCK_HOLD_MS: unlocked, but still blocking until the finger lifts.
+    l.update(true, 2000);
+    TEST_ASSERT_EQUAL(ScreenLock::Event::None, l.update(true, 2000 + UNLOCK_HOLD_MS - 1));
+    TEST_ASSERT_EQUAL(ScreenLock::Event::Unlocked, l.update(true, 2000 + UNLOCK_HOLD_MS));
+    TEST_ASSERT_FALSE(l.locked());
+    TEST_ASSERT_TRUE(l.blocking());
+    TEST_ASSERT_EQUAL(ScreenLock::Event::None, l.update(true, 5000));
+    TEST_ASSERT_EQUAL(ScreenLock::Event::Released, l.update(false, 5100));
+    TEST_ASSERT_FALSE(l.blocking());
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_numpad_digits_and_one_point);
@@ -345,5 +371,6 @@ int main(int, char**) {
     RUN_TEST(test_tap_index_assigns_separators_to_neighbors);
     RUN_TEST(test_output_error_texts_name_channel_and_retry);
     RUN_TEST(test_range_note);
+    RUN_TEST(test_screen_lock);
     return UNITY_END();
 }

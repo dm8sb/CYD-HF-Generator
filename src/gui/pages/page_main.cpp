@@ -78,6 +78,12 @@ void Gui::createMain_() {
     lv_obj_clear_flag(bar, LV_OBJ_FLAG_CLICKABLE);
     w_.saveState = addLabel_(bar, "", &lv_font_montserrat_14, Colors::muted(), 0, 0);
     lv_obj_align(w_.saveState, LV_ALIGN_LEFT_MID, MARGIN + 2, 0);
+    // Screen lock (U-13): filled label like the states, so it reads from a distance.
+    w_.lockState = addLabel_(bar, "LOCKED", &lv_font_montserrat_14, Colors::textDark(), 0, 0);
+    styleState_(w_.lockState);
+    lv_obj_set_style_bg_color(w_.lockState, Colors::warn(), 0);
+    lv_obj_set_style_bg_opa(w_.lockState, LV_OPA_COVER, 0);
+    lv_obj_align(w_.lockState, LV_ALIGN_LEFT_MID, 120, 0);
     addButton_(bar, "CONFIG", SCREEN_WIDTH - 86, 1, 82, BAR_H - 2, Colors::config(), Action::Navigate,
                (uint8_t)PageId::Config);
 }
@@ -158,4 +164,6 @@ void Gui::refreshMain_() {
     if (c3.enabled) lv_obj_add_state(w_.cardSwitch[2], LV_STATE_CHECKED);
     else lv_obj_clear_state(w_.cardSwitch[2], LV_STATE_CHECKED);
     refreshSaveState_();
+    if (lock_.locked()) lv_obj_clear_flag(w_.lockState, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(w_.lockState, LV_OBJ_FLAG_HIDDEN);
 }

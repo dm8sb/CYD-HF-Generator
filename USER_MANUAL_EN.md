@@ -37,7 +37,7 @@ For the lab bench; details in the sections named, sketches of the pages in Appen
 6. **Before measuring:** if a mode line appears below a frequency (e.g. `OFF = High`, `SSC -0.5 %`, `Integer`), CONFIG differs from the factory settings (section 2).
 7. **On errors:** `! NO HW` = SI5351 not connected; `! ERR` = setup failed, the firmware retries every 2 s (section 11, Appendix C).
 
-Factory settings in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; frequencies 10 MHz (CH1) and 14 MHz (CH2), step 1 kHz.
+Factory settings in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; frequencies 10 MHz (CH1) and 14 MHz (CH2), step 1 kHz. For the next group: CONFIG `Reset` → `Defaults` (the calibration stays); against accidental changes: CONFIG `Screen` → `Lock`.
 
 ---
 
@@ -99,7 +99,7 @@ Operation on the main page:
 - **Tapping a card** opens the channel's page.
 - **The switch on a card** (on the right, separated by a line) turns the output on or off directly, without leaving the page. A tap on the frequency or `MHz` only opens the channel page.
 - The frequencies are right-aligned; decimal point and `MHz` of all cards line up.
-- The status bar at the bottom shows the save state on the left (section 8, `Saved`, `Saving...`, red `Save failed` / `Not saved`) and has the `CONFIG` button (yellow) on the right. The channels open via their cards.
+- The status bar at the bottom shows the save state on the left (section 8, `Saved`, `Saving...`, red `Save failed` / `Not saved`) and has the `CONFIG` button (yellow) on the right. The channels open via their cards. With the screen locked it also shows `LOCKED` in an orange field (section 8).
 - Colored buttons and selected chips have dark text, switched-off switches a light gray track, unselected chips a gray border.
 - Buttons at the screen edge (e.g. `MAIN` top right, `CONFIG` bottom right, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.
 
@@ -485,6 +485,8 @@ The title bar with the save indicator and `MAIN` stays fixed. The area below it 
 | `Corr.` | value in ppm, step button, `−`, `+` |
 | `Backlight` | `−`, value, `+` |
 | `Touch` | `Calibrate` button (touch calibration) |
+| `Screen` | `Lock` button (screen lock) |
+| `Reset` | `Defaults` and `Factory` (red) buttons |
 | Info card | Firmware, Build, Display, SI5351 |
 
 - The settings that change the signal come first. The frequency step is set with the step buttons of the channel pages (section 5).
@@ -636,6 +638,25 @@ It starts automatically as long as no calibration is stored (first start, after 
 - Otherwise the reason appears in orange below the cross (`Check cross off by … px. Again, please.` or `The corners did not match. Again, please.`) and the calibration starts over.
 - Without a touch for 30 s the calibration ends: at the first start with the fixed values (it appears again at the next start), from CONFIG without a change.
 - During the calibration, messages (e.g. `SI5351 not found`) wait until it has ended.
+
+### Screen (Screen Lock)
+
+`Lock` locks the operation so that nobody changes anything by accident, e.g. during a measurement or between two groups:
+
+- The device switches to the main page; the status bar shows `LOCKED` in an orange field. The outputs keep running unchanged.
+- A tap does nothing; while the finger is down, `Locked: hold 2 s to unlock` appears.
+- **Unlock:** hold anywhere for 2 s. The touch that unlocks triggers nothing; only the next tap acts.
+- The lock lasts until unlocking or power-off (it is not stored).
+- Dialogs also appear on a locked screen; unlock first to close them with `OK`.
+
+### Reset (Defaults, Factory Reset)
+
+| Button | Effect |
+|---|---|
+| `Defaults` | After confirmation (`Reset`) all factory settings apply (quick start), including the frequencies, CH3 master and phase and the step; all outputs switch off. **Frequency correction and touch calibration stay.** Saved after 5 s like any change. |
+| `Factory` (red) | After confirmation (`Erase`) the device erases all stored settings including frequency correction and touch calibration and restarts. Then the touch calibration appears as at the first start. |
+
+`Cancel` leaves everything unchanged.
 
 ### Info Card
 
@@ -922,6 +943,9 @@ Important messages:
 | `[ERROR][SETTINGS] Stored touch calibration implausible; using the default` | Stored calibration unusable; the calibration starts |
 | `[DISPLAY] ST7789 (detected); ...` | Display controller, source and detection readings |
 | `[BOOT] Setup complete` | Startup complete |
+| `[GUI] Screen locked` / `[GUI] Screen unlocked` | screen lock on or off |
+| `[APP] Settings reset to defaults; correction kept` | `Reset` → `Defaults` done |
+| `[SETTINGS] All settings erased`, `[BOOT] Factory reset; restarting` | factory reset, then restart |
 | `[SETTINGS] Saved to NVS` | Autosave |
 | `[APP] Restoring outputs` | After reconnecting, the outputs are being restored |
 | `[APP] Output error cleared` | An output error (`! ERR`) has been cleared |
@@ -1093,6 +1117,7 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | `Fractional` / `Low noise` / `Integer` | divider scheme of the SI5351 (`Tuning`) | 8 |
 | `2 mA` … `8 mA` | output current (`Drive all`) | 8 |
 | `Corr.`, ppm | frequency correction of the crystal in parts per million | 8 |
+| `LOCKED` (orange field) | screen locked; hold 2 s to unlock | 8 |
 | `Saved` / `Saving...` / `Save failed` / `Not saved` | save state | 8, 9 |
 | `Now …` | NUMPAD: current frequency | 6 |
 | `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: reason for a rejected input | 6 |

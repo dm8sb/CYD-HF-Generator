@@ -37,7 +37,7 @@ Für den Laborplatz; Einzelheiten in den genannten Abschnitten, Bilder der Seite
 6. **Vor dem Messen:** Steht unter einer Frequenz eine Moduszeile (z. B. `OFF = High`, `SSC -0.5 %`, `Integer`), weicht CONFIG von den Werkseinstellungen ab (Abschnitt 2).
 7. **Bei Fehlern:** `! NO HW` = SI5351 nicht verbunden; `! ERR` = Einstellen fehlgeschlagen, die Firmware versucht es alle 2 s erneut (Abschnitt 11, Anhang C).
 
-Werkseinstellungen in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; Frequenzen 10 MHz (CH1) und 14 MHz (CH2), Schritt 1 kHz.
+Werkseinstellungen in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; Frequenzen 10 MHz (CH1) und 14 MHz (CH2), Schritt 1 kHz. Für die nächste Gruppe: CONFIG `Reset` → `Defaults` (die Kalibrierung bleibt); gegen Verstellen: CONFIG `Screen` → `Lock`.
 
 ---
 
@@ -99,7 +99,7 @@ Bedienung auf der Hauptseite:
 - **Karte antippen** öffnet die Seite des Kanals.
 - **Schalter auf der Karte** (rechts, durch eine Linie abgetrennt) schaltet den Ausgang direkt ein oder aus, ohne die Seite zu wechseln. Ein Tipp auf die Frequenz oder `MHz` öffnet nur die Kanalseite.
 - Die Frequenzen stehen rechtsbündig, Dezimalpunkt und `MHz` aller Karten untereinander.
-- Die Statusleiste unten zeigt links den Speicherzustand (Abschnitt 8, `Saved`, `Saving...`, rot `Save failed` / `Not saved`) und hat rechts den Button `CONFIG` (gelb). Die Kanäle öffnen sich über ihre Karten.
+- Die Statusleiste unten zeigt links den Speicherzustand (Abschnitt 8, `Saved`, `Saving...`, rot `Save failed` / `Not saved`) und hat rechts den Button `CONFIG` (gelb). Die Kanäle öffnen sich über ihre Karten. Bei gesperrtem Bildschirm steht dort zusätzlich `LOCKED` im orangen Feld (Abschnitt 8).
 - Auf farbigen Tasten und gewählten Chips ist die Schrift dunkel, ausgeschaltete Schalter haben eine hellgraue Spur, nicht gewählte Chips einen grauen Rand.
 - Tasten am Bildschirmrand (z. B. `MAIN` oben rechts, `CONFIG` unten rechts, die äußeren NUMPAD-Tasten) reagieren bis an den Rand, auch auf einen Tipp knapp daneben in Richtung Rand. Der Abstand zwischen zwei Tasten bleibt frei.
 
@@ -485,6 +485,8 @@ Die Titelzeile mit Speicheranzeige und `MAIN` bleibt stehen. Der Bereich darunte
 | `Corr.` | Wert in ppm, Schritt-Taste, `−`, `+` |
 | `Backlight` | `−`, Wert, `+` |
 | `Touch` | Taste `Calibrate` (Touch-Abgleich) |
+| `Screen` | Taste `Lock` (Bildschirmsperre) |
+| `Reset` | Tasten `Defaults` und `Factory` (rot) |
 | Info-Karte | Firmware, Build, Display, SI5351 |
 
 - Oben stehen die Einstellungen, die das Signal verändern. Den Frequenzschritt stellen die Schritt-Tasten der Kanalseiten ein (Abschnitt 5).
@@ -636,6 +638,25 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 - Sonst erscheint unter dem Kreuz in Orange der Grund (`Check cross off by … px. Again, please.` oder `The corners did not match. Again, please.`) und der Abgleich beginnt von vorn.
 - Ohne Berührung für 30 s endet der Abgleich: beim ersten Start mit den festen Werten (er erscheint beim nächsten Start wieder), aus CONFIG ohne Änderung.
 - Während des Abgleichs warten Meldungen (z. B. `SI5351 not found`), bis er beendet ist.
+
+### Screen (Bildschirmsperre)
+
+`Lock` sperrt die Bedienung, damit niemand versehentlich etwas verstellt, z. B. während einer Messung oder zwischen zwei Gruppen:
+
+- Das Gerät wechselt auf die Hauptseite; die Statusleiste zeigt `LOCKED` im orangen Feld. Die Ausgänge laufen unverändert weiter.
+- Ein Tipp bewirkt nichts; solange der Finger liegt, erscheint `Locked: hold 2 s to unlock`.
+- **Entsperren:** an beliebiger Stelle 2 s halten. Die Berührung, die entsperrt, löst nichts aus; erst der nächste Tipp wirkt.
+- Die Sperre gilt bis zum Entsperren oder Ausschalten (sie wird nicht gespeichert).
+- Dialoge erscheinen auch bei gesperrtem Bildschirm; zum Schließen mit `OK` erst entsperren.
+
+### Reset (Grundzustand, Werksreset)
+
+| Taste | Wirkung |
+|---|---|
+| `Defaults` | Nach Bestätigung (`Reset`) gelten alle Werkseinstellungen (Kurzanleitung), auch die Frequenzen, CH3-Master und -Phase und der Schritt; alle Ausgänge gehen aus. **Frequenzkorrektur und Touch-Abgleich bleiben.** Gespeichert wird nach 5 s wie bei jeder Änderung. |
+| `Factory` (rot) | Nach Bestätigung (`Erase`) löscht das Gerät alle gespeicherten Einstellungen einschließlich Frequenzkorrektur und Touch-Abgleich und startet neu. Danach erscheint der Touch-Abgleich wie beim ersten Start. |
+
+`Cancel` lässt alles unverändert.
 
 ### Info-Karte
 
@@ -922,6 +943,9 @@ Wichtige Meldungen:
 | `[ERROR][SETTINGS] Stored touch calibration implausible; using the default` | Gespeicherter Abgleich unbrauchbar; der Abgleich startet |
 | `[DISPLAY] ST7789 (detected); ...` | Display-Controller, Herkunft und Messwerte der Erkennung |
 | `[BOOT] Setup complete` | Start abgeschlossen |
+| `[GUI] Screen locked` / `[GUI] Screen unlocked` | Bildschirmsperre ein bzw. aus |
+| `[APP] Settings reset to defaults; correction kept` | `Reset` → `Defaults` ausgeführt |
+| `[SETTINGS] All settings erased`, `[BOOT] Factory reset; restarting` | Werksreset, danach Neustart |
 | `[SETTINGS] Saved to NVS` | Autosave |
 | `[APP] Restoring outputs` | Nach dem Wiederverbinden werden die Ausgänge wiederhergestellt |
 | `[APP] Output error cleared` | Ein Ausgangsfehler (`! ERR`) ist behoben |
@@ -1093,6 +1117,7 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | `Fractional` / `Low noise` / `Integer` | Teilerverfahren des SI5351 (`Tuning`) | 8 |
 | `2 mA` … `8 mA` | Ausgangsstrom (`Drive all`) | 8 |
 | `Corr.`, ppm | Frequenzkorrektur des Quarzes in Millionstel | 8 |
+| `LOCKED` (oranges Feld) | Bildschirm gesperrt; 2 s halten entsperrt | 8 |
 | `Saved` / `Saving...` / `Save failed` / `Not saved` | Speicherzustand | 8, 9 |
 | `Now …` | NUMPAD: aktuelle Frequenz | 6 |
 | `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: Grund einer abgelehnten Eingabe | 6 |

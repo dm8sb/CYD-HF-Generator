@@ -114,6 +114,27 @@ void stepMarkup(const char* text, uint32_t step, uint32_t rgb, char* out, size_t
     out[n] = '\0';
 }
 
+ScreenLock::Event ScreenLock::update(bool pressed, uint32_t nowMs) {
+    if (!blocking()) return Event::None;
+    if (pressed) {
+        if (!pressing_) {
+            pressing_ = true;
+            pressStartMs_ = nowMs;
+            if (locked_) return Event::Pressed;
+        }
+        if (locked_ && nowMs - pressStartMs_ >= UNLOCK_HOLD_MS) {
+            locked_ = false;
+            swallow_ = true;
+            return Event::Unlocked;
+        }
+        return Event::None;
+    }
+    if (!pressing_) return Event::None;
+    pressing_ = false;
+    swallow_ = false;
+    return Event::Released;
+}
+
 Area edgeArea(const Area& b, int16_t reach, int16_t screenW, int16_t screenH) {
     Area a = b;
     if (a.x1 <= reach) a.x1 = 0;

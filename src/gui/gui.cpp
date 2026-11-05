@@ -61,6 +61,38 @@ void Gui::flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color
 void Gui::touchCb_(lv_indev_drv_t* drv, lv_indev_data_t* data) {
     Gui* g = static_cast<Gui*>(drv->user_data);
     if (g->touch_) g->touch_->readLvgl(drv, data);
+    // Locked (U-13): LVGL sees no touch; holding UNLOCK_HOLD_MS unlocks.
+    if (g->lock_.blocking()) {
+        const InputLogic::ScreenLock::Event e = g->lock_.update(data->state == LV_INDEV_STATE_PR, millis());
+        data->state = LV_INDEV_STATE_REL;
+        g->handleLockEvent_(e);
+    }
+}
+
+void Gui::handleLockEvent_(InputLogic::ScreenLock::Event e) {
+    using Ev = InputLogic::ScreenLock::Event;
+    if (e == Ev::None) return;
+    if (!lockHint_) {
+        lockHint_ = lv_label_create(lv_layer_top());
+        lv_label_set_text(lockHint_, "Locked: hold 2 s to unlock");
+        lv_obj_set_style_text_font(lockHint_, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_color(lockHint_, Colors::textDark(), 0);
+        lv_obj_set_style_bg_color(lockHint_, Colors::warn(), 0);
+        lv_obj_set_style_bg_opa(lockHint_, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(lockHint_, 6, 0);
+        lv_obj_set_style_pad_all(lockHint_, 8, 0);
+        lv_obj_center(lockHint_);
+        lv_obj_clear_flag(lockHint_, LV_OBJ_FLAG_CLICKABLE);
+    }
+    if (e == Ev::Pressed) {
+        lv_obj_clear_flag(lockHint_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(lockHint_, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (e == Ev::Unlocked) {
+        Logger::info("GUI", "Screen unlocked");
+        refresh_();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -422,12 +454,23 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::OffState: {
             const OffState s = (OffState)lv_dropdown_get_selected(obj);
             if (s == OffState::High && sys.off_state != OffState::High) {
-                confirmOffStateHigh_(); // the dropdown shows the old value until confirmed
+                confirm_(Confirm::OffStateHigh); // the dropdown shows the old value until confirmed
                 break;
             }
             app.setOffState(s);
             break;
         }
+        case Action::LockScreen:
+            lock_.lock();
+            Logger::info("GUI", "Screen locked");
+            requestNavigate_(PageId::Main);
+            return;
+        case Action::ResetDefaults:
+            confirm_(Confirm::ResetDefaults);
+            return;
+        case Action::FactoryReset:
+            confirm_(Confirm::FactoryReset);
+            return;
         case Action::TouchCal:
             calFirstStart_ = false;
             requestNavigate_(PageId::TouchCal);
@@ -511,12 +554,27 @@ void Gui::showModes_(lv_obj_t* label, uint8_t ch) {
     lv_obj_set_style_text_color(label, Colors::forTone(tone), 0);
 }
 
-void Gui::confirmOffStateHigh_() {
-    static const char* buttons[] = {"Cancel", "High", ""};
-    lv_obj_t* box = lv_msgbox_create(nullptr, "Off state High",
-                                     "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
-                                     "Do not use with DC-coupled mixers or inputs.",
-                                     buttons, false);
+void Gui::confirm_(Confirm what) {
+    static const char* offButtons[] = {"Cancel", "High", ""};
+    static const char* resetButtons[] = {"Cancel", "Reset", ""};
+    static const char* eraseButtons[] = {"Cancel", "Erase", ""};
+    const char* title = "Off state High";
+    const char* text = "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
+                       "Do not use with DC-coupled mixers or inputs.";
+    const char** buttons = offButtons;
+    if (what == Confirm::ResetDefaults) {
+        title = "Reset to defaults";
+        text = "All settings and frequencies return to the factory values, all outputs switch off. "
+               "Frequency correction and touch calibration are kept.";
+        buttons = resetButtons;
+    } else if (what == Confirm::FactoryReset) {
+        title = "Factory reset";
+        text = "Erases all stored settings including frequency correction and touch calibration, "
+               "then restarts. The touch calibration runs again.";
+        buttons = eraseButtons;
+    }
+    pendingConfirm_ = what;
+    lv_obj_t* box = lv_msgbox_create(nullptr, title, text, buttons, false);
     styleDialog(box, 2);
     lv_btnmatrix_set_btn_ctrl(lv_msgbox_get_btns(box), 1, LV_BTNMATRIX_CTRL_CHECKED);
     lv_obj_center(box);
@@ -528,7 +586,16 @@ void Gui::confirmEventCb_(lv_event_t* e) {
     lv_obj_t* box = lv_event_get_current_target(e);
     Gui* g = from_(box);
     const char* btn = lv_msgbox_get_active_btn_text(box);
-    if (btn && strcmp(btn, "High") == 0) g->app_->setOffState(OffState::High);
+    const bool yes = btn && strcmp(btn, "Cancel") != 0;
+    if (yes && g->pendingConfirm_ == Confirm::OffStateHigh) g->app_->setOffState(OffState::High);
+    if (yes && g->pendingConfirm_ == Confirm::ResetDefaults) {
+        g->app_->resetToDefaults();
+        g->corrStepIdx_ = 1;
+    }
+    if (yes && g->pendingConfirm_ == Confirm::FactoryReset && g->factoryReset_) {
+        g->app_->resetToDefaults(); // outputs off before the restart
+        g->factoryReset_();          // does not return
+    }
     lv_obj_clear_flag(lv_msgbox_get_btns(box), LV_OBJ_FLAG_CLICKABLE);
     lv_msgbox_close_async(box);
     g->refresh_();

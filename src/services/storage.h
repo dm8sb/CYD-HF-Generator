@@ -17,6 +17,8 @@ public:
     bool putU8(const char* key, uint8_t value);
     // Deletes the key; false if it did not exist or the delete failed.
     bool remove(const char* key);
+    // Deletes every key of the namespace.
+    bool clear();
 
 private:
     Preferences prefs_;
