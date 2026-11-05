@@ -279,6 +279,43 @@ static void test_decimal_exponent_and_power_of_ten() {
     for (uint8_t e = 0; e <= 9; ++e) TEST_ASSERT_EQUAL_UINT8(e, decimalExponent(powerOfTen(e)));
 }
 
+// V-11: remote input (REST, SCPI, web field): integer Hz or a decimal number with a unit,
+// comma and digit-group spaces accepted, nothing else; computed in integers.
+static void assertRemote(const char* text, uint64_t expected) {
+    uint64_t hz = 0;
+    TEST_ASSERT_TRUE_MESSAGE(parseRemoteFrequency(text, &hz), text);
+    TEST_ASSERT_EQUAL_UINT64_MESSAGE(expected, hz, text);
+}
+static void assertRemoteRejected(const char* text) {
+    uint64_t hz = 42;
+    TEST_ASSERT_FALSE_MESSAGE(parseRemoteFrequency(text, &hz), text);
+    TEST_ASSERT_EQUAL_UINT64_MESSAGE(42, hz, text);
+}
+
+static void test_remote_parser_accepts() {
+    assertRemote("10000000", 10000000ULL);
+    assertRemote("7 100 000", 7100000ULL);
+    assertRemote("10.7 MHz", 10700000ULL);
+    assertRemote("10,7 MHz", 10700000ULL);
+    assertRemote("10.7M", 10700000ULL);
+    assertRemote("455k", 455000ULL);
+    assertRemote("455 kHz", 455000ULL);
+    assertRemote("14.074001MHZ", 14074001ULL); // SCPI upper case
+    assertRemote("  7.1 mhz ", 7100000ULL);
+    assertRemote("8 kHz", FREQ_MIN_HZ);
+    assertRemote("160 MHz", FREQ_MAX_HZ);
+    assertRemote("1.0000005 MHz", 1000001ULL); // rounded half up to 1 Hz
+    assertRemote("1000000.4 Hz", 1000000ULL);
+}
+
+static void test_remote_parser_rejects() {
+    const char* bad[] = {"", " ", "MHz", "10.7", "1e7", "1E7 Hz", "0x989680", "-10 MHz", "+10 MHz", "nan", "inf",
+                         "10..7 MHz", "10.7.1 MHz", "10,7,1 MHz", "10 7 MHz", "7 1000 000", "10.7 GHz", "10.7 MHz x",
+                         "7.1 kHz", "200 MHz", "99999999999999999999", "10.7MHzz", ".5 MHz", "5. MHz"};
+    for (const char* t : bad) assertRemoteRejected(t);
+    TEST_ASSERT_FALSE(parseRemoteFrequency(nullptr, nullptr));
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_format_groups_digits);
@@ -301,6 +338,8 @@ int main() {
     RUN_TEST(test_step_index_and_snap);
     RUN_TEST(test_digit_exponent_on_formatted_text);
     RUN_TEST(test_digit_exponent_on_khz_text);
+    RUN_TEST(test_remote_parser_accepts);
+    RUN_TEST(test_remote_parser_rejects);
     RUN_TEST(test_digit_exponent_matches_step_digits);
     RUN_TEST(test_decimal_exponent_and_power_of_ten);
     return UNITY_END();

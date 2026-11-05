@@ -26,6 +26,11 @@ double formatOutput(double actualHz, uint64_t requestedHz, Spread spread, char* 
 // `text`: digits with at most one decimal point; `unit`: "Hz" (or nullptr), "kHz", "MHz".
 // Returns false for anything else or a result outside FREQ_MIN_HZ..FREQ_MAX_HZ.
 bool parseFrequency(const char* text, const char* unit, uint64_t* outHz);
+// Remote input (V-11: REST, SCPI, web field): an integer in Hz ("10000000", "7 100 000") or a
+// decimal number with a unit (Hz, kHz, MHz, k, M, any case: "10.7 MHz", "10,7MHZ", "455k").
+// Spaces only between groups of three digits and around the unit; no sign, exponent or hex.
+// Computed in integers, rounded half up to 1 Hz. false outside FREQ_MIN_HZ..FREQ_MAX_HZ.
+bool parseRemoteFrequency(const char* text, uint64_t* outHz);
 uint8_t stepIndex(uint32_t step);
 // A limit of the CH3 IQ range in MHz with `decimals` places, rounded towards the inside of the
 // range (lower limit up, upper limit down), so the shown value is always reachable.

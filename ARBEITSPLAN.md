@@ -36,7 +36,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 1 Robustheit | 1.3.1 | C-1 bis C-13, M-1; Assert- und Loop-Watchdog-Neustart (am Gerät geprüft), gehärteter Parser, Speichern nur bei Änderung und mit Wiederholung, Wiederverbinden im selben Zyklus |
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 
-Host-Tests: 239 Fälle in `native-win` und 4 in `native-win-fault` (Stand S47).
+Host-Tests: 241 Fälle in `native-win` und 4 in `native-win-fault` (Stand S48).
 
 ### 1.2 Referenzwerte
 
@@ -341,7 +341,7 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 - [x] **S45 · Speichern je Quelle und Schlüssel (V-4, C-17).** Dirty-Bit je NVS-Schlüssel (`SettingKey`), das Autosave schreibt nur geänderte Schlüssel; Ruhezeit je Quelle (Touch 5 s, Remote 30 s, `SETTINGS_REMOTE_AUTOSAVE_MS`); `saveNow()` (SYSTem:SAVE) schreibt alles; `resetForRemote()` (*RST): Standardwerte im RAM, Korrektur bleibt, nichts vorgemerkt, eine spätere Änderung speichert nur ihren Schlüssel. Host-Tests. Namespaces und String-API des Storage/Fakes nach S52 verschoben (erst `hfnet` braucht sie).
 - [x] **S46 · Logger umschaltbar (V-5, C-16).** `Logger::setOutput(ToSerial | ToBuffer | Off)`; Ringpuffer mit 32 Zeilen à 96 Zeichen (älteste fallen heraus, Zähler `dropped()`), `readBuffered()` für `SYSTem:LOG?`; Mutex auf dem ESP32; ESP-IDF-Log (`esp_log_set_vprintf`) und LVGL-Log (`lv_log_register_print_cb`, `LV_LOG_PRINTF 0`) laufen über den Logger. Neue Suite `test_logger`. Arduino-`log_e` (CORE_DEBUG_LEVEL) schreibt weiter direkt auf die UART; vor SCPI über USB prüfen (S51).
 - [x] **S47 · Ausführer und Schnappschuss (V-6).** `src/remote/command.*`: `Command` für alle Setter (Wert im vollen Typ geprüft, W-S19), `execute()` setzt die Quelle; `CommandQueue` (16, Mutex, Ergebnis je Ticket, voll → abgelehnt statt blockiert); `StateSnapshot` mit Seqlock (Zustand, Status, tatsächliche Frequenzen, Revision). `loop()` arbeitet die Queue ab und veröffentlicht bei neuer Revision. Neue Suite `test_command`; RAM +4 KB (94 488 B).
-- [ ] **S48 · Netz-Parser (V-11).** Ganzzahl in Hz oder Dezimalzahl mit Einheit, Komma und Leerzeichen, keine Exponenten/Hex. *Commit:* `S48: Add hardened frequency parser for remote input (V-11)`
+- [x] **S48 · Netz-Parser (V-11).** `FrequencyUtils::parseRemoteFrequency()`: Ganzzahl in Hz oder Dezimalzahl mit Einheit (`Hz`, `kHz`, `MHz`, `k`, `M`, jede Schreibweise), Komma als Dezimaltrenner, Leerzeichen nur zwischen Dreiergruppen und um die Einheit; kein Vorzeichen, Exponent oder Hex; Rechnung in Ganzzahlen mit Rundung auf 1 Hz; Bereich 8 kHz–160 MHz. Host-Tests mit 24 abgelehnten Eingaben.
 
 ### Phase 6 – WEB-HMI 1.4.0 (≈ 13,75 d)
 
