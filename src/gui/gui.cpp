@@ -233,7 +233,7 @@ lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switch
     lv_obj_clear_flag(stripe, LV_OBJ_FLAG_CLICKABLE);
 
     lv_obj_t* t = addLabel_(bar, title, &lv_font_montserrat_20, color, 0, 0);
-    lv_obj_align(t, LV_ALIGN_LEFT_MID, 14, 0);
+    lv_obj_align(t, LV_ALIGN_LEFT_MID, Layout::HEADER_TITLE_X, 0);
 
     if (switchChannel) {
         w_.hdrSwitch = addSwitch_(bar, switchChannel, color);
@@ -244,7 +244,7 @@ lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switch
     }
 
     // 36 px high and up to the top and right edge (audit U-5).
-    addButton_(bar, "MAIN", SCREEN_WIDTH - 66, 1, 62, Layout::HEADER_H - 2, Colors::gray(), Action::Navigate, (uint8_t)PageId::Main);
+    addButton_(bar, "MAIN", Layout::HEADER_MAIN_X, 1, Layout::HEADER_MAIN_W, Layout::HEADER_H - 2, Colors::gray(), Action::Navigate, (uint8_t)PageId::Main);
     return bar;
 }
 
