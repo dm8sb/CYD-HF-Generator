@@ -38,7 +38,12 @@ int idfVprintf(const char* fmt, va_list args) {
     return n;
 }
 #else
-struct Lock {};
+// Host: no task switch. User-provided constructor and destructor, so newer GCC does not
+// warn about an unused variable.
+struct Lock {
+    Lock() {}
+    ~Lock() {}
+};
 #endif
 
 void emit(const char* line) {

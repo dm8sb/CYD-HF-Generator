@@ -10,6 +10,10 @@
 #include <utils/input_logic.h>
 #include <utils/message_queue.h>
 #include <utils/status_text.h>
+
+// Part and state of a style: LVGL 8 keeps them in two unnamed enums, and C++20 deprecates `|`
+// between those (GCC 14 on Arduino 3.x warns).
+inline lv_style_selector_t partState(uint32_t part, uint32_t state) { return part | state; }
 #include <utils/touch_cal.h>
 
 // Pages are built once per navigation. Actions change the AppController state and then
