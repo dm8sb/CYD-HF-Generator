@@ -126,6 +126,71 @@ bool parseFrequency(const char* text, const char* unit, uint64_t* outHz) {
     return true;
 }
 
+static bool isDigit(char c) { return c >= '0' && c <= '9'; }
+
+bool parseRemoteFrequency(const char* text, uint64_t* outHz) {
+    if (!text || !outHz) return false;
+    const char* p = text;
+    while (*p == ' ') ++p;
+    // Whole part: one run of digits, or groups "d{1,3}( ddd)*".
+    uint64_t whole = 0;
+    int digits = 0;
+    int run = 0;
+    while (isDigit(*p)) {
+        whole = whole * 10 + (uint64_t)(*p - '0');
+        ++p;
+        ++run;
+        if (++digits > 12) return false;
+    }
+    if (run == 0) return false;
+    while (*p == ' ' && isDigit(p[1])) {
+        if (run > 3) return false; // "1000 000": only the first group may be shorter
+        ++p;
+        run = 0;
+        while (isDigit(*p)) {
+            whole = whole * 10 + (uint64_t)(*p - '0');
+            ++p;
+            ++run;
+            if (++digits > 12) return false;
+        }
+        if (run != 3) return false;
+    }
+    // Fraction: '.' or ',' and at least one digit.
+    uint64_t frac = 0;
+    int fracDigits = 0;
+    if (*p == '.' || *p == ',') {
+        ++p;
+        while (isDigit(*p)) {
+            frac = frac * 10 + (uint64_t)(*p - '0');
+            ++p;
+            if (++fracDigits > 9) return false;
+        }
+        if (fracDigits == 0) return false;
+    }
+    while (*p == ' ') ++p;
+    // Unit, case-insensitive, then only spaces.
+    char unit[4] = {0, 0, 0, 0};
+    int u = 0;
+    while (*p && *p != ' ') {
+        if (u == 3) return false;
+        unit[u++] = (char)tolower((unsigned char)*p++);
+    }
+    while (*p == ' ') ++p;
+    if (*p) return false;
+    uint64_t scale = 0;
+    if (u == 0) scale = 1;
+    else if (!strcmp(unit, "hz")) scale = 1;
+    else if (!strcmp(unit, "khz") || !strcmp(unit, "k")) scale = 1000;
+    else if (!strcmp(unit, "mhz") || !strcmp(unit, "m")) scale = 1000000;
+    else return false;
+    if (u == 0 && fracDigits > 0) return false; // a decimal number needs its unit
+    const uint64_t pow10 = powerOfTen((uint8_t)fracDigits);
+    const uint64_t hz = whole * scale + (frac * scale * 2 + pow10) / (2 * pow10);
+    if (hz < FREQ_MIN_HZ || hz > FREQ_MAX_HZ) return false;
+    *outHz = hz;
+    return true;
+}
+
 void formatIqLimit(uint64_t hz, bool lowerLimit, uint8_t decimals, bool trimWhole, char* out, size_t outSize) {
     if (decimals > 6) decimals = 6;
     const uint64_t unit = powerOfTen(6 - decimals);
