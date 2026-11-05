@@ -166,7 +166,9 @@ static void test_step_markup() {
 // ---------------------------------------------------------------------------
 // Message queue (audit T-12, A-38)
 
-static bool isLink(const char* text) { return strncmp(text, "Link", 4) == 0; }
+// Tags as the GUI uses them (EventCategory).
+static constexpr uint8_t LINK = 1;
+static constexpr uint8_t OUTPUT = 2;
 
 static void test_queue_one_open_rest_waits_in_order() {
     MessageQueue q;
@@ -204,14 +206,14 @@ static void test_queue_drops_duplicates_and_overflow() {
 
 static void test_queue_drops_link_messages_after_reconnect() {
     MessageQueue q;
-    q.post("SI5351", "Link lost");
-    q.post("SI5351", "Frequency set failed");
-    q.post("SI5351", "Link stays low");
-    TEST_ASSERT_TRUE(q.dropMatching(isLink)); // the open one is a link message
+    q.post("SI5351", "Link lost", LINK);
+    q.post("SI5351", "Frequency set failed", OUTPUT);
+    q.post("SI5351", "Link stays low", LINK);
+    TEST_ASSERT_TRUE(q.dropTagged(LINK)); // the open one is a link message
     TEST_ASSERT_EQUAL_UINT8(1, q.queued());
     q.close();
     TEST_ASSERT_EQUAL_STRING("Frequency set failed", q.openText());
-    TEST_ASSERT_FALSE(q.dropMatching(isLink));
+    TEST_ASSERT_FALSE(q.dropTagged(LINK));
 }
 
 // ---------------------------------------------------------------------------

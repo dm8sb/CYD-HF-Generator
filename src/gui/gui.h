@@ -22,7 +22,9 @@ public:
     // Redraws the current page from the controller state (e.g. after the boot programming).
     void refresh() { refresh_(); }
     // One dialog at a time; further messages are queued, identical ones dropped.
-    void showMessage(const char* title, const char* text);
+    void showMessage(const char* title, const char* text, uint8_t tag = 0);
+    // Controller events (V-3): a dialog, except for events of remote commands.
+    static void onAppEvent(const Event& e, void* gui);
     void navigate(PageId page);
     // Touch calibration wizard (U-26). firstStart: no calibration stored; a timeout continues
     // with the default calibration on MAIN (otherwise back to CONFIG, unchanged).

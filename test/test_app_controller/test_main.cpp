@@ -26,6 +26,12 @@ static void onError(const char* title, const char* text) {
 }
 
 // Boots like main.cpp: I2C, settings, SI5351, backlight, stored channel settings.
+static Event lastEvent;
+static void onEvent(const Event& e, void*) {
+    lastEvent = e;
+    onError(e.title, e.text);
+}
+
 struct Device {
     SettingsService settings;
     SI5351Manager si;
@@ -40,7 +46,7 @@ struct Device {
         app.begin(loaded);
         backlight.begin();
         app.connectHardware();
-        app.setErrorCallback(onError);
+        app.addListener(onEvent, nullptr);
         backlight.setPercent(loaded.sys.backlight);
         app.applyStoredChannelSettings();
     }
@@ -986,13 +992,31 @@ static void test_bus_too_weak_for_400_khz_stays_at_100_khz() {
     TEST_ASSERT_EQUAL_UINT16(1, d.app.connectionCount());
 }
 
-static void test_link_texts_are_recognized() {
-    TEST_ASSERT_TRUE(AppController::isLinkText(AppController::linkText(LinkState::Blocked)));
-    TEST_ASSERT_FALSE(AppController::isLinkText("CH3 IQ setup failed"));
+// V-3: a lost connection is a Link event from the supervision (Internal), with its text.
+static void test_link_events() {
     Device d;
     chip.present = false;
     d.run(HW_CHECK_INTERVAL_MS + 100);
-    TEST_ASSERT_TRUE(AppController::isLinkText(lastErrorText)); // "Connection lost"
+    TEST_ASSERT_EQUAL(EventCode::LinkLost, lastEvent.code);
+    TEST_ASSERT_EQUAL(EventCategory::Link, lastEvent.category);
+    TEST_ASSERT_EQUAL(Source::Internal, lastEvent.source);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
+}
+
+// A command reports with the source set by its server; listeners are limited.
+static void test_events_carry_the_source() {
+    Device d;
+    d.app.setChannelEnabled(1, true);
+    chip.failAfter = 0;
+    d.app.setSource(Source::Remote);
+    d.app.setChannelFrequency(1, 7200000);
+    d.app.setSource(Source::Touch);
+    chip.failAfter = -1;
+    TEST_ASSERT_EQUAL(Source::Remote, lastEvent.source);
+    TEST_ASSERT_EQUAL(EventCategory::Link, lastEvent.category); // the transfer failed: lost
+    TEST_ASSERT_TRUE(d.app.addListener(onEvent, nullptr));
+    TEST_ASSERT_TRUE(d.app.addListener(onEvent, nullptr));
+    TEST_ASSERT_FALSE(d.app.addListener(onEvent, nullptr)); // MAX_LISTENERS = 3
 }
 
 static void test_line_held_low_reports_blocked() {
@@ -1272,7 +1296,8 @@ int main() {
     RUN_TEST(test_foreign_device_is_not_programmed);
     RUN_TEST(test_si5351_powering_up_is_retried_while_present);
     RUN_TEST(test_bus_too_weak_for_400_khz_stays_at_100_khz);
-    RUN_TEST(test_link_texts_are_recognized);
+    RUN_TEST(test_link_events);
+    RUN_TEST(test_events_carry_the_source);
     RUN_TEST(test_line_held_low_reports_blocked);
     RUN_TEST(test_boot_releases_line_held_low);
     RUN_TEST(test_link_texts_fit_the_dialog);

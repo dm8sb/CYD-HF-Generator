@@ -497,8 +497,14 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
 // ---------------------------------------------------------------------------
 // Message box: one at a time, further messages wait in a short queue.
 
-void Gui::showMessage(const char* title, const char* text) {
-    switch (messages_.post(title, text)) {
+void Gui::onAppEvent(const Event& e, void* gui) {
+    // A remote client gets its error itself; the device shows no dialog for it.
+    if (e.source == Source::Remote) return;
+    static_cast<Gui*>(gui)->showMessage(e.title, e.text, (uint8_t)e.category);
+}
+
+void Gui::showMessage(const char* title, const char* text, uint8_t tag) {
+    switch (messages_.post(title, text, tag)) {
         case MessageQueue::Post::Open: openMessage_(); break;
         case MessageQueue::Post::Full: Logger::error("GUI", "Message queue full"); break;
         case MessageQueue::Post::Queued:
@@ -545,7 +551,7 @@ void Gui::openMessage_() {
 
 void Gui::dismissLinkMessages_() {
     // Output errors from the restore stay.
-    if (!messages_.dropMatching(AppController::isLinkText)) return;
+    if (!messages_.dropTagged((uint8_t)EventCategory::Link)) return;
     if (msgbox_) {
         lv_msgbox_close(msgbox_); // the delete event moves on to the next message
     } else if (!shownBox_ && messages_.close()) {
