@@ -1,6 +1,6 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: 2026-11-05 · Firmware **1.3.3** (`dev`, lokaler Tag `v1.3.3`; `main` = `ee2b91a` = 1.3.2; S42–S48 auf `feature/web-hmi`) · nächste Ziele: **1.4.0** (WEB-HMI), Migration Core 3.x (Phase 4)
+Stand: 2026-11-05 · Firmware **1.3.3** (`main` = Tag `v1.3.3` = `5ffc228`); `dev` = 1.3.3 + Phase 5 (S42–S48, am Gerät geprüft) · nächste Ziele: Migration Core 3.x (Phase 4), **1.4.0** (WEB-HMI)
 
 Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufgabenliste. Sie ersetzt `todo.md`, `AUDIT_2026-11.md` und `KONZEPT_WEB_HMI.md` (vollständig in der Git-Historie bis `ee2b91a`). Die Befund-IDs aus dem Audit (C-n Code, S-n Security, U-n Bedienung, P-n Plattform, T-n Tests) und dem Konzept (W-E, W-S, V-n) bleiben als Namen gültig. Messungen am Gerät: [MESSPLAN.md](MESSPLAN.md). Verhalten: [USER_MANUAL_DE.md](USER_MANUAL_DE.md); Anforderungen und Entscheidungen: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md).
 
@@ -19,7 +19,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 4. **Bedientest am Gerät vor dem Commit**, wenn sich die Oberfläche ändert: flashen, die Prüfpunkte dem Nutzer nennen, Rückmeldung abwarten.
 5. **Commit-Text:** Betreff Englisch im Imperativ mit Schrittnummer (`S31: Add screen lock …`), im Text die Befund-IDs und eine Zeile zur Prüfung; am Ende die Attributionszeile.
 6. **Nur lokal.** Push, Merge nach `main` und Tags veröffentlichen nur auf ausdrückliche Anweisung.
-7. **Branches:** Phase 3 auf `dev`; Phase 4 auf `feature/core3`; Phasen 5–6 auf `feature/web-hmi`.
+7. **Branches:** Phase 4 auf `feature/core3`; Phase 6 auf `feature/web-hmi`, neu von `dev` nach der Migration. Phase 5 lief auf `feature/web-hmi` und ist seit 2026-11-05 in `dev` (Merge `262119f`), weil sie das Verhalten nicht ändert und die Migration sonst neben ihr auseinanderliefe.
 8. **Smoke-Test nach jeder Phase** auf beiden Boards (MESSPLAN 4.3); Ergebnis im Release-Commit bzw. direkt danach.
 9. **Nicht mischen:** Ein Commit enthält Verhalten oder Aufräumen, nicht beides.
 10. **Messprotokolle** (`messungen/*.md`) werden committet, Medien und Binärdateien nicht (`messungen/*/` ist ignoriert).
@@ -333,7 +333,7 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 - [ ] **S40 · Compiler.** GCC-14-Warnungen beheben; Host-Env mit `-std=gnu++17`; CI erweitern. *Commit:* `S40: Fix GCC 14 warnings and add gnu++17 host environment`
 - [ ] **S41 · Abnahme.** Beide Cores als Envs bis zur Abnahme, dann 2.x-Env entfernen; Spezifikation A-46, README, `CLAUDE.md`; S-16 prüfen (`IP_FORWARD`/`NAPT`); Stufe-1-Auswahl nach der Migration (MESSPLAN 5.10, ≈ 4 h), Q4/Q5 wiederholen, Smoke-Test beider Boards; Merge nach `dev` (lokal). *Commit:* `S41: Switch to the official espressif32@8.0.0 platform`
 
-### Phase 5 – WEB-HMI-Vorarbeiten (≈ 4 d, `feature/web-hmi`)
+### Phase 5 – WEB-HMI-Vorarbeiten (≈ 4 d, `feature/web-hmi`, in `dev` seit 2026-11-05)
 
 - [x] **S42 · Ergebniscodes (V-1).** `Result {Ok, NoChange, OutOfRange, Invalid, Conflict, HwError}` für alle Setter; `set*` klemmen nicht mehr (Bereich → `OutOfRange`, Liste → `Invalid`, Spread in Integer → `Conflict`, Übertragungsfehler → `HwError`), nur `adjust*`/`stepBacklight` und das neue `adjustCorrection` (GUI) klemmen; `channel(3)` liefert einen leeren Kanal statt CH2 (S-12). Host-Tests für alle Codes. Branch `feature/web-hmi`.
 - [x] **S43 · Änderungszähler (V-2).** `AppController::revision()` zählt Änderungen an gespeichertem Zustand, Ausgängen, CH3-Zustand, Fehlerflags, Verbindung und tatsächlicher Frequenz (nicht im Leerlauf, nicht beim Autosave); `Gui::update()` zeichnet darüber neu statt über die eigene Hardware-Signatur. Host-Test mit Verbindungsverlust und -rückkehr.
