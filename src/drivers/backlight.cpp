@@ -3,6 +3,8 @@
 #include <constants.h>
 #include <utils/logger.h>
 
+// Arduino 3.x picks the LEDC channel itself and addresses the PWM by pin; 2.0.x needs a
+// channel. The 2.0.x branch goes with the 2.x env in S41.
 static constexpr uint8_t BACKLIGHT_LEDC_CHANNEL = 0;
 static constexpr uint32_t BACKLIGHT_LEDC_FREQ = 5000;
 static constexpr uint8_t BACKLIGHT_LEDC_BITS = 8;

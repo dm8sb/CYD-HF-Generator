@@ -37,7 +37,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 | 3 Laborbetrieb | 1.3.3 | U-11, U-13, U-16, U-20, E-16, N12; Bildschirmsperre, Grundzustand und Werksreset, Korrektur per Numpad, CH3-Seite mit Master-Steuerung, Halten langsamer am Anfang, Bereich 8 kHz–160 MHz, Fix um 112,5 MHz, kompakte Moduszeile |
 
-Host-Tests: 241 Fälle in `native-win` und 4 in `native-win-fault` (Stand S48 mit 1.3.3).
+Host-Tests: 242 Fälle in `native-win` und 4 in `native-win-fault` (Stand S38).
 
 ### 1.2 Referenzwerte
 
@@ -329,7 +329,7 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 ### Phase 4 – Migration Core 3.x (≈ 2,5–3 d, `feature/core3`)
 
 - [x] **S37 · Spike.** Env `esp32-2432S028R-core3` mit `espressif32@8.0.0` (Arduino 3.3.12 / IDF 5.5.5) neben 2.x, `-Os` und `CORE_DEBUG_LEVEL` dort gesetzt, LEDC per `ESP_ARDUINO_VERSION_MAJOR`; TFT_eSPI/XPT2046/LVGL unverändert; Debug-Zeile `[GUI] First frame ms`; CI baut beide Cores. Ergebnis in Abschnitt 2.4; startet auf beiden Boards, pioarduino nicht nötig. *Commit:* `S37: Spike espressif32@8.0.0 with Arduino 3.3.12`
-- [ ] **S38 · LEDC.** `ledcAttach()`/`ledcWrite(pin, …)` samt Fake (der Zweig für 3.x steht seit S37 in `backlight.cpp`, der Fake kennt nur die 2.x-API). *Commit:* `S38: Port backlight PWM to the Arduino 3 LEDC API`
+- [x] **S38 · LEDC.** `ledcAttach()`/`ledcWrite(pin, …)`; die Fakes bilden die 3.x-API nach (`ESP_ARDUINO_VERSION_MAJOR` 3, 2 wählt die alte), `ledcWrite` auf einen nicht angebundenen Pin bzw. Kanal zählt als Fehler; Host-Test `test_backlight_pwm_on_its_pin` (Gegenprobe: Schreiben auf Kanal 0 scheitert). *Commit:* `S38: Port backlight PWM to the Arduino 3 LEDC API`
 - [ ] **S39 · I2CBus bündeln (C-14, V-7).** `writeRegs`/`readRegs` in `I2CBus`; 2.0.x-Annahmen als benannte Fake-Tests (Rückgabecode 5, `end()`/`begin()`, Lock). *Commit:* `S39: Bundle I2C register transfers in I2CBus (C-14)`
 - [ ] **S40 · Compiler.** GCC-14-Warnungen beheben; Host-Env mit `-std=gnu++17`; CI erweitern. *Commit:* `S40: Fix GCC 14 warnings and add gnu++17 host environment`
 - [ ] **S40a · LVGL 8.4.0.** `lvgl/lvgl@8.4.0` in beiden Envs; `lv_conf.h` gegen das Template 8.4 abgleichen (neue Schlüssel bewusst setzen); Flash, RAM, erstes Bild und LVGL-Heap gegen 8.3.11; Host-Tests sind LVGL-frei. *Commit:* `S40a: Update LVGL to 8.4.0`
