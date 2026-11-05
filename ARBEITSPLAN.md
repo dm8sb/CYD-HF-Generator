@@ -36,7 +36,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 1 Robustheit | 1.3.1 | C-1 bis C-13, M-1; Assert- und Loop-Watchdog-Neustart (am Gerät geprüft), gehärteter Parser, Speichern nur bei Änderung und mit Wiederholung, Wiederverbinden im selben Zyklus |
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 
-Host-Tests: 225 Fälle in `native-win` und 4 in `native-win-fault` (Stand S42).
+Host-Tests: 226 Fälle in `native-win` und 4 in `native-win-fault` (Stand S43).
 
 ### 1.2 Referenzwerte
 
@@ -338,7 +338,7 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 ### Phase 5 – WEB-HMI-Vorarbeiten (≈ 4 d, `feature/web-hmi`)
 
 - [x] **S42 · Ergebniscodes (V-1).** `Result {Ok, NoChange, OutOfRange, Invalid, Conflict, HwError}` für alle Setter; `set*` klemmen nicht mehr (Bereich → `OutOfRange`, Liste → `Invalid`, Spread in Integer → `Conflict`, Übertragungsfehler → `HwError`), nur `adjust*`/`stepBacklight` und das neue `adjustCorrection` (GUI) klemmen; `channel(3)` liefert einen leeren Kanal statt CH2 (S-12). Host-Tests für alle Codes. Branch `feature/web-hmi`.
-- [ ] **S43 · Änderungszähler (V-2).** `AppController::revision()` für Zustand, Status, `fault_`, Verbindung, `actualHz`; GUI-Neuzeichnen darüber. *Commit:* `S43: Add controller revision counter (V-2)`
+- [x] **S43 · Änderungszähler (V-2).** `AppController::revision()` zählt Änderungen an gespeichertem Zustand, Ausgängen, CH3-Zustand, Fehlerflags, Verbindung und tatsächlicher Frequenz (nicht im Leerlauf, nicht beim Autosave); `Gui::update()` zeichnet darüber neu statt über die eigene Hardware-Signatur. Host-Test mit Verbindungsverlust und -rückkehr.
 - [ ] **S44 · Ereignisse (V-3).** `Event {code, category, source}` mit mehreren Empfängern statt `ErrorCallback`; Fernbefehle öffnen am Gerät keinen Dialog. *Commit:* `S44: Replace error callback with events (V-3)`
 - [ ] **S45 · Speichern je Quelle und Schlüssel (V-4, C-17).** `markDirty(key, Source)`, Fristen 5 s / 30 s, Schattenkopie, `saveNow()`, `*RST`-Semantik, `Storage` mit String-API, Fake mit mehreren Namespaces. *Commit:* `S45: Save per source and per key (V-4, C-17)`
 - [ ] **S46 · Logger umschaltbar (V-5, C-16).** Serial / Ringpuffer / aus mit Mutex; LVGL- und IDF-Log auf den Logger. *Commit:* `S46: Make logger output switchable (V-5, C-16)`

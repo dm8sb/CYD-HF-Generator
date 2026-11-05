@@ -48,6 +48,7 @@ void AppController::superviseHardware_() {
             return;
         }
         link_ = LinkState::NotFound;
+        bump_();
         reportError_("SI5351", MSG_HW_LOST);
         // Reconnect at once (audit C-12): after a power glitch the chip answers again right away,
         // so the outputs are back within one cycle instead of two.
@@ -112,6 +113,7 @@ void AppController::setLinkState_(LinkState s) {
     if (linkKnown_ && s == link_) return;
     linkKnown_ = true;
     link_ = s;
+    bump_();
     if (s == LinkState::Connected) {
         char line[64];
         snprintf(line, sizeof(line), "SI5351 at 0x60, SDA=%d SCL=%d%s", I2CBus::sdaPin(), I2CBus::sclPin(),
@@ -164,7 +166,10 @@ const Channel& AppController::channel(uint8_t ch) const {
 }
 const Channel& AppController::channel_(uint8_t ch) const { return (ch == 1) ? state_.ch1 : state_.ch2; }
 
-void AppController::markChanged_() { settings_.markDirty(); }
+void AppController::markChanged_() {
+    settings_.markDirty();
+    bump_();
+}
 
 void AppController::reportError_(const char* title, const char* text) {
     if (quietRetry_) return;
@@ -216,6 +221,7 @@ void AppController::configureStandalone_(uint8_t ch) {
                     si5351_.enableOutput(clk, c.enabled);
     // A lost SI5351 is shown as NO HW, not as an output error.
     fault_[clk] = !ok && si5351_.ready();
+    bump_(); // actual frequency or error state may have changed
     if (!ok) {
         char text[96];
         StatusText::outputErrorText(ch, 0, text, sizeof(text));
@@ -245,6 +251,7 @@ void AppController::configureMasterGroup_() {
         return;
     }
     fault_[masterClk] = fault_[CLK_CH3] = false;
+    bump_();
     if (!si5351_.enableOutput(masterClk, masterEnabled_()) || !si5351_.enableOutput(CLK_CH3, masterEnabled_())) {
         reportLinkLost_();
     }
@@ -293,12 +300,14 @@ Result AppController::setChannelEnabled(uint8_t ch, bool en) {
     if (ch == 3) {
         if (state_.ch3.enabled == en) return Result::NoChange;
         state_.ch3.enabled = en;
+        bump_();
         const bool wasReady = si5351_.ready();
         if (wasReady) configureMasterGroup_();
         return outcome_(wasReady, CLK_CH3);
     }
     if (channel_(ch).enabled == en) return Result::NoChange;
     channel_(ch).enabled = en;
+    bump_();
     if (!si5351_.ready()) return Result::Ok;
     bool ok = si5351_.enableOutput(clkForChannel_(ch), en);
     // CLK2 follows only a working IQ pair: in ERR it stays off (with off state High/High-Z

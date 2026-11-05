@@ -602,6 +602,32 @@ static void test_setter_result_with_hardware_errors() {
     chip.failAfter = -1;
 }
 
+// V-2: the revision changes with every visible change (state, output, status, connection) and
+// stays while nothing happens; the GUI redraws on it.
+static void test_revision_counts_changes() {
+    Device d;
+    uint32_t r = d.app.revision();
+    d.app.setChannelFrequency(1, DEFAULT_FREQ_CH1); // no change
+    TEST_ASSERT_EQUAL_UINT32(r, d.app.revision());
+    d.app.setChannelFrequency(1, 7100000);
+    TEST_ASSERT_TRUE(d.app.revision() != r);
+    r = d.app.revision();
+    d.app.setChannelEnabled(1, true);
+    TEST_ASSERT_TRUE(d.app.revision() != r);
+    r = d.app.revision();
+    d.run(SETTINGS_AUTOSAVE_MS + 3000); // autosave and supervision without a change
+    TEST_ASSERT_EQUAL_UINT32(r, d.app.revision());
+    chip.present = false; // connection lost
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(ChannelStatus::NoDevice, d.app.channelStatus(1));
+    TEST_ASSERT_TRUE(d.app.revision() != r);
+    r = d.app.revision();
+    chip.present = true; // back
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(ChannelStatus::On, d.app.channelStatus(1));
+    TEST_ASSERT_TRUE(d.app.revision() != r);
+}
+
 static void test_config_options_invalid_nvs_values() {
     Preferences p;
     p.putUChar("tune", 7);
@@ -1222,6 +1248,7 @@ int main() {
     RUN_TEST(test_config_options_default_and_persist);
     RUN_TEST(test_config_options_invalid_nvs_values);
     RUN_TEST(test_setters_return_result_codes);
+    RUN_TEST(test_revision_counts_changes);
     RUN_TEST(test_setter_result_with_hardware_errors);
     RUN_TEST(test_reset_to_defaults_keeps_the_correction);
     RUN_TEST(test_erase_all_settings);
