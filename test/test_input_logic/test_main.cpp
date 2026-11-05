@@ -265,11 +265,11 @@ static void test_mode_summary_lists_only_deviations() {
     TEST_ASSERT_EQUAL(Tone::Muted, modeSummary(TuningMode::Fractional, Spread::Off, DEFAULT_DRIVE_MA, OffState::Low, buf, sizeof(buf)));
     TEST_ASSERT_EQUAL_STRING("", buf);
     TEST_ASSERT_EQUAL(Tone::Warn, modeSummary(TuningMode::LowNoise, Spread::Down05, 8, OffState::High, buf, sizeof(buf)));
-    TEST_ASSERT_EQUAL_STRING("OFF = High | SSC -0.5 % | Low noise | 8 mA", buf);
+    TEST_ASSERT_EQUAL_STRING("OFF=High | SSC -0.5% | Low noise | 8mA", buf);
     TEST_ASSERT_EQUAL(Tone::Muted, modeSummary(TuningMode::Integer, Spread::Off, 2, OffState::HighZ, buf, sizeof(buf)));
-    TEST_ASSERT_EQUAL_STRING("OFF = High-Z | Integer | 2 mA", buf);
+    TEST_ASSERT_EQUAL_STRING("OFF=High-Z | Integer | 2mA", buf);
     modeSummary(TuningMode::Fractional, Spread::Center05, DEFAULT_DRIVE_MA, OffState::Low, buf, sizeof(buf));
-    TEST_ASSERT_EQUAL_STRING("SSC +/-0.5 %", buf);
+    TEST_ASSERT_EQUAL_STRING("SSC +/-0.5%", buf);
     char small[12];
     modeSummary(TuningMode::LowNoise, Spread::Down15, 8, OffState::High, small, sizeof(small));
     TEST_ASSERT_TRUE(strlen(small) < sizeof(small));
@@ -320,8 +320,8 @@ static void test_range_note() {
     TEST_ASSERT_EQUAL_STRING("", rangeNote(10000000ULL));
     TEST_ASSERT_EQUAL_STRING("", rangeNote(1000000ULL));
     TEST_ASSERT_EQUAL_STRING("", rangeNote(100000000ULL));
-    TEST_ASSERT_EQUAL_STRING("Above 100 MHz: lower level", rangeNote(100000001ULL));
-    TEST_ASSERT_EQUAL_STRING("Below 1 MHz: filter harmonics", rangeNote(999999ULL));
+    TEST_ASSERT_EQUAL_STRING(">100MHz: low level", rangeNote(100000001ULL));
+    TEST_ASSERT_EQUAL_STRING("<1MHz: harmonics", rangeNote(999999ULL));
 }
 
 // Screen lock (audit U-13): while locked no touch reaches LVGL; holding 2 s unlocks, and

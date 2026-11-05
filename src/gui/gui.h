@@ -150,7 +150,11 @@ private:
     static void asyncNavigateCb_(void* gui);
     static void nextMessageCb_(void* gui);
     // Special modes of channel ch (1..3) into a label, colored by tone (U-2).
-    void showModes_(lv_obj_t* label, uint8_t ch);
+    // extra and note are appended with " | "; alone replaces extra when there are no modes.
+    // The line is built in a buffer and set once: a LONG_DOT label shortens its own text to "..."
+    // while its width is not laid out yet, so it must never be read back and extended.
+    void showModes_(lv_obj_t* label, uint8_t ch, const char* extra = "", const char* alone = nullptr,
+                    const char* note = "");
     // State label (MAIN cards, header): padding and corners once, text and fill per refresh.
     static void styleState_(lv_obj_t* label);
     static void showState_(lv_obj_t* label, const StatusText::Text& state);

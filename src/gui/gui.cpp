@@ -566,11 +566,15 @@ void Gui::dismissLinkMessages_() {
 
 void Gui::nextMessageCb_(void* gui) { static_cast<Gui*>(gui)->openMessage_(); }
 
-void Gui::showModes_(lv_obj_t* label, uint8_t ch) {
+void Gui::showModes_(lv_obj_t* label, uint8_t ch, const char* extra, const char* alone, const char* note) {
     const SystemSettings& sys = app_->system();
-    char buf[64];
+    char modes[64];
     const StatusText::Tone tone =
-        StatusText::modeSummary(sys.tuning_mode, app_->spreadOf(ch), sys.drive_ma, sys.off_state, buf, sizeof(buf));
+        StatusText::modeSummary(sys.tuning_mode, app_->spreadOf(ch), sys.drive_ma, sys.off_state, modes, sizeof(modes));
+    if (!modes[0] && alone && extra[0]) extra = alone;
+    char buf[160];
+    snprintf(buf, sizeof(buf), "%s%s%s%s%s", modes, (modes[0] && extra[0]) ? " | " : "", extra,
+             ((modes[0] || extra[0]) && note[0]) ? " | " : "", note);
     lv_label_set_text(label, buf);
     lv_obj_set_style_text_color(label, Colors::forTone(tone), 0);
 }

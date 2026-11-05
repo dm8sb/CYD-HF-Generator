@@ -34,7 +34,7 @@ For the lab bench; details in the sections named, sketches of the pages in Appen
 3. **Set the frequency:** tap the `CH1` card, choose a step button (`1M` … `1`), then `−` / `+`; or `NUMPAD`, enter the number, confirm with `MHz`, `kHz` or `Hz` (sections 5 and 6).
 4. **Switch the output on:** switch on the card or in the title bar. Next to it is what the output does: `ON` in a green field = running.
 5. **IQ signal:** `CH3` card, master `CH1` or `CH2`, phase `0` / `90` / `180` / `270`, switch on. Below 4.730 MHz master frequency CH3 waits (`WAIT`) and starts by itself (section 7).
-6. **Before measuring:** if a mode line appears below a frequency (e.g. `OFF = High`, `SSC -0.5 %`, `Integer`), CONFIG differs from the factory settings (section 2).
+6. **Before measuring:** if a mode line appears below a frequency (e.g. `OFF=High`, `SSC -0.5%`, `Integer`), CONFIG differs from the factory settings (section 2).
 7. **On errors:** `! NO HW` = SI5351 not connected; `! ERR` = setup failed, the firmware retries every 2 s (section 11, Appendix C).
 
 Factory settings in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; frequencies 10 MHz (CH1) and 14 MHz (CH2), step 1 kHz. For the next group: CONFIG `Reset` → `Defaults` (the calibration stays); against accidental changes: CONFIG `Screen` → `Lock`.
@@ -87,12 +87,12 @@ CONFIG settings that change the signal of a channel compared to the factory sett
 
 | Entry | Appears with |
 |---|---|
-| `OFF = High` / `OFF = High-Z` | `Off state` ≠ `Low` |
-| `SSC -0.5 %`, `SSC -1.5 %`, `SSC +/-0.5 %` | `Spread CH1` ≠ `Off`, only on CH1 and on CH3 with master CH1 |
+| `OFF=High` / `OFF=High-Z` | `Off state` ≠ `Low` |
+| `SSC -0.5%`, `SSC -1.5%`, `SSC +/-0.5%` | `Spread CH1` ≠ `Off`, only on CH1 and on CH3 with master CH1 |
 | `Low noise` / `Integer` | `Tuning` ≠ `Fractional` |
-| `2 mA`, `6 mA`, `8 mA` | `Drive all` ≠ `4 mA` |
+| `2mA`, `6mA`, `8mA` | `Drive all` ≠ `4 mA` |
 
-Example: `SSC -0.5 % | Low noise | 8 mA` on CH1, `Low noise | 8 mA` on CH2. With `OFF = High` the line is orange, because a switched-off output then carries DC; otherwise gray. If the line is too long on the main page, it ends with `...`; the channel page shows it completely.
+Example: `SSC -0.5% | Low noise | 8mA` on CH1, `Low noise | 8mA` on CH2. With `OFF=High` the line is orange, because a switched-off output then carries DC; otherwise gray. If the line is too long on the main page, it ends with `...`; the channel page shows it completely.
 
 Operation on the main page:
 
@@ -229,9 +229,9 @@ Out 7.102 273 MHz (+2272.7 Hz)
 Out 9.975 000 MHz mean, SSC -0.5 %
 ```
 
-- Outside 1–100 MHz the mode line shows a hint: `Above 100 MHz: lower level` or `Below 1 MHz: filter harmonics`.
+- Outside 1–100 MHz the mode line shows a hint: `>100MHz: low level` or `<1MHz: harmonics`.
 - With the channel switched off, the line starts with `Off | `, e.g. `Off | Out 10.000 000 MHz (+0.3 Hz)`: this is how the output would run after switching on.
-- If CH3 follows this channel, the mode line below shows `IQ master of CH3 (90°)` with the phase of CH3; frequency changes then move both outputs.
+- If CH3 follows this channel, the mode line below shows `IQ master (90°)` with the phase of CH3; frequency changes then move both outputs.
 
 In case of errors, the following is shown in red instead of the frequency:
 
@@ -535,7 +535,7 @@ Determines the level that a switched-off output carries (SI5351 register 24). Th
 
 - `High` needs a confirmation: the dialog `Off state High` explains the DC voltage on a switched-off output. `High` (orange) applies the setting, `Cancel` keeps the previous one. `Low` and `High-Z` apply without a question.
 - The change takes effect immediately; running outputs are not affected.
-- If the setting differs from `Low`, the main page and the channel pages show `OFF = High` or `OFF = High-Z` in the mode line (section 2).
+- If the setting differs from `Low`, the main page and the channel pages show `OFF=High` or `OFF=High-Z` in the mode line (section 2).
 - The firmware writes the state when connecting to the SI5351, before any output can be switched on.
 - **`High`:** A continuous current flows into a DC-coupled load (e.g. 50 Ω), limited by the drive strength; a DC-coupled mixer sees a DC voltage.
 - For DC-coupled diode ring mixers, use `Low` or `High-Z`.
@@ -1028,7 +1028,7 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 ```text
 +--------------------------------------------+
 | CH1              10.000 000 MHz |  [==o]   |
-| ON   SSC -0.5 % | Low noise     |          |
+| ON   SSC -0.5% | Low noise      |          |
 +--------------------------------------------+
 | CH2              14.000 000 MHz |  [o==]   |
 | OFF                             |          |
@@ -1048,7 +1048,7 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 +--------------------------------------------+
 | 10.000 000 MHz                             |
 | Out 10.000 000 MHz (+0.3 Hz)               |
-| SSC -0.5 % | IQ master of CH3 (90°)        |
+| SSC -0.5% | IQ master (90°)                |
 +--------------------------------------------+
 | [1M][100k][10k][ 1k ][100][ 10][  1]       |
 | [   −   ]  [   +   ]  [  NUMPAD  ]         |
@@ -1113,20 +1113,20 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | `Out …` | frequency actually generated and deviation in Hz | 5 |
 | `Out … mean, SSC …` | mean frequency with spread spectrum | 5 |
 | `Off \| Out …` | channel off; this is how it runs after switching on | 5 |
-| `IQ master of CH3 (90°)` | CH3 follows this channel with the phase shown | 2, 5 |
+| `IQ master (90°)` | CH3 follows this channel with the phase shown | 2, 5 |
 | `CH1 / 90° / master off` | CH3: master, phase and reason for waiting | 2, 7 |
 | mode line | settings that differ from the factory state | 2 |
-| `OFF = High` / `OFF = High-Z` | switched-off outputs carry HIGH (DC voltage) or are high impedance | 8 |
+| `OFF=High` / `OFF=High-Z` | switched-off outputs carry HIGH (DC voltage) or are high impedance | 8 |
 | `SSC -0.5 %` etc. | spread spectrum: the frequency is spread on purpose | 8 |
 | `Fractional` / `Low noise` / `Integer` | divider scheme of the SI5351 (`Tuning`) | 8 |
-| `2 mA` … `8 mA` | output current (`Drive all`) | 8 |
+| `2mA` … `8mA` | output current (`Drive all`) | 8 |
 | `Corr.`, ppm | frequency correction of the crystal in parts per million | 8 |
 | `LOCKED` (orange field) | screen locked; hold 2 s to unlock | 8 |
 | `Saved` / `Saving...` / `Save failed` / `Not saved` | save state | 8, 9 |
 | `Now …` | NUMPAD: current frequency | 6 |
 | `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: reason for a rejected input | 6 |
 | `-50.00 to +50.00 ppm` | correction NUMPAD: value out of range | 8 |
-| `Above 100 MHz: lower level` / `Below 1 MHz: filter harmonics` | channel page: hint outside 1–100 MHz | 1, 5 |
+| `>100MHz: low level` / `<1MHz: harmonics` | channel page: hint outside 1–100 MHz | 1, 5 |
 | `Touch calibrated …` / `Touch not calibrated (default)` | info card: touch calibration | 8 |
 | `detected` / `default` / `build flag` | info card: source of the display controller | 8, 13 |
 | `(swapped)` / `(clone?)` | info card: SDA/SCL swapped or unusual SI5351 register | 8, 11 |
