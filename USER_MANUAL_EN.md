@@ -482,7 +482,7 @@ The title bar with the save indicator and `MAIN` stays fixed. The area below it 
 | `Off state` | drop-down list `Low`, `High`, `High-Z` |
 | `Tuning` | drop-down list `Fractional`, `Low noise`, `Integer` |
 | `Spread CH1` | drop-down list `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
-| `Corr.` | value in ppm, step button, `−`, `+` |
+| `Corr.` | value in ppm (tap: entry), step button, `−`, `+` |
 | `Backlight` | `−`, value, `+` |
 | `Touch` | `Calibrate` button (touch calibration) |
 | `Screen` | `Lock` button (screen lock) |
@@ -595,8 +595,9 @@ The correction compensates for the tolerance of the SI5351 crystal. It is shown 
 |---|---|
 | Step button (`0.01` / `0.1` / `1`) | Step size in ppm; each tap switches to the next one |
 | `−` / `+` | Change the correction by the step size; holding repeats |
+| Value (framed) | opens the NUMPAD for the correction: digits, `.`, `+/-` (sign), `ppm` applies, `◀` back without a change |
 
-Range: ±50 ppm. A positive value means that without correction, the output was too high.
+Range: ±50 ppm. A positive value means that without correction, the output was too high. The NUMPAD shows `Now +9.70 ppm` at the top; a value outside shows `-50.00 to +50.00 ppm`, the entry is rounded to 0.01 ppm.
 
 The outputs are reconfigured after each change; the SI5351 is not re-initialized. In `Integer` mode, the correction cannot be applied to the output; it only shifts the displayed actual frequency (see `Tuning`).
 
@@ -605,7 +606,7 @@ The outputs are reconfigured after each change; the SI5351 is not re-initialized
 1. Set CH1 to 10 MHz and switch it on (`Tuning` = `Fractional` or `Low noise`).
 2. Measure with a frequency counter.
 3. Divide the deviation in Hz by 10 = correction in ppm.
-4. Add this value to the current correction.
+4. Add this value to the current correction and enter it: tap the value, type the number, `ppm`.
 
 Example:
 
@@ -1121,6 +1122,7 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | `Saved` / `Saving...` / `Save failed` / `Not saved` | save state | 8, 9 |
 | `Now …` | NUMPAD: current frequency | 6 |
 | `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: reason for a rejected input | 6 |
+| `-50.00 to +50.00 ppm` | correction NUMPAD: value out of range | 8 |
 | `Above 100 MHz: lower level` / `Below 1 MHz: filter harmonics` | channel page: hint outside 1–100 MHz | 1, 5 |
 | `Touch calibrated …` / `Touch not calibrated (default)` | info card: touch calibration | 8 |
 | `detected` / `default` / `build flag` | info card: source of the display controller | 8, 13 |

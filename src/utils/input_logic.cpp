@@ -3,12 +3,14 @@
 #include <constants.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <utils/frequency_utils.h>
 
 namespace InputLogic {
 
 const char* const KEY_BACKSPACE = "\xEF\x95\x9A"; // LV_SYMBOL_BACKSPACE (LVGL 8.3)
+const char* const KEY_SIGN = "+/-";
 
 static_assert(FREQ_MIN_HZ == 8000ULL && FREQ_MAX_HZ == 160000000ULL, "numpadErrorText() names the range");
 static_assert(NUMPAD_MAX_LEN == 10, "numpadErrorText() names the length");
@@ -19,6 +21,7 @@ const char* numpadErrorText(NumpadError e) {
         // Short enough to fit next to "Now 160.000 000 MHz" on the numpad line.
         case NumpadError::OutOfRange: return "8 kHz - 160 MHz";
         case NumpadError::TooLong: return "Max. 10 characters";
+        case NumpadError::PpmRange: return "-50.00 to +50.00 ppm";
         case NumpadError::None: break;
     }
     return "";
@@ -61,6 +64,35 @@ NumpadEvent numpadKey(Numpad& n, const char* key, uint64_t* outHz) {
     n.text[n.len++] = key[0];
     n.text[n.len] = '\0';
     return NumpadEvent::Edited;
+}
+
+static_assert(CORRECTION_MAX == 5000, "numpadErrorText() names the correction range");
+
+NumpadEvent numpadPpmKey(Numpad& n, const char* key, int32_t* outCentiPpm) {
+    if (!key || isUnit(key)) return NumpadEvent::Ignored;
+    if (!strcmp(key, KEY_SIGN)) {
+        n.error = NumpadError::None;
+        n.negative = !n.negative;
+        return NumpadEvent::Edited;
+    }
+    if (!strcmp(key, "ppm")) {
+        n.error = NumpadError::None;
+        if (!strpbrk(n.text, "0123456789")) {
+            n.error = NumpadError::Empty;
+            return NumpadEvent::Rejected;
+        }
+        // The editing allows only digits and one point, so strtod reads all of it.
+        const double v = strtod(n.text, nullptr) * 100.0;
+        if (!(v <= (double)CORRECTION_MAX + 0.5)) {
+            n.error = NumpadError::PpmRange;
+            return NumpadEvent::Rejected;
+        }
+        const int32_t centi = (int32_t)(v + 0.5);
+        if (outCentiPpm) *outCentiPpm = n.negative ? -centi : centi;
+        return NumpadEvent::Confirmed;
+    }
+    if (!strcmp(key, "C")) n.negative = false;
+    return numpadKey(n, key, nullptr);
 }
 
 size_t charIndexAt(const char* text, int x, GlyphWidth width, void* ctx) {

@@ -482,7 +482,7 @@ Die Titelzeile mit Speicheranzeige und `MAIN` bleibt stehen. Der Bereich darunte
 | `Off state` | Auswahlliste `Low`, `High`, `High-Z` |
 | `Tuning` | Auswahlliste `Fractional`, `Low noise`, `Integer` |
 | `Spread CH1` | Auswahlliste `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
-| `Corr.` | Wert in ppm, Schritt-Taste, `−`, `+` |
+| `Corr.` | Wert in ppm (antippen: Eingabe), Schritt-Taste, `−`, `+` |
 | `Backlight` | `−`, Wert, `+` |
 | `Touch` | Taste `Calibrate` (Touch-Abgleich) |
 | `Screen` | Taste `Lock` (Bildschirmsperre) |
@@ -595,8 +595,9 @@ Die Korrektur gleicht die Toleranz des SI5351-Quarzes aus. Sie wird in **ppm** a
 |---|---|
 | Schritt-Taste (`0.01` / `0.1` / `1`) | Schrittweite in ppm, jedes Antippen wechselt zur nächsten |
 | `−` / `+` | Korrektur um die Schrittweite ändern, gedrückt halten wiederholt |
+| Wert (umrahmt) | öffnet das NUMPAD für die Korrektur: Ziffern, `.`, `+/-` (Vorzeichen), `ppm` übernimmt, `◀` zurück ohne Änderung |
 
-Bereich: ±50 ppm. Ein positiver Wert bedeutet: Der Ausgang war ohne Korrektur zu hoch.
+Bereich: ±50 ppm. Ein positiver Wert bedeutet: Der Ausgang war ohne Korrektur zu hoch. Auf dem NUMPAD steht oben `Now +9.70 ppm`; ein Wert außerhalb zeigt `-50.00 to +50.00 ppm`, die Eingabe wird auf 0,01 ppm gerundet.
 
 Die Ausgänge werden nach jeder Änderung neu konfiguriert; der SI5351 wird dabei nicht neu initialisiert. Im Modus `Integer` kann die Korrektur nicht ausgeglichen werden, sie verschiebt nur die angezeigte tatsächliche Frequenz (siehe `Tuning`).
 
@@ -605,7 +606,7 @@ Die Ausgänge werden nach jeder Änderung neu konfiguriert; der SI5351 wird dabe
 1. CH1 auf 10 MHz stellen und einschalten (`Tuning` = `Fractional` oder `Low noise`).
 2. Mit Frequenzzähler messen.
 3. Abweichung in Hz durch 10 teilen = Korrektur in ppm.
-4. Diesen Wert zur aktuellen Korrektur addieren.
+4. Diesen Wert zur aktuellen Korrektur addieren und eingeben: Wert antippen, Zahl tippen, `ppm`.
 
 Beispiel:
 
@@ -1121,6 +1122,7 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | `Saved` / `Saving...` / `Save failed` / `Not saved` | Speicherzustand | 8, 9 |
 | `Now …` | NUMPAD: aktuelle Frequenz | 6 |
 | `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: Grund einer abgelehnten Eingabe | 6 |
+| `-50.00 to +50.00 ppm` | NUMPAD der Korrektur: Wert außerhalb des Bereichs | 8 |
 | `Above 100 MHz: lower level` / `Below 1 MHz: filter harmonics` | Kanalseite: Hinweis außerhalb von 1–100 MHz | 1, 5 |
 | `Touch calibrated …` / `Touch not calibrated (default)` | Info-Karte: Touch-Abgleich | 8 |
 | `detected` / `default` / `build flag` | Info-Karte: Herkunft des Display-Controllers | 8, 13 |

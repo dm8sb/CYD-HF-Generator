@@ -3,44 +3,56 @@
 #include <utils/frequency_utils.h>
 #include <utils/input_logic.h>
 
-static const char* btnmMap[] = {
+// Frequency entry of CH1/CH2: the unit keys confirm.
+static const char* freqMap[] = {
     "7", "8", "9", "MHz", "\n",
     "4", "5", "6", "kHz", "\n",
     "1", "2", "3", "Hz", "\n",
     ".", "0", LV_SYMBOL_BACKSPACE, "C", ""};
-static const uint16_t UNIT_BTN_IDS[] = {3, 7, 11};
+static const uint16_t FREQ_CONFIRM_IDS[] = {3, 7, 11};
+
+// Correction entry from CONFIG (U-11): "+/-" toggles the sign, "ppm" confirms.
+static const char* ppmMap[] = {
+    "7", "8", "9", "+/-", "\n",
+    "4", "5", "6", "ppm", "\n",
+    "1", "2", "3", LV_SYMBOL_BACKSPACE, "\n",
+    ".", "0", "C", ""};
+static const uint16_t PPM_CONFIRM_IDS[] = {7};
+
+lv_color_t Gui::numpadColor_() const { return numpadPpm_ ? Colors::config() : Colors::forChannel(channel_); }
 
 void Gui::createNumpad_(uint8_t ch) {
-    const lv_color_t color = Colors::forChannel(ch);
+    const lv_color_t color = numpadColor_();
     char buf[32];
 
-    // Back returns to the channel page without changing the frequency.
-    addButton_(root_, LV_SYMBOL_LEFT, 4, 3, 52, 36, Colors::gray(), Action::Navigate,
-               (uint8_t)(ch == 1 ? PageId::CH1 : PageId::CH2));
-    addLabel_(root_, ch == 1 ? "CH1" : "CH2", &lv_font_montserrat_20, color, 64, 10);
+    // Back returns without a change: to the channel page, or to CONFIG for the correction.
+    const PageId back = numpadPpm_ ? PageId::Config : (ch == 1 ? PageId::CH1 : PageId::CH2);
+    addButton_(root_, LV_SYMBOL_LEFT, 4, 3, 52, 36, Colors::gray(), Action::Navigate, (uint8_t)back);
+    addLabel_(root_, numpadPpm_ ? "Corr." : (ch == 1 ? "CH1" : "CH2"), &lv_font_montserrat_20, color, 64, 10);
 
     numpad_ = InputLogic::Numpad {};
     w_.ta = lv_textarea_create(root_);
     lv_obj_set_pos(w_.ta, 112, 2);
     lv_obj_set_size(w_.ta, SCREEN_WIDTH - 116, 40);
     lv_textarea_set_one_line(w_.ta, true);
-    lv_textarea_set_max_length(w_.ta, InputLogic::NUMPAD_MAX_LEN);
-    lv_textarea_set_accepted_chars(w_.ta, "0123456789.");
+    lv_textarea_set_max_length(w_.ta, InputLogic::NUMPAD_MAX_LEN + 1); // + sign
+    lv_textarea_set_accepted_chars(w_.ta, "-0123456789.");
     lv_obj_set_style_text_font(w_.ta, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_align(w_.ta, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_style_pad_ver(w_.ta, 6, 0);
     lv_obj_set_style_border_color(w_.ta, color, 0);
     lv_obj_clear_flag(w_.ta, LV_OBJ_FLAG_CLICKABLE);
-    // The current frequency stays visible while typing, the error text on the right (U-9).
-    char freq[24];
-    FrequencyUtils::format(app_->channel(ch).frequency, freq, sizeof(freq));
-    snprintf(buf, sizeof(buf), "Now %s", freq);
+    // The current value stays visible while typing, the error text on the right (U-9).
+    char now[24];
+    if (numpadPpm_) FrequencyUtils::formatPpm(app_->system().freq_correction, now, sizeof(now));
+    else FrequencyUtils::format(app_->channel(ch).frequency, now, sizeof(now));
+    snprintf(buf, sizeof(buf), "Now %s", now);
     addLabel_(root_, buf, &lv_font_montserrat_14, Colors::muted(), 8, 45);
     w_.npError = addLabel_(root_, "", &lv_font_montserrat_14, Colors::error(), 0, 0);
     lv_obj_align(w_.npError, LV_ALIGN_TOP_RIGHT, -8, 45);
 
     lv_obj_t* m = lv_btnmatrix_create(root_);
-    lv_btnmatrix_set_map(m, btnmMap);
+    lv_btnmatrix_set_map(m, numpadPpm_ ? ppmMap : freqMap);
     // Up to the screen edge; the padding keeps the keys where they were (6 px from the edge).
     // Keys in the outer rows and columns take taps in the padding, so up to the edge (U-5).
     lv_obj_set_pos(m, 0, 62);
@@ -52,13 +64,17 @@ void Gui::createNumpad_(uint8_t ch) {
     lv_obj_set_style_pad_bottom(m, 6, 0);
     lv_obj_set_style_pad_gap(m, 4, 0);
     lv_obj_set_style_text_font(m, &lv_font_montserrat_20, LV_PART_ITEMS);
-    // Trigger on release: a unit key navigates away, and a press-trigger would let the
+    // Trigger on release: a confirm key navigates away, and a press-trigger would let the
     // still-touching finger hit a widget of the next page.
     lv_btnmatrix_set_btn_ctrl_all(m, LV_BTNMATRIX_CTRL_CLICK_TRIG);
-    // Unit keys confirm the input; highlight them in the channel color.
+    // Confirm keys in the page color.
     lv_obj_set_style_bg_color(m, color, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_set_style_text_color(m, Colors::textOn(color), LV_PART_ITEMS | LV_STATE_CHECKED);
-    for (uint16_t id : UNIT_BTN_IDS) lv_btnmatrix_set_btn_ctrl(m, id, LV_BTNMATRIX_CTRL_CHECKED);
+    if (numpadPpm_) {
+        for (uint16_t id : PPM_CONFIRM_IDS) lv_btnmatrix_set_btn_ctrl(m, id, LV_BTNMATRIX_CTRL_CHECKED);
+    } else {
+        for (uint16_t id : FREQ_CONFIRM_IDS) lv_btnmatrix_set_btn_ctrl(m, id, LV_BTNMATRIX_CTRL_CHECKED);
+    }
     on_(m, LV_EVENT_VALUE_CHANGED, Action::NumpadKey, 0);
 }
 
@@ -67,21 +83,32 @@ void Gui::handleNumpadKey_(lv_obj_t* matrix) {
     const char* key = lv_btnmatrix_get_btn_text(matrix, lv_btnmatrix_get_selected_btn(matrix));
     if (!key || !ta) return;
     uint64_t hz = 0;
-    switch (InputLogic::numpadKey(numpad_, key, &hz)) {
+    int32_t centiPpm = 0;
+    const InputLogic::NumpadEvent e = numpadPpm_ ? InputLogic::numpadPpmKey(numpad_, key, &centiPpm)
+                                                 : InputLogic::numpadKey(numpad_, key, &hz);
+    switch (e) {
         case InputLogic::NumpadEvent::Confirmed:
-            app_->setChannelFrequency(channel_, hz);
-            requestNavigate_(channel_ == 1 ? PageId::CH1 : PageId::CH2);
+            if (numpadPpm_) {
+                app_->setCorrection(centiPpm);
+                requestNavigate_(PageId::Config);
+            } else {
+                app_->setChannelFrequency(channel_, hz);
+                requestNavigate_(channel_ == 1 ? PageId::CH1 : PageId::CH2);
+            }
             return;
         case InputLogic::NumpadEvent::Rejected:
             lv_label_set_text(w_.npError, InputLogic::numpadErrorText(numpad_.error));
             lv_obj_set_style_border_color(ta, Colors::error(), 0);
             return;
-        case InputLogic::NumpadEvent::Edited:
-            lv_textarea_set_text(ta, numpad_.text);
+        case InputLogic::NumpadEvent::Edited: {
+            char shown[InputLogic::NUMPAD_MAX_LEN + 2];
+            snprintf(shown, sizeof(shown), "%s%s", numpad_.negative ? "-" : "", numpad_.text);
+            lv_textarea_set_text(ta, shown);
             break;
+        }
         case InputLogic::NumpadEvent::Ignored:
             break;
     }
     lv_label_set_text(w_.npError, "");
-    lv_obj_set_style_border_color(ta, Colors::forChannel(channel_), 0);
+    lv_obj_set_style_border_color(ta, numpadColor_(), 0);
 }
