@@ -29,6 +29,8 @@ public:
     void calibrateTouch(bool firstStart);
     // Saves a successful calibration (SettingsService, set by main).
     void setTouchCalibrationStore(bool (*store)(const TouchCalibration&)) { storeTouchCal_ = store; }
+    // Factory reset (U-13): erases the NVS and restarts (set by main).
+    void setFactoryReset(void (*reset)()) { factoryReset_ = reset; }
 
 private:
     enum class Action : uint8_t {
@@ -50,7 +52,10 @@ private:
         Spread,
         OffState,
         NumpadKey,
-        TouchCal        // CONFIG: start the touch calibration
+        TouchCal,       // CONFIG: start the touch calibration
+        LockScreen,     // CONFIG: lock and go to MAIN (U-13)
+        ResetDefaults,  // CONFIG: confirm, then defaults (correction kept)
+        FactoryReset    // CONFIG: confirm, then erase the NVS and restart
     };
 
     struct Widgets {
@@ -80,6 +85,7 @@ private:
         lv_obj_t* calText;
         lv_obj_t* calStatus;
         lv_obj_t* touchInfo;   // CONFIG info card
+        lv_obj_t* lockState;   // MAIN status bar: LOCKED
         lv_obj_t* npError;     // numpad: why the last key was rejected (U-9)
     };
 
@@ -146,8 +152,12 @@ private:
     static void styleState_(lv_obj_t* label);
     static void showState_(lv_obj_t* label, const StatusText::Text& state);
     // Off state High needs a confirmation: a switched-off output then carries DC.
-    void confirmOffStateHigh_();
+    // Confirmation dialogs with Cancel and one action button in the warning color.
+    enum class Confirm : uint8_t { OffStateHigh, ResetDefaults, FactoryReset };
+    void confirm_(Confirm what);
     static void confirmEventCb_(lv_event_t* e);
+    // Screen lock events from the touch callback (hint while pressed, LOCKED in the status bar).
+    void handleLockEvent_(InputLogic::ScreenLock::Event e);
     static void flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p);
     static void touchCb_(lv_indev_drv_t* drv, lv_indev_data_t* data);
 
@@ -176,6 +186,10 @@ private:
     uint8_t calShownTarget_ = 0xFF;
     TouchCal::Phase calShownPhase_ = TouchCal::Phase::Touch;
     bool (*storeTouchCal_)(const TouchCalibration&) = nullptr;
+    void (*factoryReset_)() = nullptr;
+    InputLogic::ScreenLock lock_; // RAM only: a restart unlocks
+    lv_obj_t* lockHint_ = nullptr; // on the top layer, shown while a locked screen is touched
+    Confirm pendingConfirm_ = Confirm::OffStateHigh;
 
     lv_disp_draw_buf_t drawBuf_;
     static lv_color_t buf1_[SCREEN_WIDTH * 24];

@@ -13,7 +13,7 @@ static constexpr int ROW_PITCH = ROW_H + 4;
 static constexpr int ROW_PAD = 4;
 static constexpr int ROW_CONTENT_W = CONTENT_W - 2 * ROW_PAD - 2; // border 1
 static constexpr int ROW_CONTENT_H = ROW_H - 2 * ROW_PAD - 2;
-static constexpr uint8_t ROW_COUNT = 7;                            // setting rows above the info card
+static constexpr uint8_t ROW_COUNT = 9;                            // setting rows above the info card
 static constexpr uint8_t INFO_LINES = 5;
 static constexpr int INFO_LINE_H = 15;                             // montserrat 12
 static constexpr int INFO_H = INFO_LINES * INFO_LINE_H + 2 * ROW_PAD + 2;
@@ -144,6 +144,13 @@ void Gui::createConfig_() {
     // Touch calibration (U-26): the wizard with crosses near the corners.
     row = addConfigRow_(list, 6, ROW_H, "Touch");
     addButton_(row, "Calibrate", VALUE_X, 0, DROPDOWN_W, ROW_CONTENT_H, btnColor, Action::TouchCal);
+
+    // Screen lock and reset for the next group (U-13); both resets ask first.
+    row = addConfigRow_(list, 7, ROW_H, "Screen");
+    addButton_(row, "Lock", VALUE_X, 0, DROPDOWN_W, ROW_CONTENT_H, btnColor, Action::LockScreen);
+    row = addConfigRow_(list, 8, ROW_H, "Reset");
+    addButton_(row, "Defaults", VALUE_X, 0, 96, ROW_CONTENT_H, btnColor, Action::ResetDefaults);
+    addButton_(row, "Factory", VALUE_X + 100, 0, 96, ROW_CONTENT_H, Colors::error(), Action::FactoryReset);
 
     // Info card: firmware, build, display controller, touch and SI5351 link (refreshConfig_).
     row = addConfigRow_(list, ROW_COUNT, INFO_H, nullptr);

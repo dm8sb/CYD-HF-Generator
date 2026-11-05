@@ -49,6 +49,13 @@ public:
     uint64_t getULong64(const char* key, uint64_t def) { return get_(key, Type::U64, def); }
     size_t putULong64(const char* key, uint64_t v) { return put_(key, Type::U64, v, 8); }
     bool isKey(const char* key) { return Fake::nvs().available && Fake::nvs().values.count(key) > 0; }
+    bool clear() {
+        Fake::Nvs& n = Fake::nvs();
+        if (!n.available || n.failWrites) return false;
+        n.values.clear();
+        ++n.writeCount;
+        return true;
+    }
     bool remove(const char* key) {
         Fake::Nvs& n = Fake::nvs();
         if (!n.available || n.failWrites || !n.values.erase(key)) return false;

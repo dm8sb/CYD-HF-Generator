@@ -21,6 +21,10 @@ public:
     // Deletes "disp_panel", the controller choice of the boot gesture (1.3.0-1.3.1). It took
     // precedence over the detection and nothing can reset it any more. True if it existed.
     bool removeDisplayPanel();
+    // Factory reset: deletes all settings including correction and touch calibration.
+    bool eraseAll();
+    // The state of an empty NVS (what load() gives without stored keys).
+    static void defaults(PersistentState& s);
     // Touch calibration of this board (U-26), outside PersistentState: read once at boot,
     // written when the calibration wizard succeeds. false: none stored or not plausible.
     bool loadTouchCalibration(TouchCalibration* out);

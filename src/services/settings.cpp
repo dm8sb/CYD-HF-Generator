@@ -58,6 +58,31 @@ bool SettingsService::save_(const PersistentState& s) {
     return ok;
 }
 
+void SettingsService::defaults(PersistentState& s) {
+    s.ch1 = Channel {DEFAULT_FREQ_CH1, false};
+    s.ch2 = Channel {DEFAULT_FREQ_CH2, false};
+    s.ch3.enabled = false;
+    s.ch3.master = 1;
+    s.ch3.phase = 90;
+    s.sys.delta_step = DEFAULT_DELTA_STEP;
+    s.sys.freq_correction = 0;
+    s.sys.backlight = DEFAULT_BACKLIGHT_PERCENT;
+    s.sys.drive_ma = DEFAULT_DRIVE_MA;
+    s.sys.tuning_mode = TuningMode::Fractional;
+    s.sys.spread = Spread::Off;
+    s.sys.off_state = OffState::Low;
+}
+
+bool SettingsService::eraseAll() {
+    if (!available_) return false;
+    dirty_ = false;
+    retryPending_ = false;
+    const bool ok = storage_.clear();
+    if (ok) Logger::info("SETTINGS", "All settings erased");
+    else Logger::error("SETTINGS", "Erasing the settings failed");
+    return ok;
+}
+
 bool SettingsService::loadTouchCalibration(TouchCalibration* out) {
     if (!available_ || !out) return false;
     static constexpr int32_t NONE = INT32_MIN;

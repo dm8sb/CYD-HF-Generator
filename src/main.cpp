@@ -30,6 +30,14 @@ static void showError(const char* title, const char* text) {
 
 static bool saveTouchCalibration(const TouchCalibration& cal) { return settings.saveTouchCalibration(cal); }
 
+// Factory reset (U-13): the outputs are already off; erase and start like a new device.
+static void factoryReset() {
+    settings.eraseAll();
+    Logger::info("BOOT", "Factory reset; restarting");
+    delay(100);
+    ESP.restart();
+}
+
 // A finger on the screen at boot must not reach LVGL as the first tap. The pressure
 // reading flickers, so released means 200 ms without touch (at most 10 s).
 static void waitForRelease() {
@@ -86,6 +94,7 @@ void setup() {
     // 8. LVGL and GUI init
     gui.begin(app, touch, display);
     gui.setTouchCalibrationStore(saveTouchCalibration);
+    gui.setFactoryReset(factoryReset);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
     if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
     app.setErrorCallback(showError);
