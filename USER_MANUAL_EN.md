@@ -48,8 +48,11 @@ The **CYD HF Generator** is a 3-channel HF square-wave generator based on an ESP
 The device generates square waves with a 50 % duty cycle in the range:
 
 ```text
-1 MHz to 100 MHz
+8 kHz to 160 MHz (CH1, CH2)
+4.730 MHz to 100 MHz (CH3 in IQ operation)
 ```
+
+Above 100 MHz the output level drops; below 1 MHz the square wave carries strong harmonics (use a low-pass filter). The channel page then shows a hint (section 5).
 
 The three outputs are:
 
@@ -76,7 +79,7 @@ The main page shows one card per channel with:
 - its own ON/OFF switch
 - an extra line: on CH1/CH2 the mode line (see below) and `IQ master of CH3` when CH3 is switched on and follows this channel (shortened to `| IQ master` after a mode line); on CH3 the master and phase, e.g. `CH1 / 90°`, and with `WAIT` and `! ERR` also the reason (e.g. `CH1 / 90° / master off`)
 
-In mode `Tuning` = `Integer`, the frequency is preceded by a `~` when the actual frequency deviates from the requested frequency by 1 Hz or more (section 8).
+In mode `Tuning` = `Integer`, the frequency is preceded by a `~` when the actual frequency deviates from the requested frequency by 1 Hz or more (section 8). From 100 MHz on the `~` no longer fits the card and is left out; the mode line shows `Integer` then.
 
 ### Mode Line
 
@@ -132,11 +135,14 @@ The frequency is shown in MHz with grouped decimal places.
 Examples:
 
 ```text
+455.000 kHz
 1.000 000 MHz
 5.000 000 MHz
 10.700 000 MHz
-100.000 000 MHz
+150.000 000 MHz
 ```
+
+Below 1 MHz the device shows the frequency in kHz with three decimals (Hz resolution).
 
 This corresponds to:
 
@@ -146,6 +152,7 @@ This corresponds to:
 | 5.000 000 MHz | 5 MHz |
 | 10.700 000 MHz | 10.7 MHz |
 | 100.000 000 MHz | 100 MHz |
+| 455.000 kHz | 455 kHz |
 
 What is displayed and saved is the **requested frequency you set**, with 1 Hz resolution. The SI5351 cannot generate every frequency exactly; the actual frequency is shown in the `Out` line of the channel page (section 5).
 
@@ -195,7 +202,7 @@ The `−` and `+` buttons change the frequency by the currently selected step. T
 
 Whether a frequency change briefly interrupts the output depends on `Tuning` (section 8):
 
-- `Fractional` (default): no interruption. Only in rare cases does the PLL have to be switched; this causes a short dropout.
+- `Fractional` (default): no interruption. Only in rare cases does the PLL have to be switched; this causes a short dropout. From 112.5 MHz on every step changes the PLL: a short dropout on every step.
 - `Low noise`: short dropout when the divider changes.
 - `Integer`: short dropout when the PLL changes.
 - In IQ operation, the master and CH3 drop out briefly on every frequency change (section 7).
@@ -210,7 +217,7 @@ Out 10.000 000 MHz (+0.3 Hz)
 
 - The values assume that the frequency correction (section 8) is right.
 - From a deviation of 1 Hz upward, the line is shown in orange.
-- Deviation per mode: `Fractional` ≤ 0.5 Hz, `Low noise` up to 1.5 Hz. In `Integer` mode, the frequency lies on a grid and can deviate by a few kHz, e.g. at 7.1 MHz:
+- Deviation per mode up to 100 MHz: `Fractional` ≤ 0.5 Hz, `Low noise` up to 1.5 Hz; above up to 1.5 Hz (to 112.5 MHz), 2 Hz (to 150 MHz) and 3 Hz (to 160 MHz). In `Integer` mode, the frequency lies on a grid and can deviate by a few kHz, e.g. at 7.1 MHz:
 
 ```text
 Out 7.102 273 MHz (+2272.7 Hz)
@@ -222,6 +229,7 @@ Out 7.102 273 MHz (+2272.7 Hz)
 Out 9.975 000 MHz mean, SSC -0.5 %
 ```
 
+- Outside 1–100 MHz the mode line shows a hint: `Above 100 MHz: lower level` or `Below 1 MHz: filter harmonics`.
 - With the channel switched off, the line starts with `Off | `, e.g. `Off | Out 10.000 000 MHz (+0.3 Hz)`: this is how the output would run after switching on.
 - If CH3 follows this channel, the mode line below shows `IQ master of CH3 (90°)` with the phase of CH3; frequency changes then move both outputs.
 
@@ -250,7 +258,7 @@ Press −
 New frequency: 7.090 000 MHz
 ```
 
-The frequency always stays within the range 1 MHz to 100 MHz.
+The frequency always stays within the range 8 kHz to 160 MHz.
 
 ---
 
@@ -290,17 +298,17 @@ The `◀` button at the top left returns to the channel page **without any chang
 | MHz | Apply value as MHz |
 | `◀` | Back to the channel page without any change |
 
-A maximum of 9 characters is allowed; a tenth shows `Max. 9 characters`.
+A maximum of 10 characters is allowed (e.g. `150.000001`); an eleventh shows `Max. 10 characters`.
 
 ### Invalid Input
 
-If the value is outside 1–100 MHz, or the input is empty or invalid, it is **not applied**. The input stays, the border turns red and the reason appears in red to the right below the field:
+If the value is outside 8 kHz – 160 MHz, or the input is empty or invalid, it is **not applied**. The input stays, the border turns red and the reason appears in red to the right below the field:
 
 | Display | Meaning |
 |---|---|
-| `Allowed 1 - 100 MHz` | value out of range, e.g. `500` `MHz` |
+| `8 kHz - 160 MHz` | value out of range, e.g. `500` `MHz` |
 | `Enter a number` | no digit entered (empty or only `.`) |
-| `Max. 9 characters` | field full |
+| `Max. 10 characters` | field full |
 
 Correct the input with `⌫` or clear it with `C`; the next key clears the hint.
 
@@ -883,7 +891,7 @@ CH3 then starts automatically; the switch does not need to be operated again.
 
 - The touch calibration is linear per axis (offset and slope); it does not compensate a rotation of the touch panel against the display.
 - The displayed actual frequency assumes that the frequency correction is right.
-- IQ operation only from a master frequency of 4.730 MHz.
+- IQ operation only at a master frequency of 4.730 to 100 MHz; above, CH3 waits (`WAIT`) and the master keeps running.
 
 ---
 
@@ -1054,7 +1062,7 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 ```text
 +--------------------------------------------+
 | [<]  CH1  [                     10.7 ]     |
-| Now 10.000 000 MHz     Allowed 1 - 100 MHz |
+| Now 10.000 000 MHz         8 kHz - 160 MHz |
 | [ 7 ][ 8 ][ 9 ][ MHz ]                     |
 | [ 4 ][ 5 ][ 6 ][ kHz ]                     |
 | [ 1 ][ 2 ][ 3 ][ Hz  ]                     |
@@ -1087,7 +1095,8 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | `Corr.`, ppm | frequency correction of the crystal in parts per million | 8 |
 | `Saved` / `Saving...` / `Save failed` / `Not saved` | save state | 8, 9 |
 | `Now …` | NUMPAD: current frequency | 6 |
-| `Allowed 1 - 100 MHz`, `Enter a number`, `Max. 9 characters` | NUMPAD: reason for a rejected input | 6 |
+| `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: reason for a rejected input | 6 |
+| `Above 100 MHz: lower level` / `Below 1 MHz: filter harmonics` | channel page: hint outside 1–100 MHz | 1, 5 |
 | `Touch calibrated …` / `Touch not calibrated (default)` | info card: touch calibration | 8 |
 | `detected` / `default` / `build flag` | info card: source of the display controller | 8, 13 |
 | `(swapped)` / `(clone?)` | info card: SDA/SCL swapped or unusual SI5351 register | 8, 11 |
@@ -1101,7 +1110,8 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | Frequency off by a few kHz, `Out` orange, `~` on MAIN | `Tuning` = `Integer` (raster) | choose `Fractional` or `Low noise` | 8 |
 | Spectrum wide, carrier "smeared" | spread spectrum (`SSC` in the mode line) | `Spread CH1` = `Off` | 8 |
 | DC voltage on a switched-off output | `Off state` = `High` | `Low` or `High-Z` | 8 |
-| Level too low or too high | `Drive all` | choose 8 mA or 2 mA | 8 |
+| Level too low or too high | `Drive all`; above 100 MHz the level drops | choose 8 mA or 2 mA | 1, 8 |
+| Strong harmonics below 1 MHz | square wave with steep edges | low-pass filter at the output | 1 |
 | Frequency counter shows a few Hz deviation at all frequencies | crystal tolerance | adjust `Corr.` | 8 |
 | CH3 stays at `WAIT` | master off or master frequency outside the IQ range | switch the master on, frequency ≥ 4.730 MHz | 7, 11 |
 | `! NO HW` on all cards | cable, 3.3 V or GND at CN1 | check the connection; SDA/SCL may be swapped | 11 |

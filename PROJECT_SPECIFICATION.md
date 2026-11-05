@@ -68,7 +68,7 @@ This table is authoritative; README and manual repeat parts of it.
 
 ### 3.1 Outputs and frequency
 
-- **A-1** CH1 and CH2 generate independent square waves of 1–100 MHz (`FREQ_MIN_HZ`, `FREQ_MAX_HZ`), nominally 50 % duty cycle, settable with 1 Hz resolution.
+- **A-1** CH1 and CH2 generate independent square waves of 8 kHz–160 MHz (`FREQ_MIN_HZ`, `FREQ_MAX_HZ`, E-16), nominally 50 % duty cycle, settable with 1 Hz resolution.
 - **A-2** The requested frequency is stored exactly, not the rounded SI5351 value (E-9). The numpad rejects values outside the range; `+`/`−` clamp to it.
 - **A-3** Each output can be switched on and off independently. A switched-off output is disabled via the output enable register and shows the off state selected in CONFIG (A-8). The GUI shows the channel state as ON / OFF (plus ERR, WAIT, NO HW), never the off state.
 - **A-4** All outputs are off after power-up; the ON/OFF state is not stored (E-11). After a reconnection of the SI5351 the previous states are restored.
@@ -98,6 +98,7 @@ This table is authoritative; README and manual repeat parts of it.
   | Standalone, `Low noise` | ≤ 1.5 Hz | bound 25 MHz / 2^21 / 8 (divider 8 at 100 MHz); random frequencies max. 0.49 Hz |
   | IQ, `Fractional` / `Low noise` | ≤ 1.4 Hz | 1.32 Hz worst case (91 666 668 Hz) |
   | `Integer` | nearest raster point (kHz range possible) | – |
+  | Standalone above 100 MHz (`Fractional`, `Low noise`) | ≤ 1.5 / 2 / 3 Hz up to 112.5 / 150 / 160 MHz | even integer MultiSynth 8 / 6 / 4 with a fractional PLL, bound 25 MHz / 2^21 / divider |
 
 - **A-13** Fractions are the best rational approximation with a 20-bit denominator (continued fractions). VCO 600–900 MHz and the register limits of AN619 are kept. Accepted exception: in `Fractional` the fixed PLL of 36 × crystal exceeds 900 MHz by up to 45 kHz at +50 ppm.
 - **A-14** The channel pages show the actual output frequency computed from the programmed registers (`actualHz()`), highlighted from 1 Hz deviation; with spread spectrum the mean frequency. MAIN shows the requested frequency, prefixed with `~` in `Integer` when the deviation is ≥ 1 Hz.
@@ -116,7 +117,7 @@ This table is authoritative; README and manual repeat parts of it.
 
   | Key | Type | Content | Default | On load |
   |---|---|---|---|---|
-  | `ch1_freq`, `ch2_freq` | U64 | Hz | 10 MHz, 14 MHz | clamped to 1–100 MHz |
+  | `ch1_freq`, `ch2_freq` | U64 | Hz | 10 MHz, 14 MHz | clamped to 8 kHz–160 MHz |
   | `ch3_master` | U8 | 1 / 2 | 1 | invalid → default |
   | `ch3_phase` | U32 | 0 / 90 / 180 / 270 | 90 | invalid → default |
   | `backlight` | U8 | % | 80 | < 5 or > 100 → 80, otherwise nearest 10 % step |
@@ -226,8 +227,8 @@ This table is authoritative; README and manual repeat parts of it.
 ### E-15 Host unit tests
 *2026-10-27.* Driver math and controller logic are tested without hardware. `test/fakes` replaces Arduino, `Wire` (SI5351 register model with fault injection) and `Preferences`; `test/helpers/si5351_model.h` decodes the written registers independently of the driver's arithmetic, so a wrong formula cannot confirm itself. A check with deliberately inserted faults (correction sign, phase offset −1) made the affected tests fail.
 
-### E-16 Frequency range 8 kHz–160 MHz (planned)
-*Decided 2026-10-27, not implemented yet* (ARBEITSPLAN S34, S35). CH1/CH2 shall cover 8 kHz–160 MHz; CH3 stays at 4.730–100 MHz.
+### E-16 Frequency range 8 kHz–160 MHz
+*Decided 2026-10-27, implemented 2026-11-05 (1.3.3).* CH1/CH2 cover 8 kHz–160 MHz; CH3 stays at 4.730–100 MHz (IQ divider 9…127) and waits above. Below 1 MHz the R divider (2^1…2^7) keeps the MultiSynth input at ≥ 1 MHz; the display switches to kHz. Above 100 MHz `Fractional` tries the largest even integer MultiSynth (8/6/4) with a fractional PLL when the fixed PLLs miss by more than 0.25 Hz; next to 112.5 MHz the MultiSynth ratio rounded to exactly 8 and missed by up to 5 Hz before (fixed in S34). From 112.5 MHz on every step changes the PLL and resets it (short dropout). Level and harmonics are not measured yet (MESSPLAN H1, H2); the channel page shows a hint outside 1–100 MHz. On MAIN the `~` of `Integer` is left out from 100 MHz on (does not fit the card; the mode line shows `Integer`).
 
 ### E-17 Automatic SDA/SCL detection and identity check
 *Requested 2026-10-28.* Reason: the original specification and the verified device disagreed on SDA/SCL, and cables get swapped in the lab.

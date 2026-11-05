@@ -134,7 +134,7 @@ static void test_frequency_is_clamped_to_range() {
     d.app.adjustChannelFrequency(1, 1000000);
     TEST_ASSERT_EQUAL_UINT64(FREQ_MAX_HZ, d.app.channel(1).frequency);
     d.app.setChannelFrequency(1, 1500000);
-    d.app.adjustChannelFrequency(1, -1000000);
+    d.app.adjustChannelFrequency(1, -2000000);
     TEST_ASSERT_EQUAL_UINT64(FREQ_MIN_HZ, d.app.channel(1).frequency);
     assertHz(0, FREQ_MIN_HZ);
     // Only CH1 and CH2 have their own frequency.
@@ -623,6 +623,28 @@ static void test_spread_and_off_state_reach_the_chip() {
     TEST_ASSERT_EQUAL_UINT(0, errorCount);
 }
 
+// Range extension (E-16): CH1/CH2 8 kHz-160 MHz, CH3 stays at 4.730-100 MHz and waits above.
+static void test_extended_range_and_ch3_limit() {
+    Device d;
+    d.app.setChannelFrequency(2, 8000);
+    d.app.setChannelEnabled(2, true);
+    assertHz(1, 8000);
+    // Above 112.5 MHz the error is up to 2 Hz (to 150 MHz) and 3 Hz (to 160 MHz), see test_si5351.
+    d.app.setChannelFrequency(2, 160000000ULL);
+    TEST_ASSERT_NULL(limitViolation(1, 0));
+    TEST_ASSERT_DOUBLE_WITHIN(3.0, 160000000.0, outputHz(1, 0));
+    d.app.setChannelFrequency(1, 120000000ULL);
+    d.app.setChannelEnabled(1, true);
+    d.app.setChannelEnabled(3, true);
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooHigh, d.app.ch3Status());
+    TEST_ASSERT_TRUE(poweredDown(2) || !enabled(2));
+    TEST_ASSERT_NULL(limitViolation(0, 0)); // the master runs on its own
+    TEST_ASSERT_DOUBLE_WITHIN(2.0, 120000000.0, outputHz(0, 0));
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    d.app.setChannelFrequency(1, 99000000ULL);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+}
+
 static void test_spread_narrows_the_iq_range_without_error() {
     Device d;
     d.app.setChannelFrequency(1, 4740000); // inside 4.730 MHz, below 4.748 151 MHz with -0.5 %
@@ -1082,6 +1104,7 @@ int main() {
     RUN_TEST(test_spread_with_iq_on_master_ch1);
     RUN_TEST(test_spread_and_off_state_reach_the_chip);
     RUN_TEST(test_spread_narrows_the_iq_range_without_error);
+    RUN_TEST(test_extended_range_and_ch3_limit);
     RUN_TEST(test_boot_with_straight_cable);
     RUN_TEST(test_boot_logs_the_connection);
     RUN_TEST(test_boot_with_swapped_cable);

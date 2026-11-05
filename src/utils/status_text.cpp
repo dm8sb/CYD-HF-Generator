@@ -46,6 +46,12 @@ void outputErrorText(uint8_t ch, uint8_t master, char* out, size_t outSize) {
     }
 }
 
+const char* rangeNote(uint64_t hz) {
+    if (hz > 100000000ULL) return "Above 100 MHz: lower level";
+    if (hz < 1000000ULL) return "Below 1 MHz: filter harmonics";
+    return "";
+}
+
 Tone modeSummary(TuningMode tuning, Spread spread, uint8_t driveMa, OffState off, char* out, size_t outSize) {
     if (!out || outSize == 0) return Tone::Muted;
     out[0] = '\0';

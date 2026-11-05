@@ -48,8 +48,11 @@ Der **CYD HF Generator** ist ein 3-Kanal-HF-Rechteckgenerator auf Basis eines ES
 Das Gerät erzeugt Rechtecksignale mit 50 % Tastverhältnis im Bereich:
 
 ```text
-1 MHz bis 100 MHz
+8 kHz bis 160 MHz (CH1, CH2)
+4,730 MHz bis 100 MHz (CH3 im IQ-Betrieb)
 ```
+
+Über 100 MHz sinkt der Ausgangspegel; unter 1 MHz enthält das Rechteck starke Oberwellen (Tiefpass verwenden). Die Kanalseite weist dann darauf hin (Abschnitt 5).
 
 Die drei Ausgänge sind:
 
@@ -76,7 +79,7 @@ Die Hauptseite zeigt für jeden Kanal eine Karte mit:
 - eigenem ON/OFF-Schalter
 - Zusatzzeile: bei CH1/CH2 die Moduszeile (siehe unten) und `IQ master of CH3`, wenn CH3 eingeschaltet ist und diesem Kanal folgt (mit Moduszeile kurz `| IQ master`); bei CH3 Master und Phase, z. B. `CH1 / 90°`, bei `WAIT` und `! ERR` mit dem Grund (z. B. `CH1 / 90° / master off`)
 
-Im Modus `Tuning` = `Integer` steht vor der Frequenz ein `~`, wenn die tatsächliche Frequenz um 1 Hz oder mehr von der Sollfrequenz abweicht (Abschnitt 8).
+Im Modus `Tuning` = `Integer` steht vor der Frequenz ein `~`, wenn die tatsächliche Frequenz um 1 Hz oder mehr von der Sollfrequenz abweicht (Abschnitt 8). Ab 100 MHz passt das `~` nicht mehr in die Karte und entfällt; die Moduszeile zeigt dann `Integer`.
 
 ### Moduszeile
 
@@ -132,11 +135,14 @@ Die Frequenz wird in MHz mit gruppierten Dezimalstellen angezeigt.
 Beispiele:
 
 ```text
+455.000 kHz
 1.000 000 MHz
 5.000 000 MHz
 10.700 000 MHz
-100.000 000 MHz
+150.000 000 MHz
 ```
+
+Unter 1 MHz zeigt das Gerät die Frequenz in kHz mit drei Nachkommastellen (Hz-Auflösung).
 
 Das entspricht:
 
@@ -146,6 +152,7 @@ Das entspricht:
 | 5.000 000 MHz | 5 MHz |
 | 10.700 000 MHz | 10,7 MHz |
 | 100.000 000 MHz | 100 MHz |
+| 455.000 kHz | 455 kHz |
 
 Angezeigt und gespeichert wird die **eingestellte Sollfrequenz** mit 1 Hz Auflösung. Der SI5351 kann nicht jede Frequenz exakt erzeugen; die tatsächliche Frequenz steht in der Zeile `Out` der Kanalseite (Abschnitt 5).
 
@@ -195,7 +202,7 @@ Die Tasten `−` und `+` ändern die Frequenz um den aktuell gewählten Schritt.
 
 Ob eine Frequenzänderung den Ausgang kurz unterbricht, hängt von `Tuning` ab (Abschnitt 8):
 
-- `Fractional` (Standard): keine Unterbrechung. Nur in seltenen Fällen muss die PLL umgeschaltet werden; dann gibt es einen kurzen Aussetzer.
+- `Fractional` (Standard): keine Unterbrechung. Nur in seltenen Fällen muss die PLL umgeschaltet werden; dann gibt es einen kurzen Aussetzer. Ab 112,5 MHz ändert jeder Schritt die PLL: kurzer Aussetzer bei jedem Schritt.
 - `Low noise`: kurzer Aussetzer, wenn der Teiler wechselt.
 - `Integer`: kurzer Aussetzer, wenn sich die PLL ändert.
 - Im IQ-Betrieb setzen Master und CH3 bei jeder Frequenzänderung kurz aus (Abschnitt 7).
@@ -210,7 +217,7 @@ Out 10.000 000 MHz (+0.3 Hz)
 
 - Die Werte setzen voraus, dass die Frequenzkorrektur (Abschnitt 8) stimmt.
 - Ab 1 Hz Abweichung erscheint die Zeile orange.
-- Abweichung je Modus: `Fractional` ≤ 0,5 Hz, `Low noise` bis 1,5 Hz. Im Modus `Integer` liegt die Frequenz auf einem Raster und kann um einige kHz abweichen, z. B. bei 7,1 MHz:
+- Abweichung je Modus bis 100 MHz: `Fractional` ≤ 0,5 Hz, `Low noise` bis 1,5 Hz; darüber bis 1,5 Hz (bis 112,5 MHz), 2 Hz (bis 150 MHz) und 3 Hz (bis 160 MHz). Im Modus `Integer` liegt die Frequenz auf einem Raster und kann um einige kHz abweichen, z. B. bei 7,1 MHz:
 
 ```text
 Out 7.102 273 MHz (+2272.7 Hz)
@@ -222,6 +229,7 @@ Out 7.102 273 MHz (+2272.7 Hz)
 Out 9.975 000 MHz mean, SSC -0.5 %
 ```
 
+- Außerhalb von 1–100 MHz steht in der Moduszeile ein Hinweis: `Above 100 MHz: lower level` bzw. `Below 1 MHz: filter harmonics`.
 - Bei ausgeschaltetem Kanal beginnt die Zeile mit `Off | `, z. B. `Off | Out 10.000 000 MHz (+0.3 Hz)`: So würde der Ausgang nach dem Einschalten laufen.
 - Folgt CH3 diesem Kanal, steht in der Moduszeile darunter `IQ master of CH3 (90°)` mit der Phase von CH3; Frequenzänderungen verschieben dann beide Ausgänge.
 
@@ -250,7 +258,7 @@ Schritt: 10k
 Neue Frequenz: 7.090 000 MHz
 ```
 
-Die Frequenz bleibt immer im Bereich 1 MHz bis 100 MHz.
+Die Frequenz bleibt immer im Bereich 8 kHz bis 160 MHz.
 
 ---
 
@@ -290,17 +298,17 @@ Mit der Taste `◀` oben links geht es **ohne Änderung** zurück zur Kanalseite
 | MHz | Wert als MHz übernehmen |
 | `◀` | Zurück zur Kanalseite ohne Änderung |
 
-Maximal 9 Zeichen sind erlaubt; ein zehntes zeigt `Max. 9 characters`.
+Maximal 10 Zeichen sind erlaubt (z. B. `150.000001`); ein elftes zeigt `Max. 10 characters`.
 
 ### Ungültige Eingabe
 
-Liegt der Wert außerhalb von 1–100 MHz oder ist die Eingabe leer bzw. ungültig, wird sie **nicht übernommen**. Die Eingabe bleibt stehen, der Rahmen wird rot und rechts unter dem Feld erscheint der Grund in Rot:
+Liegt der Wert außerhalb von 8 kHz – 160 MHz oder ist die Eingabe leer bzw. ungültig, wird sie **nicht übernommen**. Die Eingabe bleibt stehen, der Rahmen wird rot und rechts unter dem Feld erscheint der Grund in Rot:
 
 | Anzeige | Bedeutung |
 |---|---|
-| `Allowed 1 - 100 MHz` | Wert außerhalb des Bereichs, z. B. `500` `MHz` |
+| `8 kHz - 160 MHz` | Wert außerhalb des Bereichs, z. B. `500` `MHz` |
 | `Enter a number` | keine Ziffer eingegeben (leer oder nur `.`) |
-| `Max. 9 characters` | Feld voll |
+| `Max. 10 characters` | Feld voll |
 
 Die Eingabe lässt sich mit `⌫` korrigieren oder mit `C` löschen; die nächste Taste löscht den Hinweis.
 
@@ -883,7 +891,7 @@ CH3 startet dann automatisch; der Schalter muss nicht erneut betätigt werden.
 
 - Der Touch-Abgleich ist linear je Achse (Versatz und Steigung); eine Verdrehung des Touch-Panels gegen das Display gleicht er nicht aus.
 - Die angezeigte tatsächliche Frequenz setzt voraus, dass die Frequenzkorrektur stimmt.
-- IQ-Betrieb erst ab 4,730 MHz Masterfrequenz.
+- IQ-Betrieb nur bei 4,730 bis 100 MHz Masterfrequenz; darüber wartet CH3 (`WAIT`), der Master läuft weiter.
 
 ---
 
@@ -1054,7 +1062,7 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 ```text
 +--------------------------------------------+
 | [<]  CH1  [                     10.7 ]     |
-| Now 10.000 000 MHz     Allowed 1 - 100 MHz |
+| Now 10.000 000 MHz         8 kHz - 160 MHz |
 | [ 7 ][ 8 ][ 9 ][ MHz ]                     |
 | [ 4 ][ 5 ][ 6 ][ kHz ]                     |
 | [ 1 ][ 2 ][ 3 ][ Hz  ]                     |
@@ -1087,7 +1095,8 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | `Corr.`, ppm | Frequenzkorrektur des Quarzes in Millionstel | 8 |
 | `Saved` / `Saving...` / `Save failed` / `Not saved` | Speicherzustand | 8, 9 |
 | `Now …` | NUMPAD: aktuelle Frequenz | 6 |
-| `Allowed 1 - 100 MHz`, `Enter a number`, `Max. 9 characters` | NUMPAD: Grund einer abgelehnten Eingabe | 6 |
+| `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: Grund einer abgelehnten Eingabe | 6 |
+| `Above 100 MHz: lower level` / `Below 1 MHz: filter harmonics` | Kanalseite: Hinweis außerhalb von 1–100 MHz | 1, 5 |
 | `Touch calibrated …` / `Touch not calibrated (default)` | Info-Karte: Touch-Abgleich | 8 |
 | `detected` / `default` / `build flag` | Info-Karte: Herkunft des Display-Controllers | 8, 13 |
 | `(swapped)` / `(clone?)` | Info-Karte: SDA/SCL vertauscht bzw. ungewöhnliches SI5351-Register | 8, 11 |
@@ -1101,7 +1110,8 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | Frequenz weicht um einige kHz ab, `Out` orange, `~` auf MAIN | `Tuning` = `Integer` (Raster) | `Fractional` oder `Low noise` wählen | 8 |
 | Spektrum breit, Träger „verschmiert“ | Spread Spectrum (`SSC` in der Moduszeile) | `Spread CH1` = `Off` | 8 |
 | Gleichspannung an einem ausgeschalteten Ausgang | `Off state` = `High` | `Low` oder `High-Z` | 8 |
-| Pegel zu klein oder zu groß | `Drive all` | 8 mA bzw. 2 mA wählen | 8 |
+| Pegel zu klein oder zu groß | `Drive all`; über 100 MHz sinkt der Pegel | 8 mA bzw. 2 mA wählen | 1, 8 |
+| Starke Oberwellen unter 1 MHz | Rechteck mit steilen Flanken | Tiefpass am Ausgang | 1 |
 | Frequenzzähler zeigt einige Hz Abweichung bei allen Frequenzen | Quarztoleranz | `Corr.` abgleichen | 8 |
 | CH3 bleibt bei `WAIT` | Master aus oder Masterfrequenz außerhalb des IQ-Bereichs | Master einschalten, Frequenz ≥ 4,730 MHz | 7, 11 |
 | `! NO HW` auf allen Karten | Kabel, 3,3 V oder GND an CN1 | Verbindung prüfen; SDA/SCL dürfen vertauscht sein | 11 |

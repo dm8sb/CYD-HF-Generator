@@ -28,4 +28,7 @@ Tone modeSummary(TuningMode tuning, Spread spread, uint8_t driveMa, OffState off
 // retry. ch 1/2: standalone output; ch 3: IQ pair with master (1/2).
 void outputErrorText(uint8_t ch, uint8_t master, char* out, size_t outSize);
 
+// Hint for the channel page outside 1-100 MHz (E-16): "" inside the range.
+const char* rangeNote(uint64_t hz);
+
 }

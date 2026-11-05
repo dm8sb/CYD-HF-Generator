@@ -6,8 +6,10 @@
 static constexpr uint16_t SCREEN_WIDTH = 320;
 static constexpr uint16_t SCREEN_HEIGHT = 240;
 
-static constexpr uint64_t FREQ_MIN_HZ = 1000000ULL;
-static constexpr uint64_t FREQ_MAX_HZ = 100000000ULL;
+// CH1/CH2 range (E-16): below 1 MHz the R divider, above 112.5 MHz an even integer MultiSynth.
+// CH3 (IQ) stays within IQ_MIN_HZ..IQ_MAX_HZ (4.730-100 MHz).
+static constexpr uint64_t FREQ_MIN_HZ = 8000ULL;
+static constexpr uint64_t FREQ_MAX_HZ = 160000000ULL;
 static constexpr uint64_t DEFAULT_FREQ_CH1 = 10000000ULL;
 static constexpr uint64_t DEFAULT_FREQ_CH2 = 14000000ULL;
 
