@@ -10,6 +10,7 @@
 #include <drivers/touch.h>
 #include <services/settings.h>
 #include <core/app_controller.h>
+#include <remote/command.h>
 #include <gui/gui.h>
 #include <utils/build_info.h>
 #include <utils/logger.h>
@@ -23,6 +24,10 @@ static DisplayPanel display;
 static AppController app(settings, si5351, backlight);
 static Gui gui;
 static PersistentState loadedState;
+// Remote commands and the state copy for network tasks (V-6); filled from S50 on.
+static CommandQueue commands;
+static StateSnapshot snapshot;
+static uint32_t publishedRevision = 0xFFFFFFFF;
 
 static bool saveTouchCalibration(const TouchCalibration& cal) { return settings.saveTouchCalibration(cal); }
 
@@ -135,7 +140,12 @@ static void runRestartTests() {
 
 void loop() {
     lv_timer_handler();
+    commands.drain(app);
     app.update();
+    if (app.revision() != publishedRevision) {
+        publishedRevision = app.revision();
+        snapshot.publish(app);
+    }
     gui.update();
     MemMonitor::update();
     runRestartTests();
