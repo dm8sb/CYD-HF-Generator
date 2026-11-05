@@ -7,6 +7,7 @@
 #include <constants.h>
 #include <core/app_controller.h>
 #include <hal/i2c_bus.h>
+#include <pins.h>
 #include <helpers/si5351_model.h>
 #include <string.h>
 
@@ -103,6 +104,22 @@ static void test_boot_with_defaults_all_outputs_off() {
     TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, driveMa(0));
     TEST_ASSERT_EQUAL_UINT32(DEFAULT_BACKLIGHT_PERCENT * 255 / 100, Fake::ledc().duty);
     TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+// Backlight PWM on GPIO21 (S38): 5 kHz, 8 bit, every write reaches the attached output.
+static void test_backlight_pwm_on_its_pin() {
+    Device d;
+    TEST_ASSERT_EQUAL_INT(PIN_BACKLIGHT, Fake::ledc().pin);
+    TEST_ASSERT_EQUAL_UINT32(5000, Fake::ledc().freq);
+    TEST_ASSERT_EQUAL_UINT8(8, Fake::ledc().bits);
+    TEST_ASSERT_EQUAL_INT(0, Fake::ledc().strayWrites);
+    const int writes = Fake::ledc().writes;
+    d.backlight.setPercent(100);
+    TEST_ASSERT_EQUAL_UINT32(255, Fake::ledc().duty);
+    d.backlight.setPercent(0);
+    TEST_ASSERT_EQUAL_UINT32(0, Fake::ledc().duty);
+    TEST_ASSERT_EQUAL_INT(writes + 2, Fake::ledc().writes);
+    TEST_ASSERT_EQUAL_INT(0, Fake::ledc().strayWrites);
 }
 
 static void test_switch_channel_on_and_off() {
@@ -1306,6 +1323,7 @@ static void test_settings_load_sanitizes_invalid_values() {
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_boot_with_defaults_all_outputs_off);
+    RUN_TEST(test_backlight_pwm_on_its_pin);
     RUN_TEST(test_switch_channel_on_and_off);
     RUN_TEST(test_retune_running_channel_without_dropout);
     RUN_TEST(test_frequency_is_clamped_to_range);
