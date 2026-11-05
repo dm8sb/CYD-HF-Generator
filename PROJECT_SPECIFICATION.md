@@ -156,6 +156,7 @@ This table is authoritative; README and manual repeat parts of it.
 ### 3.6 Robustness and errors
 
 - **A-59** Every controller setter reports its result (`Ok`, `NoChange`, `OutOfRange`, `Invalid`, `Conflict`, `HwError`); values are checked in their full type and never cut or clamped silently, only the `adjust*`/step functions of the GUI clamp to the range; the channel index is 1–2 (frequency) or 1–3 (output) strictly (V-1, S-12, W-E18).
+- **A-60** The autosave writes only the NVS keys that changed; changes from remote commands are saved after 30 s of quiet, touch changes after 5 s; `*RST` sets the defaults in RAM without saving them until `SYSTem:SAVE`, and a later change saves only its own key (V-4, C-17, W-E17, W-E19).
 - **A-34** SI5351 errors never crash the firmware; they are logged, shown as a dialog where useful, and leave the outputs in a safe state.
 - **A-35** Supervision every 2 s (`HW_CHECK_INTERVAL_MS`) reads back the output enable and CLK control registers. A failed transfer or unexpected content (e.g. after a power interruption) marks the SI5351 as lost (NO HW); the firmware tries to reconnect in the same cycle and then every 2 s, and restores all outputs with their states.
 - **A-36** Without SI5351 no output is configured and no repeated errors appear; all settings remain editable and are saved.

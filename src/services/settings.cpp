@@ -41,21 +41,31 @@ void SettingsService::load(PersistentState& s) {
     Logger::info("SETTINGS", available_ ? "Loaded from NVS" : "NVS unavailable; defaults loaded");
 }
 
-bool SettingsService::save_(const PersistentState& s) {
-    bool ok = storage_.putU64("ch1_freq", s.ch1.frequency);
-    ok &= storage_.putU64("ch2_freq", s.ch2.frequency);
-    ok &= storage_.putU8("ch3_master", s.ch3.master);
-    ok &= storage_.putU32("ch3_phase", s.ch3.phase);
-    ok &= storage_.putU8("backlight", s.sys.backlight);
-    ok &= storage_.putU32("delta", s.sys.delta_step);
-    ok &= storage_.putI32("corr", s.sys.freq_correction);
-    ok &= storage_.putU8("drv_def", s.sys.drive_ma);
-    ok &= storage_.putU8("tune", (uint8_t)s.sys.tuning_mode);
-    ok &= storage_.putU8("ssc", (uint8_t)s.sys.spread);
-    ok &= storage_.putU8("off_st", (uint8_t)s.sys.off_state);
+bool SettingsService::save_(const PersistentState& s, uint16_t keys) {
+    using namespace SettingKey;
+    bool ok = true;
+    if (keys & Ch1Freq) ok &= storage_.putU64("ch1_freq", s.ch1.frequency);
+    if (keys & Ch2Freq) ok &= storage_.putU64("ch2_freq", s.ch2.frequency);
+    if (keys & Ch3Master) ok &= storage_.putU8("ch3_master", s.ch3.master);
+    if (keys & Ch3Phase) ok &= storage_.putU32("ch3_phase", s.ch3.phase);
+    if (keys & Backlight) ok &= storage_.putU8("backlight", s.sys.backlight);
+    if (keys & Delta) ok &= storage_.putU32("delta", s.sys.delta_step);
+    if (keys & Corr) ok &= storage_.putI32("corr", s.sys.freq_correction);
+    if (keys & Drive) ok &= storage_.putU8("drv_def", s.sys.drive_ma);
+    if (keys & Tune) ok &= storage_.putU8("tune", (uint8_t)s.sys.tuning_mode);
+    if (keys & Ssc) ok &= storage_.putU8("ssc", (uint8_t)s.sys.spread);
+    if (keys & OffSt) ok &= storage_.putU8("off_st", (uint8_t)s.sys.off_state);
     if (ok) Logger::info("SETTINGS", "Saved to NVS");
     else Logger::error("SETTINGS", "Saving to NVS failed");
     return ok;
+}
+
+bool SettingsService::saveNow(const PersistentState& state) {
+    if (!available_) return false;
+    if (!save_(state, SettingKey::All)) return false;
+    dirtyKeys_ = 0;
+    retryPending_ = saveFailed_ = false;
+    return true;
 }
 
 void SettingsService::defaults(PersistentState& s) {
@@ -75,7 +85,7 @@ void SettingsService::defaults(PersistentState& s) {
 
 bool SettingsService::eraseAll() {
     if (!available_) return false;
-    dirty_ = false;
+    dirtyKeys_ = 0;
     retryPending_ = false;
     const bool ok = storage_.clear();
     if (ok) Logger::info("SETTINGS", "All settings erased");
@@ -113,22 +123,24 @@ bool SettingsService::removeDisplayPanel() {
     return true;
 }
 
-void SettingsService::markDirty() {
-    dirty_ = true;
+void SettingsService::markDirty(uint16_t keys, uint32_t quietMs) {
+    dirtyKeys_ |= keys;
+    quietMs_ = quietMs;
     retryPending_ = false;
     lastChange_ = millis();
 }
 
 SaveResult SettingsService::update(const PersistentState& state) {
-    if (!dirty_) return SaveResult::None;
-    const uint32_t wait = retryPending_ ? SETTINGS_RETRY_MS : SETTINGS_AUTOSAVE_MS;
+    if (!dirtyKeys_) return SaveResult::None;
+    const uint32_t wait = retryPending_ ? SETTINGS_RETRY_MS : quietMs_;
     if (millis() - lastChange_ < wait) return SaveResult::None;
     if (!available_) {
-        dirty_ = false;
+        dirtyKeys_ = 0;
         return SaveResult::None;
     }
-    if (save_(state)) {
-        dirty_ = retryPending_ = saveFailed_ = false;
+    if (save_(state, dirtyKeys_)) {
+        dirtyKeys_ = 0;
+        retryPending_ = saveFailed_ = false;
         return SaveResult::Saved;
     }
     // Keep the change and try again later (audit C-13); only the first failure of a series

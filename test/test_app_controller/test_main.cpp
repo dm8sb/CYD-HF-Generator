@@ -634,6 +634,67 @@ static void test_revision_counts_changes() {
     TEST_ASSERT_TRUE(d.app.revision() != r);
 }
 
+// V-4 / C-5: only the changed key is written.
+static void test_autosave_writes_only_changed_keys() {
+    Device d;
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    const unsigned before = nvs.writeCount;
+    d.app.setChannelFrequency(2, 7100000);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(before + 1, nvs.writeCount);
+    d.app.setTuningMode(TuningMode::LowNoise);
+    d.app.setGlobalDriveStrength(8);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(before + 3, nvs.writeCount);
+}
+
+// W-E17: remote changes are saved after 30 s of quiet, touch changes after 5 s.
+static void test_remote_changes_save_later() {
+    Device d;
+    d.app.setSource(Source::Remote);
+    d.app.setChannelFrequency(1, 7100000);
+    d.app.setSource(Source::Touch);
+    const unsigned before = nvs.writeCount;
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(before, nvs.writeCount);
+    d.run(SETTINGS_REMOTE_AUTOSAVE_MS);
+    TEST_ASSERT_EQUAL_UINT(before + 1, nvs.writeCount);
+}
+
+// W-E19 / C-17: after *RST the defaults are not saved; a later change saves only its own key,
+// SYSTem:SAVE (saveNow) saves everything at once.
+static void test_reset_for_remote_is_not_saved() {
+    {
+        Device d;
+        d.app.setChannelFrequency(1, 7100000);
+        d.app.setChannelFrequency(2, 21000000);
+        d.app.setGlobalDriveStrength(8);
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+        d.app.setChannelEnabled(1, true);
+        d.app.resetForRemote();
+        TEST_ASSERT_FALSE(d.app.channel(1).enabled);
+        TEST_ASSERT_FALSE(enabled(0));
+        TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+        TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
+        d.run(SETTINGS_REMOTE_AUTOSAVE_MS + 100);
+        d.app.setChannelFrequency(2, 3500000); // only this key is stored
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+    }
+    {
+        Device d;
+        TEST_ASSERT_EQUAL_UINT64(7100000, d.app.channel(1).frequency); // not the default
+        TEST_ASSERT_EQUAL_UINT64(3500000, d.app.channel(2).frequency);
+        TEST_ASSERT_EQUAL_UINT8(8, d.app.system().drive_ma);
+        d.app.resetForRemote();
+        const unsigned before = nvs.writeCount;
+        TEST_ASSERT_TRUE(d.app.saveNow());
+        TEST_ASSERT_TRUE(nvs.writeCount > before);
+    }
+    Device d;
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
+}
+
 static void test_config_options_invalid_nvs_values() {
     Preferences p;
     p.putUChar("tune", 7);
@@ -1273,6 +1334,9 @@ int main() {
     RUN_TEST(test_config_options_invalid_nvs_values);
     RUN_TEST(test_setters_return_result_codes);
     RUN_TEST(test_revision_counts_changes);
+    RUN_TEST(test_autosave_writes_only_changed_keys);
+    RUN_TEST(test_remote_changes_save_later);
+    RUN_TEST(test_reset_for_remote_is_not_saved);
     RUN_TEST(test_setter_result_with_hardware_errors);
     RUN_TEST(test_reset_to_defaults_keeps_the_correction);
     RUN_TEST(test_erase_all_settings);
