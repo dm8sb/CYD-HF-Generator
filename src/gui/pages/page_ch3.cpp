@@ -4,34 +4,46 @@
 
 using namespace Layout;
 
+// Master and phase chips 6 px apart (U-6), 8 px between the groups; note below.
+static constexpr int LABEL_Y = 128;
+static constexpr int CHIP_Y = 146;
+static constexpr int CHIP_H = 40;
+static constexpr int CHIP_GAP = 6;
+static constexpr int MASTER_W = 62;
+static constexpr int PHASE_X = 146;
+static constexpr int PHASE_W = 37;
+static constexpr int NOTE_Y = 194;
+
 static const char* PHASE_LABELS[4] = {"0", "90", "180", "270"};
 
 void Gui::createCH3_() {
     const lv_color_t color = Colors::ch3();
     createHeader_("CH3 IQ", color, 3);
 
-    lv_obj_t* card = addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, 80, color);
-    w_.freq = addLabel_(card, "", &lv_font_montserrat_28, Colors::text(), 2, 0);
+    lv_obj_t* card = addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, CARD_FREQ_H, color);
+    w_.freq = addLabel_(card, "", &lv_font_montserrat_28, Colors::text(), CARD_TEXT_X, 0);
     // The frequency is the master's: a tap opens its numpad and returns here (U-16).
     lv_obj_add_flag(w_.freq, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(w_.freq, 4);
     on_(w_.freq, LV_EVENT_CLICKED, Action::Ch3MasterFreq, 0);
-    w_.info = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), 2, 32);
+    w_.info = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), CARD_TEXT_X, CARD_INFO_Y);
     // While CH3 waits for its master, a tap on this line switches the master on (U-16).
     lv_obj_add_flag(w_.info, LV_OBJ_FLAG_CLICKABLE);
     on_(w_.info, LV_EVENT_CLICKED, Action::Ch3InfoTap, 0);
-    w_.modes = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 2, 50);
+    w_.modes = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), CARD_TEXT_X, CARD_MODES_Y);
     lv_obj_set_width(w_.modes, CONTENT_W - 2 * (CARD_PAD + CARD_BORDER) - 4);
     lv_label_set_long_mode(w_.modes, LV_LABEL_LONG_DOT);
 
-    addLabel_(root_, "Master", &lv_font_montserrat_14, Colors::muted(), MARGIN + 2, 128);
-    addLabel_(root_, "Phase (\xC2\xB0)", &lv_font_montserrat_14, Colors::muted(), 148, 128);
+    addLabel_(root_, "Master", &lv_font_montserrat_14, Colors::muted(), MARGIN + 2, LABEL_Y);
+    addLabel_(root_, "Phase (\xC2\xB0)", &lv_font_montserrat_14, Colors::muted(), PHASE_X + 2, LABEL_Y);
 
     // Chips 6 px apart, a mistap would swap the sideband (audit U-6); 8 px between the groups.
-    w_.masterChips[0] = addChip_(root_, "CH1", MARGIN, 146, 62, 40, Colors::ch1(), Action::Ch3Master, 1);
-    w_.masterChips[1] = addChip_(root_, "CH2", MARGIN + 68, 146, 62, 40, Colors::ch2(), Action::Ch3Master, 2);
+    w_.masterChips[0] = addChip_(root_, "CH1", MARGIN, CHIP_Y, MASTER_W, CHIP_H, Colors::ch1(), Action::Ch3Master, 1);
+    w_.masterChips[1] = addChip_(root_, "CH2", MARGIN + MASTER_W + CHIP_GAP, CHIP_Y, MASTER_W, CHIP_H, Colors::ch2(),
+                                 Action::Ch3Master, 2);
     for (uint8_t i = 0; i < 4; ++i) {
-        w_.chips[i] = addChip_(root_, PHASE_LABELS[i], 146 + i * 43, 146, 37, 40, color, Action::Ch3Phase, i);
+        w_.chips[i] = addChip_(root_, PHASE_LABELS[i], PHASE_X + i * (PHASE_W + CHIP_GAP), CHIP_Y, PHASE_W, CHIP_H, color,
+                               Action::Ch3Phase, i);
     }
 
     char lo[12], hi[12], text[128];
@@ -40,7 +52,7 @@ void Gui::createCH3_() {
     FrequencyUtils::formatIqLimit(app_->iqMaxHz(), false, 3, true, hi, sizeof(hi));
     snprintf(text, sizeof(text), "IQ range %s - %s MHz. 180\xC2\xB0/270\xC2\xB0 use output inversion. "
                                  "Drive strength is set globally in CONFIG.", lo, hi);
-    lv_obj_t* note = addLabel_(root_, text, &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, 194);
+    lv_obj_t* note = addLabel_(root_, text, &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, NOTE_Y);
     lv_obj_set_width(note, CONTENT_W - 4);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
 }

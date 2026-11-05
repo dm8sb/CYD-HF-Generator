@@ -97,7 +97,6 @@ Host-Tests: 223 Fälle in `native-win` und 4 in `native-win-fault` (Stand S33).
 - [ ] **Dirty je Schlüssel** (Rest von C-5, V-4, C-17): Autosave schreibt bei einer echten Änderung noch alle 11 Schlüssel. → S45
 - [ ] **C-14 I2C bündeln:** Register-Transfers rufen `Wire` direkt; 2.0.x-Semantik verteilt, ändert sich mit Core 3.x. → S39
 - [ ] **C-16 Logger gegen SCPI über USB** (hoch für WEB-HMI): Logger, LVGL- und IDF-Log schreiben auf `Serial`, dieselbe Schnittstelle wie SCPI; Öffnen des Ports kann über DTR/RTS einen Reset auslösen. → S46
-- [ ] **Feste Koordinaten in den Pages** durch das Layoutgitter (`gui_layout.h`) bzw. lokale Konstanten ersetzen. → N12
 - [ ] **DMA und Doppelpuffer** (nach der Migration): zwei Puffer 320 × 40 px (`DMA_ATTR`, je 25,6 KB), `LV_COLOR_16_SWAP` = 1, `setSwapBytes(false)`; in `DisplayPanel::begin()` erst Erkennung und Init mit rohem Buszugriff, dann `initDMA()` und einmal `startWrite()` (CS bleibt LOW, `endWrite()` nie); `flush()` = `dmaWait()`, `setAddrWindow()`, `pushPixelsDMA()`, `lv_disp_flush_ready()` sofort. Erwartung bis ≈ 30 Bilder/s, +36 KB RAM; Messung mit `LV_USE_PERF_MONITOR`. → N13
 - [ ] **Fakes:** `endTransmission(false)` erst mit `requestFrom` ausführen; Preferences mit mehreren Namespaces und Strings (für `hfnet`); LEDC-API von Core 3.x. Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln. → S38, S45, S52
 
@@ -382,7 +381,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N9 · Sticky-Bit und „PLL locked“** (Abschnitt 2.1).
 - [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
 - [ ] **N11 · Spätere Updates:** LVGL 8.4.0, Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release.
-- [ ] **N12 · Feste Koordinaten** durch das Layoutgitter ersetzen.
+- [x] **N12 · Feste Koordinaten** durch benannte Konstanten ersetzt (Karte der Kanal- und CH3-Seite und Header-`MAIN` in `gui_layout.h`, Chips/Tasten/Numpad als lokale Konstanten). Geprüft: Maschinencode von `gui.cpp`, `page_channel.cpp`, `page_ch3.cpp`, `page_numpad.cpp` vorher und nachher identisch.
 - [ ] **N13 · DMA und Doppelpuffer** (Abschnitt 2.3, nach der Migration).
 - [ ] **N14 · Erweiterungen nach Rückfrage 1:** Speicherplätze, Wobbeln, Drive je Kanal, gekoppelter Betrieb CH2 = CH1 ± Offset (Überlagerungsempfänger mit fester ZF), Modulationsarten (AM/FM über den PLL-Bruchteil), externe Referenz (SI5351C mit `CLKIN`), Kalibrierassistent (falls nicht in S32).
 

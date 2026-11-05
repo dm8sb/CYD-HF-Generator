@@ -5,6 +5,11 @@
 
 using namespace Layout;
 
+// Step chips and the -/+/NUMPAD row below the card.
+static constexpr int CHIP_Y = 128;
+static constexpr int CHIP_H = 36;
+static constexpr int BTN_W = 96;
+
 static const char* STEP_LABELS[DELTA_STEP_COUNT] = {"1", "10", "100", "1k", "10k", "100k", "1M"};
 
 // CH1 and CH2 share this page.
@@ -13,15 +18,15 @@ void Gui::createChannelPage_(uint8_t ch) {
     createHeader_(ch == 1 ? "CH1" : "CH2", color, ch);
 
     // Frequency, actual output (Out) and special modes (U-2).
-    lv_obj_t* card = addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, 80, color);
-    w_.freq = addLabel_(card, "", &lv_font_montserrat_28, Colors::text(), 2, 0);
+    lv_obj_t* card = addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, CARD_FREQ_H, color);
+    w_.freq = addLabel_(card, "", &lv_font_montserrat_28, Colors::text(), CARD_TEXT_X, 0);
     // Tap a digit to select it as step, tap the unit to open the numpad.
     lv_label_set_recolor(w_.freq, true);
     lv_obj_add_flag(w_.freq, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(w_.freq, 4);
     on_(w_.freq, LV_EVENT_CLICKED, Action::FreqTap, 0);
-    w_.info = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), 2, 32);
-    w_.modes = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 2, 50);
+    w_.info = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), CARD_TEXT_X, CARD_INFO_Y);
+    w_.modes = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), CARD_TEXT_X, CARD_MODES_Y);
     lv_obj_set_width(w_.modes, CONTENT_W - 2 * (CARD_PAD + CARD_BORDER) - 4);
     lv_label_set_long_mode(w_.modes, LV_LABEL_LONG_DOT);
 
@@ -30,14 +35,14 @@ void Gui::createChannelPage_(uint8_t ch) {
     // Largest step on the left, as the digits of the frequency above (U-25).
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) {
         const int x = MARGIN + (DELTA_STEP_COUNT - 1 - i) * (chipW + 4);
-        w_.chips[i] = addChip_(root_, STEP_LABELS[i], x, 128, chipW, 36, color, Action::SetStep, i);
+        w_.chips[i] = addChip_(root_, STEP_LABELS[i], x, CHIP_Y, chipW, CHIP_H, color, Action::SetStep, i);
     }
 
     const int btnY = 170;
     const int btnH = 62;
-    addButton_(root_, LV_SYMBOL_MINUS, MARGIN, btnY, 96, btnH, color, Action::FreqDown, 0, true);
-    addButton_(root_, LV_SYMBOL_PLUS, MARGIN + 102, btnY, 96, btnH, color, Action::FreqUp, 0, true);
-    addButton_(root_, "NUMPAD", MARGIN + 204, btnY, CONTENT_W - 204, btnH, Colors::gray(), Action::Navigate, (uint8_t)PageId::Numpad);
+    addButton_(root_, LV_SYMBOL_MINUS, MARGIN, btnY, BTN_W, btnH, color, Action::FreqDown, 0, true);
+    addButton_(root_, LV_SYMBOL_PLUS, MARGIN + BTN_W + GAP, btnY, BTN_W, btnH, color, Action::FreqUp, 0, true);
+    addButton_(root_, "NUMPAD", MARGIN + 2 * (BTN_W + GAP), btnY, CONTENT_W - 2 * (BTN_W + GAP), btnH, Colors::gray(), Action::Navigate, (uint8_t)PageId::Numpad);
 }
 
 void Gui::refreshChannel_() {
