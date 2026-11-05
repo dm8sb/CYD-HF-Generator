@@ -386,6 +386,16 @@ static void test_numpad_ppm_entry() {
     TEST_ASSERT_EQUAL(NumpadEvent::Ignored, numpadPpmKey(n, "MHz", &centi));
 }
 
+// Holding +/- speeds up (audit U-20): 10 steps/s, after 2 s 20/s, after 4 s 50/s.
+static void test_repeat_speeds_up() {
+    TEST_ASSERT_EQUAL_UINT8(1, repeatSteps(0));
+    TEST_ASSERT_EQUAL_UINT8(1, repeatSteps(REPEAT_FAST_MS - 1));
+    TEST_ASSERT_EQUAL_UINT8(2, repeatSteps(REPEAT_FAST_MS));
+    TEST_ASSERT_EQUAL_UINT8(2, repeatSteps(REPEAT_FASTER_MS - 1));
+    TEST_ASSERT_EQUAL_UINT8(5, repeatSteps(REPEAT_FASTER_MS));
+    TEST_ASSERT_EQUAL_UINT8(5, repeatSteps(60000));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_numpad_digits_and_one_point);
@@ -409,5 +419,6 @@ int main(int, char**) {
     RUN_TEST(test_range_note);
     RUN_TEST(test_screen_lock);
     RUN_TEST(test_numpad_ppm_entry);
+    RUN_TEST(test_repeat_speeds_up);
     return UNITY_END();
 }

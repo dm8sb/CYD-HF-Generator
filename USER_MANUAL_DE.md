@@ -198,7 +198,7 @@ Die Tasten `−` und `+` ändern die Frequenz um den aktuell gewählten Schritt.
 
 **Stelle direkt antippen:** Ein Tipp auf eine Ziffer der Frequenzanzeige wählt diese Stelle als Schritt (z. B. die dritte Nachkommastelle = 1 kHz). Die Stelle, die `−`/`+` ändert, ist in der Kanalfarbe hervorgehoben. Ziffern über 1 MHz (10 MHz, 100 MHz) wählen den größten Schritt 1 MHz. Ein Tipp auf die Einheit `MHz` öffnet das NUMPAD. Das Antippen ist eine Abkürzung zu den Schritt-Tasten: Die Ziffern sind nur 2–3 mm breit, ein Tipp auf den Punkt oder eine Lücke wählt die nähere Nachbarziffer.
 
-**Gedrückt halten:** Nach ca. 0,4 s wiederholt sich der Schritt automatisch etwa alle 0,1 s, bis die Taste losgelassen wird.
+**Gedrückt halten:** Nach ca. 0,4 s wiederholt sich der Schritt automatisch etwa alle 0,1 s, bis die Taste losgelassen wird. Nach 2 s Halten geht es doppelt so schnell (2 Schritte je Wiederholung), nach 4 s fünfmal so schnell. Kurze Druckaussetzer (bis 70 ms) beenden das Halten nicht. Das gilt auch für `−`/`+` bei `Corr.`.
 
 Ob eine Frequenzänderung den Ausgang kurz unterbricht, hängt von `Tuning` ab (Abschnitt 8):
 
@@ -399,6 +399,9 @@ Auf der CH3-Seite können eingestellt werden:
 
 Die gewählte Taste ist farbig hervorgehoben. Die Frequenz von CH3 ist immer identisch mit der Frequenz des Masters; die Drive-Strength stellt CONFIG für alle Kanäle ein.
 
+- **Masterfrequenz von hier aus ändern:** Ein Tipp auf die Frequenz öffnet das NUMPAD des Masters; nach der Eingabe (oder `◀`) geht es zurück zur CH3-Seite.
+- **Master einschalten:** Wartet CH3 auf den ausgeschalteten Master, steht in der Statuszeile `Master CH1 is off: tap to switch on`; ein Tipp darauf schaltet den Master ein.
+
 ### Statuszeile
 
 Unter der Frequenz zeigt die CH3-Seite den aktuellen Zustand:
@@ -407,7 +410,7 @@ Unter der Frequenz zeigt die CH3-Seite den aktuellen Zustand:
 |---|---|
 | `Off  \|  follows CHx` | CH3 ausgeschaltet |
 | `Out 10.000 000 MHz (+0.3 Hz)` | IQ-Ausgang läuft; tatsächliche Frequenz von CLK2 (Abschnitt 5) |
-| `Waiting: master CHx is off` | CH3 eingeschaltet, Master aus |
+| `Master CHx is off: tap to switch on` | CH3 eingeschaltet, Master aus; ein Tipp auf die Zeile schaltet ihn ein |
 | `Waiting: CHx below 4.730 MHz` | CH3 eingeschaltet, Masterfrequenz zu niedrig (mit Spread Spectrum auf CH1 höher, z. B. `4.749`) |
 | `Waiting: CHx above 99.502 MHz` | CH3 eingeschaltet, Masterfrequenz zu hoch; nur mit Spread `+/-0.5 %` auf Master CH1 |
 | `IQ setup failed, retrying` | Einstellen des IQ-Paars fehlgeschlagen (Status `! ERR`); CLK2 ist aus, der Master läuft weiter, die Firmware versucht es alle 2 s erneut |

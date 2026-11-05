@@ -1174,7 +1174,7 @@ Die Schwellen sind **Vorschläge**; sie werden vor der Messung bestätigt oder g
 2. Während der Einrast-Animation einmal tippen.
 3. `+` auf der CH1-Seite 5 s halten (leicht und fest); Druckaussetzer (`gap`, `drop`) im Touch-Log zählen und ihre Dauer notieren.
 
-**Soll:** 0 ungewollte Auslösungen; Verteilung der Aussetzer dokumentiert (Grundlage für die Überbrückungszeit in S33); keine Aussetzer > 35 ms bei normalem Druck.
+**Soll:** 0 ungewollte Auslösungen; Verteilung der Aussetzer dokumentiert (Grundlage für die Überbrückungszeit in S33); keine Aussetzer > 70 ms bei normalem Druck (Überbrückung seit S33 70 ms).
 **Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Auslösungen, Aussetzer min / max / Anzahl):
 
 ### 6.7 Ab WEB-HMI

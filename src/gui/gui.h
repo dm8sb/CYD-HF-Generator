@@ -55,7 +55,9 @@ private:
         TouchCal,       // CONFIG: start the touch calibration
         LockScreen,     // CONFIG: lock and go to MAIN (U-13)
         ResetDefaults,  // CONFIG: confirm, then defaults (correction kept)
-        FactoryReset    // CONFIG: confirm, then erase the NVS and restart
+        FactoryReset,   // CONFIG: confirm, then erase the NVS and restart
+        Ch3MasterFreq,  // CH3 page: tap on the frequency opens the master's numpad (U-16)
+        Ch3InfoTap      // CH3 page: status line; switches the master on while CH3 waits for it
     };
 
     struct Widgets {
@@ -185,6 +187,9 @@ private:
     TouchCal::Wizard calWizard_; // touch calibration (host-tested)
     bool calFirstStart_ = false;
     bool numpadPpm_ = false;     // numpad opened from CONFIG: correction entry (U-11)
+    PageId numpadReturn_ = PageId::CH1; // page the frequency numpad returns to
+    uint32_t pressStartMs_ = 0;  // start of the current press of a repeat button (U-20)
+    lv_event_code_t lastCode_ = LV_EVENT_ALL;
     uint8_t calShownTarget_ = 0xFF;
     TouchCal::Phase calShownPhase_ = TouchCal::Phase::Touch;
     bool (*storeTouchCal_)(const TouchCalibration&) = nullptr;

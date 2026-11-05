@@ -67,6 +67,9 @@ void stepMarkup(const char* text, uint32_t step, uint32_t rgb, char* out, size_t
 // Screen lock (audit U-13): while locked no touch reaches LVGL; holding UNLOCK_HOLD_MS anywhere
 // unlocks, and that touch stays swallowed until it is released (no tap on what lies below).
 
+// Steps per repeat event while +/- is held for heldMs (U-20).
+uint8_t repeatSteps(uint32_t heldMs);
+
 class ScreenLock {
 public:
     enum class Event : uint8_t { None, Pressed, Released, Unlocked };

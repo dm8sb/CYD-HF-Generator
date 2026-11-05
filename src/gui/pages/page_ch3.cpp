@@ -12,7 +12,14 @@ void Gui::createCH3_() {
 
     lv_obj_t* card = addCard_(root_, MARGIN, CONTENT_Y, CONTENT_W, 80, color);
     w_.freq = addLabel_(card, "", &lv_font_montserrat_28, Colors::text(), 2, 0);
+    // The frequency is the master's: a tap opens its numpad and returns here (U-16).
+    lv_obj_add_flag(w_.freq, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(w_.freq, 4);
+    on_(w_.freq, LV_EVENT_CLICKED, Action::Ch3MasterFreq, 0);
     w_.info = addLabel_(card, "", &lv_font_montserrat_14, Colors::muted(), 2, 32);
+    // While CH3 waits for its master, a tap on this line switches the master on (U-16).
+    lv_obj_add_flag(w_.info, LV_OBJ_FLAG_CLICKABLE);
+    on_(w_.info, LV_EVENT_CLICKED, Action::Ch3InfoTap, 0);
     w_.modes = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 2, 50);
     lv_obj_set_width(w_.modes, CONTENT_W - 2 * (CARD_PAD + CARD_BORDER) - 4);
     lv_label_set_long_mode(w_.modes, LV_LABEL_LONG_DOT);
@@ -61,7 +68,7 @@ void Gui::refreshCH3_() {
             showOutput_(3, app.ch3Frequency());
             break;
         case Ch3Status::MasterOff:
-            snprintf(buf, sizeof(buf), "Waiting: master CH%u is off", c3.master);
+            snprintf(buf, sizeof(buf), "Master CH%u is off: tap to switch on", c3.master);
             infoColor = Colors::warn();
             break;
         case Ch3Status::FreqTooLow:
