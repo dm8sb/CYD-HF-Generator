@@ -23,7 +23,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 
 ## Changes
 
-### 1.3.3 (in progress)
+### 1.3.3
 
 - CH3 page sets the master frequency and switches a waiting master on; holding +/- starts slowly and speeds up after 3 s and 6 s, pressure dropouts up to 70 ms are bridged
 - Frequency correction can be typed on the numpad (tap the value in CONFIG)

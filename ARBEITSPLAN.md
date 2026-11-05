@@ -1,6 +1,6 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: 2026-11-04 · Firmware **1.3.2** (`main` = `dev` = `ee2b91a`, Tag `v1.3.2`) · nächste Ziele: **1.3.3** (Laborbetrieb), **1.4.0** (WEB-HMI)
+Stand: 2026-11-05 · Firmware **1.3.3** (`dev`, lokaler Tag `v1.3.3`; `main` = `ee2b91a` = 1.3.2; S42–S48 auf `feature/web-hmi`) · nächste Ziele: **1.4.0** (WEB-HMI), Migration Core 3.x (Phase 4)
 
 Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufgabenliste. Sie ersetzt `todo.md`, `AUDIT_2026-11.md` und `KONZEPT_WEB_HMI.md` (vollständig in der Git-Historie bis `ee2b91a`). Die Befund-IDs aus dem Audit (C-n Code, S-n Security, U-n Bedienung, P-n Plattform, T-n Tests) und dem Konzept (W-E, W-S, V-n) bleiben als Namen gültig. Messungen am Gerät: [MESSPLAN.md](MESSPLAN.md). Verhalten: [USER_MANUAL_DE.md](USER_MANUAL_DE.md); Anforderungen und Entscheidungen: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md).
 
@@ -35,17 +35,18 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 0 Hygiene | – | PlatformIO nur aus `penv` (6.2.0), CI mit per SHA gepinnten Actions, `-Wall -Wextra` ohne Warnungen, XPT2046 auf Commit gepinnt, Heap im Debug-Log, Referenz `v1.3.0` gesichert |
 | 1 Robustheit | 1.3.1 | C-1 bis C-13, M-1; Assert- und Loop-Watchdog-Neustart (am Gerät geprüft), gehärteter Parser, Speichern nur bei Änderung und mit Wiederholung, Wiederverbinden im selben Zyklus |
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
+| 3 Laborbetrieb | 1.3.3 | U-11, U-13, U-16, U-20, E-16, N12; Bildschirmsperre, Grundzustand und Werksreset, Korrektur per Numpad, CH3-Seite mit Master-Steuerung, Halten langsamer am Anfang, Bereich 8 kHz–160 MHz, Fix um 112,5 MHz, kompakte Moduszeile |
 
-Host-Tests: 223 Fälle in `native-win` und 4 in `native-win-fault` (Stand S33).
+Host-Tests: 223 Fälle in `native-win` und 4 in `native-win-fault` (Stand S36).
 
 ### 1.2 Referenzwerte
 
 - **Firmware 1.3.0:** `firmware.bin` SHA-256 `e0ca03b6c03ab4771f74c7018ca21bde2b8bef672d21b31d0deedf4783bdf577` unter `messungen/firmware/1.3.0/` (nicht im Repo).
 - **Heap (Debug-Build 1.3.1, Original-CYD ohne SI5351):** frei 277 412 B, Minimum 271 820 B, größter Block 110 580 B; LVGL 38 484 von 49 152 B frei; Stack-Reserve `loop()` 4 796 B. Basis für den Vergleich nach der Migration (S37).
-- **Flash/RAM 1.3.2:** 630 069 B (20,0 %) / 90 312 B (27,6 %).
-- **Touch-Abgleich (2026-11-04):** CYD2USB x 161…3778, y 245…3830; Original-CYD x 166…3716, y 280…3885 (vorher fest 300…3800).
+- **Flash/RAM 1.3.2:** 630 069 B (20,0 %) / 90 312 B (27,6 %); **1.3.3:** 638 033 B (20,3 %) / 90 568 B (27,6 %).
+- **Touch-Abgleich (2026-11-04):** CYD2USB x 161…3778, y 245…3830; Original-CYD x 166…3716, y 280…3885 (vorher fest 300…3800); Original-CYD nach dem Werksreset (2026-11-05) x 158…3708, y 245…3856, Prüfkreuz −2/+1 px.
 - **Boards:** COM13 = CYD2USB (ST7789) mit SI5351, COM7 = Original-CYD (ILI9341) ohne SI5351.
-- **Smoke-Tests 1.3.1 und 1.3.2:** bestanden bis auf die Schritte 5 und 6 (10 MHz und IQ 90° messen) – kein Messgerät verfügbar; nachholen in MESSPLAN Stufe 1.
+- **Smoke-Tests 1.3.1, 1.3.2 und 1.3.3:** bestanden bis auf die Schritte 5 und 6 (10 MHz und IQ 90° messen) – kein Messgerät verfügbar; nachholen in MESSPLAN Stufe 1.
 
 ### 1.3 Entscheidungen
 
@@ -319,12 +320,12 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 
 ### Phase 3 – Laborbetrieb 1.3.3 (≈ 2–3 d, `dev`)
 
-- [x] **S31 · Sperre, Grundzustand, Werksreset (U-13).** CONFIG-Zeilen `Screen` (`Lock`) und `Reset` (`Defaults`, `Factory`) mit Bestätigung; `InputLogic::ScreenLock` (2 s Halten entsperrt, die entsperrende Berührung wird verschluckt), `AppController::resetToDefaults()` (Korrektur bleibt, Touch-Abgleich liegt außerhalb), `SettingsService::eraseAll()`/`defaults()`; `LOCKED` in der MAIN-Statusleiste, Hinweis beim Berühren. Host-Tests für Sperre, Grundzustand und Löschen. Bedientest 2026-11-05 (CYD2USB): Sperre und `Defaults` OK; `Factory` noch nicht am Gerät geprüft.
+- [x] **S31 · Sperre, Grundzustand, Werksreset (U-13).** CONFIG-Zeilen `Screen` (`Lock`) und `Reset` (`Defaults`, `Factory`) mit Bestätigung; `InputLogic::ScreenLock` (2 s Halten entsperrt, die entsperrende Berührung wird verschluckt), `AppController::resetToDefaults()` (Korrektur bleibt, Touch-Abgleich liegt außerhalb), `SettingsService::eraseAll()`/`defaults()`; `LOCKED` in der MAIN-Statusleiste, Hinweis beim Berühren. Host-Tests für Sperre, Grundzustand und Löschen. Bedientest 2026-11-05 (CYD2USB): Sperre und `Defaults` OK; `Factory` auf dem Original-CYD OK (Neustart, Touch-Abgleich, Korrektur `+0.00 ppm`).
 - [x] **S32 · Korrektur per Numpad (U-11).** `Corr.`-Wert (umrahmt) antippen öffnet das Numpad im ppm-Modus (`+/-`, `ppm`, Rundung auf 0,01 ppm, ±50,00 ppm); `InputLogic::numpadPpmKey()` mit Host-Test; Kalibrieren 20 → 7 Tipps. Assistent „gemessene Frequenz eingeben“ bleibt in N14. Bedientest 2026-11-05 OK.
 - [x] **S33 · CH3-Seite und Halten (U-16, U-20).** CH3-Seite: Tipp auf die Frequenz öffnet das Numpad des Masters und kehrt zu CH3 zurück; bei wartendem Master `Master CHx is off: tap to switch on` (Tipp schaltet ihn ein). Halten nach dem Bedientest langsamer: ab 0,6 s ca. 3 Schritte/s, ab 3 s 10/s, ab 6 s 20/s (`InputLogic::repeatSteps`, `repeatDue`); Überbrückung 70 ms statt 35 ms, schwacher Druck zählt als Aussetzer. Host-Tests. Kanalwahl im Header bewusst nicht (Abschnitt 2.2). Bedientest 2026-11-05 OK.
 - [x] **S34 · Fix um 112,5 MHz.** `planStandalone()` (Fractional) versucht über 100 MHz den größten geraden Integer-Teiler (8/6/4) mit fraktionaler PLL, wenn die festen PLLs schlechter als 0,25 Hz sind oder der MultiSynth unter 8 läge; der Zweig „aktuelle PLL behalten“ merkt sich seinen Fehler. Bis 100 MHz unverändert. Host-Tests 112 500 004 / 112 499 996 Hz (vorher 4 Hz Fehler), `test_standalone_above_100_mhz` läuft wieder (≤ 1,5 / 2 / 3 Hz bis 112,5 / 150 / 160 MHz). *Commit:* `S34: Fix tuning accuracy around 112.5 MHz`
 - [x] **S35 · Bereich 8 kHz bis 160 MHz (E-16).** `FREQ_MIN_HZ`/`FREQ_MAX_HZ` 8 kHz / 160 MHz; Anzeige unter 1 MHz in kHz; Numpad 10 Zeichen, Fehlertext `8 kHz - 160 MHz` (passt neben `Now 160.000 000 MHz`); Hinweis auf der Kanalseite (`>100MHz: low level`, `<1MHz: harmonics`); CH3 wartet über 100 MHz (Test); auf MAIN entfällt das `~` ab 100 MHz (passt nicht in 183 px). Host-Tests für kHz-Format, Grenzen, R-Teiler in allen Modi, CH3-Grenze; Tests der Kerngenauigkeit (1–100 MHz) mit eigener Konstante. Bedientest 2026-11-05 OK (455 kHz, 150 MHz; Moduszeile danach gekürzt, 6bf0318). *Commit:* `S35: Extend CH1/CH2 range to 8 kHz-160 MHz (E-16)`
-- [ ] **S36 · Release 1.3.3.** Version, README, Smoke-Test beider Boards, lokaler Tag `v1.3.3`. *Commit:* `S36: Release 1.3.3`
+- [x] **S36 · Release 1.3.3.** Version, README, Smoke-Test beider Boards 2026-11-05 (Schritte 1–4 OK, 5 und 6 ohne Messgerät offen), lokaler Tag `v1.3.3`. *Commit:* `S36: Release 1.3.3`
 
 ### Phase 4 – Migration Core 3.x (≈ 2,5–3 d, `feature/core3`)
 

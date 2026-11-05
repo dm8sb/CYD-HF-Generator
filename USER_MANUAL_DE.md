@@ -1,6 +1,6 @@
 # Benutzeranleitung – CYD HF Generator
 
-Firmware-Version: 1.3.2
+Firmware-Version: 1.3.3
 
 Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_EN.md](USER_MANUAL_EN.md) ist ihre Übersetzung.
 
@@ -667,8 +667,8 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 Am Ende der Seite zeigt eine Karte Angaben für die Fehlersuche ohne seriellen Monitor, zum Beispiel:
 
 ```text
-Firmware 1.3.2 | dev 47d9307
-Build 2026-11-04 18:30
+Firmware 1.3.3 | dev 47d9307
+Build 2026-11-05 15:00
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
@@ -932,7 +932,7 @@ Wichtige Meldungen:
 
 | Meldung | Bedeutung |
 |---|---|
-| `[BOOT] CYD HF Generator 1.3.2 (dev 47d9307, 2026-11-04 18:30)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
+| `[BOOT] CYD HF Generator 1.3.3 (dev 47d9307, 2026-11-05 15:00)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
 | `[I2C] Line held low; releasing bus` | Eine I2C-Leitung lag beim Start auf LOW und wurde freigegeben |
 | `[SETTINGS] Loaded from NVS` | Einstellungen geladen |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Einmalig nach dem Update von 1.3.0/1.3.1: die Wahl der früheren Boot-Geste wurde gelöscht (Abschnitt 13) |
@@ -949,7 +949,7 @@ Wichtige Meldungen:
 | `[BOOT] Setup complete` | Start abgeschlossen |
 | `[GUI] Screen locked` / `[GUI] Screen unlocked` | Bildschirmsperre ein bzw. aus |
 | `[APP] Settings reset to defaults; correction kept` | `Reset` → `Defaults` ausgeführt |
-| `[SETTINGS] All settings erased`, `[BOOT] Factory reset; restarting` | Werksreset, danach Neustart |
+| `[SETTINGS] All settings erased`, `[BOOT] Factory reset; restarting` | Werksreset, danach Neustart; davor steht die Zeile von `Defaults`, weil zuerst alle Ausgänge abgeschaltet werden (die Korrektur wird anschließend trotzdem gelöscht) |
 | `[SETTINGS] Saved to NVS` | Autosave |
 | `[APP] Restoring outputs` | Nach dem Wiederverbinden werden die Ausgänge wiederhergestellt |
 | `[APP] Output error cleared` | Ein Ausgangsfehler (`! ERR`) ist behoben |
