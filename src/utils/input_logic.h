@@ -14,12 +14,13 @@ namespace InputLogic {
 static constexpr size_t NUMPAD_MAX_LEN = 10;
 
 // Why the last key was rejected; shown as a text and a red border until the next key (U-9).
-enum class NumpadError : uint8_t { None, Empty, OutOfRange, TooLong };
+enum class NumpadError : uint8_t { None, Empty, OutOfRange, TooLong, PpmRange };
 
 struct Numpad {
     char text[NUMPAD_MAX_LEN + 1] = {};
     size_t len = 0;
     NumpadError error = NumpadError::None;
+    bool negative = false; // correction entry only (numpadPpmKey)
 };
 
 enum class NumpadEvent : uint8_t {
@@ -33,6 +34,11 @@ enum class NumpadEvent : uint8_t {
 NumpadEvent numpadKey(Numpad& n, const char* key, uint64_t* outHz);
 // UTF-8 text of LV_SYMBOL_BACKSPACE, so the logic needs no LVGL header.
 extern const char* const KEY_BACKSPACE;
+// Sign key of the correction entry.
+extern const char* const KEY_SIGN;
+// Correction entry (audit U-11): digits, point, backspace and C as numpadKey(), KEY_SIGN toggles the
+// sign, "ppm" confirms with *outCentiPpm in 0.01 ppm (rounded, at most CORRECTION_MAX).
+NumpadEvent numpadPpmKey(Numpad& n, const char* key, int32_t* outCentiPpm);
 // Short text for the error line of the numpad ("" for None).
 const char* numpadErrorText(NumpadError e);
 

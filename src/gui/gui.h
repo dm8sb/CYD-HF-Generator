@@ -94,6 +94,7 @@ private:
     void createCH3_();
     void createConfig_();
     void createNumpad_(uint8_t ch);
+    lv_color_t numpadColor_() const;
     void createTouchCal_();
     // Feeds raw touch samples to the wizard and moves the cross (every loop on that page).
     void tickTouchCal_();
@@ -183,6 +184,7 @@ private:
     MessageQueue messages_;     // open dialog and waiting ones (host-tested)
     TouchCal::Wizard calWizard_; // touch calibration (host-tested)
     bool calFirstStart_ = false;
+    bool numpadPpm_ = false;     // numpad opened from CONFIG: correction entry (U-11)
     uint8_t calShownTarget_ = 0xFF;
     TouchCal::Phase calShownPhase_ = TouchCal::Phase::Touch;
     bool (*storeTouchCal_)(const TouchCalibration&) = nullptr;

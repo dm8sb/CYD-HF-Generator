@@ -289,6 +289,8 @@ void Gui::navigate(PageId page) {
         lv_obj_get_scroll_end(w_.cfgList, &end);
         configScrollY_ = end.y;
     }
+    // The numpad edits the correction when opened from CONFIG, else the channel frequency.
+    if (page == PageId::Numpad) numpadPpm_ = currentPage_ == PageId::Config;
     currentPage_ = page;
     if (page == PageId::CH1) channel_ = 1;
     else if (page == PageId::CH2) channel_ = 2;

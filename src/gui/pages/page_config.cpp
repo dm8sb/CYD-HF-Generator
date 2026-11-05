@@ -123,10 +123,19 @@ void Gui::createConfig_() {
     w_.spreadDd = addOptionRow_(list, 3, "Spread CH1", "Off\n-0.5 %\n-1.5 %\n+/-0.5 %", Action::Spread);
 
     // Frequency correction in ppm; the step chip cycles 0.01 / 0.1 / 1 ppm.
-    // The widest value ("+48.44 ppm", 100 px) ends 4 px before the chip.
     row = addConfigRow_(list, 4, ROW_H, "Corr.");
-    w_.corrValue = addLabel_(row, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
+    // 14 px: with the frame the widest value ("+48.44 ppm", 96 px) ends 8 px before the chip.
+    w_.corrValue = addLabel_(row, "", &lv_font_montserrat_14, Colors::text(), 0, 0);
     lv_obj_align(w_.corrValue, LV_ALIGN_LEFT_MID, 40, 0);
+    // Tap the value to type it on the numpad (U-11); the frame shows that it can be tapped.
+    lv_obj_add_flag(w_.corrValue, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_border_width(w_.corrValue, 1, 0);
+    lv_obj_set_style_border_color(w_.corrValue, Colors::outline(), 0);
+    lv_obj_set_style_radius(w_.corrValue, 4, 0);
+    lv_obj_set_style_pad_hor(w_.corrValue, 3, 0);
+    lv_obj_set_style_pad_ver(w_.corrValue, 4, 0);
+    lv_obj_set_ext_click_area(w_.corrValue, 4);
+    on_(w_.corrValue, LV_EVENT_CLICKED, Action::Navigate, (uint8_t)PageId::Numpad);
     w_.corrStep = addChip_(row, "", 144, 0, 42, ROW_CONTENT_H, btnColor, Action::CorrStepCycle, 0);
     addButton_(row, LV_SYMBOL_MINUS, 190, 0, 47, ROW_CONTENT_H, btnColor, Action::CorrDown, 0, true);
     addButton_(row, LV_SYMBOL_PLUS, 241, 0, 47, ROW_CONTENT_H, btnColor, Action::CorrUp, 0, true);

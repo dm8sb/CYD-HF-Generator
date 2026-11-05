@@ -350,6 +350,42 @@ static void test_screen_lock() {
     TEST_ASSERT_FALSE(l.blocking());
 }
 
+// Correction entry on the numpad (audit U-11): signed ppm with 0.01 ppm resolution, +-50.00.
+static void test_numpad_ppm_entry() {
+    int32_t centi = 0;
+    Numpad n = typed("9.7");
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadPpmKey(n, "ppm", &centi));
+    TEST_ASSERT_EQUAL_INT32(970, centi);
+    n = Numpad {};
+    TEST_ASSERT_EQUAL(NumpadEvent::Edited, numpadPpmKey(n, KEY_SIGN, &centi));
+    TEST_ASSERT_TRUE(n.negative);
+    const char* keys[] = {"1", "2", ".", "3", "4", "5"};
+    for (const char* k : keys) numpadPpmKey(n, k, &centi);
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadPpmKey(n, "ppm", &centi));
+    TEST_ASSERT_EQUAL_INT32(-1235, centi); // rounded to 0.01 ppm
+    // Out of range and empty input are rejected and stay editable.
+    n = typed("50.01");
+    centi = 7;
+    TEST_ASSERT_EQUAL(NumpadEvent::Rejected, numpadPpmKey(n, "ppm", &centi));
+    TEST_ASSERT_EQUAL(NumpadError::PpmRange, n.error);
+    TEST_ASSERT_EQUAL_STRING("50.01", n.text);
+    TEST_ASSERT_EQUAL_INT32(7, centi);
+    TEST_ASSERT_EQUAL_STRING("-50.00 to +50.00 ppm", numpadErrorText(NumpadError::PpmRange));
+    n = typed("50");
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadPpmKey(n, "ppm", &centi));
+    TEST_ASSERT_EQUAL_INT32(CORRECTION_MAX, centi);
+    n = Numpad {};
+    TEST_ASSERT_EQUAL(NumpadEvent::Rejected, numpadPpmKey(n, "ppm", &centi));
+    TEST_ASSERT_EQUAL(NumpadError::Empty, n.error);
+    // C clears the sign as well; frequency units do nothing here.
+    n = typed("3");
+    numpadPpmKey(n, KEY_SIGN, &centi);
+    TEST_ASSERT_EQUAL(NumpadEvent::Edited, numpadPpmKey(n, "C", &centi));
+    TEST_ASSERT_FALSE(n.negative);
+    TEST_ASSERT_EQUAL_STRING("", n.text);
+    TEST_ASSERT_EQUAL(NumpadEvent::Ignored, numpadPpmKey(n, "MHz", &centi));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_numpad_digits_and_one_point);
@@ -372,5 +408,6 @@ int main(int, char**) {
     RUN_TEST(test_output_error_texts_name_channel_and_retry);
     RUN_TEST(test_range_note);
     RUN_TEST(test_screen_lock);
+    RUN_TEST(test_numpad_ppm_entry);
     return UNITY_END();
 }
