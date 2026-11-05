@@ -1,8 +1,8 @@
 # User Manual – CYD HF Generator
 
-Firmware version: 1.3.2
+Firmware version: 1.3.3
 
-This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 1.3.2); the German manual is the reference for the firmware's behavior.
+This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 1.3.3); the German manual is the reference for the firmware's behavior.
 
 ## Contents
 
@@ -667,8 +667,8 @@ It starts automatically as long as no calibration is stored (first start, after 
 At the end of the page, a card shows information for troubleshooting without a serial monitor, for example:
 
 ```text
-Firmware 1.3.2 | dev 47d9307
-Build 2026-11-04 18:30
+Firmware 1.3.3 | dev 47d9307
+Build 2026-11-05 15:00
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
@@ -932,7 +932,7 @@ Important messages:
 
 | Message | Meaning |
 |---|---|
-| `[BOOT] CYD HF Generator 1.3.2 (dev 47d9307, 2026-11-04 18:30)` | Startup: version, branch, commit and build time as on the info card |
+| `[BOOT] CYD HF Generator 1.3.3 (dev 47d9307, 2026-11-05 15:00)` | Startup: version, branch, commit and build time as on the info card |
 | `[I2C] Line held low; releasing bus` | An I2C line was LOW at startup and was released |
 | `[SETTINGS] Loaded from NVS` | Settings loaded |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Once after updating from 1.3.0/1.3.1: the choice of the former boot gesture was deleted (section 13) |
@@ -949,7 +949,7 @@ Important messages:
 | `[BOOT] Setup complete` | Startup complete |
 | `[GUI] Screen locked` / `[GUI] Screen unlocked` | screen lock on or off |
 | `[APP] Settings reset to defaults; correction kept` | `Reset` → `Defaults` done |
-| `[SETTINGS] All settings erased`, `[BOOT] Factory reset; restarting` | factory reset, then restart |
+| `[SETTINGS] All settings erased`, `[BOOT] Factory reset; restarting` | factory reset, then restart; the `Defaults` line comes first because all outputs are switched off first (the correction is erased afterwards all the same) |
 | `[SETTINGS] Saved to NVS` | Autosave |
 | `[APP] Restoring outputs` | After reconnecting, the outputs are being restored |
 | `[APP] Output error cleared` | An output error (`! ERR`) has been cleared |
