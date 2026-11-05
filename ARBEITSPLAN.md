@@ -36,7 +36,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 1 Robustheit | 1.3.1 | C-1 bis C-13, M-1; Assert- und Loop-Watchdog-Neustart (am Gerät geprüft), gehärteter Parser, Speichern nur bei Änderung und mit Wiederholung, Wiederverbinden im selben Zyklus |
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 
-Host-Tests: 230 Fälle in `native-win` und 4 in `native-win-fault` (Stand S45).
+Host-Tests: 235 Fälle in `native-win` und 4 in `native-win-fault` (Stand S46).
 
 ### 1.2 Referenzwerte
 
@@ -95,7 +95,6 @@ Host-Tests: 230 Fälle in `native-win` und 4 in `native-win-fault` (Stand S45).
 
 - [ ] **Heap auf der Info-Karte** (V-8): freier/minimaler Heap und LVGL-Heap; kommt mit der Info-Karten-Erweiterung in S53.
 - [ ] **C-14 I2C bündeln:** Register-Transfers rufen `Wire` direkt; 2.0.x-Semantik verteilt, ändert sich mit Core 3.x. → S39
-- [ ] **C-16 Logger gegen SCPI über USB** (hoch für WEB-HMI): Logger, LVGL- und IDF-Log schreiben auf `Serial`, dieselbe Schnittstelle wie SCPI; Öffnen des Ports kann über DTR/RTS einen Reset auslösen. → S46
 - [ ] **Feste Koordinaten in den Pages** durch das Layoutgitter (`gui_layout.h`) bzw. lokale Konstanten ersetzen. → N12
 - [ ] **DMA und Doppelpuffer** (nach der Migration): zwei Puffer 320 × 40 px (`DMA_ATTR`, je 25,6 KB), `LV_COLOR_16_SWAP` = 1, `setSwapBytes(false)`; in `DisplayPanel::begin()` erst Erkennung und Init mit rohem Buszugriff, dann `initDMA()` und einmal `startWrite()` (CS bleibt LOW, `endWrite()` nie); `flush()` = `dmaWait()`, `setAddrWindow()`, `pushPixelsDMA()`, `lv_disp_flush_ready()` sofort. Erwartung bis ≈ 30 Bilder/s, +36 KB RAM; Messung mit `LV_USE_PERF_MONITOR`. → N13
 - [ ] **Fakes:** `endTransmission(false)` erst mit `requestFrom` ausführen; Preferences mit mehreren Namespaces und Strings (für `hfnet`); LEDC-API von Core 3.x. Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln. → S38, S45, S52
@@ -340,7 +339,7 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 - [x] **S43 · Änderungszähler (V-2).** `AppController::revision()` zählt Änderungen an gespeichertem Zustand, Ausgängen, CH3-Zustand, Fehlerflags, Verbindung und tatsächlicher Frequenz (nicht im Leerlauf, nicht beim Autosave); `Gui::update()` zeichnet darüber neu statt über die eigene Hardware-Signatur. Host-Test mit Verbindungsverlust und -rückkehr.
 - [x] **S44 · Ereignisse (V-3).** `Event {code, category, source, channel, title, text}` an bis zu 3 Empfänger (`addListener`) statt `ErrorCallback`; Quelle `Touch`/`Remote`/`Internal` (`setSource`, Überwachung läuft als `Internal`); die GUI zeigt Dialoge nur für nicht entfernte Quellen und schließt Verbindungsdialoge über die Kategorie (`MessageQueue::dropTagged`) statt über Textvergleich; `isLinkText()` entfällt. Host-Tests.
 - [x] **S45 · Speichern je Quelle und Schlüssel (V-4, C-17).** Dirty-Bit je NVS-Schlüssel (`SettingKey`), das Autosave schreibt nur geänderte Schlüssel; Ruhezeit je Quelle (Touch 5 s, Remote 30 s, `SETTINGS_REMOTE_AUTOSAVE_MS`); `saveNow()` (SYSTem:SAVE) schreibt alles; `resetForRemote()` (*RST): Standardwerte im RAM, Korrektur bleibt, nichts vorgemerkt, eine spätere Änderung speichert nur ihren Schlüssel. Host-Tests. Namespaces und String-API des Storage/Fakes nach S52 verschoben (erst `hfnet` braucht sie).
-- [ ] **S46 · Logger umschaltbar (V-5, C-16).** Serial / Ringpuffer / aus mit Mutex; LVGL- und IDF-Log auf den Logger. *Commit:* `S46: Make logger output switchable (V-5, C-16)`
+- [x] **S46 · Logger umschaltbar (V-5, C-16).** `Logger::setOutput(ToSerial | ToBuffer | Off)`; Ringpuffer mit 32 Zeilen à 96 Zeichen (älteste fallen heraus, Zähler `dropped()`), `readBuffered()` für `SYSTem:LOG?`; Mutex auf dem ESP32; ESP-IDF-Log (`esp_log_set_vprintf`) und LVGL-Log (`lv_log_register_print_cb`, `LV_LOG_PRINTF 0`) laufen über den Logger. Neue Suite `test_logger`. Arduino-`log_e` (CORE_DEBUG_LEVEL) schreibt weiter direkt auf die UART; vor SCPI über USB prüfen (S51).
 - [ ] **S47 · Ausführer und Schnappschuss (V-6).** Touch synchron, Netz über FreeRTOS-Queue (16), Schnappschuss mit Sequenzzähler. *Commit:* `S47: Add command executor and state snapshot (V-6)`
 - [ ] **S48 · Netz-Parser (V-11).** Ganzzahl in Hz oder Dezimalzahl mit Einheit, Komma und Leerzeichen, keine Exponenten/Hex. *Commit:* `S48: Add hardened frequency parser for remote input (V-11)`
 

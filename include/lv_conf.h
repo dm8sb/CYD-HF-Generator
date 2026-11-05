@@ -10,7 +10,9 @@
 #define LV_TICK_CUSTOM_SYS_TIME_EXPR (millis())
 #define LV_USE_LOG 1
 #define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
-#define LV_LOG_PRINTF 1
+// LVGL log lines go through the Logger (lv_log_register_print_cb in Gui::begin), so they can be
+// buffered while SCPI uses the serial port (C-16).
+#define LV_LOG_PRINTF 0
 #define LV_USE_ASSERT_NULL 1
 #define LV_USE_ASSERT_MALLOC 1
 // A failed assert (e.g. LVGL pool full) restarts instead of the default while(1) (audit C-3).
