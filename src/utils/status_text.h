@@ -19,7 +19,7 @@ Text channel(ChannelStatus s);
 Text ch3(Ch3Status s);
 
 // Settings that change the signal of a channel compared to the defaults (audit U-2), e.g.
-// "OFF = High | SSC -0.5 % | Low noise | 8 mA"; empty with the defaults. spread: what applies
+// "OFF=High | SSC -0.5% | Low noise | 8mA" (compact, no space before units); empty with the defaults. spread: what applies
 // to this channel (PLL A: CH1, CH3 with master CH1). Tone::Warn with off state High (a
 // switched-off output carries DC), otherwise Tone::Muted. Returns the tone.
 Tone modeSummary(TuningMode tuning, Spread spread, uint8_t driveMa, OffState off, char* out, size_t outSize);
@@ -28,7 +28,8 @@ Tone modeSummary(TuningMode tuning, Spread spread, uint8_t driveMa, OffState off
 // retry. ch 1/2: standalone output; ch 3: IQ pair with master (1/2).
 void outputErrorText(uint8_t ch, uint8_t master, char* out, size_t outSize);
 
-// Hint for the channel page outside 1-100 MHz (E-16): "" inside the range.
+// Hint for the channel page outside 1-100 MHz (E-16), short enough for the mode line next to
+// a few special modes: "" inside the range.
 const char* rangeNote(uint64_t hz);
 
 }

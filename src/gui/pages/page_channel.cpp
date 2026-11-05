@@ -68,23 +68,12 @@ void Gui::refreshChannel_() {
         showOutput_(channel_, c.frequency, status == ChannelStatus::Off ? "Off | " : "");
     }
 
-    showModes_(w_.modes, channel_);
-    // CH3 follows this channel: frequency changes move both (U-17).
+    // CH3 follows this channel: frequency changes move both (U-17); outside 1-100 MHz a hint (E-16).
+    char iq[24] = "";
     if (app.ch3().master == channel_ && app.ch3Status() != Ch3Status::Off) {
-        const char* modes = lv_label_get_text(w_.modes);
-        char line[96];
-        snprintf(line, sizeof(line), "%s%sIQ master of CH3 (%u\xC2\xB0)", modes, modes[0] ? " | " : "",
-                 (unsigned)app.ch3().phase);
-        lv_label_set_text(w_.modes, line);
+        snprintf(iq, sizeof(iq), "IQ master (%u\xC2\xB0)", (unsigned)app.ch3().phase);
     }
-    // Outside 1-100 MHz: level and harmonics hint (E-16).
-    const char* note = StatusText::rangeNote(c.frequency);
-    if (note[0]) {
-        const char* modes = lv_label_get_text(w_.modes);
-        char line[128];
-        snprintf(line, sizeof(line), "%s%s%s", modes, modes[0] ? " | " : "", note);
-        lv_label_set_text(w_.modes, line);
-    }
+    showModes_(w_.modes, channel_, iq, nullptr, StatusText::rangeNote(c.frequency));
 
     const uint8_t sel = FrequencyUtils::stepIndex(app.system().delta_step);
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) {
