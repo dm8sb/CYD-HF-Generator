@@ -7,7 +7,21 @@
 #include <drivers/si5351_manager.h>
 #include <drivers/backlight.h>
 
-typedef void (*ErrorCallback)(const char* title, const char* text);
+// Events instead of a single error callback (V-3). The GUI shows a dialog for them, later the
+// SCPI error queue and the WebSocket get them too. Title and text are valid during the call.
+enum class EventCategory : uint8_t { Link = 1, Output = 2, Settings = 3 };
+enum class EventCode : uint8_t { LinkLost, LinkNotFound, LinkBlocked, LinkUnknownDevice, OutputSetupFailed, IqSetupFailed, SaveFailed };
+// Where the command came from that led to the event; Internal = supervision, autosave.
+enum class Source : uint8_t { Touch, Remote, Internal };
+struct Event {
+    EventCode code;
+    EventCategory category;
+    Source source;
+    uint8_t channel; // 1..3 for output events, else 0
+    const char* title;
+    const char* text;
+};
+typedef void (*EventListener)(const Event& e, void* ctx);
 
 enum class SaveState : uint8_t { Saved, Pending, Failed, Unavailable };
 // SI5351 connection. Blocked: an I2C line stays low. UnknownDevice: something at 0x60 fails
@@ -25,7 +39,11 @@ public:
     void update();
     void applyStoredChannelSettings();
 
-    void setErrorCallback(ErrorCallback cb) { errorCb_ = cb; }
+    // Up to MAX_LISTENERS receivers; false if full.
+    static constexpr uint8_t MAX_LISTENERS = 3;
+    bool addListener(EventListener fn, void* ctx);
+    // Source of the following commands (Touch by default; remote servers set Remote).
+    void setSource(Source s) { source_ = s; }
 
     // Setters return a Result (V-1): set* reject values outside their range or set, adjust* and
     // stepBacklight() clamp. ch: 1/2 for frequencies, 1..3 for outputs.
@@ -66,8 +84,6 @@ public:
     uint32_t revision() const { return revision_; }
     // Dialog text for a state other than Connected.
     static const char* linkText(LinkState s);
-    // True for linkText() and the "Connection lost" text.
-    static bool isLinkText(const char* text);
     SaveState saveState() const;
     uint64_t ch3Frequency() const { return masterFrequency_(); }
     ChannelStatus channelStatus(uint8_t ch) const;
@@ -93,11 +109,12 @@ private:
     SI5351Manager::Pll pllForChannel_(uint8_t ch) const { return ch == 1 ? SI5351Manager::Pll::A : SI5351Manager::Pll::B; }
     void markChanged_();
     void bump_() { ++revision_; }
-    void reportError_(const char* title, const char* text);
-    // Reports a lost SI5351 instead of `text` when the failure came from the I2C bus.
-    void reportHardwareError_(const char* text);
+    void report_(EventCode code, EventCategory category, const char* title, const char* text, uint8_t channel = 0);
+    // An output or IQ setup failed: reports a lost SI5351 instead when the I2C bus failed.
+    void reportOutputError_(EventCode code, uint8_t channel, const char* text);
     void reportLinkLost_();
     void superviseHardware_();
+    void superviseOnce_();
     // Tries the open SDA/SCL assignment first, then the other one.
     bool connect_();
     void setLinkState_(LinkState s);
@@ -116,7 +133,12 @@ private:
     SI5351Manager& si5351_;
     BacklightDriver& backlight_;
     PersistentState state_ {};
-    ErrorCallback errorCb_ = nullptr;
+    struct Listener {
+        EventListener fn;
+        void* ctx;
+    };
+    Listener listeners_[MAX_LISTENERS] {};
+    Source source_ = Source::Touch;
     uint32_t lastHwCheckMs_ = 0;
     uint32_t revision_ = 0;
     LinkState link_ = LinkState::NotFound;

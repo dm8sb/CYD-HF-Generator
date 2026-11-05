@@ -24,10 +24,6 @@ static AppController app(settings, si5351, backlight);
 static Gui gui;
 static PersistentState loadedState;
 
-static void showError(const char* title, const char* text) {
-    gui.showMessage(title, text);
-}
-
 static bool saveTouchCalibration(const TouchCalibration& cal) { return settings.saveTouchCalibration(cal); }
 
 // Factory reset (U-13): the outputs are already off; erase and start like a new device.
@@ -97,9 +93,9 @@ void setup() {
     gui.setFactoryReset(factoryReset);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
     if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
-    app.setErrorCallback(showError);
+    app.addListener(Gui::onAppEvent, &gui);
     if (!si5351Ok) {
-        gui.showMessage("SI5351", AppController::linkText(app.linkState()));
+        gui.showMessage("SI5351", AppController::linkText(app.linkState()), (uint8_t)EventCategory::Link);
     }
     if (!settingsOk) {
         gui.showMessage("Settings", "Flash storage (NVS) unavailable. Settings will not be saved.");

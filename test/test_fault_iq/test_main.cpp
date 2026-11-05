@@ -27,6 +27,12 @@ static void onError(const char*, const char* text) {
     snprintf(lastErrorText, sizeof(lastErrorText), "%s", text);
 }
 
+static Event lastEvent;
+static void onEvent(const Event& e, void*) {
+    lastEvent = e;
+    onError(e.title, e.text);
+}
+
 struct Device {
     SettingsService settings;
     SI5351Manager si;
@@ -41,7 +47,7 @@ struct Device {
         app.begin(loaded);
         backlight.begin();
         app.connectHardware();
-        app.setErrorCallback(onError);
+        app.addListener(onEvent, nullptr);
         app.applyStoredChannelSettings();
     }
 

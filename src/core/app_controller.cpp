@@ -28,7 +28,8 @@ void AppController::applyStoredChannelSettings() {
 
 void AppController::update() {
     if (settings_.update(state_) == SaveResult::Failed) {
-        reportError_("Settings", "Saving to flash (NVS) failed. Changes will be lost at power off.");
+        report_(EventCode::SaveFailed, EventCategory::Settings, "Settings",
+                "Saving to flash (NVS) failed. Changes will be lost at power off.");
     }
     superviseHardware_();
 }
@@ -37,6 +38,14 @@ void AppController::superviseHardware_() {
     const uint32_t now = millis();
     if (now - lastHwCheckMs_ < HW_CHECK_INTERVAL_MS) return;
     lastHwCheckMs_ = now;
+    // Events of the supervision come from no command.
+    const Source previous = source_;
+    source_ = Source::Internal;
+    superviseOnce_();
+    source_ = previous;
+}
+
+void AppController::superviseOnce_() {
     if (si5351_.ready()) {
         if (si5351_.checkAlive()) {
             if (anyFault_()) {
@@ -49,7 +58,7 @@ void AppController::superviseHardware_() {
         }
         link_ = LinkState::NotFound;
         bump_();
-        reportError_("SI5351", MSG_HW_LOST);
+        report_(EventCode::LinkLost, EventCategory::Link, "SI5351", MSG_HW_LOST);
         // Reconnect at once (audit C-12): after a power glitch the chip answers again right away,
         // so the outputs are back within one cycle instead of two.
     }
@@ -122,21 +131,14 @@ void AppController::setLinkState_(LinkState s) {
     } else if (s == LinkState::NotFound) {
         Logger::info("APP", "SI5351 not found");
     } else {
-        reportError_("SI5351", linkText(s));
+        report_(s == LinkState::Blocked ? EventCode::LinkBlocked : EventCode::LinkUnknownDevice, EventCategory::Link,
+                "SI5351", linkText(s));
     }
 }
 
 LinkState AppController::linkState() const {
     if (si5351_.ready()) return LinkState::Connected;
     return link_ == LinkState::Connected ? LinkState::NotFound : link_;
-}
-
-bool AppController::isLinkText(const char* text) {
-    const LinkState states[] = {LinkState::NotFound, LinkState::Blocked, LinkState::UnknownDevice};
-    for (LinkState s : states) {
-        if (strcmp(text, linkText(s)) == 0) return true;
-    }
-    return strcmp(text, MSG_HW_LOST) == 0;
 }
 
 const char* AppController::linkText(LinkState s) {
@@ -171,18 +173,35 @@ void AppController::markChanged_() {
     bump_();
 }
 
-void AppController::reportError_(const char* title, const char* text) {
+bool AppController::addListener(EventListener fn, void* ctx) {
+    for (Listener& l : listeners_) {
+        if (!l.fn) {
+            l = Listener {fn, ctx};
+            return true;
+        }
+    }
+    return false;
+}
+
+void AppController::report_(EventCode code, EventCategory category, const char* title, const char* text, uint8_t channel) {
     if (quietRetry_) return;
     Logger::error(title, text);
-    if (errorCb_) errorCb_(title, text);
+    const Event e {code, category, source_, channel, title, text};
+    for (const Listener& l : listeners_) {
+        if (l.fn) l.fn(e, l.ctx);
+    }
 }
 
 // A failed output enable or register 24 write means the transfer failed, and the driver has
 // already marked the SI5351 as lost (audit C-6): report that, not an output error.
-void AppController::reportLinkLost_() { reportError_("SI5351", MSG_HW_LOST); }
+void AppController::reportLinkLost_() { report_(EventCode::LinkLost, EventCategory::Link, "SI5351", MSG_HW_LOST); }
 
-void AppController::reportHardwareError_(const char* text) {
-    reportError_("SI5351", si5351_.ready() ? text : MSG_HW_LOST);
+void AppController::reportOutputError_(EventCode code, uint8_t channel, const char* text) {
+    if (!si5351_.ready()) {
+        reportLinkLost_();
+        return;
+    }
+    report_(code, EventCategory::Output, "SI5351", text, channel);
 }
 
 bool AppController::masterEnabled_() const { return state_.ch3.master == 1 ? state_.ch1.enabled : state_.ch2.enabled; }
@@ -225,7 +244,7 @@ void AppController::configureStandalone_(uint8_t ch) {
     if (!ok) {
         char text[96];
         StatusText::outputErrorText(ch, 0, text, sizeof(text));
-        reportHardwareError_(text);
+        reportOutputError_(EventCode::OutputSetupFailed, ch, text);
     }
 }
 
@@ -244,7 +263,7 @@ void AppController::configureMasterGroup_() {
         fault_[CLK_CH3] = si5351_.ready();
         char text[96];
         StatusText::outputErrorText(3, master, text, sizeof(text));
-        reportHardwareError_(text);
+        reportOutputError_(EventCode::IqSetupFailed, 3, text);
         // Keep at least the master running.
         si5351_.powerDown(CLK_CH3);
         configureStandalone_(master);
