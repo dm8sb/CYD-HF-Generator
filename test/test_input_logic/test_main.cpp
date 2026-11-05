@@ -267,11 +267,11 @@ static void test_mode_summary_lists_only_deviations() {
     TEST_ASSERT_EQUAL(Tone::Muted, modeSummary(TuningMode::Fractional, Spread::Off, DEFAULT_DRIVE_MA, OffState::Low, buf, sizeof(buf)));
     TEST_ASSERT_EQUAL_STRING("", buf);
     TEST_ASSERT_EQUAL(Tone::Warn, modeSummary(TuningMode::LowNoise, Spread::Down05, 8, OffState::High, buf, sizeof(buf)));
-    TEST_ASSERT_EQUAL_STRING("OFF = High | SSC -0.5 % | Low noise | 8 mA", buf);
+    TEST_ASSERT_EQUAL_STRING("OFF=High | SSC -0.5% | Low noise | 8mA", buf);
     TEST_ASSERT_EQUAL(Tone::Muted, modeSummary(TuningMode::Integer, Spread::Off, 2, OffState::HighZ, buf, sizeof(buf)));
-    TEST_ASSERT_EQUAL_STRING("OFF = High-Z | Integer | 2 mA", buf);
+    TEST_ASSERT_EQUAL_STRING("OFF=High-Z | Integer | 2mA", buf);
     modeSummary(TuningMode::Fractional, Spread::Center05, DEFAULT_DRIVE_MA, OffState::Low, buf, sizeof(buf));
-    TEST_ASSERT_EQUAL_STRING("SSC +/-0.5 %", buf);
+    TEST_ASSERT_EQUAL_STRING("SSC +/-0.5%", buf);
     char small[12];
     modeSummary(TuningMode::LowNoise, Spread::Down15, 8, OffState::High, small, sizeof(small));
     TEST_ASSERT_TRUE(strlen(small) < sizeof(small));
@@ -322,8 +322,8 @@ static void test_range_note() {
     TEST_ASSERT_EQUAL_STRING("", rangeNote(10000000ULL));
     TEST_ASSERT_EQUAL_STRING("", rangeNote(1000000ULL));
     TEST_ASSERT_EQUAL_STRING("", rangeNote(100000000ULL));
-    TEST_ASSERT_EQUAL_STRING("Above 100 MHz: lower level", rangeNote(100000001ULL));
-    TEST_ASSERT_EQUAL_STRING("Below 1 MHz: filter harmonics", rangeNote(999999ULL));
+    TEST_ASSERT_EQUAL_STRING(">100MHz: low level", rangeNote(100000001ULL));
+    TEST_ASSERT_EQUAL_STRING("<1MHz: harmonics", rangeNote(999999ULL));
 }
 
 // Screen lock (audit U-13): while locked no touch reaches LVGL; holding 2 s unlocks, and
@@ -388,14 +388,21 @@ static void test_numpad_ppm_entry() {
     TEST_ASSERT_EQUAL(NumpadEvent::Ignored, numpadPpmKey(n, "MHz", &centi));
 }
 
-// Holding +/- speeds up (audit U-20): 10 steps/s, after 2 s 20/s, after 4 s 50/s.
+// Holding +/- speeds up (audit U-20): about 3 steps/s, after 3 s 10/s, after 6 s 20/s.
 static void test_repeat_speeds_up() {
+    TEST_ASSERT_TRUE(REPEAT_DELAY_MS < REPEAT_FAST_MS && REPEAT_FAST_MS < REPEAT_FASTER_MS);
     TEST_ASSERT_EQUAL_UINT8(1, repeatSteps(0));
-    TEST_ASSERT_EQUAL_UINT8(1, repeatSteps(REPEAT_FAST_MS - 1));
-    TEST_ASSERT_EQUAL_UINT8(2, repeatSteps(REPEAT_FAST_MS));
-    TEST_ASSERT_EQUAL_UINT8(2, repeatSteps(REPEAT_FASTER_MS - 1));
-    TEST_ASSERT_EQUAL_UINT8(5, repeatSteps(REPEAT_FASTER_MS));
-    TEST_ASSERT_EQUAL_UINT8(5, repeatSteps(60000));
+    TEST_ASSERT_EQUAL_UINT8(1, repeatSteps(REPEAT_FAST_MS));
+    TEST_ASSERT_EQUAL_UINT8(1, repeatSteps(REPEAT_FASTER_MS - 1));
+    TEST_ASSERT_EQUAL_UINT8(2, repeatSteps(REPEAT_FASTER_MS));
+    TEST_ASSERT_EQUAL_UINT8(2, repeatSteps(60000));
+    // Slow phase: a repeat acts only REPEAT_SLOW_INTERVAL_MS after the last step.
+    TEST_ASSERT_FALSE(repeatDue(REPEAT_DELAY_MS + 100, 100));
+    TEST_ASSERT_FALSE(repeatDue(REPEAT_FAST_MS - 1, REPEAT_SLOW_INTERVAL_MS - 1));
+    TEST_ASSERT_TRUE(repeatDue(REPEAT_DELAY_MS + 300, REPEAT_SLOW_INTERVAL_MS));
+    // From REPEAT_FAST_MS every repeat acts.
+    TEST_ASSERT_TRUE(repeatDue(REPEAT_FAST_MS, 0));
+    TEST_ASSERT_TRUE(repeatDue(REPEAT_FASTER_MS, 0));
 }
 
 int main(int, char**) {

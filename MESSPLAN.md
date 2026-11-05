@@ -69,7 +69,7 @@ Der **Smoke-Test** (4.3, ≈ 30 min) bleibt die kurze Prüfung nach jeder Entwic
 | Board A | Original-CYD | nur Micro-USB | ILI9341 |
 | Board B | CYD2USB | zusätzlich USB-C | ST7789 |
 
-Stand 2026-11-04 (Smoke-Tests 1.3.1 und 1.3.2): **COM7** = Original-CYD (ILI9341) **ohne** SI5351, **COM13** = CYD2USB (ST7789) **mit** SI5351. V1 bestätigt die Zuordnung vor jedem Lauf. Folgen:
+Stand 2026-11-05 (Smoke-Tests 1.3.1 bis 1.3.3): **COM7** = Original-CYD (ILI9341) **ohne** SI5351, **COM13** = CYD2USB (ST7789) **mit** SI5351. V1 bestätigt die Zuordnung vor jedem Lauf. Folgen:
 
 - Alle HF-Messungen laufen auf dem Board mit Modul („**Messboard**“, derzeit das CYD2USB). Das Modul bestimmt die HF-Werte, das Board nur Störungen (F6, F9).
 - Display, Touch und Boot ohne Modul brauchen kein Modul: I3, B6, B7, B8 laufen auf beiden Boards ohne Umstecken, A1 auf dem Board ohne Modul. Umstecken ist nur noch für die optionale Wiederholung von F6 am zweiten Board nötig.
@@ -330,7 +330,7 @@ Aufbau 7 – Netz
 
 ### 4.3 Smoke-Test (je Entwicklungsphase, beide Boards)
 
-`Dauer` ≈ 30 min · nach jeder Phase des Arbeitsplans; das Ergebnis steht im Release-Schritt des [ARBEITSPLAN.md](ARBEITSPLAN.md) (zuletzt S17 für 1.3.1 und S30 für 1.3.2).
+`Dauer` ≈ 30 min · nach jeder Phase des Arbeitsplans; das Ergebnis steht im Release-Schritt des [ARBEITSPLAN.md](ARBEITSPLAN.md) (zuletzt S17 für 1.3.1, S30 für 1.3.2 und S36 für 1.3.3).
 
 | Schritt | Prüfung | Erwartung |
 |---|---|---|
@@ -342,7 +342,7 @@ Aufbau 7 – Netz
 | 6 | CH3 IQ 90° an OSZI | zwei Signale mit 25 ns Versatz |
 | 7 (ab WEB-HMI) | L1 (Client), `*IDN?` über TCP 5025 und USB, Webseite öffnet | siehe 5.11 |
 
-Bei 1.3.1 und 1.3.2 blieben die Schritte 5 und 6 offen (kein Messgerät verfügbar); der erste Stufe-1-Lauf schließt sie (C3, E1).
+Bei 1.3.1 bis 1.3.3 blieben die Schritte 5 und 6 offen (kein Messgerät verfügbar); der erste Stufe-1-Lauf schließt sie (C3, E1).
 
 ---
 

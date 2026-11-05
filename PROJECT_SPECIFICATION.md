@@ -1,6 +1,6 @@
 # CYD HF Generator – Project Specification
 
-Firmware 1.3.2 · Status 2026-11-04
+Firmware 1.3.3 · Status 2026-11-05
 
 This document contains only **requirements** (A-n, numbered and testable) and **decisions** (E-n, dated, with rationale and measured values where they exist). Behavior as seen by the user (pages, controls, messages, log lines, examples) is described only in [USER_MANUAL_DE.md](USER_MANUAL_DE.md); [USER_MANUAL_EN.md](USER_MANUAL_EN.md) is its translation. Build instructions and the change history are in [README.md](README.md), architecture and development rules in [CLAUDE.md](CLAUDE.md).
 
@@ -148,7 +148,7 @@ This table is authoritative; README and manual repeat parts of it.
 - **A-58** The CH3 page sets the master frequency (tap on the frequency, numpad, back to CH3) and switches the master on while CH3 waits for it (audit U-16).
 - **A-56** Lab operation (audit U-13): a screen lock (CONFIG, unlock by holding 2 s anywhere, the unlocking touch triggers nothing, not stored), a reset to defaults that keeps the frequency correction and the touch calibration and switches all outputs off, and a factory reset that erases the NVS and restarts; both resets need a confirmation.
 - **A-57** The frequency correction can also be typed on the numpad (tap the value in CONFIG): signed, rounded to 0.01 ppm, at most ±50.00 ppm; a value outside is rejected and stays editable (audit U-11).
-- **A-30** Frequency entry for CH1/CH2: step presets 1 Hz … 1 MHz, `+`/`−` with hold-to-repeat (2× after 2 s, 5× after 4 s; pressure dropouts up to 70 ms keep the hold, audit U-20), tap on a digit selects the step (a separator selects the nearer neighbor, audit U-15), numeric keypad with validation (E-5); a rejected input stays editable with the reason shown, the current frequency stays visible (U-9).
+- **A-30** Frequency entry for CH1/CH2: step presets 1 Hz … 1 MHz, `+`/`−` with hold-to-repeat (from 0.6 s about 3 steps/s, after 3 s 10/s, after 6 s 20/s; pressure dropouts up to 70 ms keep the hold, audit U-20), tap on a digit selects the step (a separator selects the nearer neighbor, audit U-15), numeric keypad with validation (E-5); a rejected input stays editable with the reason shown, the current frequency stays visible (U-9).
 - **A-31** CONFIG contains, signal settings first, drive strength, off state, tuning mode, spread spectrum, correction (E-6), backlight (10–100 % in 10 % steps, E-23) and an info card (firmware version, branch, commit with dirty mark, build time, display controller with its source, SI5351 pins or state). The save state is visible in every scroll position.
 - **A-32** Touch: XPT2046 with a calibration per board (wizard with four corner crosses and a check cross, stored in NVS; fixed default calibration without one, E-27), jitter filter and debounce.
 - **A-33** The backlight stays off until the first frame is drawn (the uninitialized panel shows noise).

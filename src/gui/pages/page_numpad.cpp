@@ -4,6 +4,13 @@
 #include <utils/input_logic.h>
 
 // Frequency entry of CH1/CH2: the unit keys confirm.
+// Top row: back key, title, input field; below the current value and error line, then the keys.
+static constexpr int BACK_W = 52;
+static constexpr int TITLE_X = 64;
+static constexpr int FIELD_X = 112;
+static constexpr int INFO_Y = 45;
+static constexpr int KEYS_Y = 62;
+
 static const char* freqMap[] = {
     "7", "8", "9", "MHz", "\n",
     "4", "5", "6", "kHz", "\n",
@@ -27,13 +34,13 @@ void Gui::createNumpad_(uint8_t ch) {
 
     // Back returns without a change: to the channel page, or to CONFIG for the correction.
     const PageId back = numpadPpm_ ? PageId::Config : numpadReturn_;
-    addButton_(root_, LV_SYMBOL_LEFT, 4, 3, 52, 36, Colors::gray(), Action::Navigate, (uint8_t)back);
-    addLabel_(root_, numpadPpm_ ? "Corr." : (ch == 1 ? "CH1" : "CH2"), &lv_font_montserrat_20, color, 64, 10);
+    addButton_(root_, LV_SYMBOL_LEFT, 4, 3, BACK_W, 36, Colors::gray(), Action::Navigate, (uint8_t)back);
+    addLabel_(root_, numpadPpm_ ? "Corr." : (ch == 1 ? "CH1" : "CH2"), &lv_font_montserrat_20, color, TITLE_X, 10);
 
     numpad_ = InputLogic::Numpad {};
     w_.ta = lv_textarea_create(root_);
-    lv_obj_set_pos(w_.ta, 112, 2);
-    lv_obj_set_size(w_.ta, SCREEN_WIDTH - 116, 40);
+    lv_obj_set_pos(w_.ta, FIELD_X, 2);
+    lv_obj_set_size(w_.ta, SCREEN_WIDTH - FIELD_X - 4, 40);
     lv_textarea_set_one_line(w_.ta, true);
     lv_textarea_set_max_length(w_.ta, InputLogic::NUMPAD_MAX_LEN + 1); // + sign
     lv_textarea_set_accepted_chars(w_.ta, "-0123456789.");
@@ -47,16 +54,16 @@ void Gui::createNumpad_(uint8_t ch) {
     if (numpadPpm_) FrequencyUtils::formatPpm(app_->system().freq_correction, now, sizeof(now));
     else FrequencyUtils::format(app_->channel(ch).frequency, now, sizeof(now));
     snprintf(buf, sizeof(buf), "Now %s", now);
-    addLabel_(root_, buf, &lv_font_montserrat_14, Colors::muted(), 8, 45);
+    addLabel_(root_, buf, &lv_font_montserrat_14, Colors::muted(), 8, INFO_Y);
     w_.npError = addLabel_(root_, "", &lv_font_montserrat_14, Colors::error(), 0, 0);
-    lv_obj_align(w_.npError, LV_ALIGN_TOP_RIGHT, -8, 45);
+    lv_obj_align(w_.npError, LV_ALIGN_TOP_RIGHT, -8, INFO_Y);
 
     lv_obj_t* m = lv_btnmatrix_create(root_);
     lv_btnmatrix_set_map(m, numpadPpm_ ? ppmMap : freqMap);
     // Up to the screen edge; the padding keeps the keys where they were (6 px from the edge).
     // Keys in the outer rows and columns take taps in the padding, so up to the edge (U-5).
-    lv_obj_set_pos(m, 0, 62);
-    lv_obj_set_size(m, SCREEN_WIDTH, SCREEN_HEIGHT - 62);
+    lv_obj_set_pos(m, 0, KEYS_Y);
+    lv_obj_set_size(m, SCREEN_WIDTH, SCREEN_HEIGHT - KEYS_Y);
     lv_obj_set_style_bg_opa(m, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(m, 0, 0);
     lv_obj_set_style_pad_hor(m, 6, 0);

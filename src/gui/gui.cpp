@@ -36,6 +36,7 @@ void Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
     indevDrv_.type = LV_INDEV_TYPE_POINTER;
     indevDrv_.read_cb = touchCb_;
     indevDrv_.user_data = this;
+    indevDrv_.long_press_time = REPEAT_DELAY_MS; // first repeat of a held +/- (U-20)
     lv_indev_drv_register(&indevDrv_);
 
     lv_theme_default_init(lv_disp_get_default(), lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
@@ -235,7 +236,7 @@ lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switch
     lv_obj_clear_flag(stripe, LV_OBJ_FLAG_CLICKABLE);
 
     lv_obj_t* t = addLabel_(bar, title, &lv_font_montserrat_20, color, 0, 0);
-    lv_obj_align(t, LV_ALIGN_LEFT_MID, 14, 0);
+    lv_obj_align(t, LV_ALIGN_LEFT_MID, Layout::HEADER_TITLE_X, 0);
 
     if (switchChannel) {
         w_.hdrSwitch = addSwitch_(bar, switchChannel, color);
@@ -246,7 +247,7 @@ lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switch
     }
 
     // 36 px high and up to the top and right edge (audit U-5).
-    addButton_(bar, "MAIN", SCREEN_WIDTH - 66, 1, 62, Layout::HEADER_H - 2, Colors::gray(), Action::Navigate, (uint8_t)PageId::Main);
+    addButton_(bar, "MAIN", Layout::HEADER_MAIN_X, 1, Layout::HEADER_MAIN_W, Layout::HEADER_H - 2, Colors::gray(), Action::Navigate, (uint8_t)PageId::Main);
     return bar;
 }
 
@@ -387,9 +388,17 @@ void Gui::eventCb_(lv_event_t* e) {
     Gui* g = from_(obj);
     uintptr_t packed = (uintptr_t)lv_event_get_user_data(e);
     g->lastCode_ = lv_event_get_code(e);
+    const uint32_t now = millis();
     if (g->lastCode_ == LV_EVENT_PRESSED) {
-        g->pressStartMs_ = millis();
+        g->pressStartMs_ = now;
         return;
+    }
+    if (g->lastCode_ == LV_EVENT_LONG_PRESSED_REPEAT &&
+        !InputLogic::repeatDue(now - g->pressStartMs_, now - g->lastStepMs_)) {
+        return; // slow phase of a hold: skip this repeat (U-20)
+    }
+    if (g->lastCode_ == LV_EVENT_LONG_PRESSED || g->lastCode_ == LV_EVENT_LONG_PRESSED_REPEAT) {
+        g->lastStepMs_ = now;
     }
     g->handleAction_((Action)((packed >> 8) & 0xFF), (uint8_t)(packed & 0xFF), obj);
 }
@@ -405,7 +414,7 @@ static_assert((uint8_t)OffState::Low == 0 && (uint8_t)OffState::High == 1 && (ui
 void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
     AppController& app = *app_;
     const SystemSettings& sys = app.system();
-    // Holding +/- speeds up after REPEAT_FAST_MS (U-20).
+    // Holding +/- speeds up after REPEAT_FASTER_MS (U-20).
     const int64_t steps = lastCode_ == LV_EVENT_LONG_PRESSED_REPEAT ? InputLogic::repeatSteps(millis() - pressStartMs_) : 1;
     switch (action) {
         case Action::Navigate:
@@ -565,11 +574,15 @@ void Gui::dismissLinkMessages_() {
 
 void Gui::nextMessageCb_(void* gui) { static_cast<Gui*>(gui)->openMessage_(); }
 
-void Gui::showModes_(lv_obj_t* label, uint8_t ch) {
+void Gui::showModes_(lv_obj_t* label, uint8_t ch, const char* extra, const char* alone, const char* note) {
     const SystemSettings& sys = app_->system();
-    char buf[64];
+    char modes[64];
     const StatusText::Tone tone =
-        StatusText::modeSummary(sys.tuning_mode, app_->spreadOf(ch), sys.drive_ma, sys.off_state, buf, sizeof(buf));
+        StatusText::modeSummary(sys.tuning_mode, app_->spreadOf(ch), sys.drive_ma, sys.off_state, modes, sizeof(modes));
+    if (!modes[0] && alone && extra[0]) extra = alone;
+    char buf[160];
+    snprintf(buf, sizeof(buf), "%s%s%s%s%s", modes, (modes[0] && extra[0]) ? " | " : "", extra,
+             ((modes[0] || extra[0]) && note[0]) ? " | " : "", note);
     lv_label_set_text(label, buf);
     lv_obj_set_style_text_color(label, Colors::forTone(tone), 0);
 }

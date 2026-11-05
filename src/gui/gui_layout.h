@@ -17,6 +17,15 @@ static constexpr int CARD_BORDER = 2;
 // Header: switch and state text right after the title, so "NO HW" fits before MAIN (U-1).
 static constexpr int HEADER_SWITCH_X = 66;
 static constexpr int HEADER_STATE_X = 126;
+static constexpr int HEADER_TITLE_X = 14;
+// Header MAIN button: 36 px high, up to the top and right edge (U-5).
+static constexpr int HEADER_MAIN_W = 62;
+static constexpr int HEADER_MAIN_X = 320 - HEADER_MAIN_W - 4;
+// Frequency card of the channel and CH3 pages: frequency (28 px), Out line, mode line.
+static constexpr int CARD_FREQ_H = 80;
+static constexpr int CARD_TEXT_X = 2;
+static constexpr int CARD_INFO_Y = 32;
+static constexpr int CARD_MODES_Y = 50;
 }
 
 // Color scheme (PROJECT_SPECIFICATION.md A-27), values in palette.h.
