@@ -261,10 +261,9 @@ static double maxErrAbove100MHz(uint64_t freq) {
 }
 
 static void test_standalone_above_100_mhz() {
-    // Planned range extension up to 160 MHz (ARBEITSPLAN S35). Known issue: next to 112.5 MHz the
-    // MultiSynth ratio rounds to exactly 8 and the integer-divider path is not tried, e.g.
-    // 112 500 004 Hz is off by 5.1 Hz with correction 0.
-    TEST_IGNORE_MESSAGE("known issue next to 112.5 MHz, see ARBEITSPLAN S34");
+    // Range extension up to 160 MHz (ARBEITSPLAN S35). Next to 112.5 MHz the MultiSynth ratio
+    // rounds to exactly 8 with correction 0; the even integer divider must still be tried there
+    // (112 500 004 Hz was off by 5.1 Hz, fixed in S34).
     for (int32_t corr : CORRECTIONS) {
         TEST_ASSERT_TRUE(si.begin(corr));
         lcgState = 13;
@@ -282,6 +281,12 @@ static void test_standalone_above_100_mhz() {
             }
         }
     }
+}
+
+static void test_standalone_next_to_112_5_mhz() {
+    TEST_ASSERT_TRUE(si.begin(0));
+    checkStandalone(112500004ULL, 0, 1.5);
+    checkStandalone(112499996ULL, 0, 1.5);
 }
 
 static void test_standalone_uses_integer_mode_for_even_dividers() {
@@ -1090,6 +1095,7 @@ int main() {
     RUN_TEST(test_standalone_accuracy_at_weak_spots);
     RUN_TEST(test_standalone_below_1_mhz_uses_r_divider);
     RUN_TEST(test_standalone_above_100_mhz);
+    RUN_TEST(test_standalone_next_to_112_5_mhz);
     RUN_TEST(test_standalone_uses_integer_mode_for_even_dividers);
     RUN_TEST(test_standalone_tuning_never_resets_pll_or_disables_output);
     RUN_TEST(test_correction_change_does_not_reset_pll);

@@ -36,7 +36,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 1 Robustheit | 1.3.1 | C-1 bis C-13, M-1; Assert- und Loop-Watchdog-Neustart (am Gerät geprüft), gehärteter Parser, Speichern nur bei Änderung und mit Wiederholung, Wiederverbinden im selben Zyklus |
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 
-Host-Tests: 213 Fälle in `native-win` (1 bewusst übersprungen, Fehler um 112,5 MHz → S34) und 4 in `native-win-fault`.
+Host-Tests: 214 Fälle in `native-win` und 4 in `native-win-fault` (Stand S34).
 
 ### 1.2 Referenzwerte
 
@@ -84,23 +84,6 @@ Host-Tests: 213 Fälle in `native-win` (1 bewusst übersprungen, Fehler um 112,5
 - [M] **IQ-Abstimmen ohne Aussetzer** (D3, D5, K6, E9): Jede Frequenzänderung im IQ-Betrieb setzt die PLL zurück (1000 Schritte → 1000 Resets). Teiler mit Hysterese festhalten und nur die PLL ohne Reset schreiben (wie `Low noise` im Einzelbetrieb), dann bleibt die Phase erhalten; ebenso bei Korrekturänderungen. Host-Test „PLL-Änderung ohne Reset, Offset und Teiler unverändert“. → N2
 - [M] **180°/270° bei ungeraden Teilern** (E4): Invertierung ergibt nur bei exakt 50 % Tastverhältnis 180°; der IQ-Teiler `min(127, ⌊900 MHz / f⌋)` ist in 54 % der Fälle ungerade (14,2 MHz → 63, 99 MHz → 9). Abhilfe: zwischen 4,77 und 90 MHz gibt es immer einen geraden Teiler mit VCO 600–900 MHz, oder 180° über den Phasen-Offset (2 × Teiler ≤ 127). → N3
 - [ ] **Phasen-Feinabgleich und freie Phase:** Auflösung 90° / Teiler (10 MHz: 1°, 99 MHz: 10°); Skew- und Kabelausgleich (E3), Ausbildungsversuche zur Spiegelunterdrückung. Nach Rückfrage 1e. → N4
-- [ ] **Fix um 112,5 MHz** (Tuning `Fractional`, `planStandalone()` in `si5351_plan.cpp`): Bei Korrektur 0 rundet `approxRatio()` den MultiSynth auf genau 8/1; dann greift `p.ms.a < 8` nicht, der Weg „gerader Integer-Teiler + fraktionale PLL“ wird nicht versucht, 112 500 004 Hz liegt 5,1 Hz daneben. Zusätzlich setzt der Zweig „aktuelle PLL behalten“ `bestErr` nicht. Erprobter Fix (Namen von 1.2.0; heute `p.pll`, `p.ms`, `p.rLog2`, `synthesizedHz()`, VCO-Grenzen aus `range` mit Spread):
-
-  ```cpp
-  // im Zweig "aktuelle PLL behalten" zusätzlich: bestErr = err;
-  if (msR.a < 8 || bestErr > FIXED_PLL_KEEP_ERR_HZ) {
-      for (uint32_t div : {8u, 6u, 4u}) {   // größter gültiger gerader Teiler
-          if (div * msHz > VCO_MAX_HZ || div * msHz < VCO_MIN_HZ) continue;
-          const Ratio p = approxRatio(4 * div * msHz, xtal4);
-          const Ratio m {div, 0, 1};
-          const double err = fabs(synthesizedHz_(p, m, rLog2) - (double)freq);
-          if (msR.a < 8 || err < bestErr) { bestErr = err; pllR = p; msR = m; divBy4 = div == 4; }
-          break;
-      }
-  }
-  ```
-
-  Danach in `test_standalone_above_100_mhz` das `TEST_IGNORE_MESSAGE` entfernen. Erreichbar: ≤ 0,5 Hz bis 100 MHz, ≤ 1,5 Hz bis 112,5 MHz, ≤ 2 Hz bis 150 MHz, ≤ 3 Hz bis 160 MHz. → S34
 - [ ] **Bereichserweiterung CH1/CH2 auf 8 kHz – 160 MHz** (entschieden 2026-10-27, E-16): Der Treiber kann es (`OUT_MIN_HZ`/`OUT_MAX_HZ`, R-Teiler unter 1 MHz). Teilaufgaben: `FREQ_MIN_HZ`/`FREQ_MAX_HZ` anpassen (Numpad-Fehlertext und `static_assert` in `input_logic.cpp` folgen); über 112,5 MHz löst jeder Schritt einen PLL-Reset aus (prüfen mit D5); CH3 bleibt bei 4,73–100 MHz, Testfall mit Master > 100 MHz (`FreqTooHigh`); Numpad 10 Zeichen; Anzeige unter 1 MHz in kHz (`455.000 kHz`, `digitExponent()` und Tests anpassen); Hinweis auf der Kanalseite (über 100 MHz geringerer Pegel, unter 1 MHz Oberwellen/Tiefpass); auf MAIN prüfen, ob `~` vor dreistelligen MHz-Werten Platz hat. MESSPLAN H. → S35
 - [ ] **Spannungseinbruch über Sticky-Bit erkennen:** `checkAlive()` erkennt einen SI5351-Neustart nur, solange ein Ausgang konfiguriert ist. Robuster: Register 1 (`SYS_INIT_STKY`) nach `begin()` löschen und zyklisch lesen; dasselbe Register meldet `LOL_A`/`LOL_B` → Zeile „PLL locked“ auf der Info-Karte. → N9
 - [ ] **Hinweise:** SI5351 läuft beim Flashen und nach ESP32-Reset mit der letzten Einstellung weiter (A10, Handbuch); Hardware-Hinweise (eigener LDO mit Ferrit, kurze Masse, Abschirmung, optional TCXO nach C7). VCO bei `Fractional` und +50 ppm 900,045 MHz (unkritisch, nur notieren). → S72, N7, N10
@@ -344,7 +327,7 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 - [ ] **S31 · Sperre, Grundzustand, Werksreset (U-13).** Sperre durch 2 s Halten mit `LOCK` in der Statusleiste und im Header; `Reset to defaults (keep calibration)` (Frequenz- und Touch-Abgleich bleiben) und Werksreset (NVS löschen) mit Bestätigung; Host-Tests für den Grundzustand. *Commit:* `S31: Add screen lock, reset to defaults and factory reset (U-13)`
 - [ ] **S32 · Korrektur per Numpad (U-11).** `Corr.`-Wert antippen öffnet das Numpad für ppm mit Vorzeichen (±50,00); optional Assistent „gemessene Frequenz eingeben“. *Commit:* `S32: Enter correction via numpad (U-11)`
 - [ ] **S33 · CH3-Seite und Halten (U-16, U-20).** Masterfrequenz und Master-Schalter auf der CH3-Seite, Kanalwahl im Header; Wiederholung nach 2 s beschleunigen, Druckaussetzer bis 60–80 ms überbrücken (Touch-Log prüft es). *Commit:* `S33: Add master controls on the CH3 page, tune touch repeat (U-16, U-20)`
-- [ ] **S34 · Fix um 112,5 MHz.** Abschnitt 2.1; Host-Test 112 500 004 Hz, `TEST_IGNORE_MESSAGE` entfernen. *Commit:* `S34: Fix tuning accuracy around 112.5 MHz`
+- [x] **S34 · Fix um 112,5 MHz.** `planStandalone()` (Fractional) versucht über 100 MHz den größten geraden Integer-Teiler (8/6/4) mit fraktionaler PLL, wenn die festen PLLs schlechter als 0,25 Hz sind oder der MultiSynth unter 8 läge; der Zweig „aktuelle PLL behalten“ merkt sich seinen Fehler. Bis 100 MHz unverändert. Host-Tests 112 500 004 / 112 499 996 Hz (vorher 4 Hz Fehler), `test_standalone_above_100_mhz` läuft wieder (≤ 1,5 / 2 / 3 Hz bis 112,5 / 150 / 160 MHz). *Commit:* `S34: Fix tuning accuracy around 112.5 MHz`
 - [ ] **S35 · Bereich 8 kHz bis 160 MHz (E-16).** Abschnitt 2.1; Spezifikation A-1/E-16, Handbuch DE/EN, README. *Commit:* `S35: Extend CH1/CH2 range to 8 kHz-160 MHz (E-16)`
 - [ ] **S36 · Release 1.3.3.** Version, README, Smoke-Test beider Boards, lokaler Tag `v1.3.3`. *Commit:* `S36: Release 1.3.3`
 
