@@ -716,7 +716,7 @@ Seit 1.3.0 schaltet die Firmware CLK2 bei ausgeschaltetem CH3 nur mit `Off state
 3. Log und Zeit bis zum Neustart; Zustand der Ausgänge danach.
 
 **Soll:** Logzeile mit Ursache, Neustart innerhalb 5 s (kein dauerhaftes Einfrieren); nach dem Neustart alle Ausgänge aus (bis dahin läuft CLK0 weiter wie in A10).
-**Ergebnis:** ✔ 2026-11-04 (< 1 s, ohne Modul) · nach S41: ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Ergebnis:** ✔ 2026-11-04 (< 1 s, ohne Modul) · nach S41: ☒ ✔ ☐ ✘ ☐ ○ · Messwert: 2026-11-05, Core 3.3.12 vor der Abnahme (S41a), COM13 mit Modul, nur Log: Assert → `[ERROR][FATAL] LVGL assert; restarting`, `SW_CPU_RESET` nach < 0,1 s, danach `[SI5351] Init OK; all outputs off`; CLK0 am OSZI noch offen
 
 #### Q5 · Loop-Watchdog (S-23, W-S23)
 
@@ -728,7 +728,7 @@ Seit 1.3.0 schaltet die Firmware CLK2 bei ausgeschaltetem CH3 nur mit `Off state
 2. Zeit bis zum Watchdog-Reset (Log: Reset-Grund), Ausgang an CLK0 währenddessen.
 
 **Soll:** Watchdog-Reset 5 s nach dem Blockieren; Ausgänge nach dem Neustart aus; Dauer des Weiterlaufens im Hängezustand dokumentieren.
-**Ergebnis:** ✔ 2026-11-04 (5 s, ohne Modul) · nach S41: ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Ergebnis:** ✔ 2026-11-04 (5 s, ohne Modul) · nach S41: ☒ ✔ ☐ ✘ ☐ ○ · Messwert: 2026-11-05, Core 3.3.12 vor der Abnahme (S41a), COM13 mit Modul, nur Log: `task_wdt` meldet `loopTask` nach 5,0 s, `SW_CPU_RESET`, danach `all outputs off`; CLK0 im Hängezustand am OSZI noch offen
 
 H1 und H2 stehen in Block F (C3).
 
