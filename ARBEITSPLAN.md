@@ -37,7 +37,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 | 3 Laborbetrieb | 1.3.3 | U-11, U-13, U-16, U-20, E-16, N12; Bildschirmsperre, Grundzustand und Werksreset, Korrektur per Numpad, CH3-Seite mit Master-Steuerung, Halten langsamer am Anfang, Bereich 8 kHz–160 MHz, Fix um 112,5 MHz, kompakte Moduszeile |
 
-Host-Tests: 242 Fälle in `native-win` und 4 in `native-win-fault` (Stand S38).
+Host-Tests: 251 Fälle in `native-win` und 4 in `native-win-fault` (Stand S39).
 
 ### 1.2 Referenzwerte
 
@@ -96,9 +96,8 @@ Host-Tests: 242 Fälle in `native-win` und 4 in `native-win-fault` (Stand S38).
 ### 2.3 Code und Tests
 
 - [ ] **Heap auf der Info-Karte** (V-8): freier/minimaler Heap und LVGL-Heap; kommt mit der Info-Karten-Erweiterung in S53.
-- [ ] **C-14 I2C bündeln:** Register-Transfers rufen `Wire` direkt; 2.0.x-Semantik verteilt, ändert sich mit Core 3.x. → S39
 - [ ] **DMA und Doppelpuffer** (nach der Migration): zwei Puffer 320 × 40 px (`DMA_ATTR`, je 25,6 KB), `LV_COLOR_16_SWAP` = 1, `setSwapBytes(false)`; in `DisplayPanel::begin()` erst Erkennung und Init mit rohem Buszugriff, dann `initDMA()` und einmal `startWrite()` (CS bleibt LOW, `endWrite()` nie); `flush()` = `dmaWait()`, `setAddrWindow()`, `pushPixelsDMA()`, `lv_disp_flush_ready()` sofort. Erwartung bis ≈ 30 Bilder/s, +36 KB RAM; Messung mit `LV_USE_PERF_MONITOR`. → N13
-- [ ] **Fakes:** `endTransmission(false)` erst mit `requestFrom` ausführen; Preferences mit mehreren Namespaces und Strings (für `hfnet`); LEDC-API von Core 3.x. Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln. → S38, S45, S52
+- [ ] **Fakes:** Preferences mit mehreren Namespaces und Strings (für `hfnet`). Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln. → S52
 
 ### 2.4 Plattform und Lieferkette
 
@@ -330,7 +329,7 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 
 - [x] **S37 · Spike.** Env `esp32-2432S028R-core3` mit `espressif32@8.0.0` (Arduino 3.3.12 / IDF 5.5.5) neben 2.x, `-Os` und `CORE_DEBUG_LEVEL` dort gesetzt, LEDC per `ESP_ARDUINO_VERSION_MAJOR`; TFT_eSPI/XPT2046/LVGL unverändert; Debug-Zeile `[GUI] First frame ms`; CI baut beide Cores. Ergebnis in Abschnitt 2.4; startet auf beiden Boards, pioarduino nicht nötig. *Commit:* `S37: Spike espressif32@8.0.0 with Arduino 3.3.12`
 - [x] **S38 · LEDC.** `ledcAttach()`/`ledcWrite(pin, …)`; die Fakes bilden die 3.x-API nach (`ESP_ARDUINO_VERSION_MAJOR` 3, 2 wählt die alte), `ledcWrite` auf einen nicht angebundenen Pin bzw. Kanal zählt als Fehler; Host-Test `test_backlight_pwm_on_its_pin` (Gegenprobe: Schreiben auf Kanal 0 scheitert). *Commit:* `S38: Port backlight PWM to the Arduino 3 LEDC API`
-- [ ] **S39 · I2CBus bündeln (C-14, V-7).** `writeRegs`/`readRegs` in `I2CBus`; 2.0.x-Annahmen als benannte Fake-Tests (Rückgabecode 5, `end()`/`begin()`, Lock). *Commit:* `S39: Bundle I2C register transfers in I2CBus (C-14)`
+- [x] **S39 · I2CBus bündeln (C-14, V-7).** `I2CBus::writeRegs`/`readRegs`, `Wire` nur noch in `hal/i2c_bus.cpp`. Quelltext von Arduino 3.3.12 geprüft (I2C-ng-Treiber): `begin()` auf laufendem Bus behält die Pins, Übertragung auf geschlossenem Bus nimmt den Lock dauerhaft (nächstes `begin()`/`end()` blockiert), `endTransmission(false)` sendet erst mit `requestFrom`, Codes 0/2/5 wie 2.0.x. Fake: Repeated Start wie die Cores (Lesen = eine Transaktion). Suite `test_i2c_bus` mit `test_core_*`-Fällen (Gegenprobe: ohne Prüfung auf offenen Bus scheitert `test_core_closed_bus_is_never_touched`). Code 5 bei Leitung auf GND unter 3.x am Gerät noch nicht geprüft (S41, MESSPLAN J6). *Commit:* `S39: Bundle I2C register transfers in I2CBus (C-14)`
 - [ ] **S40 · Compiler.** GCC-14-Warnungen beheben; Host-Env mit `-std=gnu++17`; CI erweitern. *Commit:* `S40: Fix GCC 14 warnings and add gnu++17 host environment`
 - [ ] **S40a · LVGL 8.4.0.** `lvgl/lvgl@8.4.0` in beiden Envs; `lv_conf.h` gegen das Template 8.4 abgleichen (neue Schlüssel bewusst setzen); Flash, RAM, erstes Bild und LVGL-Heap gegen 8.3.11; Host-Tests sind LVGL-frei. *Commit:* `S40a: Update LVGL to 8.4.0`
 - [ ] **S41 · Abnahme.** Beide Cores als Envs bis zur Abnahme, dann 2.x-Env entfernen; Spezifikation A-46, README, `CLAUDE.md`; S-16 prüfen (`IP_FORWARD`/`NAPT`); Stufe-1-Auswahl nach der Migration (MESSPLAN 5.10, ≈ 4 h), Q4/Q5 wiederholen, Smoke-Test beider Boards; Merge nach `dev` (lokal). *Commit:* `S41: Switch to the official espressif32@8.0.0 platform`

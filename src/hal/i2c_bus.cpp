@@ -108,4 +108,22 @@ uint8_t probe(uint8_t addr) {
     return Wire.endTransmission(true);
 }
 
+bool writeRegs(uint8_t addr, uint8_t reg, const uint8_t* data, uint8_t len) {
+    if (!open_) return false;
+    Wire.beginTransmission(addr);
+    Wire.write(reg);
+    if (len) Wire.write(data, len);
+    return Wire.endTransmission(true) == 0;
+}
+
+bool readRegs(uint8_t addr, uint8_t reg, uint8_t* data, uint8_t len) {
+    if (!open_) return false;
+    Wire.beginTransmission(addr);
+    Wire.write(reg);
+    if (Wire.endTransmission(false) != 0) return false;
+    if (Wire.requestFrom(addr, len, (uint8_t)true) != len) return false;
+    for (uint8_t i = 0; i < len; ++i) data[i] = (uint8_t)Wire.read();
+    return true;
+}
+
 }

@@ -1,5 +1,4 @@
 #include "si5351_manager.h"
-#include <Wire.h>
 #include <hal/i2c_bus.h>
 #include <config.h>
 #include <constants.h>
@@ -423,19 +422,9 @@ bool SI5351Manager::writeReg_(uint8_t reg, uint8_t value) {
 }
 
 bool SI5351Manager::writeRegs_(uint8_t reg, const uint8_t* data, uint8_t len) {
-    if (!I2CBus::isOpen()) return false;
-    Wire.beginTransmission(I2C_ADDR);
-    Wire.write(reg);
-    Wire.write(data, len);
-    return Wire.endTransmission(true) == 0;
+    return I2CBus::writeRegs(I2C_ADDR, reg, data, len);
 }
 
 bool SI5351Manager::readRegs_(uint8_t reg, uint8_t* data, uint8_t len) {
-    if (!I2CBus::isOpen()) return false;
-    Wire.beginTransmission(I2C_ADDR);
-    Wire.write(reg);
-    if (Wire.endTransmission(false) != 0) return false;
-    if (Wire.requestFrom(I2C_ADDR, len, (uint8_t)true) != len) return false;
-    for (uint8_t i = 0; i < len; ++i) data[i] = (uint8_t)Wire.read();
-    return true;
+    return I2CBus::readRegs(I2C_ADDR, reg, data, len);
 }
