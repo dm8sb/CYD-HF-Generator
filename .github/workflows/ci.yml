@@ -39,6 +39,9 @@ jobs:
         run: pio test -e native
       - name: Host tests of the IQ error state
         run: pio test -e native-fault
+      # The firmware on Arduino 3.x is C++20: the host tests in the same standard.
+      - name: Host tests in C++20
+        run: pio test -e native-cpp20
 
   firmware:
     name: Firmware build
