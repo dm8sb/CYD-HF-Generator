@@ -26,6 +26,17 @@ enum class Spread : uint8_t { Off = 0, Down05 = 1, Down15 = 2, Center05 = 3 };
 // Level of a switched-off output (CONFIG "Off state", SI5351 register 24). Stored in NVS.
 enum class OffState : uint8_t { Low = 0, High = 1, HighZ = 2 };
 
+// Result of a controller setter (V-1): what happened, so remote commands can answer precisely.
+// set* never clamp; only adjust* do (GUI -/+).
+enum class Result : uint8_t {
+    Ok,         // applied
+    NoChange,   // already that value
+    OutOfRange, // a number outside its range
+    Invalid,    // not one of the allowed values (channel index, phase, drive, enum, step)
+    Conflict,   // not possible in the current state (spread spectrum in Integer)
+    HwError     // applied, but the SI5351 could not be set up (ERR or connection lost)
+};
+
 struct SystemSettings {
     uint32_t delta_step;
     int32_t freq_correction; // 0.01 ppm
