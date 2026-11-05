@@ -18,6 +18,8 @@ void Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
 
     StatusLed::begin();
 
+    // LVGL warnings through the switchable logger (C-16), already for lv_init().
+    lv_log_register_print_cb([](const char* line) { Logger::raw(line); });
     lv_init();
 
     lv_disp_draw_buf_init(&drawBuf_, buf1_, nullptr, SCREEN_WIDTH * 24);
