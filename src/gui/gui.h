@@ -113,7 +113,6 @@ private:
     void refreshCH3_();
     void refreshConfig_();
     void refreshSaveState_();
-    uint8_t hardwareState_() const;
 
     // Returns the header bar for page-specific additions.
     lv_obj_t* createHeader_(const char* title, lv_color_t color, uint8_t switchChannel);
@@ -174,7 +173,7 @@ private:
     uint8_t corrStepIdx_ = 1;   // index into CORRECTION_STEPS
     lv_coord_t configScrollY_ = 0; // CONFIG is rebuilt on every visit; RAM only
     uint32_t lastUpdateMs_ = 0;
-    uint8_t lastHwState_ = 0;
+    uint32_t lastRevision_ = 0;   // AppController::revision() of the last redraw
     uint16_t lastConnections_ = 0;
     char freqText_[24] {};      // plain frequency text on the channel page, for hit testing
     InputLogic::Numpad numpad_; // numpad input (InputLogic, host-tested)

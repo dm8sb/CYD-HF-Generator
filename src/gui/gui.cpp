@@ -37,7 +37,7 @@ void Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
     lv_indev_drv_register(&indevDrv_);
 
     lv_theme_default_init(lv_disp_get_default(), lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
-    lastHwState_ = hardwareState_();
+    lastRevision_ = app.revision();
 #if TEST_HIT_MAP
     createHitMap_();
 #else
@@ -367,22 +367,13 @@ void Gui::update() {
         lastConnections_ = app_->connectionCount();
         if (app_->hardwareReady()) dismissLinkMessages_();
     }
-    const uint8_t hwState = hardwareState_();
-    if (hwState != lastHwState_) {
-        lastHwState_ = hwState;
+    // Any change in the controller (also from the supervision, later from remote commands): redraw (V-2).
+    if (app_->revision() != lastRevision_) {
+        lastRevision_ = app_->revision();
         refresh_();
     } else {
         refreshSaveState_(); // MAIN status bar and CONFIG header; no-op on the other pages
     }
-}
-
-// Changes whenever the connection or an output error state changes.
-uint8_t Gui::hardwareState_() const {
-    uint8_t s = app_->hardwareReady() ? 1 : 0;
-    if (app_->channelStatus(1) == ChannelStatus::Error) s |= 2;
-    if (app_->channelStatus(2) == ChannelStatus::Error) s |= 4;
-    if (app_->ch3Status() == Ch3Status::Error) s |= 8;
-    return s;
 }
 
 // ---------------------------------------------------------------------------

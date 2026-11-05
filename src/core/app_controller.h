@@ -61,6 +61,9 @@ public:
     LinkState linkState() const;
     // Counts successful connections; the GUI closes outdated connection dialogs when it changes.
     uint16_t connectionCount() const { return connections_; }
+    // Changes with every change of state, output, status, error flags, connection or actual
+    // frequency (V-2); the GUI, the snapshot and the WebSocket push redraw on it.
+    uint32_t revision() const { return revision_; }
     // Dialog text for a state other than Connected.
     static const char* linkText(LinkState s);
     // True for linkText() and the "Connection lost" text.
@@ -89,6 +92,7 @@ private:
     uint8_t clkForChannel_(uint8_t ch) const { return ch == 1 ? CLK_CH1 : CLK_CH2; }
     SI5351Manager::Pll pllForChannel_(uint8_t ch) const { return ch == 1 ? SI5351Manager::Pll::A : SI5351Manager::Pll::B; }
     void markChanged_();
+    void bump_() { ++revision_; }
     void reportError_(const char* title, const char* text);
     // Reports a lost SI5351 instead of `text` when the failure came from the I2C bus.
     void reportHardwareError_(const char* text);
@@ -114,6 +118,7 @@ private:
     PersistentState state_ {};
     ErrorCallback errorCb_ = nullptr;
     uint32_t lastHwCheckMs_ = 0;
+    uint32_t revision_ = 0;
     LinkState link_ = LinkState::NotFound;
     // False until the first connection attempt: its result is always logged (finding M-1).
     bool linkKnown_ = false;
