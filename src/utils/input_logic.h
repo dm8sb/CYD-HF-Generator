@@ -10,7 +10,8 @@ namespace InputLogic {
 // ---------------------------------------------------------------------------
 // Numpad: digits, one decimal point, backspace, clear and the unit keys Hz / kHz / MHz.
 
-static constexpr size_t NUMPAD_MAX_LEN = 9;
+// "150.000001" (MHz) needs 10 characters.
+static constexpr size_t NUMPAD_MAX_LEN = 10;
 
 // Why the last key was rejected; shown as a text and a red border until the next key (U-9).
 enum class NumpadError : uint8_t { None, Empty, OutOfRange, TooLong };

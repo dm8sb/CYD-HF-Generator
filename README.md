@@ -12,7 +12,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 
 ## Features
 
-- CH1 and CH2: independent outputs 1–100 MHz with the actual output frequency on the channel pages
+- CH1 and CH2: independent outputs 8 kHz–160 MHz with the actual output frequency on the channel pages
 - CH3: IQ follower of CH1 or CH2 with 0/90/180/270° (4.730–100 MHz; 180/270° via output inversion)
 - Tuning modes `Fractional` (no dropouts), `Low noise` (integer MultiSynth) and `Integer` (frequency on a raster); spread spectrum on CH1; switched-off outputs Low, High or High-Z; drive 2–8 mA; frequency correction in ppm
 - SI5351 on CN1 (GPIO22/27) with SDA/SCL in either order, identity check, supervision and automatic reconnect
@@ -25,7 +25,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 
 ### 1.3.3 (in progress)
 
-- Tuning above 100 MHz exact to 1.5–3 Hz (next to 112.5 MHz it was off by up to 5 Hz); prepares the range extension
+- CH1/CH2 range 8 kHz–160 MHz (was 1–100 MHz): kHz display below 1 MHz, 10-character numpad, hints on the channel page; above 100 MHz exact to 1.5–3 Hz (next to 112.5 MHz it was off by up to 5 Hz)
 
 ### 1.3.2
 

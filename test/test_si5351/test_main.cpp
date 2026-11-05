@@ -38,6 +38,11 @@ void tearDown() { TEST_ASSERT_FALSE(Fake::wireMisuse()); }
 
 // Deterministic pseudo-random frequencies.
 static uint32_t lcgState = 1;
+// The core range 1-100 MHz with the tightest error limits; 8 kHz-1 MHz and 100-160 MHz
+// (range extension E-16) have their own tests.
+static constexpr uint64_t CORE_MIN_HZ = 1000000ULL;
+static constexpr uint64_t CORE_MAX_HZ = 100000000ULL;
+
 static uint64_t randomHz(uint64_t lo, uint64_t hi) {
     lcgState = lcgState * 1664525u + 1013904223u;
     const uint32_t a = lcgState;
@@ -218,9 +223,9 @@ static void test_standalone_accuracy_1_to_100_mhz() {
     for (int32_t corr : CORRECTIONS) {
         TEST_ASSERT_TRUE(si.begin(corr));
         lcgState = 7;
-        for (int i = 0; i < 4000; ++i) checkStandalone(randomHz(FREQ_MIN_HZ, FREQ_MAX_HZ), corr, STANDALONE_MAX_ERR_HZ);
-        checkStandalone(FREQ_MIN_HZ, corr, STANDALONE_MAX_ERR_HZ);
-        checkStandalone(FREQ_MAX_HZ, corr, STANDALONE_MAX_ERR_HZ);
+        for (int i = 0; i < 4000; ++i) checkStandalone(randomHz(CORE_MIN_HZ, CORE_MAX_HZ), corr, STANDALONE_MAX_ERR_HZ);
+        checkStandalone(CORE_MIN_HZ, corr, STANDALONE_MAX_ERR_HZ);
+        checkStandalone(CORE_MAX_HZ, corr, STANDALONE_MAX_ERR_HZ);
     }
 }
 
@@ -232,7 +237,7 @@ static void test_standalone_accuracy_at_weak_spots() {
             for (double vco : {900e6, 887.5e6}) {
                 for (int d = -3; d <= 3; ++d) {
                     const uint64_t f = (uint64_t)llround(vco / n) + d;
-                    if (f >= FREQ_MIN_HZ && f <= FREQ_MAX_HZ) checkStandalone(f, corr, STANDALONE_MAX_ERR_HZ);
+                    if (f >= CORE_MIN_HZ && f <= CORE_MAX_HZ) checkStandalone(f, corr, STANDALONE_MAX_ERR_HZ);
                 }
             }
         }
@@ -240,11 +245,11 @@ static void test_standalone_accuracy_at_weak_spots() {
 }
 
 static void test_standalone_below_1_mhz_uses_r_divider() {
-    // Not reachable from the GUI yet (FREQ_MIN_HZ), planned range extension.
+    // Range extension (E-16): 8 kHz-1 MHz through the R divider.
     for (int32_t corr : CORRECTIONS) {
         TEST_ASSERT_TRUE(si.begin(corr));
         lcgState = 11;
-        for (int i = 0; i < 1000; ++i) checkStandalone(randomHz(8000, FREQ_MIN_HZ - 1), corr, STANDALONE_MAX_ERR_HZ);
+        for (int i = 0; i < 1000; ++i) checkStandalone(randomHz(8000, CORE_MIN_HZ - 1), corr, STANDALONE_MAX_ERR_HZ);
         checkStandalone(8000, corr, STANDALONE_MAX_ERR_HZ);
     }
     TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 8000, 8));
@@ -268,7 +273,7 @@ static void test_standalone_above_100_mhz() {
         TEST_ASSERT_TRUE(si.begin(corr));
         lcgState = 13;
         for (int i = 0; i < 2000; ++i) {
-            const uint64_t f = randomHz(FREQ_MAX_HZ + 1, 160000000ULL);
+            const uint64_t f = randomHz(CORE_MAX_HZ + 1, 160000000ULL);
             checkStandalone(f, corr, maxErrAbove100MHz(f));
         }
         for (int d = -4; d <= 4; ++d) {
@@ -276,7 +281,7 @@ static void test_standalone_above_100_mhz() {
             for (int div : {4, 6, 8}) {
                 for (int k = 1; k <= 40; ++k) {
                     const uint64_t f = (uint64_t)llround(k * 25e6 / div) + d;
-                    if (f > FREQ_MAX_HZ && f <= 160000000ULL) checkStandalone(f, corr, maxErrAbove100MHz(f));
+                    if (f > CORE_MAX_HZ && f <= 160000000ULL) checkStandalone(f, corr, maxErrAbove100MHz(f));
                 }
             }
         }
@@ -566,15 +571,15 @@ static void test_low_noise_accuracy_1_to_100_mhz() {
         TEST_ASSERT_TRUE(si.begin(corr));
         si.setTuningMode(TuningMode::LowNoise);
         lcgState = 19;
-        for (int i = 0; i < 4000; ++i) checkLowNoise(randomHz(FREQ_MIN_HZ, FREQ_MAX_HZ), corr);
-        checkLowNoise(FREQ_MIN_HZ, corr);
-        checkLowNoise(FREQ_MAX_HZ, corr);
+        for (int i = 0; i < 4000; ++i) checkLowNoise(randomHz(CORE_MIN_HZ, CORE_MAX_HZ), corr);
+        checkLowNoise(CORE_MIN_HZ, corr);
+        checkLowNoise(CORE_MAX_HZ, corr);
         // Next to k * 25 MHz / divider the PLL fraction is close to an integer.
         for (int div = 8; div <= 128; div += 2) {
             for (int k = 24; k <= 36; ++k) {
                 for (int d = -3; d <= 3; ++d) {
                     const uint64_t f = (uint64_t)llround(k * 25e6 / div) + d;
-                    if (f >= FREQ_MIN_HZ && f <= FREQ_MAX_HZ) checkLowNoise(f, corr);
+                    if (f >= CORE_MIN_HZ && f <= CORE_MAX_HZ) checkLowNoise(f, corr);
                 }
             }
         }
@@ -586,10 +591,10 @@ static void test_low_noise_below_1_mhz_and_above_100_mhz() {
         TEST_ASSERT_TRUE(si.begin(corr));
         si.setTuningMode(TuningMode::LowNoise);
         lcgState = 23;
-        for (int i = 0; i < 500; ++i) checkLowNoise(randomHz(8000, FREQ_MIN_HZ - 1), corr);
+        for (int i = 0; i < 500; ++i) checkLowNoise(randomHz(8000, CORE_MIN_HZ - 1), corr);
         // 8, 6 or 4 (DIVBY4); a kept divider may be smaller than a new one.
         for (int i = 0; i < 1000; ++i) {
-            const uint64_t f = randomHz(FREQ_MAX_HZ + 1, 160000000ULL);
+            const uint64_t f = randomHz(CORE_MAX_HZ + 1, 160000000ULL);
             TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, f, 8));
             assertLowNoise(0, f, corr, lowNoiseMaxErr(ms(0).ratio()));
         }
@@ -705,7 +710,7 @@ static void test_integer_nearest_raster_point() {
         si.setTuningMode(TuningMode::Integer);
         lcgState = 29;
         for (int i = 0; i < 300; ++i) {
-            const uint64_t f = i < 250 ? randomHz(FREQ_MIN_HZ, FREQ_MAX_HZ) : randomHz(8000, 160000000ULL);
+            const uint64_t f = i < 250 ? randomHz(CORE_MIN_HZ, CORE_MAX_HZ) : randomHz(8000, 160000000ULL);
             const Block before = pll(0);
             const unsigned resets = chip.pllResets[0];
             TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, f, 8));
@@ -927,7 +932,7 @@ static void test_spread_keeps_modulated_vco_in_range() {
                 si.setTuningMode(mode);
                 lcgState = 37;
                 for (int i = 0; i < 400; ++i) {
-                    const uint64_t f = i == 0 ? FREQ_MIN_HZ : i == 1 ? FREQ_MAX_HZ : randomHz(FREQ_MIN_HZ, FREQ_MAX_HZ);
+                    const uint64_t f = i == 0 ? CORE_MIN_HZ : i == 1 ? CORE_MAX_HZ : randomHz(CORE_MIN_HZ, CORE_MAX_HZ);
                     snprintf(msg, sizeof(msg), "spread %u mode %u corr %ld: %llu Hz", (unsigned)s, (unsigned)mode,
                              (long)corr, (unsigned long long)f);
                     TEST_ASSERT_TRUE_MESSAGE(si.setupStandalone(0, Pll::A, f, 8), msg);
@@ -954,7 +959,7 @@ static void test_center_spread_fractional_accuracy_at_weak_spots() {
             for (double vco : {900e6, 887.5e6, 875e6}) {
                 for (int d = -3; d <= 3; ++d) {
                     const uint64_t f = (uint64_t)llround(vco / n) + d;
-                    if (f < FREQ_MIN_HZ || f > FREQ_MAX_HZ) continue;
+                    if (f < CORE_MIN_HZ || f > CORE_MAX_HZ) continue;
                     checkStandalone(f, corr, STANDALONE_MAX_ERR_HZ);
                     TEST_ASSERT_TRUE(pll(0).ratio() == 35.5 || pll(0).ratio() == 35.0);
                 }

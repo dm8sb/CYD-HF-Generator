@@ -33,13 +33,13 @@ static void test_numpad_digits_and_one_point() {
 }
 
 static void test_numpad_length_limit() {
-    Numpad n = typed("1234567890");
-    TEST_ASSERT_EQUAL_STRING("123456789", n.text);
+    Numpad n = typed("12345678901");
+    TEST_ASSERT_EQUAL_STRING("1234567890", n.text); // "150.000001" MHz needs 10
     TEST_ASSERT_EQUAL_UINT(NUMPAD_MAX_LEN, n.len);
     // The 10th character is not ignored silently (audit U-9).
     TEST_ASSERT_EQUAL(NumpadEvent::Rejected, numpadKey(n, "1", nullptr));
     TEST_ASSERT_EQUAL(NumpadError::TooLong, n.error);
-    TEST_ASSERT_EQUAL_STRING("123456789", n.text);
+    TEST_ASSERT_EQUAL_STRING("1234567890", n.text);
     // Backspace still works and clears the error.
     TEST_ASSERT_EQUAL(NumpadEvent::Edited, numpadKey(n, KEY_BACKSPACE, nullptr));
     TEST_ASSERT_EQUAL(NumpadError::None, n.error);
@@ -78,7 +78,7 @@ static void test_numpad_rejects_out_of_range_and_empty() {
         const char* text;
         NumpadError error;
     };
-    const Case bad[] = {{"500", NumpadError::OutOfRange}, {"0.5", NumpadError::OutOfRange},
+    const Case bad[] = {{"500", NumpadError::OutOfRange}, {"0.005", NumpadError::OutOfRange},
                         {"", NumpadError::Empty}, {".", NumpadError::Empty}};
     for (const Case& c : bad) {
         Numpad n = typed(c.text);
@@ -103,8 +103,8 @@ static void test_numpad_rejects_out_of_range_and_empty() {
 static void test_numpad_error_texts() {
     TEST_ASSERT_EQUAL_STRING("", numpadErrorText(NumpadError::None));
     TEST_ASSERT_EQUAL_STRING("Enter a number", numpadErrorText(NumpadError::Empty));
-    TEST_ASSERT_EQUAL_STRING("Allowed 1 - 100 MHz", numpadErrorText(NumpadError::OutOfRange));
-    TEST_ASSERT_EQUAL_STRING("Max. 9 characters", numpadErrorText(NumpadError::TooLong));
+    TEST_ASSERT_EQUAL_STRING("8 kHz - 160 MHz", numpadErrorText(NumpadError::OutOfRange));
+    TEST_ASSERT_EQUAL_STRING("Max. 10 characters", numpadErrorText(NumpadError::TooLong));
 }
 
 // Monospaced test font: every character 10 px.
@@ -314,6 +314,16 @@ static void test_output_error_texts_name_channel_and_retry() {
     TEST_ASSERT_EQUAL_STRING("CH3: IQ setup failed, CLK2 stays off. CH1 keeps running. Retrying every 2 s.", buf);
 }
 
+// Hint on the channel page outside 1-100 MHz (E-16).
+static void test_range_note() {
+    using namespace StatusText;
+    TEST_ASSERT_EQUAL_STRING("", rangeNote(10000000ULL));
+    TEST_ASSERT_EQUAL_STRING("", rangeNote(1000000ULL));
+    TEST_ASSERT_EQUAL_STRING("", rangeNote(100000000ULL));
+    TEST_ASSERT_EQUAL_STRING("Above 100 MHz: lower level", rangeNote(100000001ULL));
+    TEST_ASSERT_EQUAL_STRING("Below 1 MHz: filter harmonics", rangeNote(999999ULL));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_numpad_digits_and_one_point);
@@ -334,5 +344,6 @@ int main(int, char**) {
     RUN_TEST(test_numpad_error_texts);
     RUN_TEST(test_tap_index_assigns_separators_to_neighbors);
     RUN_TEST(test_output_error_texts_name_channel_and_retry);
+    RUN_TEST(test_range_note);
     return UNITY_END();
 }

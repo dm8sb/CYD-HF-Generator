@@ -17,8 +17,13 @@ uint64_t clamp(uint64_t hz) {
 void format(uint64_t hz, char* out, size_t outSize) {
     if (!out || outSize == 0) return;
 
-    // HF generator range is 1-100 MHz. Display as MHz with grouped
-    // fractional Hz digits: 1.000 000 MHz, 10.700 000 MHz, 100.000 000 MHz.
+    // From 1 MHz in MHz with grouped Hz digits (10.700 000 MHz, 160.000 000 MHz), below in kHz
+    // with Hz resolution (455.000 kHz, 8.000 kHz). digitExponent() works on both.
+    if (hz < 1000000ULL) {
+        snprintf(out, outSize, "%llu.%03llu kHz", (unsigned long long)(hz / 1000ULL),
+                 (unsigned long long)(hz % 1000ULL));
+        return;
+    }
     uint64_t wholeMHz = hz / 1000000ULL;
     uint64_t fracHz = hz % 1000000ULL;
     uint64_t fracK = fracHz / 1000ULL;

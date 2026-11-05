@@ -72,6 +72,14 @@ void Gui::refreshChannel_() {
                  (unsigned)app.ch3().phase);
         lv_label_set_text(w_.modes, line);
     }
+    // Outside 1-100 MHz: level and harmonics hint (E-16).
+    const char* note = StatusText::rangeNote(c.frequency);
+    if (note[0]) {
+        const char* modes = lv_label_get_text(w_.modes);
+        char line[128];
+        snprintf(line, sizeof(line), "%s%s%s", modes, modes[0] ? " | " : "", note);
+        lv_label_set_text(w_.modes, line);
+    }
 
     const uint8_t sel = FrequencyUtils::stepIndex(app.system().delta_step);
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) {

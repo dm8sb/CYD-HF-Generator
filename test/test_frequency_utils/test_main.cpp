@@ -21,6 +21,11 @@ static void test_format_groups_digits() {
     assertFormat(10700000ULL, "10.700 000 MHz");
     assertFormat(14074001ULL, "14.074 001 MHz");
     assertFormat(100000000ULL, "100.000 000 MHz");
+    assertFormat(160000000ULL, "160.000 000 MHz");
+    // Below 1 MHz in kHz with Hz resolution (range extension, E-16).
+    assertFormat(8000ULL, "8.000 kHz");
+    assertFormat(455000ULL, "455.000 kHz");
+    assertFormat(999999ULL, "999.999 kHz");
 }
 
 static void test_format_truncates_to_buffer() {
@@ -144,12 +149,17 @@ static void test_parse_units() {
 }
 
 static void test_parse_limits() {
-    assertParse("1", "MHz", FREQ_MIN_HZ);
-    assertParse("100", "MHz", FREQ_MAX_HZ);
-    assertRejected("0.999999", "MHz");
-    assertRejected("100.000001", "MHz");
+    TEST_ASSERT_EQUAL_UINT64(8000ULL, FREQ_MIN_HZ);
+    TEST_ASSERT_EQUAL_UINT64(160000000ULL, FREQ_MAX_HZ);
+    assertParse("8", "kHz", FREQ_MIN_HZ);
+    assertParse("160", "MHz", FREQ_MAX_HZ);
+    assertParse("0.5", "MHz", 500000ULL);
+    assertParse("455", "kHz", 455000ULL);
+    assertParse("150.000001", "MHz", 150000001ULL);
+    assertRejected("7.999", "kHz");
+    assertRejected("160.000001", "MHz");
     assertRejected("500", "MHz");
-    assertRejected("0.5", "MHz");
+    assertRejected("0.005", "MHz");
     assertRejected("500", "Hz");
 }
 
@@ -224,6 +234,14 @@ static void test_step_index_and_snap() {
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) TEST_ASSERT_EQUAL_UINT32(DELTA_STEPS[i], snapStep(DELTA_STEPS[i]));
 }
 
+static void test_digit_exponent_on_khz_text() {
+    const char* t = "455.000 kHz";
+    TEST_ASSERT_EQUAL_INT(5, digitExponent(t, 0));
+    TEST_ASSERT_EQUAL_INT(3, digitExponent(t, 2));
+    TEST_ASSERT_EQUAL_INT(-1, digitExponent(t, 3));
+    TEST_ASSERT_EQUAL_INT(0, digitExponent(t, 6));
+}
+
 static void test_digit_exponent_on_formatted_text() {
     const char* text = "10.700 000 MHz";
     TEST_ASSERT_EQUAL_INT(7, digitExponent(text, 0));
@@ -282,6 +300,7 @@ int main() {
     RUN_TEST(test_clamp);
     RUN_TEST(test_step_index_and_snap);
     RUN_TEST(test_digit_exponent_on_formatted_text);
+    RUN_TEST(test_digit_exponent_on_khz_text);
     RUN_TEST(test_digit_exponent_matches_step_digits);
     RUN_TEST(test_decimal_exponent_and_power_of_ten);
     return UNITY_END();

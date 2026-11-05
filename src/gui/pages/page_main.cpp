@@ -92,10 +92,13 @@ static void placeDetail(lv_obj_t* detail, lv_obj_t* state) {
 }
 
 // The requested frequency of a card. In Integer mode the output lies on a raster; "~" marks
-// a deviation from 1 Hz on. The label is right-aligned, so the digits stay aligned.
+// a deviation from 1 Hz on. The label is right-aligned, so the digits stay aligned. From
+// 100 MHz on "~100.000 000 MHz" (187 px) does not fit the 183 px column; the mode line shows
+// "Integer" there anyway.
 static void setCardFrequency(lv_obj_t* label, const AppController& app, uint8_t ch, uint64_t requested) {
     const double actual = app.actualHz(ch);
     const bool approx = app.system().tuning_mode == TuningMode::Integer && app.hardwareReady() && actual > 0 &&
+                        requested < 100000000ULL &&
                         fabs(FrequencyUtils::deviation(actual, requested)) >= FrequencyUtils::DEVIATION_WARN_HZ;
     char buf[24];
     buf[0] = '~';

@@ -10,14 +10,15 @@ namespace InputLogic {
 
 const char* const KEY_BACKSPACE = "\xEF\x95\x9A"; // LV_SYMBOL_BACKSPACE (LVGL 8.3)
 
-static_assert(FREQ_MIN_HZ == 1000000ULL && FREQ_MAX_HZ == 100000000ULL, "numpadErrorText() names the range");
-static_assert(NUMPAD_MAX_LEN == 9, "numpadErrorText() names the length");
+static_assert(FREQ_MIN_HZ == 8000ULL && FREQ_MAX_HZ == 160000000ULL, "numpadErrorText() names the range");
+static_assert(NUMPAD_MAX_LEN == 10, "numpadErrorText() names the length");
 
 const char* numpadErrorText(NumpadError e) {
     switch (e) {
         case NumpadError::Empty: return "Enter a number";
-        case NumpadError::OutOfRange: return "Allowed 1 - 100 MHz";
-        case NumpadError::TooLong: return "Max. 9 characters";
+        // Short enough to fit next to "Now 160.000 000 MHz" on the numpad line.
+        case NumpadError::OutOfRange: return "8 kHz - 160 MHz";
+        case NumpadError::TooLong: return "Max. 10 characters";
         case NumpadError::None: break;
     }
     return "";

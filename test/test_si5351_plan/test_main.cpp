@@ -31,6 +31,11 @@ static uint64_t randomHz(uint64_t lo, uint64_t hi) {
 
 // Distance to the nearest point crystal * a / div by brute force; a is limited to a VCO of
 // 600..900 MHz with the corrected crystal (24..36 at correction 0).
+// Lowest frequency the MultiSynth outputs directly; below it the R divider halves it 1-7 times.
+static constexpr uint64_t MS_RANGE_MIN = 1000000ULL;
+// Upper end of the core range with the tightest limits (range extension above: E-16).
+static constexpr uint64_t CORE_MAX_HZ = 100000000ULL;
+
 static double rasterErr(uint64_t msHz, uint64_t xtal4, uint32_t divMin, uint32_t divMax, uint32_t divStep) {
     double best = 1e18;
     for (uint32_t a = 23; a <= 37; ++a) {
@@ -162,8 +167,9 @@ static void test_low_noise_accuracy_with_hysteresis() {
             // Mostly small steps, so the divider is often kept.
             const int64_t step = (int64_t)(randomHz(0, 4) == 0 ? randomHz(1, 30000000) : randomHz(1, 200000));
             const int64_t next = (int64_t)f + (randomHz(0, 1) ? step : -step);
-            f = (next < (int64_t)FREQ_MIN_HZ || next > (int64_t)FREQ_MAX_HZ) ? randomHz(FREQ_MIN_HZ, FREQ_MAX_HZ)
-                                                                             : (uint64_t)next;
+            // MultiSynth range from 1 MHz; below, the R divider (test_below_1_mhz_uses_the_r_divider).
+            f = (next < (int64_t)MS_RANGE_MIN || next > (int64_t)CORE_MAX_HZ) ? randomHz(MS_RANGE_MIN, CORE_MAX_HZ)
+                                                                              : (uint64_t)next;
             const SynthPlan p = planStandalone(f, TuningMode::LowNoise, nullptr, i ? &current : nullptr, xtal4);
             snprintf(msg, sizeof(msg), "%llu Hz, xtal4 %llu: divider %u", (unsigned long long)f,
                      (unsigned long long)xtal4, p.ms.a);
@@ -178,6 +184,34 @@ static void test_low_noise_accuracy_with_hysteresis() {
                 TEST_ASSERT_TRUE_MESSAGE(old < 600e6 || old > 900e6, msg);
             }
             current = p.ms;
+        }
+    }
+}
+
+// Range extension (E-16): 8 kHz-1 MHz through the R divider in all modes; the MultiSynth input
+// stays >= 1 MHz and the VCO within 600-900 MHz.
+static void test_below_1_mhz_uses_the_r_divider() {
+    const TuningMode modes[] = {TuningMode::Fractional, TuningMode::LowNoise, TuningMode::Integer};
+    for (TuningMode mode : modes) {
+        for (uint64_t xtal4 : XTALS) {
+            lcgState = 9;
+            for (int i = 0; i < 300; ++i) {
+                const uint64_t f = i == 0 ? FREQ_MIN_HZ : i == 1 ? 999999ULL : randomHz(FREQ_MIN_HZ, 999999ULL);
+                const SynthPlan p = planStandalone(f, mode, nullptr, nullptr, xtal4);
+                snprintf(msg, sizeof(msg), "mode %d, %llu Hz: r %u, ms %u", (int)mode, (unsigned long long)f, p.rLog2,
+                         p.ms.a);
+                TEST_ASSERT_TRUE_MESSAGE(p.ok && p.rLog2 >= 1 && p.rLog2 <= 7, msg);
+                const uint64_t msHz = f << p.rLog2;
+                TEST_ASSERT_TRUE_MESSAGE(msHz >= MS_RANGE_MIN, msg);
+                // Fractional keeps its fixed PLL 36 x crystal: 900.045 MHz at +50 ppm (known, harmless).
+                const double vco = vcoHz(p, xtal4);
+                const double vcoMax = mode == TuningMode::Fractional ? 900.05e6 : 900e6;
+                TEST_ASSERT_TRUE_MESSAGE(vco >= 600e6 && vco <= vcoMax, msg);
+                TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-6, outHz(p, xtal4), p.actualHz, msg);
+                const double tol = mode == TuningMode::Integer ? rasterErr(msHz, xtal4, 4, 2048, 2) / (1U << p.rLog2) + 1e-6
+                                                               : 1.5;
+                TEST_ASSERT_TRUE_MESSAGE(fabs(p.actualHz - (double)f) <= tol, msg);
+            }
         }
     }
 }
@@ -199,7 +233,7 @@ static void test_integer_picks_the_nearest_raster_point() {
     for (uint64_t xtal4 : XTALS) {
         lcgState = 5;
         for (int i = 0; i < 400; ++i) {
-            const uint64_t f = i == 0 ? FREQ_MIN_HZ : i == 1 ? 160000000ULL : randomHz(FREQ_MIN_HZ, 160000000ULL);
+            const uint64_t f = i == 0 ? MS_RANGE_MIN : i == 1 ? 160000000ULL : randomHz(MS_RANGE_MIN, 160000000ULL);
             const SynthPlan p = planStandalone(f, TuningMode::Integer, nullptr, nullptr, xtal4);
             snprintf(msg, sizeof(msg), "%llu Hz, xtal4 %llu: %u / %u", (unsigned long long)f, (unsigned long long)xtal4,
                      p.pll.a, p.ms.a);
@@ -221,7 +255,7 @@ static void test_integer_vco_in_range_with_correction() {
     for (uint64_t xtal4 : XTALS) {
         lcgState = 11;
         for (int i = 0; i < 300; ++i) {
-            const uint64_t f = i == 0 ? 25000000ULL : i == 1 ? 6250000ULL : randomHz(FREQ_MIN_HZ, 160000000ULL);
+            const uint64_t f = i == 0 ? 25000000ULL : i == 1 ? 6250000ULL : randomHz(MS_RANGE_MIN, 160000000ULL);
             const SynthPlan p = planStandalone(f, TuningMode::Integer, nullptr, nullptr, xtal4);
             snprintf(msg, sizeof(msg), "%llu Hz, xtal4 %llu: a %u, VCO %.0f", (unsigned long long)f,
                      (unsigned long long)xtal4, p.pll.a, vcoHz(p, xtal4));
@@ -325,7 +359,7 @@ static void test_spread_limits_the_vco() {
                 SynthPlan last {};
                 lcgState = 9;
                 for (int i = 0; i < 2000; ++i) {
-                    const uint64_t f = i % 4 == 0 ? randomHz(8000, 160000000ULL) : randomHz(FREQ_MIN_HZ, FREQ_MAX_HZ);
+                    const uint64_t f = i % 4 == 0 ? randomHz(8000, 160000000ULL) : randomHz(MS_RANGE_MIN, CORE_MAX_HZ);
                     const SynthPlan p = planStandalone(f, m, last.ok ? &last.pll : nullptr, last.ok ? &last.ms : nullptr,
                                                        xtal4, s);
                     snprintf(msg, sizeof(msg), "spread %u mode %u, %llu Hz, xtal4 %llu: %u + %u / %u, ms %u",
@@ -338,7 +372,7 @@ static void test_spread_limits_the_vco() {
                     }
                     TEST_ASSERT_TRUE_MESSAGE(modulatedVcoInRange(p, xtal4, s), msg);
                     TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-6, outHz(p, xtal4), p.actualHz, msg);
-                    if (f <= FREQ_MAX_HZ && m != TuningMode::Integer) {
+                    if (f <= CORE_MAX_HZ && m != TuningMode::Integer) {
                         const double maxErr = m == TuningMode::Fractional ? 0.5 : 1.5;
                         TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(maxErr, (double)f, p.actualHz, msg);
                     }
@@ -443,6 +477,7 @@ int main() {
     RUN_TEST(test_low_noise_picks_the_largest_even_divider);
     RUN_TEST(test_low_noise_keeps_divider_within_vco_range);
     RUN_TEST(test_low_noise_accuracy_with_hysteresis);
+    RUN_TEST(test_below_1_mhz_uses_the_r_divider);
     RUN_TEST(test_integer_example_7_1_mhz);
     RUN_TEST(test_integer_picks_the_nearest_raster_point);
     RUN_TEST(test_integer_vco_in_range_with_correction);
