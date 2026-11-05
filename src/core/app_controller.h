@@ -27,27 +27,33 @@ public:
 
     void setErrorCallback(ErrorCallback cb) { errorCb_ = cb; }
 
-    void setChannelFrequency(uint8_t ch, uint64_t freq);
-    void adjustChannelFrequency(uint8_t ch, int64_t delta);
-    void setChannelEnabled(uint8_t ch, bool en);
-    void setCH3Master(uint8_t master);
-    void setCH3Phase(uint16_t phase);
-    void setGlobalDriveStrength(uint8_t strength);
-    // Rounded to BACKLIGHT_STEP_PERCENT within BACKLIGHT_MIN_PERCENT..100.
-    void setBacklight(uint8_t percent);
-    void stepBacklight(int8_t direction);
-    void setDeltaStep(uint32_t step);
-    void setCorrection(int32_t correction);
+    // Setters return a Result (V-1): set* reject values outside their range or set, adjust* and
+    // stepBacklight() clamp. ch: 1/2 for frequencies, 1..3 for outputs.
+    Result setChannelFrequency(uint8_t ch, uint64_t freq);
+    Result adjustChannelFrequency(uint8_t ch, int64_t delta);
+    Result setChannelEnabled(uint8_t ch, bool en);
+    Result setCH3Master(uint8_t master);
+    Result setCH3Phase(uint16_t phase);
+    Result setGlobalDriveStrength(uint8_t strength);
+    // BACKLIGHT_MIN_PERCENT..100, rounded to BACKLIGHT_STEP_PERCENT.
+    Result setBacklight(uint8_t percent);
+    Result stepBacklight(int8_t direction);
+    // One of DELTA_STEPS.
+    Result setDeltaStep(uint32_t step);
+    // 0.01 ppm, at most +-CORRECTION_MAX.
+    Result setCorrection(int32_t correction);
+    Result adjustCorrection(int32_t delta);
     // Grundzustand for the next group (U-13): all settings and frequencies back to the defaults,
     // all outputs off; only the frequency correction (calibration) stays. Saved by the autosave.
     void resetToDefaults();
     // CONFIG options; each reconfigures the outputs as needed. Spread is ignored (stays Off)
     // in TuningMode::Integer; switching to Integer turns it off.
-    void setTuningMode(TuningMode mode);
-    void setSpread(Spread spread);
-    void setOffState(OffState state);
+    Result setTuningMode(TuningMode mode);
+    Result setSpread(Spread spread);
+    Result setOffState(OffState state);
 
-    const Channel& channel(uint8_t ch) const { return channel_(ch); }
+    // ch 1 or 2; anything else gives an empty channel (frequency 0, off), never CH2 (S-12).
+    const Channel& channel(uint8_t ch) const;
     const Channel3& ch3() const { return state_.ch3; }
     const SystemSettings& system() const { return state_.sys; }
 
@@ -97,6 +103,8 @@ private:
     void configureMasterGroup_();
     void configureChannel_(uint8_t ch);
     void reconfigureOutputs_();
+    // HwError if the SI5351 was ready and the setup of clk failed or lost the connection.
+    Result outcome_(bool wasReady, uint8_t clk) const;
     bool masterEnabled_() const;
     uint64_t masterFrequency_() const;
 

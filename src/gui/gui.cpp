@@ -440,10 +440,10 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             app.setCH3Phase(arg * 90);
             break;
         case Action::CorrUp:
-            app.setCorrection(sys.freq_correction + (int32_t)steps * CORRECTION_STEPS[corrStepIdx_]);
+            app.adjustCorrection((int32_t)steps * CORRECTION_STEPS[corrStepIdx_]);
             break;
         case Action::CorrDown:
-            app.setCorrection(sys.freq_correction - (int32_t)steps * CORRECTION_STEPS[corrStepIdx_]);
+            app.adjustCorrection(-(int32_t)steps * CORRECTION_STEPS[corrStepIdx_]);
             break;
         case Action::CorrStepCycle:
             corrStepIdx_ = (corrStepIdx_ + 1) % CORRECTION_STEP_COUNT;

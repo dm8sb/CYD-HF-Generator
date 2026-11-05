@@ -158,6 +158,10 @@ SaveState AppController::saveState() const {
 }
 
 Channel& AppController::channel_(uint8_t ch) { return (ch == 1) ? state_.ch1 : state_.ch2; }
+const Channel& AppController::channel(uint8_t ch) const {
+    static const Channel none {0, false};
+    return ch == 1 ? state_.ch1 : ch == 2 ? state_.ch2 : none;
+}
 const Channel& AppController::channel_(uint8_t ch) const { return (ch == 1) ? state_.ch1 : state_.ch2; }
 
 void AppController::markChanged_() { settings_.markDirty(); }
@@ -258,79 +262,105 @@ void AppController::reconfigureOutputs_() {
     configureMasterGroup_();
 }
 
-void AppController::setChannelFrequency(uint8_t ch, uint64_t freq) {
-    if (ch < 1 || ch > 2) return;
-    freq = FrequencyUtils::clamp(freq);
-    if (freq == channel_(ch).frequency) return;
-    channel_(ch).frequency = freq;
-    Logger::debugValue("APP", ch == 1 ? "CH1 frequency" : "CH2 frequency", (int64_t)channel_(ch).frequency);
-    configureChannel_(ch);
-    markChanged_();
+Result AppController::outcome_(bool wasReady, uint8_t clk) const {
+    if (!wasReady) return Result::Ok; // stored, shown as NO HW
+    return (!si5351_.ready() || fault_[clk]) ? Result::HwError : Result::Ok;
 }
 
-void AppController::adjustChannelFrequency(uint8_t ch, int64_t delta) {
-    if (ch < 1 || ch > 2) return;
+Result AppController::setChannelFrequency(uint8_t ch, uint64_t freq) {
+    if (ch < 1 || ch > 2) return Result::Invalid;
+    if (freq < FREQ_MIN_HZ || freq > FREQ_MAX_HZ) return Result::OutOfRange;
+    if (freq == channel_(ch).frequency) return Result::NoChange;
+    channel_(ch).frequency = freq;
+    Logger::debugValue("APP", ch == 1 ? "CH1 frequency" : "CH2 frequency", (int64_t)channel_(ch).frequency);
+    const bool wasReady = si5351_.ready();
+    configureChannel_(ch);
+    markChanged_();
+    return outcome_(wasReady, clkForChannel_(ch));
+}
+
+Result AppController::adjustChannelFrequency(uint8_t ch, int64_t delta) {
+    if (ch < 1 || ch > 2) return Result::Invalid;
     int64_t f = (int64_t)channel_(ch).frequency + delta;
     if (f < (int64_t)FREQ_MIN_HZ) f = FREQ_MIN_HZ;
     if (f > (int64_t)FREQ_MAX_HZ) f = FREQ_MAX_HZ;
-    if ((uint64_t)f == channel_(ch).frequency) return;
-    setChannelFrequency(ch, (uint64_t)f);
+    return setChannelFrequency(ch, (uint64_t)f);
 }
 
-void AppController::setChannelEnabled(uint8_t ch, bool en) {
-    if (ch == 1 || ch == 2) {
-        channel_(ch).enabled = en;
-        if (si5351_.ready()) {
-            bool ok = si5351_.enableOutput(clkForChannel_(ch), en);
-            // CLK2 follows only a working IQ pair: in ERR it stays off (with off state High/High-Z
-            // its driver is still powered and would output again).
-            if (ch == state_.ch3.master && iqConfigured_() && !fault_[CLK_CH3]) {
-                ok = ok && si5351_.enableOutput(CLK_CH3, en);
-            }
-            if (!ok) reportLinkLost_();
-        }
-    } else if (ch == 3) {
-        state_.ch3.enabled = en;
-        if (si5351_.ready()) configureMasterGroup_();
-    }
+Result AppController::setChannelEnabled(uint8_t ch, bool en) {
+    if (ch < 1 || ch > 3) return Result::Invalid;
     // Output states are not stored (A-4): no autosave, no flash write (audit C-5).
+    if (ch == 3) {
+        if (state_.ch3.enabled == en) return Result::NoChange;
+        state_.ch3.enabled = en;
+        const bool wasReady = si5351_.ready();
+        if (wasReady) configureMasterGroup_();
+        return outcome_(wasReady, CLK_CH3);
+    }
+    if (channel_(ch).enabled == en) return Result::NoChange;
+    channel_(ch).enabled = en;
+    if (!si5351_.ready()) return Result::Ok;
+    bool ok = si5351_.enableOutput(clkForChannel_(ch), en);
+    // CLK2 follows only a working IQ pair: in ERR it stays off (with off state High/High-Z
+    // its driver is still powered and would output again).
+    if (ch == state_.ch3.master && iqConfigured_() && !fault_[CLK_CH3]) {
+        ok = ok && si5351_.enableOutput(CLK_CH3, en);
+    }
+    if (!ok) {
+        reportLinkLost_();
+        return Result::HwError;
+    }
+    return Result::Ok;
 }
 
-void AppController::setCH3Master(uint8_t master) {
-    if ((master != 1 && master != 2) || master == state_.ch3.master) return;
+Result AppController::setCH3Master(uint8_t master) {
+    if (master != 1 && master != 2) return Result::Invalid;
+    if (master == state_.ch3.master) return Result::NoChange;
     state_.ch3.master = master;
+    const bool wasReady = si5351_.ready();
     if (state_.ch3.enabled) reconfigureOutputs_();
     markChanged_();
+    return state_.ch3.enabled ? outcome_(wasReady, CLK_CH3) : Result::Ok;
 }
 
-void AppController::setCH3Phase(uint16_t phase) {
-    if (!isValidPhase(phase) || phase == state_.ch3.phase) return;
+Result AppController::setCH3Phase(uint16_t phase) {
+    if (!isValidPhase(phase)) return Result::Invalid;
+    if (phase == state_.ch3.phase) return Result::NoChange;
     state_.ch3.phase = phase;
-    if (si5351_.ready() && iqConfigured_()) configureMasterGroup_();
+    const bool wasReady = si5351_.ready();
+    const bool iq = wasReady && iqConfigured_();
+    if (iq) configureMasterGroup_();
     markChanged_();
+    return iq ? outcome_(wasReady, CLK_CH3) : Result::Ok;
 }
 
-void AppController::setGlobalDriveStrength(uint8_t strength) {
-    if (!isValidDrive(strength) || strength == state_.sys.drive_ma) return;
+Result AppController::setGlobalDriveStrength(uint8_t strength) {
+    if (!isValidDrive(strength)) return Result::Invalid;
+    if (strength == state_.sys.drive_ma) return Result::NoChange;
     state_.sys.drive_ma = strength;
+    const bool wasReady = si5351_.ready();
     reconfigureOutputs_();
     markChanged_();
+    return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
 }
 
-void AppController::setBacklight(uint8_t percent) {
+Result AppController::setBacklight(uint8_t percent) {
+    if (percent < BACKLIGHT_MIN_PERCENT || percent > 100) return Result::OutOfRange;
     percent = snapBacklight(percent);
-    if (percent == state_.sys.backlight) return;
+    if (percent == state_.sys.backlight) return Result::NoChange;
     state_.sys.backlight = percent;
     backlight_.setPercent(percent);
     markChanged_();
+    return Result::Ok;
 }
 
-void AppController::stepBacklight(int8_t direction) {
-    setBacklight(snapBacklight(state_.sys.backlight + direction * BACKLIGHT_STEP_PERCENT));
+Result AppController::stepBacklight(int8_t direction) {
+    return setBacklight(snapBacklight(state_.sys.backlight + direction * BACKLIGHT_STEP_PERCENT));
 }
 
-void AppController::setTuningMode(TuningMode mode) {
-    if (mode > TuningMode::Integer || mode == state_.sys.tuning_mode) return;
+Result AppController::setTuningMode(TuningMode mode) {
+    if (mode > TuningMode::Integer) return Result::Invalid;
+    if (mode == state_.sys.tuning_mode) return Result::NoChange;
     state_.sys.tuning_mode = mode;
     if (mode == TuningMode::Integer && state_.sys.spread != Spread::Off) {
         // Spread spectrum needs a fractional PLL A.
@@ -338,17 +368,22 @@ void AppController::setTuningMode(TuningMode mode) {
         si5351_.setSpread(Spread::Off);
     }
     si5351_.setTuningMode(mode);
+    const bool wasReady = si5351_.ready();
     reconfigureOutputs_();
     markChanged_();
+    return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
 }
 
-void AppController::setSpread(Spread spread) {
-    if (spread > Spread::Center05 || spread == state_.sys.spread) return;
-    if (state_.sys.tuning_mode == TuningMode::Integer) return;
+Result AppController::setSpread(Spread spread) {
+    if (spread > Spread::Center05) return Result::Invalid;
+    if (spread == state_.sys.spread) return Result::NoChange;
+    if (state_.sys.tuning_mode == TuningMode::Integer) return Result::Conflict;
     state_.sys.spread = spread;
     si5351_.setSpread(spread);
+    const bool wasReady = si5351_.ready();
     reconfigureOutputs_();
     markChanged_();
+    return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
 }
 
 void AppController::resetToDefaults() {
@@ -365,13 +400,17 @@ void AppController::resetToDefaults() {
     Logger::info("APP", "Settings reset to defaults; correction kept");
 }
 
-void AppController::setOffState(OffState offState) {
-    if (offState > OffState::HighZ || offState == state_.sys.off_state) return;
+Result AppController::setOffState(OffState offState) {
+    if (offState > OffState::HighZ) return Result::Invalid;
+    if (offState == state_.sys.off_state) return Result::NoChange;
     state_.sys.off_state = offState;
-    if (!si5351_.setOffState(offState)) reportLinkLost_();
+    const bool wasReady = si5351_.ready();
+    bool ok = si5351_.setOffState(offState);
+    if (!ok) reportLinkLost_();
     // The power-down strategy of switched-off outputs depends on the off state.
     reconfigureOutputs_();
     markChanged_();
+    return (wasReady && (!ok || !si5351_.ready())) ? Result::HwError : Result::Ok;
 }
 
 Spread AppController::spreadOf(uint8_t ch) const {
@@ -383,18 +422,25 @@ int AppController::i2cSdaPin() const { return I2CBus::sdaPin(); }
 int AppController::i2cSclPin() const { return I2CBus::sclPin(); }
 bool AppController::i2cSwapped() const { return I2CBus::map() == I2CMap::Swapped; }
 
-void AppController::setDeltaStep(uint32_t step) {
-    step = FrequencyUtils::snapStep(step);
-    if (step == state_.sys.delta_step) return;
+Result AppController::setDeltaStep(uint32_t step) {
+    if (FrequencyUtils::snapStep(step) != step) return Result::Invalid;
+    if (step == state_.sys.delta_step) return Result::NoChange;
     state_.sys.delta_step = step;
     markChanged_();
+    return Result::Ok;
 }
 
-void AppController::setCorrection(int32_t correction) {
-    correction = constrain(correction, -CORRECTION_MAX, CORRECTION_MAX);
-    if (correction == state_.sys.freq_correction) return;
+Result AppController::setCorrection(int32_t correction) {
+    if (correction < -CORRECTION_MAX || correction > CORRECTION_MAX) return Result::OutOfRange;
+    if (correction == state_.sys.freq_correction) return Result::NoChange;
     state_.sys.freq_correction = correction;
     si5351_.setCorrection(correction);
+    const bool wasReady = si5351_.ready();
     reconfigureOutputs_();
     markChanged_();
+    return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
+}
+
+Result AppController::adjustCorrection(int32_t delta) {
+    return setCorrection(constrain(state_.sys.freq_correction + delta, -CORRECTION_MAX, CORRECTION_MAX));
 }

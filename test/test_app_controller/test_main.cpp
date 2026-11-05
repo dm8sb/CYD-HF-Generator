@@ -123,15 +123,18 @@ static void test_retune_running_channel_without_dropout() {
     assertHz(0, 7075000);
 }
 
+// V-1: set* reject values outside the range (nothing changes), adjust* clamp.
 static void test_frequency_is_clamped_to_range() {
     Device d;
-    d.app.setChannelFrequency(1, 0);
-    TEST_ASSERT_EQUAL_UINT64(FREQ_MIN_HZ, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setChannelFrequency(1, 0));
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setChannelFrequency(1, 250000000ULL));
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelFrequency(1, FREQ_MIN_HZ));
     d.app.adjustChannelFrequency(1, -1000000);
     TEST_ASSERT_EQUAL_UINT64(FREQ_MIN_HZ, d.app.channel(1).frequency);
-    d.app.setChannelFrequency(1, 250000000ULL);
-    TEST_ASSERT_EQUAL_UINT64(FREQ_MAX_HZ, d.app.channel(1).frequency);
-    d.app.adjustChannelFrequency(1, 1000000);
+    d.app.setChannelFrequency(1, FREQ_MAX_HZ);
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.adjustChannelFrequency(1, 1000000));
     TEST_ASSERT_EQUAL_UINT64(FREQ_MAX_HZ, d.app.channel(1).frequency);
     d.app.setChannelFrequency(1, 1500000);
     d.app.adjustChannelFrequency(1, -2000000);
@@ -162,22 +165,30 @@ static void test_correction_retunes_all_outputs() {
     assertHz(1, DEFAULT_FREQ_CH2, 970);
     assertHz(2, DEFAULT_FREQ_CH1, 970);
     TEST_ASSERT_TRUE(enabled(0) && enabled(1) && enabled(2));
-    d.app.setCorrection(1000000);
+    // set* rejects values outside the range (V-1), adjust* clamps.
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setCorrection(1000000));
+    TEST_ASSERT_EQUAL_INT32(970, d.app.system().freq_correction);
+    d.app.adjustCorrection(1000000);
     TEST_ASSERT_EQUAL_INT32(CORRECTION_MAX, d.app.system().freq_correction);
-    d.app.setCorrection(-1000000);
+    d.app.adjustCorrection(-1000000);
     TEST_ASSERT_EQUAL_INT32(-CORRECTION_MAX, d.app.system().freq_correction);
     assertHz(0, DEFAULT_FREQ_CH1, -CORRECTION_MAX);
 }
 
 static void test_backlight_and_step_are_limited() {
     Device d;
-    d.app.setBacklight(0);
+    // set* rejects, stepBacklight() stops at the limits (V-1).
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setBacklight(0));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setBacklight(BACKLIGHT_MIN_PERCENT));
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.stepBacklight(-1));
     TEST_ASSERT_EQUAL_UINT8(BACKLIGHT_MIN_PERCENT, d.app.system().backlight);
     TEST_ASSERT_EQUAL_UINT32(BACKLIGHT_MIN_PERCENT * 255 / 100, Fake::ledc().duty);
-    d.app.setBacklight(150);
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setBacklight(150));
+    d.app.setBacklight(100);
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.stepBacklight(1));
     TEST_ASSERT_EQUAL_UINT8(100, d.app.system().backlight);
     TEST_ASSERT_EQUAL_UINT32(255, Fake::ledc().duty);
-    d.app.setDeltaStep(5000);
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setDeltaStep(5000));
     TEST_ASSERT_EQUAL_UINT32(1000, d.app.system().delta_step);
 }
 
@@ -538,6 +549,57 @@ static void test_erase_all_settings() {
     TEST_ASSERT_EQUAL_INT32(0, d.app.system().freq_correction);
     TouchCalibration c {};
     TEST_ASSERT_FALSE(d.settings.loadTouchCalibration(&c));
+}
+
+// V-1 / S-12: every setter reports what happened; values are checked, never cut silently.
+static void test_setters_return_result_codes() {
+    Device d;
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelFrequency(1, 7100000));
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.setChannelFrequency(1, 7100000));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setChannelFrequency(3, 7100000));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setChannelFrequency(0, 7100000));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.adjustChannelFrequency(3, 100));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelEnabled(1, true));
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.setChannelEnabled(1, true));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setChannelEnabled(4, true));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setCH3Master(3));
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.setCH3Master(1));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setCH3Phase(45));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setCH3Phase(180));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setGlobalDriveStrength(5));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setGlobalDriveStrength(8));
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setBacklight(5));
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setBacklight(101));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setBacklight(30));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setDeltaStep(500));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setDeltaStep(100));
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setCorrection(CORRECTION_MAX + 1));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setCorrection(-CORRECTION_MAX));
+    // adjustCorrection clamps (GUI -/+).
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.adjustCorrection(-100));
+    TEST_ASSERT_EQUAL_INT32(-CORRECTION_MAX, d.app.system().freq_correction);
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setTuningMode((TuningMode)7));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setTuningMode(TuningMode::Integer));
+    TEST_ASSERT_EQUAL(Result::Conflict, d.app.setSpread(Spread::Down05)); // locked in Integer
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setOffState((OffState)5));
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.setOffState(OffState::Low));
+    // Channel index strictly 1 or 2 (channel(3) returned CH2 before).
+    TEST_ASSERT_EQUAL_UINT64(0, d.app.channel(3).frequency);
+    TEST_ASSERT_FALSE(d.app.channel(3).enabled);
+}
+
+// Without the SI5351 the settings change (shown as NO HW); a failing transfer is HwError.
+static void test_setter_result_with_hardware_errors() {
+    chip.present = false;
+    Device d;
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelFrequency(1, 7100000));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelEnabled(1, true));
+    chip.present = true;
+    Device e;
+    e.app.setChannelEnabled(1, true);
+    chip.failAfter = 0;
+    TEST_ASSERT_EQUAL(Result::HwError, e.app.setChannelFrequency(1, 7200000));
+    chip.failAfter = -1;
 }
 
 static void test_config_options_invalid_nvs_values() {
@@ -1159,6 +1221,8 @@ int main() {
     RUN_TEST(test_backlight_from_older_firmware_is_rounded);
     RUN_TEST(test_config_options_default_and_persist);
     RUN_TEST(test_config_options_invalid_nvs_values);
+    RUN_TEST(test_setters_return_result_codes);
+    RUN_TEST(test_setter_result_with_hardware_errors);
     RUN_TEST(test_reset_to_defaults_keeps_the_correction);
     RUN_TEST(test_erase_all_settings);
     RUN_TEST(test_integer_mode_turns_spread_off);
