@@ -168,8 +168,8 @@ const Channel& AppController::channel(uint8_t ch) const {
 }
 const Channel& AppController::channel_(uint8_t ch) const { return (ch == 1) ? state_.ch1 : state_.ch2; }
 
-void AppController::markChanged_() {
-    settings_.markDirty();
+void AppController::markChanged_(uint16_t keys) {
+    settings_.markDirty(keys, source_ == Source::Remote ? SETTINGS_REMOTE_AUTOSAVE_MS : SETTINGS_AUTOSAVE_MS);
     bump_();
 }
 
@@ -301,7 +301,7 @@ Result AppController::setChannelFrequency(uint8_t ch, uint64_t freq) {
     Logger::debugValue("APP", ch == 1 ? "CH1 frequency" : "CH2 frequency", (int64_t)channel_(ch).frequency);
     const bool wasReady = si5351_.ready();
     configureChannel_(ch);
-    markChanged_();
+    markChanged_(ch == 1 ? SettingKey::Ch1Freq : SettingKey::Ch2Freq);
     return outcome_(wasReady, clkForChannel_(ch));
 }
 
@@ -347,7 +347,7 @@ Result AppController::setCH3Master(uint8_t master) {
     state_.ch3.master = master;
     const bool wasReady = si5351_.ready();
     if (state_.ch3.enabled) reconfigureOutputs_();
-    markChanged_();
+    markChanged_(SettingKey::Ch3Master);
     return state_.ch3.enabled ? outcome_(wasReady, CLK_CH3) : Result::Ok;
 }
 
@@ -358,7 +358,7 @@ Result AppController::setCH3Phase(uint16_t phase) {
     const bool wasReady = si5351_.ready();
     const bool iq = wasReady && iqConfigured_();
     if (iq) configureMasterGroup_();
-    markChanged_();
+    markChanged_(SettingKey::Ch3Phase);
     return iq ? outcome_(wasReady, CLK_CH3) : Result::Ok;
 }
 
@@ -368,7 +368,7 @@ Result AppController::setGlobalDriveStrength(uint8_t strength) {
     state_.sys.drive_ma = strength;
     const bool wasReady = si5351_.ready();
     reconfigureOutputs_();
-    markChanged_();
+    markChanged_(SettingKey::Drive);
     return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
 }
 
@@ -378,7 +378,7 @@ Result AppController::setBacklight(uint8_t percent) {
     if (percent == state_.sys.backlight) return Result::NoChange;
     state_.sys.backlight = percent;
     backlight_.setPercent(percent);
-    markChanged_();
+    markChanged_(SettingKey::Backlight);
     return Result::Ok;
 }
 
@@ -390,7 +390,9 @@ Result AppController::setTuningMode(TuningMode mode) {
     if (mode > TuningMode::Integer) return Result::Invalid;
     if (mode == state_.sys.tuning_mode) return Result::NoChange;
     state_.sys.tuning_mode = mode;
+    uint16_t keys = SettingKey::Tune;
     if (mode == TuningMode::Integer && state_.sys.spread != Spread::Off) {
+        keys |= SettingKey::Ssc;
         // Spread spectrum needs a fractional PLL A.
         state_.sys.spread = Spread::Off;
         si5351_.setSpread(Spread::Off);
@@ -398,7 +400,7 @@ Result AppController::setTuningMode(TuningMode mode) {
     si5351_.setTuningMode(mode);
     const bool wasReady = si5351_.ready();
     reconfigureOutputs_();
-    markChanged_();
+    markChanged_(keys);
     return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
 }
 
@@ -410,7 +412,7 @@ Result AppController::setSpread(Spread spread) {
     si5351_.setSpread(spread);
     const bool wasReady = si5351_.ready();
     reconfigureOutputs_();
-    markChanged_();
+    markChanged_(SettingKey::Ssc);
     return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
 }
 
@@ -424,8 +426,23 @@ void AppController::resetToDefaults() {
     if (!si5351_.setOffState(d.sys.off_state)) reportLinkLost_();
     backlight_.setPercent(d.sys.backlight);
     reconfigureOutputs_();
-    markChanged_();
+    markChanged_(SettingKey::All & ~SettingKey::Corr);
     Logger::info("APP", "Settings reset to defaults; correction kept");
+}
+
+void AppController::resetForRemote() {
+    PersistentState d;
+    SettingsService::defaults(d);
+    d.sys.freq_correction = state_.sys.freq_correction;
+    state_ = d;
+    si5351_.setTuningMode(d.sys.tuning_mode);
+    si5351_.setSpread(d.sys.spread);
+    if (!si5351_.setOffState(d.sys.off_state)) reportLinkLost_();
+    backlight_.setPercent(d.sys.backlight);
+    reconfigureOutputs_();
+    settings_.clearDirty();
+    bump_();
+    Logger::info("APP", "*RST: defaults in RAM, not saved");
 }
 
 Result AppController::setOffState(OffState offState) {
@@ -437,7 +454,7 @@ Result AppController::setOffState(OffState offState) {
     if (!ok) reportLinkLost_();
     // The power-down strategy of switched-off outputs depends on the off state.
     reconfigureOutputs_();
-    markChanged_();
+    markChanged_(SettingKey::OffSt);
     return (wasReady && (!ok || !si5351_.ready())) ? Result::HwError : Result::Ok;
 }
 
@@ -454,7 +471,7 @@ Result AppController::setDeltaStep(uint32_t step) {
     if (FrequencyUtils::snapStep(step) != step) return Result::Invalid;
     if (step == state_.sys.delta_step) return Result::NoChange;
     state_.sys.delta_step = step;
-    markChanged_();
+    markChanged_(SettingKey::Delta);
     return Result::Ok;
 }
 
@@ -465,7 +482,7 @@ Result AppController::setCorrection(int32_t correction) {
     si5351_.setCorrection(correction);
     const bool wasReady = si5351_.ready();
     reconfigureOutputs_();
-    markChanged_();
+    markChanged_(SettingKey::Corr);
     return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
 }
 

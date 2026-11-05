@@ -64,6 +64,11 @@ public:
     // Grundzustand for the next group (U-13): all settings and frequencies back to the defaults,
     // all outputs off; only the frequency correction (calibration) stays. Saved by the autosave.
     void resetToDefaults();
+    // *RST (W-E19): outputs off, defaults in RAM (correction kept), pending changes dropped;
+    // nothing is saved until saveNow(), a later change saves only its own key.
+    void resetForRemote();
+    // SYSTem:SAVE: writes every key at once.
+    bool saveNow() { return settings_.saveNow(state_); }
     // CONFIG options; each reconfigures the outputs as needed. Spread is ignored (stays Off)
     // in TuningMode::Integer; switching to Integer turns it off.
     Result setTuningMode(TuningMode mode);
@@ -107,7 +112,8 @@ private:
     const Channel& channel_(uint8_t ch) const;
     uint8_t clkForChannel_(uint8_t ch) const { return ch == 1 ? CLK_CH1 : CLK_CH2; }
     SI5351Manager::Pll pllForChannel_(uint8_t ch) const { return ch == 1 ? SI5351Manager::Pll::A : SI5351Manager::Pll::B; }
-    void markChanged_();
+    // Marks the changed NVS keys; remote changes are saved later (W-E17).
+    void markChanged_(uint16_t keys);
     void bump_() { ++revision_; }
     void report_(EventCode code, EventCategory category, const char* title, const char* text, uint8_t channel = 0);
     // An output or IQ setup failed: reports a lost SI5351 instead when the I2C bus failed.

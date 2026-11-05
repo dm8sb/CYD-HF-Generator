@@ -37,6 +37,8 @@ static constexpr uint8_t DEFAULT_DRIVE_MA = 4;
 static constexpr uint32_t SETTINGS_AUTOSAVE_MS = 5000;
 // After a failed save the change is kept and saved again after this delay (audit C-13).
 static constexpr uint32_t SETTINGS_RETRY_MS = 30000;
+// Changes from remote commands are saved after this much quiet (W-E17: scripts change often).
+static constexpr uint32_t SETTINGS_REMOTE_AUTOSAVE_MS = 30000;
 // SI5351 health check / reconnect interval.
 static constexpr uint32_t HW_CHECK_INTERVAL_MS = 2000;
 // Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).
