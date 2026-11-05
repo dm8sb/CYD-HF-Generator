@@ -147,8 +147,11 @@ void stepMarkup(const char* text, uint32_t step, uint32_t rgb, char* out, size_t
 }
 
 uint8_t repeatSteps(uint32_t heldMs) {
-    if (heldMs >= REPEAT_FASTER_MS) return 5;
-    return heldMs >= REPEAT_FAST_MS ? 2 : 1;
+    return heldMs >= REPEAT_FASTER_MS ? 2 : 1;
+}
+
+bool repeatDue(uint32_t heldMs, uint32_t sinceStepMs) {
+    return heldMs >= REPEAT_FAST_MS || sinceStepMs >= REPEAT_SLOW_INTERVAL_MS;
 }
 
 ScreenLock::Event ScreenLock::update(bool pressed, uint32_t nowMs) {

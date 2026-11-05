@@ -193,6 +193,7 @@ private:
     bool numpadPpm_ = false;     // numpad opened from CONFIG: correction entry (U-11)
     PageId numpadReturn_ = PageId::CH1; // page the frequency numpad returns to
     uint32_t pressStartMs_ = 0;  // start of the current press of a repeat button (U-20)
+    uint32_t lastStepMs_ = 0;    // last step of the current hold (slow phase, U-20)
     lv_event_code_t lastCode_ = LV_EVENT_ALL;
     uint8_t calShownTarget_ = 0xFF;
     TouchCal::Phase calShownPhase_ = TouchCal::Phase::Touch;

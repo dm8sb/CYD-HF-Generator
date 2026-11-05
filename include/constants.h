@@ -46,9 +46,13 @@ static constexpr uint32_t GUI_UPDATE_INTERVAL_MS = 300;  // save state, connecti
 // Pressure dropouts (and weak pressure) shorter than this keep a press (audit U-20: 60-80 ms;
 // a tap is reported this much later as released).
 static constexpr uint32_t TOUCH_RELEASE_BRIDGE_MS = 70;
-// Holding +/-: 10 steps/s, from REPEAT_FAST_MS 20/s, from REPEAT_FASTER_MS 50/s (U-20).
-static constexpr uint32_t REPEAT_FAST_MS = 2000;
-static constexpr uint32_t REPEAT_FASTER_MS = 4000;
+// Holding +/- (U-20): the first repeat after REPEAT_DELAY_MS, then one step per
+// REPEAT_SLOW_INTERVAL_MS (about 3/s), from REPEAT_FAST_MS every LVGL repeat (about 10/s),
+// from REPEAT_FASTER_MS 2 steps per repeat (about 20/s).
+static constexpr uint32_t REPEAT_DELAY_MS = 600;
+static constexpr uint32_t REPEAT_SLOW_INTERVAL_MS = 300;
+static constexpr uint32_t REPEAT_FAST_MS = 3000;
+static constexpr uint32_t REPEAT_FASTER_MS = 6000;
 // Released after a touch at boot: TOUCH_RELEASE_QUIET_SAMPLES x TOUCH_RELEASE_SAMPLE_MS without touch.
 static constexpr uint32_t TOUCH_RELEASE_SAMPLE_MS = 20;
 static constexpr uint8_t TOUCH_RELEASE_QUIET_SAMPLES = 10;

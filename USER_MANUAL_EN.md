@@ -198,7 +198,7 @@ The `−` and `+` buttons change the frequency by the currently selected step. T
 
 **Tapping a digit directly:** Tapping a digit of the frequency display selects that digit position as the step (e.g. the third decimal place = 1 kHz). The digit changed by `−`/`+` is highlighted in the channel color. Digits above 1 MHz (10 MHz, 100 MHz) select the largest step, 1 MHz. Tapping the unit `MHz` opens the NUMPAD. Tapping is a shortcut to the step buttons: the digits are only 2–3 mm wide, and a tap on the point or a gap selects the nearer neighboring digit.
 
-**Press and hold:** After about 0.4 s, the step repeats automatically about every 0.1 s until the button is released. After holding for 2 s it goes twice as fast (2 steps per repeat), after 4 s five times as fast. Short pressure dropouts (up to 70 ms) do not end the hold. This also applies to `−`/`+` of `Corr.`.
+**Press and hold:** After about 0.6 s, the step repeats automatically until the button is released: at first about 3 steps per second, after holding for 3 s about 10 per second, after 6 s about 20 per second (2 steps per repeat). Short pressure dropouts (up to 70 ms) do not end the hold. This also applies to `−`/`+` of `Corr.`.
 
 Whether a frequency change briefly interrupts the output depends on `Tuning` (section 8):
 
