@@ -1,6 +1,6 @@
 # Benutzeranleitung – CYD HF Generator
 
-Firmware-Version: 1.3.2
+Firmware-Version: 1.3.3
 
 Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_EN.md](USER_MANUAL_EN.md) ist ihre Übersetzung.
 
@@ -34,7 +34,7 @@ Für den Laborplatz; Einzelheiten in den genannten Abschnitten, Bilder der Seite
 3. **Frequenz einstellen:** Karte `CH1` antippen, Schritt-Taste wählen (`1M` … `1`), dann `−` / `+`; oder `NUMPAD`, Zahl eingeben, mit `MHz`, `kHz` oder `Hz` bestätigen (Abschnitte 5 und 6).
 4. **Ausgang einschalten:** Schalter auf der Karte oder in der Titelzeile. Daneben steht, was der Ausgang tut: `ON` im grünen Feld = läuft.
 5. **IQ-Signal:** Karte `CH3`, Master `CH1` oder `CH2`, Phase `0` / `90` / `180` / `270`, Schalter ein. Unter 4,730 MHz Masterfrequenz wartet CH3 (`WAIT`) und startet von selbst (Abschnitt 7).
-6. **Vor dem Messen:** Steht unter einer Frequenz eine Moduszeile (z. B. `OFF = High`, `SSC -0.5 %`, `Integer`), weicht CONFIG von den Werkseinstellungen ab (Abschnitt 2).
+6. **Vor dem Messen:** Steht unter einer Frequenz eine Moduszeile (z. B. `OFF=High`, `SSC -0.5%`, `Integer`), weicht CONFIG von den Werkseinstellungen ab (Abschnitt 2).
 7. **Bei Fehlern:** `! NO HW` = SI5351 nicht verbunden; `! ERR` = Einstellen fehlgeschlagen, die Firmware versucht es alle 2 s erneut (Abschnitt 11, Anhang C).
 
 Werkseinstellungen in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; Frequenzen 10 MHz (CH1) und 14 MHz (CH2), Schritt 1 kHz. Für die nächste Gruppe: CONFIG `Reset` → `Defaults` (die Kalibrierung bleibt); gegen Verstellen: CONFIG `Screen` → `Lock`.
@@ -87,12 +87,12 @@ CONFIG-Einstellungen, die das Signal eines Kanals gegenüber den Werkseinstellun
 
 | Eintrag | Erscheint bei |
 |---|---|
-| `OFF = High` / `OFF = High-Z` | `Off state` ≠ `Low` |
-| `SSC -0.5 %`, `SSC -1.5 %`, `SSC +/-0.5 %` | `Spread CH1` ≠ `Off`, nur bei CH1 und bei CH3 mit Master CH1 |
+| `OFF=High` / `OFF=High-Z` | `Off state` ≠ `Low` |
+| `SSC -0.5%`, `SSC -1.5%`, `SSC +/-0.5%` | `Spread CH1` ≠ `Off`, nur bei CH1 und bei CH3 mit Master CH1 |
 | `Low noise` / `Integer` | `Tuning` ≠ `Fractional` |
-| `2 mA`, `6 mA`, `8 mA` | `Drive all` ≠ `4 mA` |
+| `2mA`, `6mA`, `8mA` | `Drive all` ≠ `4 mA` |
 
-Beispiel: `SSC -0.5 % | Low noise | 8 mA` auf CH1, `Low noise | 8 mA` auf CH2. Mit `OFF = High` ist die Zeile orange, weil ein ausgeschalteter Ausgang dann Gleichspannung führt; sonst grau. Ist die Zeile auf der Hauptseite zu lang, endet sie mit `...`; die Kanalseite zeigt sie vollständig.
+Beispiel: `SSC -0.5% | Low noise | 8mA` auf CH1, `Low noise | 8mA` auf CH2. Mit `OFF=High` ist die Zeile orange, weil ein ausgeschalteter Ausgang dann Gleichspannung führt; sonst grau. Ist die Zeile auf der Hauptseite zu lang, endet sie mit `...`; die Kanalseite zeigt sie vollständig.
 
 Bedienung auf der Hauptseite:
 
@@ -198,7 +198,7 @@ Die Tasten `−` und `+` ändern die Frequenz um den aktuell gewählten Schritt.
 
 **Stelle direkt antippen:** Ein Tipp auf eine Ziffer der Frequenzanzeige wählt diese Stelle als Schritt (z. B. die dritte Nachkommastelle = 1 kHz). Die Stelle, die `−`/`+` ändert, ist in der Kanalfarbe hervorgehoben. Ziffern über 1 MHz (10 MHz, 100 MHz) wählen den größten Schritt 1 MHz. Ein Tipp auf die Einheit `MHz` öffnet das NUMPAD. Das Antippen ist eine Abkürzung zu den Schritt-Tasten: Die Ziffern sind nur 2–3 mm breit, ein Tipp auf den Punkt oder eine Lücke wählt die nähere Nachbarziffer.
 
-**Gedrückt halten:** Nach ca. 0,4 s wiederholt sich der Schritt automatisch etwa alle 0,1 s, bis die Taste losgelassen wird. Nach 2 s Halten geht es doppelt so schnell (2 Schritte je Wiederholung), nach 4 s fünfmal so schnell. Kurze Druckaussetzer (bis 70 ms) beenden das Halten nicht. Das gilt auch für `−`/`+` bei `Corr.`.
+**Gedrückt halten:** Nach ca. 0,6 s wiederholt sich der Schritt automatisch, bis die Taste losgelassen wird: zuerst etwa 3 Schritte pro Sekunde, nach 3 s Halten etwa 10 pro Sekunde, nach 6 s etwa 20 pro Sekunde (2 Schritte je Wiederholung). Kurze Druckaussetzer (bis 70 ms) beenden das Halten nicht. Das gilt auch für `−`/`+` bei `Corr.`.
 
 Ob eine Frequenzänderung den Ausgang kurz unterbricht, hängt von `Tuning` ab (Abschnitt 8):
 
@@ -229,9 +229,9 @@ Out 7.102 273 MHz (+2272.7 Hz)
 Out 9.975 000 MHz mean, SSC -0.5 %
 ```
 
-- Außerhalb von 1–100 MHz steht in der Moduszeile ein Hinweis: `Above 100 MHz: lower level` bzw. `Below 1 MHz: filter harmonics`.
+- Außerhalb von 1–100 MHz steht in der Moduszeile ein Hinweis: `>100MHz: low level` bzw. `<1MHz: harmonics`.
 - Bei ausgeschaltetem Kanal beginnt die Zeile mit `Off | `, z. B. `Off | Out 10.000 000 MHz (+0.3 Hz)`: So würde der Ausgang nach dem Einschalten laufen.
-- Folgt CH3 diesem Kanal, steht in der Moduszeile darunter `IQ master of CH3 (90°)` mit der Phase von CH3; Frequenzänderungen verschieben dann beide Ausgänge.
+- Folgt CH3 diesem Kanal, steht in der Moduszeile darunter `IQ master (90°)` mit der Phase von CH3; Frequenzänderungen verschieben dann beide Ausgänge.
 
 Bei Fehlern steht statt der Frequenz in Rot:
 
@@ -535,7 +535,7 @@ Legt fest, welchen Pegel ein ausgeschalteter Ausgang führt (SI5351-Register 24)
 
 - `High` muss bestätigt werden: Der Dialog `Off state High` erklärt die Gleichspannung am ausgeschalteten Ausgang. `High` (orange) übernimmt die Einstellung, `Cancel` lässt die bisherige stehen. `Low` und `High-Z` wirken ohne Rückfrage.
 - Die Änderung wirkt sofort; laufende Ausgänge bleiben unberührt.
-- Weicht die Einstellung von `Low` ab, zeigen Hauptseite und Kanalseiten `OFF = High` bzw. `OFF = High-Z` in der Moduszeile (Abschnitt 2).
+- Weicht die Einstellung von `Low` ab, zeigen Hauptseite und Kanalseiten `OFF=High` bzw. `OFF=High-Z` in der Moduszeile (Abschnitt 2).
 - Die Firmware schreibt den Zustand beim Verbinden mit dem SI5351, bevor ein Ausgang eingeschaltet werden kann.
 - **`High`:** In eine DC-gekoppelte Last (z. B. 50 Ω) fließt ein Dauerstrom, begrenzt durch die Drive-Strength; an einem DC-gekoppelten Mischer liegt eine Gleichspannung an.
 - Für DC-gekoppelte Diodenringmischer `Low` oder `High-Z` verwenden.
@@ -667,8 +667,8 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 Am Ende der Seite zeigt eine Karte Angaben für die Fehlersuche ohne seriellen Monitor, zum Beispiel:
 
 ```text
-Firmware 1.3.2 | dev 47d9307
-Build 2026-11-04 18:30
+Firmware 1.3.3 | dev 47d9307
+Build 2026-11-05 15:00
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
@@ -932,7 +932,7 @@ Wichtige Meldungen:
 
 | Meldung | Bedeutung |
 |---|---|
-| `[BOOT] CYD HF Generator 1.3.2 (dev 47d9307, 2026-11-04 18:30)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
+| `[BOOT] CYD HF Generator 1.3.3 (dev 47d9307, 2026-11-05 15:00)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
 | `[I2C] Line held low; releasing bus` | Eine I2C-Leitung lag beim Start auf LOW und wurde freigegeben |
 | `[SETTINGS] Loaded from NVS` | Einstellungen geladen |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Einmalig nach dem Update von 1.3.0/1.3.1: die Wahl der früheren Boot-Geste wurde gelöscht (Abschnitt 13) |
@@ -949,7 +949,7 @@ Wichtige Meldungen:
 | `[BOOT] Setup complete` | Start abgeschlossen |
 | `[GUI] Screen locked` / `[GUI] Screen unlocked` | Bildschirmsperre ein bzw. aus |
 | `[APP] Settings reset to defaults; correction kept` | `Reset` → `Defaults` ausgeführt |
-| `[SETTINGS] All settings erased`, `[BOOT] Factory reset; restarting` | Werksreset, danach Neustart |
+| `[SETTINGS] All settings erased`, `[BOOT] Factory reset; restarting` | Werksreset, danach Neustart; davor steht die Zeile von `Defaults`, weil zuerst alle Ausgänge abgeschaltet werden (die Korrektur wird anschließend trotzdem gelöscht) |
 | `[SETTINGS] Saved to NVS` | Autosave |
 | `[APP] Restoring outputs` | Nach dem Wiederverbinden werden die Ausgänge wiederhergestellt |
 | `[APP] Output error cleared` | Ein Ausgangsfehler (`! ERR`) ist behoben |
@@ -1028,7 +1028,7 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 ```text
 +--------------------------------------------+
 | CH1              10.000 000 MHz |  [==o]   |
-| ON   SSC -0.5 % | Low noise     |          |
+| ON   SSC -0.5% | Low noise      |          |
 +--------------------------------------------+
 | CH2              14.000 000 MHz |  [o==]   |
 | OFF                             |          |
@@ -1048,7 +1048,7 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 +--------------------------------------------+
 | 10.000 000 MHz                             |
 | Out 10.000 000 MHz (+0.3 Hz)               |
-| SSC -0.5 % | IQ master of CH3 (90°)        |
+| SSC -0.5% | IQ master (90°)                |
 +--------------------------------------------+
 | [1M][100k][10k][ 1k ][100][ 10][  1]       |
 | [   −   ]  [   +   ]  [  NUMPAD  ]         |
@@ -1113,20 +1113,20 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | `Out …` | tatsächlich erzeugte Frequenz und Abweichung in Hz | 5 |
 | `Out … mean, SSC …` | mittlere Frequenz bei Spread Spectrum | 5 |
 | `Off \| Out …` | Kanal aus; so läuft er nach dem Einschalten | 5 |
-| `IQ master of CH3 (90°)` | CH3 folgt diesem Kanal mit der angegebenen Phase | 2, 5 |
+| `IQ master (90°)` | CH3 folgt diesem Kanal mit der angegebenen Phase | 2, 5 |
 | `CH1 / 90° / master off` | CH3: Master, Phase und Grund des Wartens | 2, 7 |
 | Moduszeile | Einstellungen, die vom Werkszustand abweichen | 2 |
-| `OFF = High` / `OFF = High-Z` | ausgeschaltete Ausgänge führen HIGH (Gleichspannung) bzw. sind hochohmig | 8 |
+| `OFF=High` / `OFF=High-Z` | ausgeschaltete Ausgänge führen HIGH (Gleichspannung) bzw. sind hochohmig | 8 |
 | `SSC -0.5 %` usw. | Spread Spectrum: Frequenz wird absichtlich verteilt | 8 |
 | `Fractional` / `Low noise` / `Integer` | Teilerverfahren des SI5351 (`Tuning`) | 8 |
-| `2 mA` … `8 mA` | Ausgangsstrom (`Drive all`) | 8 |
+| `2mA` … `8mA` | Ausgangsstrom (`Drive all`) | 8 |
 | `Corr.`, ppm | Frequenzkorrektur des Quarzes in Millionstel | 8 |
 | `LOCKED` (oranges Feld) | Bildschirm gesperrt; 2 s halten entsperrt | 8 |
 | `Saved` / `Saving...` / `Save failed` / `Not saved` | Speicherzustand | 8, 9 |
 | `Now …` | NUMPAD: aktuelle Frequenz | 6 |
 | `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: Grund einer abgelehnten Eingabe | 6 |
 | `-50.00 to +50.00 ppm` | NUMPAD der Korrektur: Wert außerhalb des Bereichs | 8 |
-| `Above 100 MHz: lower level` / `Below 1 MHz: filter harmonics` | Kanalseite: Hinweis außerhalb von 1–100 MHz | 1, 5 |
+| `>100MHz: low level` / `<1MHz: harmonics` | Kanalseite: Hinweis außerhalb von 1–100 MHz | 1, 5 |
 | `Touch calibrated …` / `Touch not calibrated (default)` | Info-Karte: Touch-Abgleich | 8 |
 | `detected` / `default` / `build flag` | Info-Karte: Herkunft des Display-Controllers | 8, 13 |
 | `(swapped)` / `(clone?)` | Info-Karte: SDA/SCL vertauscht bzw. ungewöhnliches SI5351-Register | 8, 11 |

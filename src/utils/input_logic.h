@@ -69,6 +69,9 @@ void stepMarkup(const char* text, uint32_t step, uint32_t rgb, char* out, size_t
 
 // Steps per repeat event while +/- is held for heldMs (U-20).
 uint8_t repeatSteps(uint32_t heldMs);
+// Whether a repeat event acts: before REPEAT_FAST_MS only once REPEAT_SLOW_INTERVAL_MS have passed
+// since the last step (sinceStepMs), afterwards on every repeat event.
+bool repeatDue(uint32_t heldMs, uint32_t sinceStepMs);
 
 class ScreenLock {
 public:
