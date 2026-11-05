@@ -34,6 +34,7 @@ void Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
     indevDrv_.type = LV_INDEV_TYPE_POINTER;
     indevDrv_.read_cb = touchCb_;
     indevDrv_.user_data = this;
+    indevDrv_.long_press_time = REPEAT_DELAY_MS; // first repeat of a held +/- (U-20)
     lv_indev_drv_register(&indevDrv_);
 
     lv_theme_default_init(lv_disp_get_default(), lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
@@ -394,9 +395,17 @@ void Gui::eventCb_(lv_event_t* e) {
     Gui* g = from_(obj);
     uintptr_t packed = (uintptr_t)lv_event_get_user_data(e);
     g->lastCode_ = lv_event_get_code(e);
+    const uint32_t now = millis();
     if (g->lastCode_ == LV_EVENT_PRESSED) {
-        g->pressStartMs_ = millis();
+        g->pressStartMs_ = now;
         return;
+    }
+    if (g->lastCode_ == LV_EVENT_LONG_PRESSED_REPEAT &&
+        !InputLogic::repeatDue(now - g->pressStartMs_, now - g->lastStepMs_)) {
+        return; // slow phase of a hold: skip this repeat (U-20)
+    }
+    if (g->lastCode_ == LV_EVENT_LONG_PRESSED || g->lastCode_ == LV_EVENT_LONG_PRESSED_REPEAT) {
+        g->lastStepMs_ = now;
     }
     g->handleAction_((Action)((packed >> 8) & 0xFF), (uint8_t)(packed & 0xFF), obj);
 }
@@ -412,7 +421,7 @@ static_assert((uint8_t)OffState::Low == 0 && (uint8_t)OffState::High == 1 && (ui
 void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
     AppController& app = *app_;
     const SystemSettings& sys = app.system();
-    // Holding +/- speeds up after REPEAT_FAST_MS (U-20).
+    // Holding +/- speeds up after REPEAT_FASTER_MS (U-20).
     const int64_t steps = lastCode_ == LV_EVENT_LONG_PRESSED_REPEAT ? InputLogic::repeatSteps(millis() - pressStartMs_) : 1;
     switch (action) {
         case Action::Navigate:

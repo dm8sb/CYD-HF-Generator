@@ -198,7 +198,7 @@ Die Tasten `−` und `+` ändern die Frequenz um den aktuell gewählten Schritt.
 
 **Stelle direkt antippen:** Ein Tipp auf eine Ziffer der Frequenzanzeige wählt diese Stelle als Schritt (z. B. die dritte Nachkommastelle = 1 kHz). Die Stelle, die `−`/`+` ändert, ist in der Kanalfarbe hervorgehoben. Ziffern über 1 MHz (10 MHz, 100 MHz) wählen den größten Schritt 1 MHz. Ein Tipp auf die Einheit `MHz` öffnet das NUMPAD. Das Antippen ist eine Abkürzung zu den Schritt-Tasten: Die Ziffern sind nur 2–3 mm breit, ein Tipp auf den Punkt oder eine Lücke wählt die nähere Nachbarziffer.
 
-**Gedrückt halten:** Nach ca. 0,4 s wiederholt sich der Schritt automatisch etwa alle 0,1 s, bis die Taste losgelassen wird. Nach 2 s Halten geht es doppelt so schnell (2 Schritte je Wiederholung), nach 4 s fünfmal so schnell. Kurze Druckaussetzer (bis 70 ms) beenden das Halten nicht. Das gilt auch für `−`/`+` bei `Corr.`.
+**Gedrückt halten:** Nach ca. 0,6 s wiederholt sich der Schritt automatisch, bis die Taste losgelassen wird: zuerst etwa 3 Schritte pro Sekunde, nach 3 s Halten etwa 10 pro Sekunde, nach 6 s etwa 20 pro Sekunde (2 Schritte je Wiederholung). Kurze Druckaussetzer (bis 70 ms) beenden das Halten nicht. Das gilt auch für `−`/`+` bei `Corr.`.
 
 Ob eine Frequenzänderung den Ausgang kurz unterbricht, hängt von `Tuning` ab (Abschnitt 8):
 
