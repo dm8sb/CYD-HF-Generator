@@ -959,6 +959,7 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | Meldung | Bedeutung |
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Überwachung: SI5351 antwortet nicht oder hat seine Einstellung verloren |
+| `[E][Wire.cpp:499] requestFrom(): i2cWriteReadNonStop returned Error -1` | Meldung des Arduino-Cores zu einer fehlgeschlagenen I2C-Übertragung, meist direkt vor `Device lost or reset`; für sich allein harmlos |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Ungewöhnliches Register 183, z. B. Nachbau; das Modul wird trotzdem verwendet |
 | `[ERROR][APP] I2C fails at 400 kHz; staying at 100 kHz` | Bus läuft nur mit 100 kHz (z. B. schwache Pull-ups) |
 | `[ERROR][SETTINGS] Saving to NVS failed` | Speichern fehlgeschlagen |
