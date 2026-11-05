@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PlatformIO + Arduino-ESP32 firmware (LVGL 8.3 GUI) for a 3-channel SI5351 HF square-wave generator on the ESP32-2432S028R "Cheap Yellow Display". See README.md for pinout, features and changes, PROJECT_SPECIFICATION.md for requirements and decisions, USER_MANUAL_DE.md for all behavior.
+PlatformIO + Arduino-ESP32 firmware (LVGL 8.4 GUI) for a 3-channel SI5351 HF square-wave generator on the ESP32-2432S028R "Cheap Yellow Display". See README.md for pinout, features and changes, PROJECT_SPECIFICATION.md for requirements and decisions, USER_MANUAL_DE.md for all behavior.
 
 ## Commands
 

@@ -136,7 +136,7 @@ This table is authoritative; README and manual repeat parts of it.
 
 ### 3.5 User interface
 
-- **A-24** LVGL 8.3, 320 × 240 landscape, dark theme with colored cards. Pages: MAIN, CH1, CH2, CH3, CONFIG, NUMPAD.
+- **A-24** LVGL 8 (8.4.0, E-28), 320 × 240 landscape, dark theme with colored cards. Pages: MAIN, CH1, CH2, CH3, CONFIG, NUMPAD.
 - **A-25** Page coordinates derive from the layout grid in `gui/gui_layout.h` (margin 8 px, header 38 px, card padding 6 px). No control is clipped or overlaps another. Pages do not scroll, except the CONFIG content area below its fixed header (E-22).
 - **A-26** Frequently used controls are at least about 36 px high; yellow buttons use dark text.
 - **A-27** Colors: CH1 red, CH2 green, CH3 blue, CONFIG yellow, MAIN and back buttons gray. The RGB LED shows the color of the open channel page and is off on all other pages (E-3).
@@ -178,7 +178,7 @@ This table is authoritative; README and manual repeat parts of it.
 ### 3.8 Build and tests
 
 - **A-45** PlatformIO + Arduino-ESP32. `esp32-2432S028R` is the only firmware environment and `default_envs`; `native` (gcc in PATH) and `native-win` (bundled MinGW) run the host tests.
-- **A-46** Pinned versions: `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43`, `lvgl/lvgl@8.3.11`, XPT2046_Touchscreen from GitHub, pinned to commit `d57f64c8b5f2bc5b8d10d121550806eeff7b06d9` (tag v1.4, E-4). Partition table `huge_app.csv`, 4 MB flash.
+- **A-46** Pinned versions: `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43`, `lvgl/lvgl@8.4.0` (E-28), XPT2046_Touchscreen from GitHub, pinned to commit `d57f64c8b5f2bc5b8d10d121550806eeff7b06d9` (tag v1.4, E-4). Partition table `huge_app.csv`, 4 MB flash.
 - **A-47** TFT_eSPI is configured only through build flags (`USER_SETUP_LOADED`), never by editing library files.
 - **A-48** The host tests compile the hardware-independent sources (controller, SI5351 driver and planner, I2C bus, display detection, services, frequency utilities, logger) against fakes (E-15). These sources stay free of LVGL and TFT_eSPI; `constants.h`, `types.h` and `frequency_utils.h` do not include `Arduino.h`.
 - **A-49** The version is `APP_VERSION` in `config.h`. Branch, commit (with `+` for uncommitted changes) and build time are taken at build time; without git they read `unknown` (E-24).
@@ -296,3 +296,6 @@ Whether `CLKx_PDN` leaves a pin high-impedance or pulls it low is unmeasured (ha
 
 ### E-27 Touch calibration per board
 *2026-11-04 (1.3.2).* The hit map (MESSPLAN B8, test build of S28) showed the fixed calibration (x 300–3800) off on both boards: hits 11–19 px too far left on the original CYD, x = 80 by about −17 px and the right edge by −1 … −7 px on the CYD2USB; the right corner was not reachable on the original CYD (audit U-26). Requested by the user: a calibration at the very first start. Four crosses 20 px from the corners give offset and slope per axis (linear, as `mapPoint()`), the cross in the middle checks it (≤ 8 px; the hit map scattered by about ±5 px with a good calibration); each cross is held 0.5 s, the first 0.1 s are not averaged. First results: x 161…3778 / y 245…3830 (CYD2USB) and x 166…3716 / y 280…3885 (original CYD), check −2/+2 and −2/+1 px. Stored in NVS outside the autosave; without a stored calibration the wizard runs at boot, 30 s without a touch continue with the default, so a board with a defective touch stays usable. A CONFIG row starts it again.
+
+### E-28 LVGL 8.4.0, not LVGL 9
+*2026-11-05 (migration, ARBEITSPLAN S40a).* 8.4.0 is the last LVGL 8 release. Against 8.3.11 it changes almost only formatting; in content the screen load order, a group focus swap and a cast in `lv_obj_style.h` that removes the C++20 enum warning of GCC 14 (Arduino 3.x); the widgets the GUI uses (label, button matrix, dropdown, switch, textarea, message box, scrolling, input) are unchanged apart from whitespace, `lv_conf_internal.h` and the template keys are identical. Measured on the original CYD (debug build): first frame 159 ms (2.x core, as 8.3.11) and 169 ms (3.x core, 172 ms with 8.3.11), heap and LVGL memory unchanged, flash +72 B. LVGL 9 is not used: new display, input, style and widget APIs would mean rebuilding every page and a full operating test, for no feature the device needs.
