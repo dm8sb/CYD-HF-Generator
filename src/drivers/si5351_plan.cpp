@@ -9,6 +9,9 @@ static constexpr uint64_t VCO_MAX_HZ = 900000000ULL;
 // x 25 MHz = 900 / 887.5 / 875 MHz; the first two inside the VCO range are used.
 static constexpr SynthRatio FIXED_PLLS[] = {{36, 0, 1}, {35, 1, 2}, {35, 0, 1}};
 static constexpr double FIXED_PLL_KEEP_ERR_HZ = 0.25;
+// Up to here the fixed PLLs stay within 0.5 Hz; above, an even integer MultiSynth with a
+// fractional PLL is tried when they are worse (audit: 112.5 MHz, ARBEITSPLAN S34).
+static constexpr uint64_t FIXED_PLL_ONLY_MAX_HZ = 100000000ULL;
 static constexpr uint32_t MS_MIN_HZ = 1000000;    // lower outputs use the R divider
 static constexpr uint32_t MS_MAX_DIV = 2048;
 static constexpr uint32_t IQ_MIN_DIV = 9;         // fractional-mode MultiSynth
@@ -163,6 +166,7 @@ SynthPlan planStandalone(uint64_t freq, TuningMode mode, const SynthRatio* curre
             if (currentPll && sameRatio(*currentPll, cand) && err <= FIXED_PLL_KEEP_ERR_HZ) {
                 p.pll = cand;
                 p.ms = ms;
+                bestErr = err;
                 break;
             }
             if (err < bestErr) {
@@ -171,14 +175,29 @@ SynthPlan planStandalone(uint64_t freq, TuningMode mode, const SynthRatio* curre
                 p.ms = ms;
             }
         }
-        if (p.ms.a < 8) {
-            // Above 112.5 MHz: even integer MultiSynth divider, fractional PLL.
-            const uint32_t div = (6 * msHz <= range.max) ? 6 : 4;
-            if (div * msHz < range.min) {
+        // Above 112.5 MHz the fixed PLLs would need a MultiSynth below 8; next to it the ratio
+        // rounds to exactly 8 and misses by up to 5 Hz. The largest even integer divider in the
+        // VCO range with a fractional PLL is then better (1.5 / 2 / 3 Hz with 8 / 6 / 4).
+        if (p.ms.a < 8 || (msHz > FIXED_PLL_ONLY_MAX_HZ && bestErr > FIXED_PLL_KEEP_ERR_HZ)) {
+            bool found = false;
+            static constexpr uint32_t EVEN_DIVS[] = {8, 6, 4};
+            for (uint32_t div : EVEN_DIVS) {
+                if (!range.contains(div * msHz)) continue;
+                SynthPlan q = p;
+                integerDivider(q, div, msHz, xtal4);
+                const double err = fabs(synthesizedHz(q.pll, q.ms, p.rLog2, xtal4) - (double)freq);
+                if (p.ms.a < 8 || err < bestErr) {
+                    p.pll = q.pll;
+                    p.ms = q.ms;
+                    p.divBy4 = q.divBy4;
+                }
+                found = true;
+                break;
+            }
+            if (!found && p.ms.a < 8) {
                 p.ok = false; // only with spread spectrum, next to 150 MHz
                 return p;
             }
-            integerDivider(p, div, msHz, xtal4);
         }
         p.msInt = isEvenInteger(p.ms);
     }

@@ -23,6 +23,10 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 
 ## Changes
 
+### 1.3.3 (in progress)
+
+- Tuning above 100 MHz exact to 1.5–3 Hz (next to 112.5 MHz it was off by up to 5 Hz); prepares the range extension
+
 ### 1.3.2
 
 - Header shows the actual state; mode line on MAIN and the channel pages; `Off state` = `High` needs a confirmation
