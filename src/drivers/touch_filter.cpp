@@ -30,7 +30,8 @@ bool mapPoint(const TouchCalibration& cal, int16_t rawX, int16_t rawY, int16_t* 
 
 Output Filter::update(const Sample& s, uint32_t nowMs) {
     Output o {false, x_, y_, false};
-    if (!s.touched) {
+    // Weak pressure counts as a dropout, so a light hold is not cut into taps (U-20).
+    if (!s.touched || s.z < MIN_PRESSURE) {
         // A short pressure dropout keeps the press, so a slide or hold is not cut into taps.
         if (lastPressed_ && nowMs - lastTouchMs_ < TOUCH_RELEASE_BRIDGE_MS) {
             o.pressed = true;
@@ -39,7 +40,6 @@ Output Filter::update(const Sample& s, uint32_t nowMs) {
         lastPressed_ = false;
         return o;
     }
-    if (s.z < MIN_PRESSURE) return o;
     int16_t x = 0, y = 0;
     if (!mapPoint(cal_, s.rawX, s.rawY, &x, &y)) {
         o.calibrationError = true;

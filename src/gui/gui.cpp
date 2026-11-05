@@ -149,6 +149,8 @@ lv_obj_t* Gui::addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w
     // sends neither CLICKED / SHORT_CLICKED nor LONG_PRESSED(_REPEAT), only RELEASED.
     if (repeat) {
         // Single tap = one step on release; holding repeats every LV_INDEV_DEF_LONG_PRESS_REP_TIME.
+        // The press start lets a long hold speed up (U-20).
+        on_(b, LV_EVENT_PRESSED, action, arg);
         on_(b, LV_EVENT_SHORT_CLICKED, action, arg);
         on_(b, LV_EVENT_LONG_PRESSED, action, arg);
         on_(b, LV_EVENT_LONG_PRESSED_REPEAT, action, arg);
@@ -290,7 +292,10 @@ void Gui::navigate(PageId page) {
         configScrollY_ = end.y;
     }
     // The numpad edits the correction when opened from CONFIG, else the channel frequency.
-    if (page == PageId::Numpad) numpadPpm_ = currentPage_ == PageId::Config;
+    if (page == PageId::Numpad) {
+        numpadPpm_ = currentPage_ == PageId::Config;
+        if (!numpadPpm_) numpadReturn_ = currentPage_; // CH1, CH2 or CH3 (master frequency)
+    }
     currentPage_ = page;
     if (page == PageId::CH1) channel_ = 1;
     else if (page == PageId::CH2) channel_ = 2;
@@ -388,6 +393,11 @@ void Gui::eventCb_(lv_event_t* e) {
     // The event user data carries the packed action, so the instance comes from the display.
     Gui* g = from_(obj);
     uintptr_t packed = (uintptr_t)lv_event_get_user_data(e);
+    g->lastCode_ = lv_event_get_code(e);
+    if (g->lastCode_ == LV_EVENT_PRESSED) {
+        g->pressStartMs_ = millis();
+        return;
+    }
     g->handleAction_((Action)((packed >> 8) & 0xFF), (uint8_t)(packed & 0xFF), obj);
 }
 
@@ -402,6 +412,8 @@ static_assert((uint8_t)OffState::Low == 0 && (uint8_t)OffState::High == 1 && (ui
 void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
     AppController& app = *app_;
     const SystemSettings& sys = app.system();
+    // Holding +/- speeds up after REPEAT_FAST_MS (U-20).
+    const int64_t steps = lastCode_ == LV_EVENT_LONG_PRESSED_REPEAT ? InputLogic::repeatSteps(millis() - pressStartMs_) : 1;
     switch (action) {
         case Action::Navigate:
             requestNavigate_((PageId)arg);
@@ -410,10 +422,10 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             app.setChannelEnabled(arg, lv_obj_has_state(obj, LV_STATE_CHECKED));
             break;
         case Action::FreqUp:
-            app.adjustChannelFrequency(channel_, sys.delta_step);
+            app.adjustChannelFrequency(channel_, steps * sys.delta_step);
             break;
         case Action::FreqDown:
-            app.adjustChannelFrequency(channel_, -(int64_t)sys.delta_step);
+            app.adjustChannelFrequency(channel_, -steps * (int64_t)sys.delta_step);
             break;
         case Action::FreqTap:
             handleFreqTap_(obj);
@@ -428,10 +440,10 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             app.setCH3Phase(arg * 90);
             break;
         case Action::CorrUp:
-            app.setCorrection(sys.freq_correction + CORRECTION_STEPS[corrStepIdx_]);
+            app.setCorrection(sys.freq_correction + (int32_t)steps * CORRECTION_STEPS[corrStepIdx_]);
             break;
         case Action::CorrDown:
-            app.setCorrection(sys.freq_correction - CORRECTION_STEPS[corrStepIdx_]);
+            app.setCorrection(sys.freq_correction - (int32_t)steps * CORRECTION_STEPS[corrStepIdx_]);
             break;
         case Action::CorrStepCycle:
             corrStepIdx_ = (corrStepIdx_ + 1) % CORRECTION_STEP_COUNT;
@@ -462,6 +474,13 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             app.setOffState(s);
             break;
         }
+        case Action::Ch3MasterFreq:
+            channel_ = app.ch3().master;
+            requestNavigate_(PageId::Numpad);
+            return;
+        case Action::Ch3InfoTap:
+            if (app.ch3Status() == Ch3Status::MasterOff) app.setChannelEnabled(app.ch3().master, true);
+            break;
         case Action::LockScreen:
             lock_.lock();
             Logger::info("GUI", "Screen locked");

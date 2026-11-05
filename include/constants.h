@@ -43,7 +43,12 @@ static constexpr uint32_t HW_CHECK_INTERVAL_MS = 2000;
 static constexpr uint32_t MEM_LOG_INTERVAL_MS = 30000;
 // GUI and touch timing.
 static constexpr uint32_t GUI_UPDATE_INTERVAL_MS = 300;  // save state, connection, output errors
-static constexpr uint32_t TOUCH_RELEASE_BRIDGE_MS = 35;  // pressure dropouts shorter than this stay pressed
+// Pressure dropouts (and weak pressure) shorter than this keep a press (audit U-20: 60-80 ms;
+// a tap is reported this much later as released).
+static constexpr uint32_t TOUCH_RELEASE_BRIDGE_MS = 70;
+// Holding +/-: 10 steps/s, from REPEAT_FAST_MS 20/s, from REPEAT_FASTER_MS 50/s (U-20).
+static constexpr uint32_t REPEAT_FAST_MS = 2000;
+static constexpr uint32_t REPEAT_FASTER_MS = 4000;
 // Released after a touch at boot: TOUCH_RELEASE_QUIET_SAMPLES x TOUCH_RELEASE_SAMPLE_MS without touch.
 static constexpr uint32_t TOUCH_RELEASE_SAMPLE_MS = 20;
 static constexpr uint8_t TOUCH_RELEASE_QUIET_SAMPLES = 10;

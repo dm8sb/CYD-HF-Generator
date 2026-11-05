@@ -26,7 +26,7 @@ void Gui::createNumpad_(uint8_t ch) {
     char buf[32];
 
     // Back returns without a change: to the channel page, or to CONFIG for the correction.
-    const PageId back = numpadPpm_ ? PageId::Config : (ch == 1 ? PageId::CH1 : PageId::CH2);
+    const PageId back = numpadPpm_ ? PageId::Config : numpadReturn_;
     addButton_(root_, LV_SYMBOL_LEFT, 4, 3, 52, 36, Colors::gray(), Action::Navigate, (uint8_t)back);
     addLabel_(root_, numpadPpm_ ? "Corr." : (ch == 1 ? "CH1" : "CH2"), &lv_font_montserrat_20, color, 64, 10);
 
@@ -93,7 +93,7 @@ void Gui::handleNumpadKey_(lv_obj_t* matrix) {
                 requestNavigate_(PageId::Config);
             } else {
                 app_->setChannelFrequency(channel_, hz);
-                requestNavigate_(channel_ == 1 ? PageId::CH1 : PageId::CH2);
+                requestNavigate_(numpadReturn_);
             }
             return;
         case InputLogic::NumpadEvent::Rejected:

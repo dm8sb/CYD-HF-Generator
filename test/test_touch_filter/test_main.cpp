@@ -64,6 +64,15 @@ static void test_filter_bridges_short_dropouts() {
     // No bridge without a previous press.
     Filter g(TOUCH_CAL_DEFAULT);
     TEST_ASSERT_FALSE(g.update(RELEASED, 5).pressed);
+    // Audit U-20: dropouts up to 60-80 ms must not end a hold.
+    TEST_ASSERT_TRUE(TOUCH_RELEASE_BRIDGE_MS >= 60 && TOUCH_RELEASE_BRIDGE_MS <= 80);
+    // Weak pressure during a press is a dropout too, not a release.
+    Filter h(TOUCH_CAL_DEFAULT);
+    h.update(touch(2000, 2000), 0);
+    TEST_ASSERT_TRUE(h.update(touch(2000, 2000, 100), 20).pressed);
+    TEST_ASSERT_TRUE(h.update(touch(2000, 2000), 40).pressed);
+    TEST_ASSERT_TRUE(h.update(touch(2000, 2000, 100), 50).pressed);
+    TEST_ASSERT_FALSE(h.update(touch(2000, 2000, 100), 40 + TOUCH_RELEASE_BRIDGE_MS).pressed);
 }
 
 static void test_filter_rejects_weak_pressure_and_bad_calibration() {
