@@ -171,6 +171,9 @@ void StateSnapshot::publish(const AppController& app) {
     s.iqMaxHz = app.iqMaxHz();
     s.remoteOutputsAllowed = app.remoteOutputsAllowed();
     s.revision = app.revision();
+    s.saveState = app.saveState();
+    s.lastRemote = app.lastRemote();
+    s.lastRemoteMs = app.lastRemoteMs();
     published_ = true;
     barrier();
     seq_ = seq_ + 1; // even: stable
