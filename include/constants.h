@@ -39,6 +39,8 @@ static constexpr uint32_t SETTINGS_AUTOSAVE_MS = 5000;
 static constexpr uint32_t SETTINGS_RETRY_MS = 30000;
 // Changes from remote commands are saved after this much quiet (W-E17: scripts change often).
 static constexpr uint32_t SETTINGS_REMOTE_AUTOSAVE_MS = 30000;
+// Write commands per second and remote source (W-S11); more are refused (HTTP 429, SCPI -200 busy).
+static constexpr uint8_t REMOTE_WRITES_PER_S = 20;
 // SI5351 health check / reconnect interval.
 static constexpr uint32_t HW_CHECK_INTERVAL_MS = 2000;
 // Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).

@@ -117,6 +117,18 @@ bool SettingsService::saveTouchCalibration(const TouchCalibration& cal) {
     return ok;
 }
 
+bool SettingsService::loadRemoteOutputs() {
+    if (!available_) return true;
+    return storage_.getU8("rem_out", 1) != 0;
+}
+
+bool SettingsService::saveRemoteOutputs(bool allowed) {
+    if (!available_) return false;
+    const bool ok = storage_.putU8("rem_out", allowed ? 1 : 0);
+    if (!ok) Logger::error("SETTINGS", "Saving to NVS failed");
+    return ok;
+}
+
 bool SettingsService::removeDisplayPanel() {
     if (!available_ || !storage_.remove("disp_panel")) return false;
     Logger::info("SETTINGS", "Stored display choice removed; the controller is detected");

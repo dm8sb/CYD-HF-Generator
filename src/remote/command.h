@@ -34,12 +34,18 @@ struct Command {
 // Runs one command with its source set on the controller (events carry it), then back to Touch.
 Result execute(AppController& app, const Command& c);
 
+enum class PushResult : uint8_t {
+    Queued,
+    Full,       // CAPACITY commands waiting (the server answers "busy")
+    RateLimited // more than REMOTE_WRITES_PER_S from this source (W-S11)
+};
+
 // Bounded queue for network tasks; thread-safe on the ESP32 (mutex), never blocks the caller.
 class CommandQueue {
 public:
     static constexpr uint8_t CAPACITY = 16;
-    // false if full (the server answers "busy"); *ticket identifies the result.
-    bool push(const Command& c, uint32_t* ticket = nullptr);
+    // *ticket identifies the result when Queued.
+    PushResult push(const Command& c, uint32_t* ticket = nullptr);
     // In loop(): executes every queued command; returns how many.
     uint8_t drain(AppController& app);
     // Result of an executed command (the last CAPACITY results are kept).
@@ -54,6 +60,15 @@ private:
         uint32_t ticket;
         Result result;
     };
+    // Token bucket per source (index = Source): REMOTE_WRITES_PER_S tokens, one back every
+    // 1000 / REMOTE_WRITES_PER_S ms.
+    struct Bucket {
+        uint8_t tokens;
+        uint32_t lastMs;
+        bool started;
+    };
+    bool take_(Source s);
+    Bucket buckets_[5] {};
     Entry queue_[CAPACITY] {};
     Done done_[CAPACITY] {};
     uint8_t head_ = 0;
@@ -69,6 +84,7 @@ struct Snapshot {
     Ch3Status ch3Status;
     double actualHz[3];
     bool hardwareReady;
+    bool remoteOutputsAllowed;
     uint32_t revision;
 };
 

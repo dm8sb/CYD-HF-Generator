@@ -510,7 +510,7 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
 
 void Gui::onAppEvent(const Event& e, void* gui) {
     // A remote client gets its error itself; the device shows no dialog for it.
-    if (e.source == Source::Remote) return;
+    if (isRemote(e.source)) return;
     static_cast<Gui*>(gui)->showMessage(e.title, e.text, (uint8_t)e.category);
 }
 
