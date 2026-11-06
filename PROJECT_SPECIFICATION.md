@@ -177,6 +177,7 @@ This table is authoritative; README and manual repeat parts of it.
 - **A-66** The first line over USB starts an SCPI session: log lines go only into the ring buffer (A-61) and the Arduino core's own messages are off until 10 min without a line (W-E27, W-S22). Opening the port with DTR/RTS off does not restart the device.
 - **A-67** `Remote outputs` (W-E25, W-S21): `allowed` (default) or `local only`; with `local only` a remote source cannot switch an output on (`Denied`, SCPI −221), switching off stays allowed. Only the touch source changes it; it is saved at once, kept by `Defaults` and `*RST` and reset by the factory reset.
 - **A-68** `SYSTem:IDENtify` blinks the backlight and the RGB LED for 5 s (W-E28).
+- **A-69** Network settings live in their own NVS namespace `hfnet`: mode (default Off), at most two networks, AP password, open AP flag, device name, static IP. A WPA2 passphrase is stored only as its PMK (PBKDF2-HMAC-SHA1, 4096 rounds, 64 hex digits), never in plain text; the AP password is 12 random characters without 0/O/1/l/I; the device name follows RFC 1123 (default `cyd-hf-<last 4 hex digits of the MAC>`); a static IP must pass the plausibility check (contiguous mask /1–/30, address and gateway different and in one subnet, neither network nor broadcast address), else DHCP applies. Invalid stored values fall back to the defaults. The factory reset erases `hfnet` and the WiFi driver's namespace `nvs.net80211` (W-E3, W-E5, W-E7, W-S12, W-S14, W-S16).
 
 ### 3.8 Hardware detection
 

@@ -13,6 +13,7 @@
 #include <remote/command.h>
 #include <remote/scpi.h>
 #include <remote/scpi_usb.h>
+#include <net/net_settings.h>
 #include <gui/gui.h>
 #include <utils/build_info.h>
 #include <utils/logger.h>
@@ -60,6 +61,7 @@ static bool saveTouchCalibration(const TouchCalibration& cal) { return settings.
 // Factory reset (U-13): the outputs are already off; erase and start like a new device.
 static void factoryReset() {
     settings.eraseAll();
+    NetConfig::eraseAll(); // WiFi settings and the driver's namespace (W-S14)
     Logger::info("BOOT", "Factory reset; restarting");
     delay(100);
     ESP.restart();

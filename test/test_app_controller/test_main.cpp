@@ -484,6 +484,7 @@ static void test_backlight_steps() {
 
 static void test_backlight_from_older_firmware_is_rounded() {
     Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
     p.putUChar("backlight", 35); // 1 % steps before 1.3.0
     {
         Device d;
@@ -719,6 +720,7 @@ static void test_reset_for_remote_is_not_saved() {
 
 static void test_config_options_invalid_nvs_values() {
     Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
     p.putUChar("tune", 7);
     p.putUChar("ssc", 9);
     p.putUChar("off_st", 3);
@@ -738,6 +740,7 @@ static void test_integer_mode_turns_spread_off() {
     TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
     // Stored spread with Integer mode (written by hand) is ignored at load.
     Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
     p.putUChar("ssc", 1);
     p.putUChar("tune", 2);
     Device d2;
@@ -1162,6 +1165,7 @@ static void test_autosave_after_quiet_period() {
     TEST_ASSERT_TRUE(nvs.writeCount > 0);
     TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
     Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
     TEST_ASSERT_EQUAL_UINT64(7110000ULL, p.getULong64("ch1_freq", 0));
 }
 
@@ -1223,6 +1227,7 @@ static void test_failed_save_is_retried_without_new_dialogs() {
     TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
     TEST_ASSERT_EQUAL_UINT(1, errorCount);
     Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
     TEST_ASSERT_EQUAL_UINT64(7100000ULL, p.getULong64("ch1_freq", 0));
 }
 
@@ -1299,6 +1304,7 @@ static void test_actual_frequency_known_only_after_stored_settings() {
 
 static void test_settings_load_sanitizes_invalid_values() {
     Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
     p.putULong64("ch1_freq", 0);
     p.putULong64("ch2_freq", 1000000000ULL);
     p.putUChar("ch3_master", 3);

@@ -659,7 +659,7 @@ It starts automatically as long as no calibration is stored (first start, after 
 | Button | Effect |
 |---|---|
 | `Defaults` | After confirmation (`Reset`) all factory settings apply (quick start), including the frequencies, CH3 master and phase and the step; all outputs switch off. **Frequency correction and touch calibration stay.** Saved after 5 s like any change. |
-| `Factory` (red) | After confirmation (`Erase`) the device erases all stored settings including frequency correction and touch calibration and restarts. Then the touch calibration appears as at the first start. |
+| `Factory` (red) | After confirmation (`Erase`) the device erases all stored settings including frequency correction, touch calibration, `Remote outputs` and the WiFi settings (also those of the WiFi driver) and restarts. Then the touch calibration appears as at the first start. |
 
 `Cancel` leaves everything unchanged.
 
