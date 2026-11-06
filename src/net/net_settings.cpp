@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include "pbkdf2.h"
 
 namespace NetConfig {
 
@@ -97,7 +96,7 @@ KeyResult setNetwork(NetSettings& s, uint8_t slot, const char* ssid, const char*
         }
         n.key[64] = '\0';
     } else if (validPassphrase(passphrase)) {
-        Crypto::wpaPmkHex(n.ssid, strlen(n.ssid), passphrase, n.key);
+        copy(n.key, sizeof(n.key), passphrase);
     } else {
         return KeyResult::BadPassphrase;
     }
@@ -157,8 +156,8 @@ bool load(Storage& st, NetSettings& s, const uint8_t mac[6]) {
         WifiNetwork n {};
         st.getString(KEY_SSID[i], n.ssid, sizeof(n.ssid));
         st.getString(KEY_PMK[i], n.key, sizeof(n.key));
-        // A network needs an SSID; its key is empty (open) or a PMK.
-        if (validSsid(n.ssid) && (n.key[0] == '\0' || isPmkHex(n.key))) s.networks[i] = n;
+        // A network needs an SSID; its key is empty (open), a passphrase or a PMK.
+        if (validSsid(n.ssid) && (n.key[0] == '\0' || validPassphrase(n.key) || isPmkHex(n.key))) s.networks[i] = n;
     }
     char ap[sizeof(s.apPassword)];
     if (st.getString("ap_pw", ap, sizeof(ap)) && validPassphrase(ap)) copy(s.apPassword, sizeof(s.apPassword), ap);

@@ -960,6 +960,14 @@ Important messages:
 | `[SCPI] USB session ended (idle); log on serial again` | 10 min without an SCPI line: the log runs over USB again |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
 | `[APP] Identify` | `SYST:IDEN`: backlight and LED blink for 5 s |
+| `[WIFI] Mode Off, name cyd-hf-1a2b` | WiFi mode at boot or after a change and the device name; default `Off` (radio off) |
+| `[WIFI] Seen <network>: channel 6, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Scan result for the stored networks |
+| `[WIFI] Connecting to <network>`, `[WIFI] Connected to <network>, 192.168.1.50, RSSI -60 dBm` | Connecting and connected with an address |
+| `[WIFI] Network not reached (reason 201)` | No connection after 15 s; reason from the WiFi driver (201 = network not found, 2/15/202 = login or password refused) |
+| `[WIFI] Connection lost; searching` | Connection lost, the search goes on |
+| `[WIFI] Fallback AP CYD-HF-1A2B WPA2` | 60 s without connection: own access point as fallback; the search goes on |
+| `[WIFI] AP off (client has an address)` | Connected: the access point goes off at once |
+| `[WIFI] AP password created` | First start of the access point: random password created and saved |
 
 Error messages start with `[ERROR]`, e.g.:
 

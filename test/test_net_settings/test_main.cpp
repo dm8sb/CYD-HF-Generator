@@ -1,6 +1,6 @@
-// Network settings (ARBEITSPLAN 3.3, W-E3, W-E5, W-E7, W-S12, W-S14, W-S16): SHA-1/PBKDF2 against
-// the RFC and IEEE 802.11i vectors, PMK instead of passphrase, AP password, device name,
-// static IP plausibility, NVS namespace "hfnet" and the factory reset.
+// Network settings (ARBEITSPLAN 3.3, W-E3, W-E5, W-E7, W-S12, W-S14, W-S16, D15): SHA-1/PBKDF2
+// against the RFC and IEEE 802.11i vectors (kept for the web password, S55), WiFi keys,
+// AP password, device name, static IP plausibility, NVS namespace "hfnet", factory reset.
 
 #include <unity.h>
 #include <Preferences.h>
@@ -107,11 +107,12 @@ static void test_ap_password() {
     TEST_ASSERT_EQUAL_size_t(23, seqPos); // 12 accepted, 11 skipped in between
 }
 
-static void test_networks_store_the_pmk_only() {
+// D15: the passphrase is stored as it is (WPA3-SAE needs it), a PMK in hex is accepted too.
+static void test_network_keys() {
     NetSettings s;
     NetConfig::defaults(s, MAC);
-    TEST_ASSERT_EQUAL(NetConfig::KeyResult::Ok, NetConfig::setNetwork(s, 0, "IEEE", "password"));
-    TEST_ASSERT_EQUAL_STRING("f42c6fc52df0ebef9ebb4b90b38a5f902e83fe1b135a70e23aed762e9710a12e", s.networks[0].key);
+    TEST_ASSERT_EQUAL(NetConfig::KeyResult::Ok, NetConfig::setNetwork(s, 0, "IEEE", "pass word$&"));
+    TEST_ASSERT_EQUAL_STRING("pass word$&", s.networks[0].key);
     // A PMK is taken as it is (lower case), an empty passphrase is an open network.
     TEST_ASSERT_EQUAL(NetConfig::KeyResult::Ok,
                       NetConfig::setNetwork(s, 1, "Lab", "0DC0D6EB90555ED6419756B9A15EC3E3209B63DF707DD508D14581F8982721AF"));
@@ -126,11 +127,12 @@ static void test_networks_store_the_pmk_only() {
     TEST_ASSERT_EQUAL(NetConfig::KeyResult::BadSsid, NetConfig::setNetwork(s, 1, std::string(33, 'x').c_str(), "password"));
     TEST_ASSERT_EQUAL(NetConfig::KeyResult::BadSsid, NetConfig::setNetwork(s, 2, "Lab", "password"));
     TEST_ASSERT_EQUAL_STRING("Guest", s.networks[1].ssid);
-    // W-S14: the passphrase never reaches the flash.
     Storage st;
     st.begin(NetConfig::NAMESPACE);
     TEST_ASSERT_TRUE(NetConfig::save(st, s));
-    TEST_ASSERT_FALSE(Fake::nvs().contains("password"));
+    NetSettings r;
+    TEST_ASSERT_TRUE(NetConfig::load(st, r, MAC));
+    TEST_ASSERT_EQUAL_STRING("pass word$&", r.networks[0].key);
     NetConfig::clearNetwork(s, 0);
     TEST_ASSERT_EQUAL_STRING("", s.networks[0].ssid);
 }
@@ -234,7 +236,7 @@ static void test_load_replaces_invalid_values() {
     st.begin(NetConfig::NAMESPACE);
     st.putU8("mode", 9);
     st.putString("n0_ssid", "Lab");
-    st.putString("n0_key", "not-a-pmk");
+    st.putString("n0_key", "short");
     st.putString("ap_pw", "short");
     st.putString("name", "Bad_Name");
     st.putU8("sip_en", 1);
@@ -296,7 +298,7 @@ int main(int, char**) {
     RUN_TEST(test_pbkdf2_and_wpa_vectors);
     RUN_TEST(test_names_from_the_mac);
     RUN_TEST(test_ap_password);
-    RUN_TEST(test_networks_store_the_pmk_only);
+    RUN_TEST(test_network_keys);
     RUN_TEST(test_static_ip_plausibility);
     RUN_TEST(test_ipv4_text);
     RUN_TEST(test_load_save_in_own_namespace);

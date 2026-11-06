@@ -14,6 +14,12 @@
 #include <remote/scpi.h>
 #include <remote/scpi_usb.h>
 #include <net/net_settings.h>
+#include <net/wifi_manager.h>
+// Test build with WiFi credentials from a local file that is never committed (.gitignore):
+// build with -DTEST_WIFI=1 and include/test_wifi_local.h defining TEST_WIFI_SSID/TEST_WIFI_PASS.
+#if defined(TEST_WIFI) && TEST_WIFI && __has_include(<test_wifi_local.h>)
+#include <test_wifi_local.h>
+#endif
 #include <gui/gui.h>
 #include <utils/build_info.h>
 #include <utils/logger.h>
@@ -30,6 +36,11 @@ static PersistentState loadedState;
 // Remote commands and the state copy for network tasks (V-6); filled from S50 on.
 static CommandQueue commands;
 static StateSnapshot snapshot;
+// WiFi (S52b): settings in NVS "hfnet", the manager runs in loop().
+static Storage netStorage;
+static NetSettings netSettings;
+static WifiManager wifi;
+static bool saveNetSettings(const NetSettings& s) { return NetConfig::save(netStorage, s); }
 static uint32_t publishedRevision = 0xFFFFFFFF;
 
 // SCPI over USB (S51): runs in loop(), commands through the queue.
@@ -92,6 +103,8 @@ void setup() {
              (unsigned)((efuse >> 16) & 0xFF), (unsigned)((efuse >> 24) & 0xFF), (unsigned)((efuse >> 32) & 0xFF),
              (unsigned)((efuse >> 40) & 0xFF));
     usbSession.setSerial(mac);
+    uint8_t macBytes[6];
+    for (uint8_t i = 0; i < 6; ++i) macBytes[i] = (uint8_t)((efuse >> (8 * i)) & 0xFF);
     usbSession.setWriter(serialWrite, nullptr);
 
     // 2. I2C on CN1; which pin is SDA is detected in step 5
@@ -107,6 +120,23 @@ void setup() {
     }
     settings.load(loadedState);
     app.begin(loadedState);
+    netStorage.begin(NetConfig::NAMESPACE);
+    NetConfig::load(netStorage, netSettings, macBytes);
+    WifiManager::SaveFn saveNet = saveNetSettings;
+#ifdef TEST_WIFI_SSID
+    // Test credentials only in RAM; nothing of it is saved.
+    NetConfig::setNetwork(netSettings, 0, TEST_WIFI_SSID, TEST_WIFI_PASS);
+    netSettings.mode = WifiMode::Client;
+#ifdef TEST_WIFI_MODE
+    netSettings.mode = (WifiMode)TEST_WIFI_MODE;
+#endif
+#ifdef TEST_WIFI_AP_PASS
+    snprintf(netSettings.apPassword, sizeof(netSettings.apPassword), "%s", TEST_WIFI_AP_PASS);
+#endif
+    saveNet = nullptr;
+    Logger::info("TEST", "WiFi test settings applied (RAM only)");
+#endif
+    wifi.begin(netSettings, macBytes, saveNet);
 
     // 5. SI5351 init, SDA/SCL in either order
     const bool si5351Ok = app.connectHardware();
@@ -180,6 +210,7 @@ void loop() {
     lv_timer_handler();
     commands.drain(app);
     pollUsbScpi();
+    wifi.update();
     app.update();
     if (app.revision() != publishedRevision) {
         publishedRevision = app.revision();

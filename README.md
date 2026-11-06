@@ -28,6 +28,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 
 - SCPI over USB: IEEE 488.2 common commands, outputs, frequencies, CH3 and all settings; exact number parsing with units and MIN/MAX/DEF, error queue, log read-out (`SYST:LOG?`) while a session keeps the serial port free of log lines, `SYST:IDEN` blinks backlight and LED
 - Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, env `esp32-2432S028R-core3`) and LVGL 8.4.0
+- WiFi groundwork (no setup pages yet, default Off): network settings in NVS `hfnet`, client with up to two networks, fallback access point after 60 s, AP off as soon as the client has an address, mDNS, captive DNS; the factory reset also erases the WiFi settings
 
 ### 1.3.3
 
@@ -133,5 +134,6 @@ pio run -e esp32-2432S028R-hitmap -t upload     # 20 target crosses, [HITMAP] an
 - `hal/i2c_bus.*`: owns `Wire`, opens either SDA/SCL assignment
 - `services/*`: Preferences storage and autosave
 - `remote/*`: command queue and state snapshot for remote access, line framer, SCPI command tree (`scpi.*`) and the USB link (`scpi_usb.*`)
+- `net/*`: network settings (`net_settings`), WiFi policy (pure) and manager, SHA-1/PBKDF2
 - `gui/gui.cpp`, `gui/gui_layout.h`, `gui/pages/*`: LVGL setup, navigation and dialogs, layout grid and colors, pages
 - `utils/*`: pure, host-tested logic (`frequency_utils`, `input_logic`, `message_queue`, `status_text`, `contrast`, `touch_cal`, `touch_test`), logger, build info

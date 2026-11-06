@@ -5,14 +5,14 @@
 #include <services/storage.h>
 
 // Network settings (WEB-HMI, ARBEITSPLAN 3.3 and 3.7) in their own NVS namespace "hfnet".
-// Pure logic plus Storage: validation, defaults from the MAC, WPA2 key as PMK (W-S14),
+// Pure logic plus Storage: validation, defaults from the MAC, WiFi key as passphrase (D15),
 // random AP password (W-E3), device name (W-E5, W-S16), static IP plausibility (W-S12).
 
 enum class WifiMode : uint8_t { Off = 0, Client = 1, AccessPoint = 2 };
 
 struct WifiNetwork {
     char ssid[33]; // 1..32 bytes, "" = unused
-    char key[65];  // 64 hex digits (PMK), "" = open network
+    char key[65];  // passphrase (8..63) or 64 hex digits (PMK), "" = open network
 };
 
 struct StaticIp {
@@ -58,8 +58,10 @@ bool isPmkHex(const char* key);
 void generateApPassword(uint32_t (*rand32)(), char out[AP_PASSWORD_LEN + 1]);
 
 enum class KeyResult : uint8_t { Ok, BadSsid, BadPassphrase };
-// Network slot 0/1: an empty passphrase means an open network, 8..63 characters are turned
-// into the PMK (the passphrase is never stored), 64 hex digits are taken as PMK.
+// Network slot 0/1: an empty passphrase means an open network, 8..63 characters are stored
+// as they are, 64 hex digits as PMK. D15: the passphrase is kept, because ESP-IDF 5 uses
+// WPA3-SAE on WPA2/WPA3 networks, which needs it (with a PMK the connection fails); a PMK
+// therefore only reaches pure WPA2 networks. Keys are never shown or exported.
 KeyResult setNetwork(NetSettings& s, uint8_t slot, const char* ssid, const char* passphrase);
 void clearNetwork(NetSettings& s, uint8_t slot);
 
