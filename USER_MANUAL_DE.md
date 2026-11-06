@@ -101,6 +101,8 @@ Bedienung auf der Hauptseite:
 - **Schalter auf der Karte** (rechts, durch eine Linie abgetrennt) schaltet den Ausgang direkt ein oder aus, ohne die Seite zu wechseln. Ein Tipp auf die Frequenz oder `MHz` öffnet nur die Kanalseite.
 - Die Frequenzen stehen rechtsbündig, Dezimalpunkt und `MHz` aller Karten untereinander.
 - Die Statusleiste unten zeigt links den Speicherzustand (Abschnitt 8, `Saved`, `Saving...`, rot `Save failed` / `Not saved`) und hat rechts den Button `CONFIG` (gelb). Die Kanäle öffnen sich über ihre Karten. Bei gesperrtem Bildschirm steht dort zusätzlich `LOCKED` im orangen Feld (Abschnitt 8).
+- Rechts neben dem Speicherzustand steht der WLAN-Zustand (Abschnitt 8, `WiFi`): das WLAN-Symbol grün (verbunden) oder grau (sucht), `AP` grün, wenn der eigene Access Point läuft, `AP open` orange, wenn er ohne Passwort läuft; bei `Off` nichts.
+- Nach einem Befehl der Fernsteuerung steht 10 s lang `REMOTE USB` (später `REMOTE SCPI`, `REMOTE WEB`) im blauen Feld (Farbe von CH3); `LOCKED` hat Vorrang.
 - Auf farbigen Tasten und gewählten Chips ist die Schrift dunkel, ausgeschaltete Schalter haben eine hellgraue Spur, nicht gewählte Chips einen grauen Rand.
 - Tasten am Bildschirmrand (z. B. `MAIN` oben rechts, `CONFIG` unten rechts, die äußeren NUMPAD-Tasten) reagieren bis an den Rand, auch auf einen Tipp knapp daneben in Richtung Rand. Der Abstand zwischen zwei Tasten bleibt frei.
 
@@ -488,10 +490,12 @@ Die Titelzeile mit Speicheranzeige und `MAIN` bleibt stehen. Der Bereich darunte
 | `Spread CH1` | Auswahlliste `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
 | `Corr.` | Wert in ppm (antippen: Eingabe), Schritt-Taste, `−`, `+` |
 | `Backlight` | `−`, Wert, `+` |
+| `WiFi` | Auswahlliste `Off`, `Client`, `Access point` |
+| `Remote out.` | Auswahlliste `allowed`, `local only` |
 | `Touch` | Taste `Calibrate` (Touch-Abgleich) |
 | `Screen` | Taste `Lock` (Bildschirmsperre) |
 | `Reset` | Tasten `Defaults` und `Factory` (rot) |
-| Info-Karte | Firmware, Build, Display, SI5351 |
+| Info-Karte | Firmware, Build, Display, Touch, SI5351, WLAN, Speicher |
 
 - Oben stehen die Einstellungen, die das Signal verändern. Den Frequenzschritt stellen die Schritt-Tasten der Kanalseiten ein (Abschnitt 5).
 - Beim Öffnen sind drei Zeilen ganz und die obere Hälfte der vierten zu sehen. Die breite Scrollleiste rechts ist immer sichtbar und zeigt, dass die Liste weitergeht.
@@ -628,6 +632,20 @@ Gemessen: 10 000 097 Hz  ->  +97 Hz bei 10 MHz  ->  +9.70 ppm einstellen
 
 Der aktuelle Wert steht zwischen den Tasten. Gedrückt halten wiederholt nicht. Das Minimum von 10 % verhindert, dass das Display versehentlich ganz dunkel und damit unbedienbar wird. Gespeicherte Werte älterer Firmware werden auf die nächste 10-%-Stufe gerundet; Werte unter 5 % (z. B. 0 % aus Firmware 1.0.0) werden auf 80 % gesetzt.
 
+### WiFi
+
+Auswahlliste `Off` (Standard), `Client`, `Access point`. Die Einstellung wird sofort gespeichert und gilt sofort.
+
+- `Off`: Der Funk ist aus (für die sauberste HF).
+- `Client`: Das Gerät sucht die gespeicherten WLANs und verbindet sich mit dem stärksten. Findet es 60 s lang keines, öffnet es zusätzlich einen eigenen Access Point (Rückfall) und sucht weiter; sobald es verbunden ist, geht der Access Point aus.
+- `Access point`: Das Gerät öffnet ein eigenes WLAN `CYD-HF-<4 Stellen>` mit Passwort.
+
+Netze, Passwörter und die Daten des Access Points werden auf der Seite WIFI eingerichtet (folgt). Statusleiste und Info-Karte zeigen den Zustand.
+
+### Remote out. (Fernschalten der Ausgänge)
+
+Auswahlliste `allowed` (Standard) und `local only`. Bei `local only` darf die Fernsteuerung (SCPI, später Web) alles einstellen und Ausgänge ausschalten, aber **nicht einschalten** (Abschnitt 15). Die Einstellung lässt sich nur hier am Gerät ändern, wird sofort gespeichert und bleibt bei `Defaults` und `*RST` erhalten; `Factory` setzt sie auf `allowed` zurück.
+
 ### Touch (Touch-Abgleich)
 
 Der Abgleich passt die Touch-Erkennung an das Board an: Mit fest eingestellten Werten lagen die Treffer je nach Board bis zu 19 px daneben, am rechten Rand war die Ecke nicht erreichbar.
@@ -673,6 +691,8 @@ Build 2026-11-05 15:00
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
+WiFi Labor 192.168.1.50 -60 dBm
+Heap 241/215 KB, block 108 KB, LVGL 30 KB
 ```
 
 | Zeile | Inhalt |
@@ -682,6 +702,8 @@ SI5351 SDA 22 SCL 27
 | `Display` | Display-Controller (`ILI9341` oder `ST7789`) und Herkunft: `detected` (erkannt), `default` (nichts erkannt, ILI9341 angenommen), `build flag` (beim Bauen festgelegt) |
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
+| `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke; `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
+| `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB |
 
 ---
 
@@ -1134,7 +1156,7 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | CH3              10.000 000 MHz |  [==o]   |
 | WAIT CH1 / 90° / master off     |          |
 +--------------------------------------------+
-| Saved                          [ CONFIG ]  |
+| Saved   WiFi  REMOTE USB       [ CONFIG ]  |
 +--------------------------------------------+
 ```
 
@@ -1179,7 +1201,7 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | Off state   [ Low         v]             # |
 | Tuning      [ Fractional  v]             | |
 | Spread CH1  [ Off         v]             | |   <- wischen
-| (Corr., Backlight, Touch, Info-Karte)      |
+| (Corr., Backlight, WiFi, Remote out., ...) |
 +--------------------------------------------+
 ```
 

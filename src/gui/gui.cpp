@@ -3,6 +3,7 @@
 #include <drivers/status_led.h>
 #include <utils/frequency_utils.h>
 #include <utils/logger.h>
+#include <utils/sanitize.h>
 #include <cstring>
 #include <math.h>
 
@@ -380,9 +381,12 @@ void Gui::update() {
         lastConnections_ = app_->connectionCount();
         if (app_->hardwareReady()) dismissLinkMessages_();
     }
-    // Any change in the controller (also from the supervision, later from remote commands): redraw (V-2).
-    if (app_->revision() != lastRevision_) {
+    // Any change in the controller (also from the supervision and remote commands), the WiFi
+    // state or the REMOTE indicator: redraw (V-2).
+    const uint32_t sig = statusSignature_();
+    if (app_->revision() != lastRevision_ || sig != lastStatusSig_) {
         lastRevision_ = app_->revision();
+        lastStatusSig_ = sig;
         refresh_();
     } else {
         refreshSaveState_(); // MAIN status bar and CONFIG header; no-op on the other pages
@@ -511,6 +515,19 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::NumpadKey:
             handleNumpadKey_(obj);
             return;
+        case Action::WifiMode: {
+            if (!wifi_) break;
+            NetSettings s = wifi_->settings();
+            const WifiMode mode = (WifiMode)lv_dropdown_get_selected(obj);
+            if (mode == s.mode) break;
+            s.mode = mode;
+            if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
+            wifi_->apply(s);
+            break;
+        }
+        case Action::RemoteOutputs:
+            app.setRemoteOutputsAllowed(lv_dropdown_get_selected(obj) == 0);
+            break;
     }
     refresh_();
 }
