@@ -90,6 +90,11 @@ struct Snapshot {
     uint64_t iqMaxHz;
     bool remoteOutputsAllowed;
     uint32_t revision;
+    // Save state and REMOTE indicator for the web state (S55a); not counted by the revision,
+    // so they are only as fresh as the last publish().
+    SaveState saveState;
+    Source lastRemote; // Source::Touch while no remote command came
+    uint32_t lastRemoteMs;
 };
 
 // Seqlock: the loop() task publishes (odd sequence while writing), readers retry on a change,
