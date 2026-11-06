@@ -152,6 +152,27 @@ static void test_rejected_numbers() {
     ASSERT_ANSWER("-113,\"Undefined header;FOO:BAR 1\"", d.err());
 }
 
+static void test_invalid_character_gives_one_error() {
+    Device d;
+    const char* const lines[] = {"FREQ 7MHZ 8MHZ", "FREQ 7MHZ FOO", "FREQ 0x10", "FR@Q 7MHZ",
+                                 "FREQ 7 \"a;b\" 8", "FREQ 7MHZ\x01"};
+    for (const char* l : lines) {
+        ASSERT_ANSWER("", d.q(l));
+        TEST_ASSERT_EQUAL_STRING_MESSAGE("-101,\"Invalid character\"", d.err().c_str(), l);
+        TEST_ASSERT_EQUAL_STRING_MESSAGE("0,\"No error\"", d.err().c_str(), l);
+    }
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    // The unit after the broken one runs.
+    ASSERT_ANSWER("", d.q("FREQ 7 8;:SOUR2:FREQ 3.5MHZ"));
+    TEST_ASSERT_EQUAL_UINT64(3500000, d.app.channel(2).frequency);
+    ASSERT_ANSWER("-101,\"Invalid character\"", d.err());
+    ASSERT_ANSWER("0,\"No error\"", d.err());
+    ASSERT_ANSWER("", d.q("FREQ 7 \"x;y\";:SOUR2:FREQ 1MHZ"));
+    TEST_ASSERT_EQUAL_UINT64(1000000, d.app.channel(2).frequency);
+    ASSERT_ANSWER("-101,\"Invalid character\"", d.err());
+    ASSERT_ANSWER("0,\"No error\"", d.err());
+}
+
 static void test_number_parser() {
     using namespace ScpiNumber;
     const Unit pct[] = {{"PCT", 0}, {nullptr, 0}};
@@ -346,6 +367,7 @@ int main(int, char**) {
     RUN_TEST(test_short_and_long_forms_and_suffixes);
     RUN_TEST(test_numbers_are_exact_integers);
     RUN_TEST(test_rejected_numbers);
+    RUN_TEST(test_invalid_character_gives_one_error);
     RUN_TEST(test_number_parser);
     RUN_TEST(test_outputs_and_condition);
     RUN_TEST(test_compound_lines);

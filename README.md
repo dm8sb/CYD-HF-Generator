@@ -26,7 +26,8 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 
 ### 1.4.0 (in development on `dev`)
 
-- SCPI over USB: IEEE 488.2 common commands, outputs, frequencies, CH3 and all settings; exact number parsing with units and MIN/MAX/DEF, error queue, log read-out (`SYST:LOG?`) while a session keeps the serial port free of log lines, `SYST:IDEN` blinks backlight and LED
+- SCPI over USB: IEEE 488.2 common commands, outputs, frequencies, CH3 and all settings; exact number parsing with units and MIN/MAX/DEF, error queue, log read-out (`SYST:LOG?`) while a session keeps the serial port free of log lines, `SYST:IDEN` blinks backlight and LED; one error per invalid command unit
+- Host tools in `tools/`: SCPI example (USB/TCP/PyVISA), `device_check.py` (checks the SCPI command set on the device and restores it), fake SCPI device, REST example
 - Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, env `esp32-2432S028R-core3`) and LVGL 8.4.0
 - WiFi (CONFIG `WiFi` and `Remote out.`, WIFI page with network scan and on-screen keyboard, access point page with QR code, device page with name and static IP, WiFi state and `REMOTE <source>` in the status bar, WiFi and heap lines on the info card; default Off): network settings in NVS `hfnet`, client with up to two networks, fallback access point after 60 s, AP off as soon as the client has an address, mDNS, captive DNS; the factory reset also erases the WiFi settings
 
