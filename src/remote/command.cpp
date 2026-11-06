@@ -73,6 +73,9 @@ Result run(AppController& app, const Command& c) {
             return Result::Ok;
         case CommandType::SaveNow:
             return app.saveNow() ? Result::Ok : Result::HwError;
+        case CommandType::Identify:
+            app.identify();
+            return Result::Ok;
     }
     return Result::Invalid;
 }
@@ -163,6 +166,9 @@ void StateSnapshot::publish(const AppController& app) {
     s.ch3Status = app.ch3Status();
     for (uint8_t i = 0; i < 3; ++i) s.actualHz[i] = app.actualHz(i + 1);
     s.hardwareReady = app.hardwareReady();
+    s.link = app.linkState();
+    s.iqMinHz = app.iqMinHz();
+    s.iqMaxHz = app.iqMaxHz();
     s.remoteOutputsAllowed = app.remoteOutputsAllowed();
     s.revision = app.revision();
     published_ = true;

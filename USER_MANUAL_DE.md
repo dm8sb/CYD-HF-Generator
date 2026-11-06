@@ -21,6 +21,7 @@ Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_E
 - [12. Serielle Diagnose](#12-serielle-diagnose)
 - [13. Aktuelle Hardware-Pinbelegung](#13-aktuelle-hardware-pinbelegung)
 - [14. Sicherheitshinweis](#14-sicherheitshinweis)
+- [15. Fernsteuerung über USB (SCPI)](#15-fernsteuerung-über-usb-scpi)
 - [Anhang A: Seitenbilder](#anhang-a-seitenbilder)
 - [Anhang B: Glossar](#anhang-b-glossar)
 - [Anhang C: Symptome und Abhilfe](#anhang-c-symptome-und-abhilfe)
@@ -718,6 +719,8 @@ Der Display-Controller wird nicht gespeichert, sondern bei jedem Start erkannt (
 
 Der Touch-Abgleich wird je Board gespeichert; ein unplausibler gespeicherter Wert wird nicht verwendet (der Abgleich startet dann erneut).
 
+Über SCPI geänderte Einstellungen werden erst nach 30 s ohne weitere Änderung gespeichert, `SYST:SAVE` sofort; `*RST` speichert nichts (Abschnitt 15).
+
 Der ON/OFF-Zustand der Ausgänge wird nicht gespeichert; nach dem Einschalten sind alle Ausgänge aus. Ein- und Ausschalten löst deshalb kein Speichern aus, ebenso wenig eine Einstellung, die schon den gewählten Wert hat. Das schont den Flash-Speicher.
 
 ---
@@ -953,6 +956,10 @@ Wichtige Meldungen:
 | `[SETTINGS] Saved to NVS` | Autosave |
 | `[APP] Restoring outputs` | Nach dem Wiederverbinden werden die Ausgänge wiederhergestellt |
 | `[APP] Output error cleared` | Ein Ausgangsfehler (`! ERR`) ist behoben |
+| `[SCPI] USB session started; log in SYSTem:LOG?` | Erste SCPI-Zeile über USB: weitere Logzeilen nur noch im Puffer (Abschnitt 15); steht selbst schon im Puffer |
+| `[SCPI] USB session ended (idle); log on serial again` | 10 min ohne SCPI-Zeile: das Log läuft wieder über USB |
+| `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
+| `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
 
 Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 
@@ -1016,8 +1023,89 @@ Die SI5351-Ausgänge liefern digitale Rechtecksignale. Vor Anschluss an empfindl
 
 Zum Betrieb:
 
-- **Physischer Zugriff ist Vollzugriff:** Wer das Gerät bedienen oder über USB neu flashen kann, kann alle Einstellungen und Ausgänge ändern; es gibt keine Sperre und kein Passwort.
+- **Physischer Zugriff ist Vollzugriff:** Wer das Gerät bedienen oder über USB neu flashen kann, kann alle Einstellungen und Ausgänge ändern; es gibt keine Sperre und kein Passwort. Das gilt auch für SCPI über USB (Abschnitt 15): Jedes Programm auf dem angeschlossenen PC kann Ausgänge einschalten.
 - **Fremdgerät an 0x60:** Antwortet auf der I2C-Adresse 0x60 ein anderes Gerät, liest die Firmware seine Kennung und schreibt höchstens ein Testbyte in dessen Register 3, bevor sie es als „kein SI5351“ erkennt (Abschnitt 11). Andere Geräte an CN1 mit dieser Adresse nicht anschließen.
+
+---
+
+## 15. Fernsteuerung über USB (SCPI)
+
+Der Generator versteht SCPI-Befehle über dieselbe USB-Verbindung, die auch das Log ausgibt. Jede Änderung erscheint sofort auf dem Display; Touch und SCPI sind gleichberechtigt, die letzte Änderung gilt.
+
+### Verbindung
+
+- 115 200 Baud, 8N1; jede Zeile endet mit LF (`\n`), ein CR davor wird ignoriert. Antworten enden mit LF.
+- Den Port mit **DTR und RTS aus** öffnen. Sonst löst die Auto-Reset-Schaltung des Boards beim Öffnen einen Neustart aus.
+- Die erste empfangene Zeile startet eine **SCPI-Sitzung**: Ab dann schreibt das Gerät keine Logzeilen mehr auf USB, damit sie sich nicht mit Antworten mischen. Sie landen in einem Puffer (32 Zeilen, die ältesten fallen heraus) und lassen sich mit `SYST:LOG?` lesen. Nach 10 Minuten ohne Zeile endet die Sitzung, das Log läuft wieder über USB (`[SCPI] USB session ended (idle); log on serial again`).
+- Eine Zeile hat höchstens 256 Zeichen und höchstens 16 Befehle, getrennt durch `;`. Nur druckbare ASCII-Zeichen und TAB sind erlaubt. Eine Zeile, die dagegen verstößt, wird ganz verworfen: Fehler −363 (zu lang), −101 (ungültiges Zeichen) bzw. −223 (zu viele Befehle).
+- Höchstens 20 einstellende Befehle pro Sekunde; jeder weitere wird mit `-200,"Execution error;Too many commands"` abgelehnt.
+
+### Befehle
+
+Kurzform groß geschrieben, Groß-/Kleinschreibung beliebig (`FREQ`, `freq`, `FREQuency`). `<n>` ist der Kanal 1–3, ohne Angabe 1. `[ ]` ist optional. Abfragen enden mit `?`.
+
+| Befehl | Abfrage-Antwort | Bedeutung |
+|---|---|---|
+| `*IDN?` | `CYD,HF-Generator,<MAC>,<Version>` | Kennung |
+| `*RST` | – | Alle Ausgänge aus, Grundzustand im RAM (Korrektur bleibt), **nicht gespeichert** bis `SYST:SAVE` oder zur nächsten Änderung (dann nur deren Wert) |
+| `*CLS`, `*ESE`, `*ESE?`, `*ESR?`, `*SRE`, `*SRE?`, `*STB?`, `*OPC`, `*OPC?`, `*WAI` | | Statusregister nach IEEE 488.2; Befehle laufen sofort, `*OPC?` antwortet `1` |
+| `*TST?` | `0` / `1` | `1`: kein SI5351 verbunden |
+| `OUTPut<n>[:STATe] ON\|OFF\|1\|0` | `1` / `0` | Ausgang ein/aus (CH3: Anforderung wie der Schalter) |
+| `OUTPut<n>:CONDition?` | `ON`, `OFF`, `ERR`, `WAIT`, `NOHW` | Tatsächlicher Zustand wie die Anzeige (`WAIT`: CH3 wartet, `NOHW`: kein SI5351) |
+| `[SOURce<n>:]FREQuency[:CW] <f>` | Hz | Frequenz CH1/CH2; CH3 nur Abfrage (Frequenz des Masters) |
+| `[SOURce<n>:]FREQuency:ACTual?` | Hz mit 0,1 Hz | Tatsächliche Frequenz wie die Zeile `Out` |
+| `SOURce3:IQ:MASTer 1\|2` | `1` / `2` | Master von CH3 |
+| `SOURce3:PHASe 0\|90\|180\|270` | Grad | Phase von CH3 |
+| `SOURce3:IQ:RANGe?` | `<min>,<max>` in Hz | IQ-Bereich des Masters (mit Spread Spectrum enger) |
+| `OUTPut:DRIVe 2\|4\|6\|8` | mA | `Drive all` |
+| `OUTPut:OFFState LOW\|HIGH\|HIZ` | | `Off state` |
+| `OUTPut:REMote?` | `ALLOWED` / `LOCAL` | `Remote outputs` (nur lesbar, siehe unten) |
+| `[SOURce1:]SSC OFF\|DOWN05\|DOWN15\|CENT05` | | `Spread CH1` |
+| `SYSTem:TUNing FRACtional\|LNOise\|INTeger` | `FRAC`, `LNO`, `INT` | `Tuning` |
+| `SYSTem:CORRection <ppm>` | ppm mit 2 Stellen | Frequenzkorrektur, ±50 ppm, auf 0,01 ppm gerundet |
+| `SYSTem:STEP <Hz>` | Hz | Frequenzschritt (1 Hz … 1 MHz, Zehnerpotenzen) |
+| `SYSTem:BACKlight <%>` | % | Helligkeit (10–100 %) |
+| `SYSTem:SI5351?` | `CONN`, `NFO`, `BLOC`, `UNKN` | Verbindung: verbunden, nicht gefunden, Leitung auf LOW, fremdes Gerät |
+| `SYSTem:HEAP?` | `<frei>,<Minimum>,<größter Block>` | Speicher in Byte |
+| `SYSTem:IDENtify` | – | Backlight und RGB-LED blinken 5 s |
+| `SYSTem:LOG?` | `"<Zeile>"` | Älteste gepufferte Logzeile, `""` wenn keine mehr da ist |
+| `SYSTem:SAVE` | – | Alle Einstellungen sofort speichern |
+| `SYSTem:ERRor[:NEXT]?`, `SYSTem:ERRor:COUNt?` | `<Code>,"<Text>"` | Fehlerwarteschlange (16 Einträge), `0,"No error"` wenn leer |
+| `SYSTem:VERSion?` | `1999.0` | SCPI-Version |
+
+Zahlen: ganze Hz (`7100000`), Dezimalzahl mit oder ohne Einheit `HZ`, `KHZ`, `MHZ` (`7.1 MHZ`, `455khz`) oder mit Exponent (`7.1E6`); gerundet auf 1 Hz. `MIN`, `MAX` und `DEF` setzen Grenze bzw. Standardwert. Nichts wird abgeschnitten: Werte außerhalb des Bereichs ergeben −222, `NAN`, `INF`, Hex-Zahlen, unbekannte Einheiten und nicht erlaubte Werte −224, Zeichenketten −104. Ein abgelehnter Befehl ändert nichts.
+
+Mehrere Befehle in einer Zeile: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` beginnt wieder an der Wurzel), Abfragen antworten in einer Zeile, getrennt durch `;`: `FREQ?;:OUTP1?` → `7100000;1`.
+
+### Speichern, Grundzustand und Fehler
+
+- Über SCPI geänderte Einstellungen werden nach 30 s ohne weitere Änderung gespeichert (am Touch nach 5 s). `SYST:SAVE` speichert sofort.
+- Fehler, die ein SCPI-Befehl auslöst (z. B. Ausgangsfehler), öffnen keinen Dialog auf dem Display; sie stehen in der Fehlerwarteschlange (`-240,"Hardware error;SI5351"`) und im Log.
+- `Remote outputs`: Steht die Option auf `local only`, lehnt das Gerät `OUTP<n> ON` mit `-221,"Settings conflict;Remote outputs: local only"` ab; Ausschalten bleibt erlaubt. Die Option lässt sich nur am Gerät ändern; die CONFIG-Zeile dafür kommt mit der WLAN-Firmware, bis dahin gilt `allowed`.
+
+### Beispiel (Python mit pyserial)
+
+```python
+import serial
+
+gen = serial.Serial()
+gen.port = "COM5"          # Linux: /dev/ttyUSB0
+gen.baudrate = 115200
+gen.timeout = 2
+gen.dtr = False            # vor open(): kein Neustart beim Öffnen
+gen.rts = False
+gen.open()
+
+def query(cmd):
+    gen.write((cmd + "\n").encode())
+    return gen.readline().decode().strip()
+
+print(query("*IDN?"))
+gen.write(b"FREQ 7.1 MHZ\n")
+gen.write(b"OUTP1 ON\n")
+print(query("FREQ:ACT?"))
+print(query("SYST:ERR?"))
+```
 
 ---
 

@@ -20,8 +20,14 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 - LVGL GUI: MAIN with a status bar and a mode line for settings that differ from the defaults; touch calibration at the first start
 - NVS persistence with 5 s autosave; all outputs start off
 - Serial log with version, branch, commit and build time; host tests and CI
+- Remote control with SCPI over USB (manual section 15)
 
 ## Changes
+
+### 1.4.0 (in development on `dev`)
+
+- SCPI over USB: IEEE 488.2 common commands, outputs, frequencies, CH3 and all settings; exact number parsing with units and MIN/MAX/DEF, error queue, log read-out (`SYST:LOG?`) while a session keeps the serial port free of log lines, `SYST:IDEN` blinks backlight and LED
+- Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, env `esp32-2432S028R-core3`) and LVGL 8.4.0
 
 ### 1.3.3
 
@@ -77,7 +83,7 @@ The firmware tries SDA=22 first, then the swapped assignment; the log shows the 
 
 ## Libraries
 
-Pinned in `platformio.ini`: Arduino-ESP32 via `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it), `lvgl/lvgl@8.4.0`, XPT2046_Touchscreen at commit `d57f64c` (tag v1.4), `Preferences` from Arduino-ESP32.
+Pinned in `platformio.ini`: Arduino-ESP32 via `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it), `lvgl/lvgl@8.4.0`, XPT2046_Touchscreen at commit `d57f64c` (tag v1.4), scpi-parser at commit `8866159` (v2.3 + build fixes), `Preferences` from Arduino-ESP32.
 
 ## Build and Flash
 
@@ -101,7 +107,7 @@ pio test -e native             # host tests on Linux/macOS/CI (gcc in PATH)
 pio test -e native-win-fault   # IQ error state (TEST_FAULT_IQ); native-fault on Linux
 ```
 
-Host tests cover the SI5351 driver and planner against a register model (`test/helpers/si5351_model.h`, decoded independently of the driver), the AppController with settings and supervision, display detection against a panel model, touch filter and calibration, GUI input logic, status texts and the color contrast. `test/fakes` replaces the Arduino core, `Wire` (with fault injection, swapped wiring, line held low, foreign device) and `Preferences`.
+Host tests cover the SI5351 driver and planner against a register model (`test/helpers/si5351_model.h`, decoded independently of the driver), the AppController with settings and supervision, display detection against a panel model, touch filter and calibration, GUI input logic, status texts, the color contrast, the remote command queue and the SCPI command tree with its line framer. `test/fakes` replaces the Arduino core, `Wire` (with fault injection, swapped wiring, line held low, foreign device) and `Preferences`.
 
 Touch test builds for the measurement plan (not built by a plain `pio run`, never released; CI builds the hit map env):
 
@@ -126,5 +132,6 @@ pio run -e esp32-2432S028R-hitmap -t upload     # 20 target crosses, [HITMAP] an
 - `drivers/touch*`, `drivers/backlight.*`, `drivers/status_led.*`: touch with filter, backlight PWM, RGB LED
 - `hal/i2c_bus.*`: owns `Wire`, opens either SDA/SCL assignment
 - `services/*`: Preferences storage and autosave
+- `remote/*`: command queue and state snapshot for remote access, line framer, SCPI command tree (`scpi.*`) and the USB link (`scpi_usb.*`)
 - `gui/gui.cpp`, `gui/gui_layout.h`, `gui/pages/*`: LVGL setup, navigation and dialogs, layout grid and colors, pages
 - `utils/*`: pure, host-tested logic (`frequency_utils`, `input_logic`, `message_queue`, `status_text`, `contrast`, `touch_cal`, `touch_test`), logger, build info

@@ -33,6 +33,24 @@ void AppController::update() {
                 "Saving to flash (NVS) failed. Changes will be lost at power off.");
     }
     superviseHardware_();
+    updateIdentify_();
+}
+
+void AppController::identify() {
+    identifying_ = true;
+    identifyStartMs_ = millis();
+    Logger::info("APP", "Identify");
+}
+
+void AppController::updateIdentify_() {
+    if (!identifying_) return;
+    const uint32_t t = millis() - identifyStartMs_;
+    const bool lit = t >= IDENTIFY_MS || (t / IDENTIFY_BLINK_MS) % 2 == 1;
+    if (t >= IDENTIFY_MS) identifying_ = false;
+    if (lit != identifyLit_) {
+        identifyLit_ = lit;
+        backlight_.setPercent(lit ? state_.sys.backlight : 0);
+    }
 }
 
 void AppController::superviseHardware_() {

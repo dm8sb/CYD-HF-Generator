@@ -74,6 +74,11 @@ public:
     // may change it (remote: Denied); saved at once, kept by resetToDefaults() and *RST.
     bool remoteOutputsAllowed() const { return remoteOutputsAllowed_; }
     Result setRemoteOutputsAllowed(bool allowed);
+    // SYSTem:IDENtify (W-E28): backlight and LED blink for IDENTIFY_MS; a new call restarts it.
+    void identify();
+    bool identifying() const { return identifying_; }
+    // Blink phase while identifying: true = lit.
+    bool identifyLit() const { return identifyLit_; }
     // SYSTem:SAVE: writes every key at once.
     bool saveNow() { return settings_.saveNow(state_); }
     // CONFIG options; each reconfigures the outputs as needed. Spread is ignored (stays Off)
@@ -153,6 +158,10 @@ private:
     Listener listeners_[MAX_LISTENERS] {};
     Source source_ = Source::Touch;
     bool remoteOutputsAllowed_ = true;
+    void updateIdentify_();
+    bool identifying_ = false;
+    bool identifyLit_ = true;
+    uint32_t identifyStartMs_ = 0;
     uint32_t lastHwCheckMs_ = 0;
     uint32_t revision_ = 0;
     LinkState link_ = LinkState::NotFound;

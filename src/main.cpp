@@ -11,6 +11,8 @@
 #include <services/settings.h>
 #include <core/app_controller.h>
 #include <remote/command.h>
+#include <remote/scpi.h>
+#include <remote/scpi_usb.h>
 #include <gui/gui.h>
 #include <utils/build_info.h>
 #include <utils/logger.h>
@@ -28,6 +30,30 @@ static PersistentState loadedState;
 static CommandQueue commands;
 static StateSnapshot snapshot;
 static uint32_t publishedRevision = 0xFFFFFFFF;
+
+// SCPI over USB (S51): runs in loop(), commands through the queue.
+static void heapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) {
+    *freeBytes = ESP.getFreeHeap();
+    *minFree = ESP.getMinFreeHeap();
+    *largest = ESP.getMaxAllocHeap();
+}
+static void coreDebugOutput(bool enabled) { Serial.setDebugOutput(enabled); }
+static void serialWrite(const char* data, size_t len, void*) { Serial.write((const uint8_t*)data, len); }
+static LoopScpiBackend usbBackend(commands, app, snapshot, heapInfo);
+static ScpiSession usbSession(usbBackend, Source::Usb);
+static ScpiUsbLink usbLink(usbSession, coreDebugOutput);
+
+static void pollUsbScpi() {
+    // At most 4 chunks per loop(): a flood cannot starve the GUI.
+    char buf[64];
+    for (uint8_t i = 0; i < 4; ++i) {
+        const int avail = Serial.available();
+        if (avail <= 0) break;
+        const size_t n = Serial.readBytes(buf, avail < (int)sizeof(buf) ? (size_t)avail : sizeof(buf));
+        usbLink.receive(buf, n);
+    }
+    usbLink.update();
+}
 
 static bool saveTouchCalibration(const TouchCalibration& cal) { return settings.saveTouchCalibration(cal); }
 
@@ -57,6 +83,14 @@ void setup() {
     snprintf(line, sizeof(line), "%s %s (%s %s, %s)", APP_NAME, BuildInfo::version(), BuildInfo::branch(),
              BuildInfo::commit(), BuildInfo::time());
     Logger::info("BOOT", line);
+    // *IDN? serial number: the base MAC (W-E5 uses its last 4 digits for the device name).
+    char mac[13];
+    const uint64_t efuse = ESP.getEfuseMac();
+    snprintf(mac, sizeof(mac), "%02X%02X%02X%02X%02X%02X", (unsigned)(efuse & 0xFF), (unsigned)((efuse >> 8) & 0xFF),
+             (unsigned)((efuse >> 16) & 0xFF), (unsigned)((efuse >> 24) & 0xFF), (unsigned)((efuse >> 32) & 0xFF),
+             (unsigned)((efuse >> 40) & 0xFF));
+    usbSession.setSerial(mac);
+    usbSession.setWriter(serialWrite, nullptr);
 
     // 2. I2C on CN1; which pin is SDA is detected in step 5
     I2CBus::begin();
@@ -143,6 +177,7 @@ static void runRestartTests() {
 void loop() {
     lv_timer_handler();
     commands.drain(app);
+    pollUsbScpi();
     app.update();
     if (app.revision() != publishedRevision) {
         publishedRevision = app.revision();
