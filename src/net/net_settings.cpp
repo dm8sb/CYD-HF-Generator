@@ -122,6 +122,19 @@ IpCheck checkStaticIp(const StaticIp& c) {
     return IpCheck::Ok;
 }
 
+const char* ipCheckText(IpCheck c) {
+    switch (c) {
+        case IpCheck::Ok: return "OK";
+        case IpCheck::BadMask: return "The mask must be /1 to /30, e.g. 255.255.255.0.";
+        case IpCheck::ZeroAddress: return "Address and gateway must be set.";
+        case IpCheck::SameAsGateway: return "The address equals the gateway.";
+        case IpCheck::OutsideSubnet: return "The gateway is not in the subnet of the address.";
+        case IpCheck::NetworkAddress: return "Address or gateway is the network address.";
+        case IpCheck::BroadcastAddress: return "Address or gateway is the broadcast address.";
+    }
+    return "Not accepted.";
+}
+
 bool parseIpv4(const char* t, uint32_t* out) {
     if (!t || !out) return false;
     uint32_t v = 0;

@@ -177,6 +177,10 @@ static void test_static_ip_plausibility() {
     x = c;
     x.ip = 0;
     TEST_ASSERT_EQUAL(IpCheck::ZeroAddress, NetConfig::checkStaticIp(x));
+    // Every result has a reason text.
+    for (uint8_t i = 0; i <= (uint8_t)IpCheck::BroadcastAddress; ++i) {
+        TEST_ASSERT_TRUE(strlen(NetConfig::ipCheckText((IpCheck)i)) > 1);
+    }
 }
 
 static void test_ipv4_text() {

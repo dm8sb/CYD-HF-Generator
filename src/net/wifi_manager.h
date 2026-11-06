@@ -25,6 +25,9 @@ public:
         char ssid[33];   // connected network
         int8_t rssi;
         uint32_t staIp;  // a.b.c.d as in StaticIp
+        uint32_t staMask;
+        uint32_t staGateway;
+        uint32_t staDns;
         bool apActive;
         bool apOpen;
         bool fallback;

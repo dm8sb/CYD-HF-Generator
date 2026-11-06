@@ -40,6 +40,7 @@ void Gui::addBackTitle_(PageId back, const char* title, lv_color_t color) {
 void Gui::createWifi_() {
     const lv_color_t btnColor = lv_color_hex(0xF9A825);
     addBackTitle_(PageId::Config, "WIFI", Colors::config());
+    addButton_(root_, "Device", SCREEN_WIDTH - 4 - 84, 3, 84, 36, btnColor, Action::Navigate, (uint8_t)PageId::WifiDevice);
     for (uint8_t slot = 0; slot < 2; ++slot) {
         lv_obj_t* card = addCard_(root_, MARGIN, NET_Y + slot * NET_PITCH, CONTENT_W, NET_H, Colors::config());
         lv_obj_set_style_pad_all(card, 4, 0);
@@ -196,7 +197,14 @@ void Gui::createEntry_() {
     const bool apPass = entryPurpose_ == EntryPurpose::ApPassword;
     const bool password = entryPurpose_ == EntryPurpose::Password || apPass;
     char title[48];
-    if (apPass) {
+    const bool name = entryPurpose_ == EntryPurpose::DeviceName;
+    const bool ip = entryPurpose_ == EntryPurpose::IpField;
+    static const char* const FIELD_NAMES[4] = {"Address", "Mask", "Gateway", "DNS"};
+    if (name) {
+        snprintf(title, sizeof(title), "Device name");
+    } else if (ip) {
+        snprintf(title, sizeof(title), "%s", FIELD_NAMES[entryField_ & 3]);
+    } else if (apPass) {
         snprintf(title, sizeof(title), "AP password");
     } else if (password) {
         char shown[33];
@@ -210,7 +218,9 @@ void Gui::createEntry_() {
     lv_obj_set_pos(w_.ta, 4, ENTRY_TA_Y);
     lv_obj_set_size(w_.ta, password ? SCREEN_WIDTH - 4 - 4 - 76 : SCREEN_WIDTH - 8, ENTRY_TA_H);
     lv_textarea_set_one_line(w_.ta, true);
-    lv_textarea_set_max_length(w_.ta, password ? 63 : 32);
+    lv_textarea_set_max_length(w_.ta, ip ? 15 : password ? 63 : 32);
+    if (name) lv_textarea_set_accepted_chars(w_.ta, "abcdefghijklmnopqrstuvwxyz0123456789-");
+    if (ip) lv_textarea_set_accepted_chars(w_.ta, "0123456789.");
     // The AP password is shown on the AP page anyway: typed in clear.
     lv_textarea_set_password_mode(w_.ta, password && !apPass);
     lv_obj_set_style_text_font(w_.ta, &lv_font_montserrat_16, 0);
@@ -232,20 +242,23 @@ void Gui::createEntry_() {
     lv_obj_set_size(kb, SCREEN_WIDTH, SCREEN_HEIGHT - KB_Y);
     lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_keyboard_set_textarea(kb, w_.ta);
+    if (ip) lv_keyboard_set_mode(kb, LV_KEYBOARD_MODE_NUMBER);
     on_(kb, LV_EVENT_READY, Action::EntryDone, 0);
     on_(kb, LV_EVENT_CANCEL, Action::Navigate, (uint8_t)entryBack_);
     lv_obj_move_foreground(w_.entryInfo);
+    // Ssid, device name and IP fields start with the current text (entrySsid_ holds it).
     if (!password && entrySsid_[0]) lv_textarea_set_text(w_.ta, entrySsid_);
     if (apPass && w_.entryShow) lv_label_set_text(lv_obj_get_child(w_.entryShow, 0), "Hide");
 }
 
 void Gui::refreshEntry_() {
     if (!w_.ta) return;
-    const bool password = entryPurpose_ != EntryPurpose::Ssid;
+    const bool password = entryPurpose_ == EntryPurpose::Password || entryPurpose_ == EntryPurpose::ApPassword;
+    const unsigned maxLen = password ? 63u : entryPurpose_ == EntryPurpose::IpField ? 15u : 32u;
     const size_t len = strlen(lv_textarea_get_text(w_.ta));
     char buf[48];
     if (entryError_[0]) snprintf(buf, sizeof(buf), "%s", entryError_);
-    else snprintf(buf, sizeof(buf), "%u/%u", (unsigned)len, password ? 63u : 32u);
+    else snprintf(buf, sizeof(buf), "%u/%u", (unsigned)len, maxLen);
     lv_label_set_text(w_.entryInfo, buf);
     lv_obj_set_style_text_color(w_.entryInfo, entryError_[0] ? Colors::error() : Colors::muted(), 0);
 }
@@ -318,6 +331,36 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             break;
         case Action::EntryDone: {
             const char* text = lv_textarea_get_text(w_.ta);
+            if (entryPurpose_ == EntryPurpose::DeviceName) {
+                if (!NetConfig::validDeviceName(text)) {
+                    snprintf(entryError_, sizeof(entryError_), "a-z 0-9 - (1-32)");
+                    break;
+                }
+                NetSettings s = wifi_->settings();
+                snprintf(s.deviceName, sizeof(s.deviceName), "%s", text);
+                storeNet_(s);
+                requestNavigate_(PageId::WifiDevice);
+                return;
+            }
+            if (entryPurpose_ == EntryPurpose::IpField) {
+                uint32_t v = 0;
+                if (!NetConfig::parseIpv4(text, &v)) {
+                    snprintf(entryError_, sizeof(entryError_), "e.g. 192.168.1.50");
+                    break;
+                }
+                NetSettings s = wifi_->settings();
+                uint32_t* fields[4] = {&s.staticIp.ip, &s.staticIp.mask, &s.staticIp.gateway, &s.staticIp.dns};
+                *fields[entryField_ & 3] = v;
+                // While static IP is on, an implausible combination is refused (W-S12).
+                const NetConfig::IpCheck c = NetConfig::checkStaticIp(s.staticIp);
+                if (s.staticIp.enabled && c != NetConfig::IpCheck::Ok) {
+                    showMessage("Static IP", NetConfig::ipCheckText(c));
+                    break;
+                }
+                storeNet_(s);
+                requestNavigate_(PageId::WifiDevice);
+                return;
+            }
             if (entryPurpose_ == EntryPurpose::ApPassword) {
                 if (!NetConfig::validPassphrase(text)) {
                     snprintf(entryError_, sizeof(entryError_), "8-63 characters");
@@ -365,6 +408,54 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             entryError_[0] = '\0';
             requestNavigate_(PageId::TextEntry);
             return;
+        case Action::DevName:
+            if (!wifi_) return;
+            snprintf(entrySsid_, sizeof(entrySsid_), "%s", wifi_->settings().deviceName);
+            entryPurpose_ = EntryPurpose::DeviceName;
+            entryBack_ = PageId::WifiDevice;
+            entryError_[0] = '\0';
+            requestNavigate_(PageId::TextEntry);
+            return;
+        case Action::DevIpField: {
+            if (!wifi_) return;
+            const StaticIp& ip = wifi_->settings().staticIp;
+            const uint32_t values[4] = {ip.ip, ip.mask, ip.gateway, ip.dns};
+            if (values[arg & 3]) NetConfig::formatIpv4(values[arg & 3], entrySsid_, sizeof(entrySsid_));
+            else entrySsid_[0] = '\0';
+            entryField_ = arg & 3;
+            entryPurpose_ = EntryPurpose::IpField;
+            entryBack_ = PageId::WifiDevice;
+            entryError_[0] = '\0';
+            requestNavigate_(PageId::TextEntry);
+            return;
+        }
+        case Action::DevIpMode: {
+            if (!wifi_) return;
+            NetSettings s = wifi_->settings();
+            const bool wantStatic = lv_dropdown_get_selected(obj) == 1;
+            if (wantStatic == s.staticIp.enabled) break;
+            if (wantStatic) {
+                // Empty fields take the current DHCP lease, so usually only the address changes.
+                const WifiManager::Status& w = wifi_->status();
+                if (!s.staticIp.ip && w.staConnected) {
+                    s.staticIp.ip = w.staIp;
+                    s.staticIp.mask = w.staMask;
+                    s.staticIp.gateway = w.staGateway;
+                    s.staticIp.dns = w.staDns;
+                }
+                const NetConfig::IpCheck c = NetConfig::checkStaticIp(s.staticIp);
+                if (c != NetConfig::IpCheck::Ok) {
+                    // Keep the values for editing, stay on DHCP.
+                    s.staticIp.enabled = false;
+                    storeNet_(s);
+                    showMessage("Static IP", NetConfig::ipCheckText(c));
+                    break;
+                }
+            }
+            s.staticIp.enabled = wantStatic;
+            storeNet_(s);
+            break;
+        }
         case Action::ApOpenToggle:
             if (!wifi_) return;
             if (wifi_->settings().apOpen) storeAp_(wifi_->settings().apPassword, false);
@@ -460,4 +551,70 @@ void Gui::refreshWifiAp_() {
         snprintf(buf, sizeof(buf), "Off. Choose Access point in CONFIG > WiFi.");
     }
     lv_label_set_text(w_.apState, buf);
+}
+
+// --- Device (S53d) ----------------------------------------------------------
+
+static constexpr int DEV_Y = 44;
+static constexpr int DEV_H = 30;
+static constexpr int DEV_PITCH = DEV_H + 2;
+static constexpr int DEV_VALUE_X = 104;
+static_assert(DEV_Y + 6 * DEV_PITCH <= SCREEN_HEIGHT, "six rows fit");
+
+void Gui::storeNet_(NetSettings& s) {
+    if (!wifi_) return;
+    if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
+    wifi_->apply(s);
+    memset(&s, 0, sizeof(s));
+}
+
+void Gui::createWifiDevice_() {
+    addBackTitle_(PageId::Wifi, "Device", Colors::config());
+    static const char* const NAMES[6] = {"Name", "IP", "Address", "Mask", "Gateway", "DNS"};
+    for (uint8_t i = 0; i < 6; ++i) {
+        const int y = DEV_Y + i * DEV_PITCH;
+        addLabel_(root_, NAMES[i], &lv_font_montserrat_14, Colors::text(), MARGIN + 2, y + 7);
+        if (i == 1) {
+            w_.devIpMode = lv_dropdown_create(root_);
+            lv_dropdown_set_options(w_.devIpMode, "DHCP\nStatic");
+            lv_obj_set_pos(w_.devIpMode, DEV_VALUE_X, y);
+            lv_obj_set_size(w_.devIpMode, CONTENT_W + MARGIN - DEV_VALUE_X, DEV_H);
+            lv_obj_set_style_pad_ver(w_.devIpMode, 4, 0);
+            on_(w_.devIpMode, LV_EVENT_VALUE_CHANGED, Action::DevIpMode, 0);
+            continue;
+        }
+        // The value is a tappable field that opens the keyboard.
+        lv_obj_t* b = addButton_(root_, "", DEV_VALUE_X, y, CONTENT_W + MARGIN - DEV_VALUE_X, DEV_H, Colors::cardBg(),
+                                 i == 0 ? Action::DevName : Action::DevIpField, (uint8_t)(i == 0 ? 0 : i - 2));
+        lv_obj_set_style_border_width(b, 1, 0);
+        lv_obj_set_style_border_color(b, Colors::outline(), 0);
+        lv_obj_t* l = lv_obj_get_child(b, 0);
+        lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(l, Colors::text(), 0);
+        lv_obj_align(l, LV_ALIGN_LEFT_MID, 6, 0);
+        if (i == 0) w_.devName = l;
+        else w_.devField[i - 2] = l;
+    }
+}
+
+void Gui::refreshWifiDevice_() {
+    if (!wifi_) return;
+    const NetSettings& s = wifi_->settings();
+    const WifiManager::Status& w = wifi_->status();
+    char buf[48];
+    snprintf(buf, sizeof(buf), "%s.local", s.deviceName);
+    lv_label_set_text(w_.devName, buf);
+    if (lv_dropdown_get_selected(w_.devIpMode) != (s.staticIp.enabled ? 1u : 0u)) {
+        lv_dropdown_set_selected(w_.devIpMode, s.staticIp.enabled ? 1 : 0);
+    }
+    // Static: the stored values; DHCP: the current lease in gray (tap to prepare static values).
+    const uint32_t stored[4] = {s.staticIp.ip, s.staticIp.mask, s.staticIp.gateway, s.staticIp.dns};
+    const uint32_t lease[4] = {w.staIp, w.staMask, w.staGateway, w.staDns};
+    for (uint8_t i = 0; i < 4; ++i) {
+        const uint32_t v = s.staticIp.enabled ? stored[i] : (stored[i] ? stored[i] : lease[i]);
+        if (v) NetConfig::formatIpv4(v, buf, sizeof(buf));
+        else snprintf(buf, sizeof(buf), i == 3 ? "= gateway" : "-");
+        lv_label_set_text(w_.devField[i], buf);
+        lv_obj_set_style_text_color(w_.devField[i], s.staticIp.enabled ? Colors::text() : Colors::muted(), 0);
+    }
 }

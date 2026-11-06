@@ -355,10 +355,13 @@ void WifiManager::updateStatus_() {
         snprintf(status_.ssid, sizeof(status_.ssid), "%s", WiFi.SSID().c_str());
         status_.rssi = (int8_t)WiFi.RSSI();
         status_.staIp = fromIp(WiFi.localIP());
+        status_.staMask = fromIp(WiFi.subnetMask());
+        status_.staGateway = fromIp(WiFi.gatewayIP());
+        status_.staDns = fromIp(WiFi.dnsIP());
     } else {
         status_.ssid[0] = '\0';
         status_.rssi = 0;
-        status_.staIp = 0;
+        status_.staIp = status_.staMask = status_.staGateway = status_.staDns = 0;
     }
     status_.connecting = attempting_;
     status_.apActive = apOn_;

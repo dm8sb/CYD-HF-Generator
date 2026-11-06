@@ -84,7 +84,10 @@ private:
         EntryDone,      // keyboard OK
         ApRegenerate,   // AP page: new random password
         ApSet,          // AP page: type a password
-        ApOpenToggle    // AP page: open (with confirmation) or secure again
+        ApOpenToggle,   // AP page: open (with confirmation) or secure again
+        DevName,        // device page: edit the name
+        DevIpMode,      // device page: DHCP / Static (dropdown)
+        DevIpField      // device page: arg 0..3 address, mask, gateway, DNS
     };
 
     struct Widgets {
@@ -139,6 +142,9 @@ private:
         lv_obj_t* apPass;
         lv_obj_t* apOpenBtn;
         lv_obj_t* apState;
+        lv_obj_t* devName;     // device page
+        lv_obj_t* devIpMode;
+        lv_obj_t* devField[4];
     };
 
     void createMain_();
@@ -151,6 +157,10 @@ private:
     void createWifi_();
     void createWifiScan_();
     void createEntry_();
+    void createWifiDevice_();
+    void refreshWifiDevice_();
+    // Saves and applies network settings (restarts the WiFi).
+    void storeNet_(NetSettings& s);
     void createWifiAp_();
     void refreshWifiAp_();
     // Stores AP password / open flag (saved, running AP restarts).
@@ -251,7 +261,8 @@ private:
     WifiManager* wifi_ = nullptr;
     bool (*saveNet_)(const NetSettings&) = nullptr;
     // WIFI pages (RAM only)
-    enum class EntryPurpose : uint8_t { Ssid, Password, ApPassword };
+    enum class EntryPurpose : uint8_t { Ssid, Password, ApPassword, DeviceName, IpField };
+    uint8_t entryField_ = 0; // IpField: 0 address, 1 mask, 2 gateway, 3 DNS
     PageId entryBack_ = PageId::WifiScan;
     bool openFallbackAsked_ = false; // W-S2 question shown for the current need
     uint8_t wifiSlot_ = 0;

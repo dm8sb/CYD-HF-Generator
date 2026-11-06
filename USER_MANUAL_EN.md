@@ -657,7 +657,7 @@ A line at the bottom shows what the WiFi does: `WiFi is Off. Choose Client in CO
 
 After saving, the WiFi restarts with the new data. With both slots used the device connects to the stronger network; if that fails (e.g. wrong password) it tries the other one next time.
 
-The third card `AP  CYD-HF-<4 digits>` shows the own access point (`WPA2` or orange `open`, `active` or `off`); `Show` opens its page.
+The third card `AP  CYD-HF-<4 digits>` shows the own access point (`WPA2` or orange `open`, `active` or `off`); `Show` opens its page. `Device` at the top right opens device name and IP settings.
 
 ### Access Point (Page)
 
@@ -667,6 +667,28 @@ The third card `AP  CYD-HF-<4 digits>` shows the own access point (`WPA2` or ora
 - `Open...`: access point without password, only after a warning. The password then shows orange `none (open)`, the button reads `Secure` and restores WPA2. An open access point goes off after 15 min without a connected device.
 - At the bottom the state: `Active, 1 connected`, `Off; starts as fallback after 60 s without network` (mode `Client`), `Off. Choose Access point in CONFIG > WiFi.`
 - If the access point is set to open and the device finds no network in `Client` mode, the fallback access point starts only after the question `Open fallback AP` (`Start`).
+
+### Device (Page)
+
+`Device` at the top right of the WIFI page opens the device settings. Every change is saved at once, the WiFi reconnects with the new data.
+
+| Row | Meaning |
+|---|---|
+| `Name` | Device name under which the device is reachable as `<name>.local` (default `cyd-hf-<4 digits>`). Tapping opens the keyboard; allowed are 1–32 characters `a`–`z`, `0`–`9` and `-`, not at the start or end. Otherwise `a-z 0-9 - (1-32)` appears below the field. |
+| `IP` | `DHCP` (address from the router) or `Static` (fixed address) |
+| `Address`, `Mask`, `Gateway`, `DNS` | With `DHCP` in gray the stored fixed values, for empty fields the router's lease (`-` without connection). With `Static` in black the stored values; tapping opens a numeric field (`192.168.1.50`). An empty `DNS` means `= gateway`. |
+
+When switching to `Static`, empty fields are filled from the current DHCP lease, so usually only `Address` needs changing. An implausible combination is refused, the message `Static IP` gives the reason and the old value stays (when switching, `DHCP` stays):
+
+| Message | Cause |
+|---|---|
+| `The mask must be /1 to /30, e.g. 255.255.255.0.` | Mask not contiguous or /0, /31, /32 |
+| `Address and gateway must be set.` | Address or gateway missing |
+| `The address equals the gateway.` | Address = gateway |
+| `The gateway is not in the subnet of the address.` | Gateway in another network |
+| `Address or gateway is the network address.` / `... broadcast address.` | Network or broadcast address of the subnet |
+
+A wrong but plausible static address (e.g. already in use) makes the device unreachable on the network; then choose `DHCP` again on the device.
 
 ### Remote out. (Switching Outputs Remotely)
 

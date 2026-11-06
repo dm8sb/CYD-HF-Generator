@@ -657,7 +657,7 @@ Unten zeigt eine Zeile, was das WLAN gerade tut: `WiFi is Off. Choose Client in 
 
 Nach einem Speichern startet das WLAN mit den neuen Daten neu. Sind beide Plätze belegt, verbindet sich das Gerät mit dem stärkeren Netz; scheitert es dort (z. B. falsches Passwort), versucht es beim nächsten Mal das andere.
 
-Die dritte Karte `AP  CYD-HF-<4 Stellen>` zeigt den eigenen Access Point (`WPA2` oder orange `open`, `active` oder `off`); `Show` öffnet seine Seite.
+Die dritte Karte `AP  CYD-HF-<4 Stellen>` zeigt den eigenen Access Point (`WPA2` oder orange `open`, `active` oder `off`); `Show` öffnet seine Seite. `Device` oben rechts öffnet Gerätename und IP-Einstellungen.
 
 ### Access Point (Seite)
 
@@ -667,6 +667,28 @@ Die dritte Karte `AP  CYD-HF-<4 Stellen>` zeigt den eigenen Access Point (`WPA2`
 - `Open...`: Access Point ohne Passwort, erst nach einer Warnung. Das Passwort zeigt dann orange `none (open)`, die Taste heißt `Secure` und stellt WPA2 wieder her. Ein offener Access Point geht nach 15 min ohne verbundenes Gerät aus.
 - Unten der Zustand: `Active, 1 connected`, `Off; starts as fallback after 60 s without network` (Betriebsart `Client`), `Off. Choose Access point in CONFIG > WiFi.`
 - Ist der Access Point offen eingestellt und findet das Gerät im Betrieb `Client` kein Netz, startet der Rückfall-Access-Point erst nach der Frage `Open fallback AP` (`Start`).
+
+### Gerät (Seite)
+
+`Device` oben rechts auf der Seite WIFI öffnet die Geräteeinstellungen. Jede Änderung wird sofort gespeichert, das WLAN verbindet sich mit den neuen Daten neu.
+
+| Zeile | Bedeutung |
+|---|---|
+| `Name` | Gerätename, unter dem das Gerät als `<Name>.local` erreichbar ist (Standard `cyd-hf-<4 Stellen>`). Antippen öffnet die Tastatur; erlaubt sind 1–32 Zeichen `a`–`z`, `0`–`9` und `-`, nicht am Anfang oder Ende. Sonst steht unter dem Feld `a-z 0-9 - (1-32)`. |
+| `IP` | `DHCP` (Adresse vom Router) oder `Static` (feste Adresse) |
+| `Address`, `Mask`, `Gateway`, `DNS` | Bei `DHCP` grau die gespeicherten festen Werte, für leere Felder die Zuteilung des Routers (`-` ohne Verbindung). Bei `Static` schwarz die gespeicherten Werte; antippen öffnet ein Ziffernfeld (`192.168.1.50`). `DNS` leer heißt `= gateway`. |
+
+Beim Umschalten auf `Static` werden leere Felder mit der aktuellen DHCP-Zuteilung gefüllt, meist muss also nur `Address` geändert werden. Eine unplausible Kombination wird abgelehnt, die Meldung `Static IP` nennt den Grund, und der alte Wert bleibt (beim Umschalten bleibt `DHCP`):
+
+| Meldung | Ursache |
+|---|---|
+| `The mask must be /1 to /30, e.g. 255.255.255.0.` | Maske nicht zusammenhängend oder /0, /31, /32 |
+| `Address and gateway must be set.` | Adresse oder Gateway fehlt |
+| `The address equals the gateway.` | Adresse = Gateway |
+| `The gateway is not in the subnet of the address.` | Gateway in einem anderen Netz |
+| `Address or gateway is the network address.` / `... broadcast address.` | Netz- bzw. Broadcast-Adresse des Subnetzes |
+
+Eine falsche, aber plausible statische Adresse (z. B. schon vergeben) macht das Gerät im Netz unerreichbar; dann am Gerät wieder `DHCP` wählen.
 
 ### Remote out. (Fernschalten der Ausgänge)
 
