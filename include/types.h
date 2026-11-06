@@ -34,6 +34,7 @@ enum class Result : uint8_t {
     OutOfRange, // a number outside its range
     Invalid,    // not one of the allowed values (channel index, phase, drive, enum, step)
     Conflict,   // not possible in the current state (spread spectrum in Integer)
+    Denied,     // not allowed for this source (Remote outputs: local only, W-E25)
     HwError     // applied, but the SI5351 could not be set up (ERR or connection lost)
 };
 

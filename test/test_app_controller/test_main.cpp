@@ -665,10 +665,10 @@ static void test_autosave_writes_only_changed_keys() {
     TEST_ASSERT_EQUAL_UINT(before + 3, nvs.writeCount);
 }
 
-// W-E17: remote changes are saved after 30 s of quiet, touch changes after 5 s.
+// W-E17: SCPI changes are saved after 30 s of quiet, touch and web changes after 5 s.
 static void test_remote_changes_save_later() {
     Device d;
-    d.app.setSource(Source::Remote);
+    d.app.setSource(Source::Scpi);
     d.app.setChannelFrequency(1, 7100000);
     d.app.setSource(Source::Touch);
     const unsigned before = nvs.writeCount;
@@ -676,6 +676,11 @@ static void test_remote_changes_save_later() {
     TEST_ASSERT_EQUAL_UINT(before, nvs.writeCount);
     d.run(SETTINGS_REMOTE_AUTOSAVE_MS);
     TEST_ASSERT_EQUAL_UINT(before + 1, nvs.writeCount);
+    d.app.setSource(Source::Web);
+    d.app.setChannelFrequency(1, 7200000);
+    d.app.setSource(Source::Touch);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(before + 2, nvs.writeCount);
 }
 
 // W-E19 / C-17: after *RST the defaults are not saved; a later change saves only its own key,
@@ -1086,11 +1091,11 @@ static void test_events_carry_the_source() {
     Device d;
     d.app.setChannelEnabled(1, true);
     chip.failAfter = 0;
-    d.app.setSource(Source::Remote);
+    d.app.setSource(Source::Scpi);
     d.app.setChannelFrequency(1, 7200000);
     d.app.setSource(Source::Touch);
     chip.failAfter = -1;
-    TEST_ASSERT_EQUAL(Source::Remote, lastEvent.source);
+    TEST_ASSERT_EQUAL(Source::Scpi, lastEvent.source);
     TEST_ASSERT_EQUAL(EventCategory::Link, lastEvent.category); // the transfer failed: lost
     TEST_ASSERT_TRUE(d.app.addListener(onEvent, nullptr));
     TEST_ASSERT_TRUE(d.app.addListener(onEvent, nullptr));

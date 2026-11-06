@@ -39,7 +39,7 @@ void setUp() {
 }
 void tearDown() {}
 
-static Command cmd(CommandType t, uint8_t ch, int64_t v, Source s = Source::Remote) {
+static Command cmd(CommandType t, uint8_t ch, int64_t v, Source s = Source::Scpi) {
     Command c {};
     c.type = t;
     c.channel = ch;
@@ -74,9 +74,9 @@ static void test_execute_sets_the_source_for_events() {
     d.app.addListener(onEvent, nullptr);
     d.app.setChannelEnabled(1, true);
     chip.failAfter = 0;
-    execute(d.app, cmd(CommandType::SetFrequency, 1, 7200000, Source::Remote));
+    execute(d.app, cmd(CommandType::SetFrequency, 1, 7200000, Source::Scpi));
     chip.failAfter = -1;
-    TEST_ASSERT_EQUAL(Source::Remote, lastSource);
+    TEST_ASSERT_EQUAL(Source::Scpi, lastSource);
     // Afterwards the controller is back at Touch: a touch error opens a dialog again.
     for (uint32_t t = 0; t < HW_CHECK_INTERVAL_MS + 100; t += 50) {
         Fake::advanceMs(50);
@@ -93,8 +93,8 @@ static void test_queue_order_limit_and_results() {
     Device d;
     CommandQueue q;
     uint32_t t1 = 0, t2 = 0;
-    TEST_ASSERT_TRUE(q.push(cmd(CommandType::SetFrequency, 1, 7100000), &t1));
-    TEST_ASSERT_TRUE(q.push(cmd(CommandType::SetFrequency, 1, 1), &t2)); // out of range
+    TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::SetFrequency, 1, 7100000), &t1));
+    TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::SetFrequency, 1, 1), &t2)); // out of range
     TEST_ASSERT_TRUE(t1 != t2);
     Result r = Result::Ok;
     TEST_ASSERT_FALSE(q.result(t1, &r)); // not executed yet
@@ -105,10 +105,85 @@ static void test_queue_order_limit_and_results() {
     TEST_ASSERT_EQUAL(Result::OutOfRange, r);
     TEST_ASSERT_EQUAL_UINT64(7100000, d.app.channel(1).frequency);
     // Bounded: a full queue refuses instead of blocking the network task.
-    for (uint8_t i = 0; i < CommandQueue::CAPACITY; ++i) TEST_ASSERT_TRUE(q.push(cmd(CommandType::Drive, 0, 8)));
-    TEST_ASSERT_FALSE(q.push(cmd(CommandType::Drive, 0, 8)));
+    // Each source has its own rate limit; the queue is shared.
+    for (uint8_t i = 0; i < CommandQueue::CAPACITY; ++i) {
+        const Source s = (i % 2) ? Source::Web : Source::Scpi;
+        TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::Drive, 0, 8, s)));
+    }
+    TEST_ASSERT_EQUAL(PushResult::Full, q.push(cmd(CommandType::Drive, 0, 8, Source::Usb)));
     q.drain(d.app);
-    TEST_ASSERT_TRUE(q.push(cmd(CommandType::Drive, 0, 8)));
+    TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::Drive, 0, 8, Source::Usb)));
+}
+
+// W-S11: at most REMOTE_WRITES_PER_S write commands per second and source.
+static void test_rate_limit_per_source() {
+    Device d;
+    CommandQueue q;
+    for (uint8_t i = 0; i < REMOTE_WRITES_PER_S; ++i) {
+        TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::Step, 0, 1000)));
+        q.drain(d.app); // never full
+    }
+    TEST_ASSERT_EQUAL(PushResult::RateLimited, q.push(cmd(CommandType::Step, 0, 1000)));
+    // Another source is not affected.
+    TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::Step, 0, 1000, Source::Web)));
+    // One token back every 50 ms.
+    Fake::advanceMs(1000 / REMOTE_WRITES_PER_S - 1);
+    TEST_ASSERT_EQUAL(PushResult::RateLimited, q.push(cmd(CommandType::Step, 0, 1000)));
+    Fake::advanceMs(1);
+    TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::Step, 0, 1000)));
+    TEST_ASSERT_EQUAL(PushResult::RateLimited, q.push(cmd(CommandType::Step, 0, 1000)));
+    q.drain(d.app);
+    // After a quiet second the full burst is available again, not more.
+    Fake::advanceMs(5000);
+    uint8_t queued = 0;
+    for (uint8_t i = 0; i < 2 * REMOTE_WRITES_PER_S; ++i) {
+        if (q.push(cmd(CommandType::Step, 0, 1000)) == PushResult::Queued) ++queued;
+        q.drain(d.app);
+    }
+    TEST_ASSERT_EQUAL_UINT8(REMOTE_WRITES_PER_S, queued);
+}
+
+// W-E25 / W-S21: local only lets the network set everything and switch off, but not on.
+static void test_remote_outputs_local_only() {
+    {
+        Device d;
+        TEST_ASSERT_TRUE(d.app.remoteOutputsAllowed()); // default
+        TEST_ASSERT_EQUAL(Result::Ok, d.app.setRemoteOutputsAllowed(false));
+        TEST_ASSERT_EQUAL(Result::NoChange, d.app.setRemoteOutputsAllowed(false));
+        for (uint8_t ch = 1; ch <= 3; ++ch) {
+            TEST_ASSERT_EQUAL(Result::Denied, execute(d.app, cmd(CommandType::SetEnabled, ch, 1)));
+            TEST_ASSERT_EQUAL(Result::Denied, execute(d.app, cmd(CommandType::SetEnabled, ch, 1, Source::Web)));
+        }
+        TEST_ASSERT_FALSE(d.app.channel(1).enabled);
+        TEST_ASSERT_FALSE(d.app.ch3().enabled);
+        TEST_ASSERT_EQUAL(Result::Ok, execute(d.app, cmd(CommandType::SetFrequency, 1, 7100000)));
+        // Touch switches on, the network may switch off.
+        TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelEnabled(1, true));
+        TEST_ASSERT_EQUAL(Result::Ok, execute(d.app, cmd(CommandType::SetEnabled, 1, 0, Source::Usb)));
+        TEST_ASSERT_FALSE(d.app.channel(1).enabled);
+        // Only the touch source may change the option.
+        d.app.setSource(Source::Web);
+        TEST_ASSERT_EQUAL(Result::Denied, d.app.setRemoteOutputsAllowed(true));
+        d.app.setSource(Source::Touch);
+        // Neither *RST nor Defaults change it; the snapshot shows it.
+        execute(d.app, cmd(CommandType::ResetRemote, 0, 0));
+        d.app.resetToDefaults();
+        TEST_ASSERT_FALSE(d.app.remoteOutputsAllowed());
+        StateSnapshot snap;
+        Snapshot s {};
+        snap.publish(d.app);
+        TEST_ASSERT_TRUE(snap.read(&s));
+        TEST_ASSERT_FALSE(s.remoteOutputsAllowed);
+    }
+    // Saved at once: still local only after a restart.
+    Device d;
+    TEST_ASSERT_FALSE(d.app.remoteOutputsAllowed());
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setRemoteOutputsAllowed(true));
+    TEST_ASSERT_EQUAL(Result::Ok, execute(d.app, cmd(CommandType::SetEnabled, 2, 1)));
+    // A factory reset brings back the default.
+    d.app.setRemoteOutputsAllowed(false);
+    d.settings.eraseAll();
+    TEST_ASSERT_TRUE(d.settings.loadRemoteOutputs());
 }
 
 static void test_snapshot_publish_and_read() {
@@ -138,6 +213,8 @@ int main(int, char**) {
     RUN_TEST(test_execute_maps_to_the_setters);
     RUN_TEST(test_execute_sets_the_source_for_events);
     RUN_TEST(test_queue_order_limit_and_results);
+    RUN_TEST(test_rate_limit_per_source);
+    RUN_TEST(test_remote_outputs_local_only);
     RUN_TEST(test_snapshot_publish_and_read);
     return UNITY_END();
 }

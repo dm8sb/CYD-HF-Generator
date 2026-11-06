@@ -85,14 +85,37 @@ Result execute(AppController& app, const Command& c) {
     return r;
 }
 
-bool CommandQueue::push(const Command& c, uint32_t* ticket) {
+bool CommandQueue::take_(Source s) {
+    const uint8_t i = (uint8_t)s;
+    if (i >= sizeof(buckets_) / sizeof(buckets_[0])) return false;
+    Bucket& b = buckets_[i];
+    const uint32_t now = millis();
+    static constexpr uint32_t REFILL_MS = 1000 / REMOTE_WRITES_PER_S;
+    if (!b.started) {
+        b = Bucket {REMOTE_WRITES_PER_S, now, true};
+    } else {
+        const uint32_t refill = (now - b.lastMs) / REFILL_MS;
+        if (refill > 0) {
+            const uint32_t t = b.tokens + refill;
+            b.tokens = (uint8_t)(t > REMOTE_WRITES_PER_S ? REMOTE_WRITES_PER_S : t);
+            b.lastMs += refill * REFILL_MS;
+        }
+    }
+    if (b.tokens == 0) return false;
+    if (b.tokens == REMOTE_WRITES_PER_S) b.lastMs = now; // full: the refill starts now
+    --b.tokens;
+    return true;
+}
+
+PushResult CommandQueue::push(const Command& c, uint32_t* ticket) {
     Lock lock;
-    if (count_ == CAPACITY) return false;
+    if (count_ == CAPACITY) return PushResult::Full;
+    if (!take_(c.source)) return PushResult::RateLimited;
     const uint32_t t = nextTicket_++;
     queue_[(head_ + count_) % CAPACITY] = Entry {c, t};
     ++count_;
     if (ticket) *ticket = t;
-    return true;
+    return PushResult::Queued;
 }
 
 uint8_t CommandQueue::drain(AppController& app) {
@@ -140,6 +163,7 @@ void StateSnapshot::publish(const AppController& app) {
     s.ch3Status = app.ch3Status();
     for (uint8_t i = 0; i < 3; ++i) s.actualHz[i] = app.actualHz(i + 1);
     s.hardwareReady = app.hardwareReady();
+    s.remoteOutputsAllowed = app.remoteOutputsAllowed();
     s.revision = app.revision();
     published_ = true;
     barrier();

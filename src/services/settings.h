@@ -53,6 +53,10 @@ public:
     // written when the calibration wizard succeeds. false: none stored or not plausible.
     bool loadTouchCalibration(TouchCalibration* out);
     bool saveTouchCalibration(const TouchCalibration& cal);
+    // CONFIG "Remote outputs" (W-E25), outside PersistentState: neither Defaults nor *RST
+    // change it, a factory reset does. true = allowed (default, also without NVS).
+    bool loadRemoteOutputs();
+    bool saveRemoteOutputs(bool allowed);
 
 private:
     bool save_(const PersistentState& state, uint16_t keys);

@@ -37,7 +37,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 | 3 Laborbetrieb | 1.3.3 | U-11, U-13, U-16, U-20, E-16, N12; Bildschirmsperre, Grundzustand und Werksreset, Korrektur per Numpad, CH3-Seite mit Master-Steuerung, Halten langsamer am Anfang, Bereich 8 kHz–160 MHz, Fix um 112,5 MHz, kompakte Moduszeile |
 
-Host-Tests: 251 Fälle in `native-win` und 4 in `native-win-fault` (Stand S39).
+Host-Tests: 253 Fälle in `native-win` und 4 in `native-win-fault` (Stand S50).
 
 ### 1.2 Referenzwerte
 
@@ -175,7 +175,7 @@ Voraussetzungen: Migration (Phase 4) und Vorarbeiten V-1 bis V-6, V-11 (Phase 5)
 | Modul | Aufgabe |
 |---|---|
 | `net/wifi_manager.*` | Betriebsarten, `WiFiMulti`, Rückfall-AP, statische IP, Gerätename, mDNS, Captive-DNS (nur AP), AP aus beim STA-Connect |
-| `net/net_settings.*` | NVS `hfnet`: Modus, 2 × SSID/PSK, AP-SSID/-Passwort, Gerätename, statische IP, Web-Passwort-Hash, `remote_outputs`; bei WPA2 64-Hex-PMK statt Passphrase, `WiFi.persistent(false)` (S-8) |
+| `net/net_settings.*` | NVS `hfnet`: Modus, 2 × SSID/PSK, AP-SSID/-Passwort, Gerätename, statische IP, Web-Passwort-Hash (`Remote outputs` liegt seit S50 als `rem_out` in `hfgen`, weil der Befehlskern ihn vor dem WLAN braucht); bei WPA2 64-Hex-PMK statt Passphrase, `WiFi.persistent(false)` (S-8) |
 | `net/request_guard.*` | rein, host-testbar: Host-Allowlist, Origin/Sec-Fetch-Site, Content-Type, Token, Sitzung, Rate-Limits, Größen |
 | `net/sanitize.*` | fremde Zeichenketten → gültiges UTF-8 ohne Steuerzeichen, ≤ 32 B, für LVGL und JSON (S-7, S-14) |
 | `remote/command.*`, `remote/state_snapshot.*` | Befehle mit Quelle (Touch/Web/SCPI/USB) und `Result`; Zustandskopie für Abfragen und Push |
@@ -349,8 +349,8 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 
 ### Phase 6 – WEB-HMI 1.4.0 (≈ 13,75 d)
 
-- [ ] **S49 · Vorab-Messung WLAN (0,5 d).** Client mit Dauerverkehr und AP, Spektrum an CLK0 bei 10 MHz (Span 200 kHz und 20 kHz), Modem-Sleep an/aus, Heap-Bilanz; Ergebnis in Abschnitt 3. *Commit:* `S49: Record WLAN spectrum pre-measurement and modem-sleep decision`
-- [ ] **S50 · Befehlskern (0,75 d).** `command`, `state_snapshot`, Quelle, W-E25; `test_command`. *Commit:* `S50: Add command core with source and remote-outputs option`
+- [ ] **S49 · Vorab-Messung WLAN (0,5 d, braucht SPEKTRUM; vorgezogen werden S50 und S51, die kein WLAN brauchen).** Client mit Dauerverkehr und AP, Spektrum an CLK0 bei 10 MHz (Span 200 kHz und 20 kHz), Modem-Sleep an/aus, Heap-Bilanz; Ergebnis in Abschnitt 3. *Commit:* `S49: Record WLAN spectrum pre-measurement and modem-sleep decision`
+- [x] **S50 · Befehlskern (0,75 d).** Grundgerüst aus S47; neu: Quellen `Web`, `Scpi`, `Usb` statt `Remote` (`isRemote()`; Speichern nach 5 s für Touch und Web, 30 s für SCPI, W-E17); `Result::Denied`; `Remote outputs` (W-E25, W-S21) im Controller: `local only` lehnt Einschalten aus dem Netz ab (Ausschalten erlaubt), nur die Touch-Quelle darf die Option ändern, sofort gespeichert (`rem_out` in `hfgen`), Grundzustand und `*RST` behalten sie, Werksreset nicht; im Schnappschuss. `CommandQueue::push()` liefert `PushResult` (`Queued`, `Full`, `RateLimited`) mit Token-Bucket je Quelle, 20 Schreibbefehle/s (W-S11). CONFIG-Zeile folgt in S53. Host-Tests `test_rate_limit_per_source`, `test_remote_outputs_local_only`, Web speichert nach 5 s. *Commit:* `S50: Add command core with source and remote-outputs option`
 - [ ] **S51 · SCPI über USB (1,5 d).** `line_framer`, scpi-parser v2.3, Befehlsbaum 3.5, Logger-Umschaltung, `SYSTem:LOG?`; `test_scpi`, `test_line_framer`; PyVISA mit DTR/RTS aus, 1000 × `*IDN?`. *Commit:* `S51: Add SCPI over USB serial`
 - [ ] **S52 · WLAN-Manager (1,5 d).** `Storage` mit String-API und Preferences-Fake mit mehreren Namespaces (aus S45); Betriebsarten, `WiFiMulti`, Rückfall-AP, `net_settings` (PMK, Zufallspasswort), mDNS, Captive-DNS nur im AP, kein Routing; `test_net_settings`. *Commit:* `S52: Add WiFi manager and network settings storage`
 - [ ] **S53 · WLAN am Gerät (2 d).** Statusleisten-Symbole, CONFIG `WiFi` und `Remote outputs`, Seiten WIFI mit Tastatur, QR, Spinner, `sanitize`; Info-Karte mit WLAN, Heap und LVGL-Heap (V-8); `test_sanitize`. *Commit:* `S53: Add WiFi setup pages with keyboard and QR`
