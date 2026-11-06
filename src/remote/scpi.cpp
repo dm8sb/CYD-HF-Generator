@@ -679,12 +679,49 @@ void ScpiSession::write(const char* data, size_t len) {
     if (writer_ && len) writer_(data, len, writerCtx_);
 }
 
+// From scpi-parser's parser_private.h (not an installed header).
+extern "C" int scpiParser_detectProgramMessageUnit(scpi_parser_state_t* state, char* buffer, int len);
+
+// scpi-parser resynchronizes one character after an invalid one and parses the rest of the
+// unit as a new header: "FREQ 7MHZ 8MHZ" gives -101 and then -113 "MHZ". Blanking the rest
+// of an invalid unit up to its ';' or the line end leaves one error per broken unit; the
+// units after it run as usual (IEEE 488.2 resynchronizes at the separator).
+static void blankAfterInvalid(char* line, int len) {
+    scpi_parser_state_t st;
+    int pos = 0;
+    while (pos < len) {
+        memset(&st, 0, sizeof(st));
+        const int r = scpiParser_detectProgramMessageUnit(&st, line + pos, len - pos);
+        if (r <= 0) break;
+        pos += r;
+        if (st.programHeader.type != SCPI_TOKEN_INVALID) continue;
+        // The library consumed the invalid character line[pos - 1]; it may open a quote.
+        const int start = pos;
+        char quote = 0;
+        for (int i = start - 1; i < len; ++i) {
+            const char c = line[i];
+            if (quote) {
+                if (c == quote) quote = 0;
+            } else if (c == '"' || c == '\'') {
+                quote = c;
+            } else if (i >= start && (c == ';' || c == '\n' || c == '\r')) {
+                break;
+            }
+            if (i >= start) {
+                line[i] = ' ';
+                pos = i + 1;
+            }
+        }
+    }
+}
+
 void ScpiSession::execute(const char* line, size_t len) {
     if (!line) return;
     if (len > LineFramer::MAX_LINE) len = LineFramer::MAX_LINE;
     memcpy(line_, line, len);
     line_[len] = '\n';
     line_[len + 1] = '\0';
+    blankAfterInvalid(line_, (int)(len + 1));
     SCPI_Parse(&ctx_, line_, (int)(len + 1));
 }
 

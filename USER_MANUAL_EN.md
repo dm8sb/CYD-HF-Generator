@@ -1154,7 +1154,7 @@ Short form in capitals, any case (`FREQ`, `freq`, `FREQuency`). `<n>` is the cha
 | `SYSTem:ERRor[:NEXT]?`, `SYSTem:ERRor:COUNt?` | `<code>,"<text>"` | Error queue (16 entries), `0,"No error"` when empty |
 | `SYSTem:VERSion?` | `1999.0` | SCPI version |
 
-Numbers: whole Hz (`7100000`), a decimal number with or without the unit `HZ`, `KHZ`, `MHZ` (`7.1 MHZ`, `455khz`) or with an exponent (`7.1E6`); rounded to 1 Hz. `MIN`, `MAX` and `DEF` set the limit or the default. Nothing is clipped: values out of range give −222, `NAN`, `INF`, hex numbers, unknown units and values not allowed −224, strings −104. A refused command changes nothing.
+Numbers: whole Hz (`7100000`), a decimal number with or without the unit `HZ`, `KHZ`, `MHZ` (`7.1 MHZ`, `455khz`) or with an exponent (`7.1E6`); rounded to 1 Hz. `MIN`, `MAX` and `DEF` set the limit or the default. Nothing is clipped: values out of range give −222, `NAN`, `INF`, hex numbers, unknown units and values not allowed −224, strings −104. Invalid characters, e.g. two values without a comma (`FREQ 7MHZ 8MHZ`) or `0x10`, give −101 once for that command; commands after the next `;` still run. A refused command changes nothing.
 
 Several commands in one line: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` starts again at the root); queries answer in one line separated by `;`: `FREQ?;:OUTP1?` → `7100000;1`.
 
@@ -1162,7 +1162,7 @@ Several commands in one line: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` starts again at the 
 
 - Settings changed over SCPI are saved after 30 s without a further change (at the touch screen after 5 s). `SYST:SAVE` saves at once.
 - Errors caused by an SCPI command (e.g. output errors) open no dialog on the display; they are in the error queue (`-240,"Hardware error;SI5351"`) and in the log.
-- `Remote outputs`: with the option at `local only` the device refuses `OUTP<n> ON` with `-221,"Settings conflict;Remote outputs: local only"`; switching off stays allowed. The option can only be changed at the device; its CONFIG row comes with the WiFi firmware, until then `allowed` applies.
+- `Remote outputs`: with the option at `local only` the device refuses `OUTP<n> ON` with `-221,"Settings conflict;Remote outputs: local only"`; switching off stays allowed. The option can only be changed at the device (CONFIG row `Remote out.`).
 
 ### Example (Python with pyserial)
 
@@ -1187,6 +1187,12 @@ gen.write(b"OUTP1 ON\n")
 print(query("FREQ:ACT?"))
 print(query("SYST:ERR?"))
 ```
+
+More scripts are in the `tools/` folder (instructions in `tools/README.md`):
+
+- `scpi_example.py`: the same over USB (`--usb COM5`), TCP (`--tcp <address>`, from S54 on) or PyVISA (`--visa <resource>`).
+- `device_check.py`: checks the SCPI command set on the device (round trips, refusals with error code, line length, rate limit, response time) and prints `PASS`/`FAIL`/`SKIP` per check. At the end it restores the changed settings, switches the outputs off and saves nothing; it switches outputs on only with `--outputs`. `fake_scpi_device.py` is a stand-in device for trials without hardware.
+- `rest_example.py`: example for the REST interface (follows with the web interface).
 
 ---
 
