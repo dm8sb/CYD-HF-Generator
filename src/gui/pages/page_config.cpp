@@ -154,6 +154,8 @@ void Gui::createConfig_() {
 
     // WiFi mode (W-E1, default Off) and remote switch-on (W-E25, only here).
     w_.wifiDd = addOptionRow_(list, 6, "WiFi", "Off\nClient\nAccess point", Action::WifiMode);
+    addButton_(lv_obj_get_parent(w_.wifiDd), "Setup", BTN_RIGHT_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::Navigate,
+               (uint8_t)PageId::Wifi);
     w_.remoteDd = addOptionRow_(list, 7, "Remote out.", "allowed\nlocal only", Action::RemoteOutputs);
 
     // Touch calibration (U-26): the wizard with crosses near the corners.

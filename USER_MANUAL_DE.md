@@ -490,7 +490,7 @@ Die Titelzeile mit Speicheranzeige und `MAIN` bleibt stehen. Der Bereich darunte
 | `Spread CH1` | Auswahlliste `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
 | `Corr.` | Wert in ppm (antippen: Eingabe), Schritt-Taste, `−`, `+` |
 | `Backlight` | `−`, Wert, `+` |
-| `WiFi` | Auswahlliste `Off`, `Client`, `Access point` |
+| `WiFi` | Auswahlliste `Off`, `Client`, `Access point`; Taste `Setup` (Seite WIFI) |
 | `Remote out.` | Auswahlliste `allowed`, `local only` |
 | `Touch` | Taste `Calibrate` (Touch-Abgleich) |
 | `Screen` | Taste `Lock` (Bildschirmsperre) |
@@ -640,7 +640,22 @@ Auswahlliste `Off` (Standard), `Client`, `Access point`. Die Einstellung wird so
 - `Client`: Das Gerät sucht die gespeicherten WLANs und verbindet sich mit dem stärksten. Findet es 60 s lang keines, öffnet es zusätzlich einen eigenen Access Point (Rückfall) und sucht weiter; sobald es verbunden ist, geht der Access Point aus.
 - `Access point`: Das Gerät öffnet ein eigenes WLAN `CYD-HF-<4 Stellen>` mit Passwort.
 
-Netze, Passwörter und die Daten des Access Points werden auf der Seite WIFI eingerichtet (folgt). Statusleiste und Info-Karte zeigen den Zustand.
+Netze, Passwörter und die Daten des Access Points werden auf der Seite WIFI eingerichtet (Taste `Setup` rechts in der Zeile). Statusleiste und Info-Karte zeigen den Zustand.
+
+### Seite WIFI (Setup)
+
+Oben links führt `<` zurück zu CONFIG. Darunter stehen die beiden Netzplätze `1` und `2`:
+
+- Netzname und darunter `Password set`, orange `Open network (no password)` oder `Empty`.
+- `Change`: sucht die Netze in der Umgebung (`Scanning...`, etwa 3 s) und zeigt sie, das stärkste zuerst, je 4 pro Seite; `<` und `>` blättern, `Scan` sucht neu. Rechts stehen Signalstärke und bei offenen Netzen orange `open`. Versteckte Netze erscheinen nicht; für sie gibt es `Other...` (Name eingeben).
+- Ein Netz antippen: Bei einem Netz mit Passwort öffnet sich die Tastatur. Das Passwort (8–63 Zeichen) eingeben, `Show`/`Hide` zeigt bzw. verdeckt es, rechts unter dem Feld steht die Zahl der Zeichen. Der Haken (✓) speichert, das Kreuz bricht ab. Ein offenes Netz wird erst nach einer Warnung (`Use`) übernommen.
+- Papierkorb: löscht den Platz nach Rückfrage.
+
+Die Tastatur hat Buchstaben, Ziffern und Sonderzeichen, aber keine Umlaute, `ß` und `€`. Netznamen werden bereinigt angezeigt (Steuerzeichen und ungültige Zeichen als `?`). Ein gespeichertes Passwort wird nie wieder angezeigt.
+
+Unten zeigt eine Zeile, was das WLAN gerade tut: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, grün `Connected <Netz>` mit Adresse und `<Gerätename>.local`, rot `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <Name> active`, `Access point <Name> active`, `No network stored. Tap Change.`
+
+Nach einem Speichern startet das WLAN mit den neuen Daten neu. Sind beide Plätze belegt, verbindet sich das Gerät mit dem stärkeren Netz; scheitert es dort (z. B. falsches Passwort), versucht es beim nächsten Mal das andere.
 
 ### Remote out. (Fernschalten der Ausgänge)
 
@@ -983,13 +998,15 @@ Wichtige Meldungen:
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
 | `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WLAN-Betriebsart beim Start bzw. nach einer Änderung und Gerätename; Standard `Off` (Funk aus) |
-| `[WIFI] Seen <Netz>: channel 6, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Ergebnis der Netzsuche für die gespeicherten Netze |
+| `[WIFI] Seen <Netz>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Ergebnis der Netzsuche für die gespeicherten Netze |
 | `[WIFI] Connecting to <Netz>`, `[WIFI] Connected to <Netz>, 192.168.1.50, RSSI -60 dBm` | Verbindungsaufbau und Verbindung mit Adresse |
 | `[WIFI] Network not reached (reason 201)` | Nach 15 s keine Verbindung; Grund des WLAN-Treibers (201 = Netz nicht gefunden, 2/15/202 = Anmeldung bzw. Passwort abgelehnt) |
 | `[WIFI] Connection lost; searching` | Verbindung verloren, die Suche läuft weiter |
 | `[WIFI] Fallback AP CYD-HF-1A2B WPA2` | 60 s ohne Verbindung: eigener Access Point als Rückfall; die Suche läuft weiter |
 | `[WIFI] AP off (client has an address)` | Verbunden: der Access Point geht sofort aus |
 | `[WIFI] AP password created` | Erstes Einschalten des Access Points: Zufallspasswort erzeugt und gespeichert |
+| `[WIFI] Scan started`, `[WIFI] Scan: 12 networks` | Netzsuche der Seite WIFI |
+| `[GUI] WiFi network stored` | Netz auf der Seite WIFI gespeichert (ohne Passwort im Log) |
 
 Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 

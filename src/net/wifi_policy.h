@@ -29,4 +29,12 @@ struct Targets {
 
 Targets decide(const Inputs& in);
 
+static constexpr int NOT_SEEN = -1000;
+// Which stored network to try next. stored[i]: slot i holds a network; rssi[i]: its strongest
+// access point in the last scan or NOT_SEEN; lastFailed: slot of the last failed attempt or -1;
+// next: slot to try when none was seen (hidden SSIDs, round robin). The strongest seen network
+// wins, except the one that just failed while the other is seen too (a wrong password on the
+// stronger network must not lock out the other one). -1: nothing stored.
+int chooseSlot(const bool stored[2], const int rssi[2], int lastFailed, uint8_t next);
+
 }

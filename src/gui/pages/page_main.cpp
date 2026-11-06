@@ -188,6 +188,9 @@ uint32_t Gui::statusSignature_() const {
                (uint32_t)w.apOpen << 4 | (uint32_t)w.apStations << 5 | (uint32_t)(uint8_t)(w.rssi / 5) << 9 |
                (uint32_t)w.needsOpenConfirmation << 17;
         sig ^= w.staIp * 2654435761u;
+        // WIFI pages: scan progress and connection feedback.
+        sig ^= ((uint32_t)wifi_->scanState() | (uint32_t)wifi_->scanList().count() << 2 | (uint32_t)w.connecting << 7 |
+                (uint32_t)w.lastFailure << 8) * 97u;
     }
     // The heap line of the info card in 1 KB steps.
     if (currentPage_ == PageId::Config) sig ^= (ESP.getFreeHeap() / 1024) * 40503u;
