@@ -46,6 +46,8 @@ static constexpr uint32_t IDENTIFY_MS = 5000;
 static constexpr uint32_t IDENTIFY_BLINK_MS = 250;
 // SCPI over USB: the session (log only into the ring buffer, W-E27) ends after this idle time.
 static constexpr uint32_t SCPI_IDLE_TIMEOUT_MS = 600000;
+// MAIN status bar: REMOTE <source> stays this long after the last remote command (W-E14).
+static constexpr uint32_t REMOTE_INDICATOR_MS = 10000;
 // SI5351 health check / reconnect interval.
 static constexpr uint32_t HW_CHECK_INTERVAL_MS = 2000;
 // Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).

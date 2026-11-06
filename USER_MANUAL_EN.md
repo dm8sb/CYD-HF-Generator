@@ -101,6 +101,8 @@ Operation on the main page:
 - **The switch on a card** (on the right, separated by a line) turns the output on or off directly, without leaving the page. A tap on the frequency or `MHz` only opens the channel page.
 - The frequencies are right-aligned; decimal point and `MHz` of all cards line up.
 - The status bar at the bottom shows the save state on the left (section 8, `Saved`, `Saving...`, red `Save failed` / `Not saved`) and has the `CONFIG` button (yellow) on the right. The channels open via their cards. With the screen locked it also shows `LOCKED` in an orange field (section 8).
+- Right of the save state is the WiFi state (section 8, `WiFi`): the WiFi symbol green (connected) or gray (searching), `AP` green while the own access point runs, `AP open` orange when it runs without a password; nothing with `Off`.
+- After a remote command `REMOTE USB` (later `REMOTE SCPI`, `REMOTE WEB`) shows for 10 s in a blue field (the CH3 color); `LOCKED` takes precedence.
 - Colored buttons and selected chips have dark text, switched-off switches a light gray track, unselected chips a gray border.
 - Buttons at the screen edge (e.g. `MAIN` top right, `CONFIG` bottom right, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.
 
@@ -488,10 +490,12 @@ The title bar with the save indicator and `MAIN` stays fixed. The area below it 
 | `Spread CH1` | drop-down list `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
 | `Corr.` | value in ppm (tap: entry), step button, `−`, `+` |
 | `Backlight` | `−`, value, `+` |
+| `WiFi` | drop-down `Off`, `Client`, `Access point` |
+| `Remote out.` | drop-down `allowed`, `local only` |
 | `Touch` | `Calibrate` button (touch calibration) |
 | `Screen` | `Lock` button (screen lock) |
 | `Reset` | `Defaults` and `Factory` (red) buttons |
-| Info card | Firmware, Build, Display, SI5351 |
+| Info card | Firmware, Build, Display, Touch, SI5351, WiFi, memory |
 
 - The settings that change the signal come first. The frequency step is set with the step buttons of the channel pages (section 5).
 - When the page opens, three rows and the upper half of the fourth are visible. The wide scroll bar on the right is always visible and shows that the list continues.
@@ -628,6 +632,20 @@ Measured: 10 000 097 Hz  ->  +97 Hz at 10 MHz  ->  set +9.70 ppm
 
 The current value is shown between the buttons. Holding a button does not repeat. The 10 % minimum prevents the display from accidentally going completely dark and thus becoming unusable. Values stored by older firmware are rounded to the nearest 10 % step; values below 5 % (e.g. 0 % from firmware 1.0.0) are set to 80 %.
 
+### WiFi
+
+Drop-down `Off` (default), `Client`, `Access point`. The setting is saved and applies at once.
+
+- `Off`: the radio is off (for the cleanest RF).
+- `Client`: the device looks for the stored networks and connects to the strongest. If it finds none for 60 s, it additionally opens its own access point (fallback) and keeps searching; as soon as it is connected, the access point goes off.
+- `Access point`: the device opens its own network `CYD-HF-<4 digits>` with a password.
+
+Networks, passwords and the access point data are set up on the WIFI page (to follow). The status bar and the info card show the state.
+
+### Remote out. (Switching Outputs Remotely)
+
+Drop-down `allowed` (default) and `local only`. With `local only` remote control (SCPI, later web) may set everything and switch outputs off, but **not on** (section 15). The setting can only be changed here at the device, is saved at once and kept by `Defaults` and `*RST`; `Factory` resets it to `allowed`.
+
 ### Touch (Touch Calibration)
 
 The calibration adapts the touch detection to the board: with fixed values, hits were up to 19 px off depending on the board, and the corner at the right edge could not be reached.
@@ -673,6 +691,8 @@ Build 2026-11-05 15:00
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
+WiFi Lab 192.168.1.50 -60 dBm
+Heap 241/215 KB, block 108 KB, LVGL 30 KB
 ```
 
 | Line | Content |
@@ -682,6 +702,8 @@ SI5351 SDA 22 SCL 27
 | `Display` | Display controller (`ILI9341` or `ST7789`) and source: `detected` (detected automatically), `default` (nothing detected, ILI9341 assumed), `build flag` (set at build time) |
 | `Touch` | `Touch calibrated x … y …`: stored calibration with the raw values of the screen edges; `Touch not calibrated (default)`: fixed values |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
+| `WiFi` | `WiFi off`; connected: network, address, signal strength; `WiFi searching (<device name>)`; access point: `AP` or `Fallback AP`, name, address, number of connected devices (orange without password). Foreign network names are cleaned (control and invalid characters as `?`, at most 32 bytes) |
+| `Heap` | free memory and its minimum since boot, largest contiguous block, free memory of the user interface (LVGL), each in KB |
 
 ---
 
@@ -1134,7 +1156,7 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | CH3              10.000 000 MHz |  [==o]   |
 | WAIT CH1 / 90° / master off     |          |
 +--------------------------------------------+
-| Saved                          [ CONFIG ]  |
+| Saved   WiFi  REMOTE USB       [ CONFIG ]  |
 +--------------------------------------------+
 ```
 
@@ -1179,7 +1201,7 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | Off state   [ Low         v]             # |
 | Tuning      [ Fractional  v]             | |
 | Spread CH1  [ Off         v]             | |   <- swipe
-| (Corr., Backlight, Touch, info card)       |
+| (Corr., Backlight, WiFi, Remote out., ...) |
 +--------------------------------------------+
 ```
 

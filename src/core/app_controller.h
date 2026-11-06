@@ -45,7 +45,17 @@ public:
     static constexpr uint8_t MAX_LISTENERS = 3;
     bool addListener(EventListener fn, void* ctx);
     // Source of the following commands (Touch by default; remote servers set theirs).
-    void setSource(Source s) { source_ = s; }
+    void setSource(Source s) {
+        source_ = s;
+        if (isRemote(s)) {
+            lastRemote_ = s;
+            lastRemoteMs_ = millis();
+        }
+    }
+    // Last remote source and when it sent a command (status bar REMOTE <source>, W-E14);
+    // Source::Touch while none did.
+    Source lastRemote() const { return lastRemote_; }
+    uint32_t lastRemoteMs() const { return lastRemoteMs_; }
 
     // Setters return a Result (V-1): set* reject values outside their range or set, adjust* and
     // stepBacklight() clamp. ch: 1/2 for frequencies, 1..3 for outputs.
@@ -157,6 +167,8 @@ private:
     };
     Listener listeners_[MAX_LISTENERS] {};
     Source source_ = Source::Touch;
+    Source lastRemote_ = Source::Touch;
+    uint32_t lastRemoteMs_ = 0;
     bool remoteOutputsAllowed_ = true;
     void updateIdentify_();
     bool identifying_ = false;

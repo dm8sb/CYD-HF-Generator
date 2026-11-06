@@ -162,6 +162,7 @@ void setup() {
     gui.begin(app, touch, display);
     gui.setTouchCalibrationStore(saveTouchCalibration);
     gui.setFactoryReset(factoryReset);
+    gui.setWifi(wifi, saveNetSettings);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
     if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
     app.addListener(Gui::onAppEvent, &gui);

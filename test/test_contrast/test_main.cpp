@@ -59,8 +59,17 @@ static void test_non_text_parts_reach_three_to_one() {
     TEST_ASSERT_TRUE(Contrast::ratio(DIALOG_BUTTON, CARD_BG) >= 3.0f);
 }
 
+// MAIN status bar (S53): WiFi symbol / AP text in ok, warning or muted color on the bar,
+// WiFi line of the info card in muted or warning color on the card.
+static void test_status_bar_texts_are_readable() {
+    const uint32_t colors[] = {TONE_OK, TONE_WARN, MUTED};
+    for (uint32_t fg : colors) TEST_ASSERT_TRUE(Contrast::ratio(fg, HEADER_BG) >= 4.5f);
+    TEST_ASSERT_TRUE(Contrast::ratio(TONE_WARN, CARD_BG) >= 4.5f);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
+    RUN_TEST(test_status_bar_texts_are_readable);
     RUN_TEST(test_contrast_ratio_matches_wcag);
     RUN_TEST(test_text_on_channel_colors_is_dark);
     RUN_TEST(test_text_on_dark_buttons_stays_light);

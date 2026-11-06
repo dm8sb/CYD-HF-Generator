@@ -7,6 +7,7 @@
 #include <core/app_controller.h>
 #include <drivers/display_panel.h>
 #include <drivers/touch.h>
+#include <net/wifi_manager.h>
 #include <utils/input_logic.h>
 #include <utils/message_queue.h>
 #include <utils/status_text.h>
@@ -37,6 +38,12 @@ public:
     void setTouchCalibrationStore(bool (*store)(const TouchCalibration&)) { storeTouchCal_ = store; }
     // Factory reset (U-13): erases the NVS and restarts (set by main).
     void setFactoryReset(void (*reset)()) { factoryReset_ = reset; }
+    // WiFi (S53): status for the status bar and the info card, mode from CONFIG; save writes
+    // the network settings (set by main). Without it the WiFi rows show Off.
+    void setWifi(WifiManager& wifi, bool (*save)(const NetSettings&)) {
+        wifi_ = &wifi;
+        saveNet_ = save;
+    }
 
 private:
     enum class Action : uint8_t {
@@ -63,7 +70,9 @@ private:
         ResetDefaults,  // CONFIG: confirm, then defaults (correction kept)
         FactoryReset,   // CONFIG: confirm, then erase the NVS and restart
         Ch3MasterFreq,  // CH3 page: tap on the frequency opens the master's numpad (U-16)
-        Ch3InfoTap      // CH3 page: status line; switches the master on while CH3 waits for it
+        Ch3InfoTap,     // CH3 page: status line; switches the master on while CH3 waits for it
+        WifiMode,       // CONFIG: Off / Client / Access point
+        RemoteOutputs   // CONFIG: allowed / local only (W-E25)
     };
 
     struct Widgets {
@@ -95,6 +104,12 @@ private:
         lv_obj_t* touchInfo;   // CONFIG info card
         lv_obj_t* lockState;   // MAIN status bar: LOCKED
         lv_obj_t* npError;     // numpad: why the last key was rejected (U-9)
+        lv_obj_t* wifiDd;      // CONFIG
+        lv_obj_t* remoteDd;
+        lv_obj_t* wifiInfo;    // CONFIG info card
+        lv_obj_t* heapInfo;
+        lv_obj_t* wifiState;   // MAIN status bar: WiFi symbol or AP
+        lv_obj_t* remoteState; // MAIN status bar: REMOTE <source>
     };
 
     void createMain_();
@@ -119,6 +134,11 @@ private:
     void refreshCH3_();
     void refreshConfig_();
     void refreshSaveState_();
+    // MAIN status bar: WiFi and REMOTE (W-E26).
+    void refreshStatusBar_();
+    // Changes when the status bar or the WiFi/heap lines of the info card need a redraw.
+    uint32_t statusSignature_() const;
+    bool remoteShown_() const;
 
     // Returns the header bar for page-specific additions.
     lv_obj_t* createHeader_(const char* title, lv_color_t color, uint8_t switchChannel);
@@ -185,6 +205,9 @@ private:
     uint32_t lastUpdateMs_ = 0;
     uint32_t lastRevision_ = 0;   // AppController::revision() of the last redraw
     uint16_t lastConnections_ = 0;
+    uint32_t lastStatusSig_ = 0;
+    WifiManager* wifi_ = nullptr;
+    bool (*saveNet_)(const NetSettings&) = nullptr;
     // Identify (W-E28): the LED blinks with the backlight, then shows the page again.
     bool ledIdentify_ = false;
     bool ledLit_ = false;
