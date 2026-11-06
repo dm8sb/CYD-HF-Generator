@@ -322,6 +322,7 @@ void Gui::navigate(PageId page) {
         case PageId::Wifi: createWifi_(); break;
         case PageId::WifiScan: createWifiScan_(); break;
         case PageId::TextEntry: createEntry_(); break;
+        case PageId::WifiAp: createWifiAp_(); break;
     }
     // Dialogs wait while the calibration covers the screen.
     if (page != PageId::TouchCal) openMessage_();
@@ -360,10 +361,20 @@ void Gui::refresh_() {
         case PageId::Wifi: refreshWifi_(); break;
         case PageId::WifiScan: refreshWifiScan_(); break;
         case PageId::TextEntry: refreshEntry_(); break;
+        case PageId::WifiAp: refreshWifiAp_(); break;
     }
 }
 
 void Gui::update() {
+    // W-S2: an open fallback AP starts only after the question at the touch was answered.
+    if (wifi_ && wifi_->status().needsOpenConfirmation) {
+        if (!openFallbackAsked_ && currentPage_ != PageId::TouchCal) {
+            openFallbackAsked_ = true;
+            confirm_(Confirm::OpenFallback);
+        }
+    } else {
+        openFallbackAsked_ = false;
+    }
     if (app_->identifying()) {
         if (!ledIdentify_ || app_->identifyLit() != ledLit_) {
             ledIdentify_ = true;
@@ -543,6 +554,9 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::EntryShow:
         case Action::EntryChanged:
         case Action::EntryDone:
+        case Action::ApRegenerate:
+        case Action::ApSet:
+        case Action::ApOpenToggle:
             handleWifiAction_(action, arg, obj);
             return;
     }
@@ -637,6 +651,8 @@ void Gui::confirm_(Confirm what) {
     static const char* eraseButtons[] = {"Cancel", "Erase", ""};
     static const char* deleteButtons[] = {"Cancel", "Delete", ""};
     static const char* useButtons[] = {"Cancel", "Use", ""};
+    static const char* openButtons[] = {"Cancel", "Open", ""};
+    static const char* startButtons[] = {"Cancel", "Start", ""};
     const char* title = "Off state High";
     const char* text = "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
                        "Do not use with DC-coupled mixers or inputs.";
@@ -660,6 +676,16 @@ void Gui::confirm_(Confirm what) {
         text = "This network has no password: everything sent over it, including the web and SCPI "
                "traffic, can be read and changed by others nearby.";
         buttons = useButtons;
+    } else if (what == Confirm::ApOpen) {
+        title = "Open access point";
+        text = "Without a password everyone nearby can connect, read everything and operate the "
+               "generator. It switches off after 15 min without a connected device.";
+        buttons = openButtons;
+    } else if (what == Confirm::OpenFallback) {
+        title = "Open fallback AP";
+        text = "No stored network found. Start the access point without a password? Everyone "
+               "nearby can then connect and operate the generator.";
+        buttons = startButtons;
     }
     pendingConfirm_ = what;
     lv_obj_t* box = lv_msgbox_create(nullptr, title, text, buttons, false);
@@ -687,6 +713,10 @@ void Gui::confirmEventCb_(lv_event_t* e) {
         g->wifi_->apply(s);
         memset(&s, 0, sizeof(s));
     }
+    if (yes && g->pendingConfirm_ == Confirm::ApOpen && g->wifi_) {
+        g->storeAp_(g->wifi_->settings().apPassword, true);
+    }
+    if (yes && g->pendingConfirm_ == Confirm::OpenFallback && g->wifi_) g->wifi_->confirmOpenFallback();
     if (yes && g->pendingConfirm_ == Confirm::OpenNetwork && g->storeNetwork_(g->entrySsid_, "")) {
         g->requestNavigate_(PageId::Wifi);
     }

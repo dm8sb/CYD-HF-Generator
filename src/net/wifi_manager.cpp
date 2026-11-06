@@ -11,6 +11,7 @@
 #include <esp_system.h> // IDF 4.4
 #endif
 #include <dhcpserver/dhcpserver.h>
+#include <bootloader_random.h>
 #include <utils/logger.h>
 
 namespace {
@@ -106,6 +107,23 @@ void WifiManager::apply(const NetSettings& s) {
     char line[64];
     snprintf(line, sizeof(line), "Mode %s, name %s", modeName(s.mode), s.deviceName);
     Logger::info("WIFI", line);
+}
+
+void WifiManager::applyAp(const NetSettings& s) {
+    memcpy(settings_.apPassword, s.apPassword, sizeof(settings_.apPassword));
+    settings_.apOpen = s.apOpen;
+    openApTimedOut_ = false;
+    // Stopped here, started again by the next update() with the new data.
+    if (apOn_) stopAp_();
+}
+
+void WifiManager::newApPassword(char out[NetConfig::AP_PASSWORD_LEN + 1]) {
+    // esp_random() is a true random source only while the radio (or the bootloader entropy
+    // source) runs.
+    const bool radio = staOn_ || apOn_;
+    if (!radio) bootloader_random_enable();
+    NetConfig::generateApPassword(hwRandom, out);
+    if (!radio) bootloader_random_disable();
 }
 
 void WifiManager::startSta_() {

@@ -193,6 +193,38 @@ bool save(Storage& st, const NetSettings& s) {
     return ok;
 }
 
+namespace {
+bool appendEscaped(char* out, size_t outSize, size_t* pos, const char* text) {
+    for (const char* p = text; *p; ++p) {
+        const bool special = *p == '\\' || *p == ';' || *p == ',' || *p == ':' || *p == '"';
+        if (*pos + (special ? 2 : 1) >= outSize) return false;
+        if (special) out[(*pos)++] = '\\';
+        out[(*pos)++] = *p;
+    }
+    out[*pos] = '\0';
+    return true;
+}
+bool appendRaw(char* out, size_t outSize, size_t* pos, const char* text) {
+    const size_t n = strlen(text);
+    if (*pos + n >= outSize) return false;
+    memcpy(out + *pos, text, n + 1);
+    *pos += n;
+    return true;
+}
+}
+
+bool wifiQrText(const char* ssid, const char* password, bool open, char* out, size_t outSize) {
+    if (!out || outSize == 0 || !ssid) return false;
+    size_t pos = 0;
+    out[0] = '\0';
+    bool ok = appendRaw(out, outSize, &pos, open ? "WIFI:T:nopass;S:" : "WIFI:T:WPA;S:") &&
+              appendEscaped(out, outSize, &pos, ssid);
+    if (ok && !open) ok = appendRaw(out, outSize, &pos, ";P:") && appendEscaped(out, outSize, &pos, password ? password : "");
+    if (ok) ok = appendRaw(out, outSize, &pos, ";;");
+    if (!ok) out[0] = '\0';
+    return ok;
+}
+
 bool eraseAll() {
     Storage net;
     Storage driver;

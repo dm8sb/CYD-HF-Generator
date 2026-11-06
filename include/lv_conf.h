@@ -57,7 +57,7 @@
 
 /* Unused widgets (LVGL enables them by default) */
 #define LV_USE_ARC 0
-#define LV_USE_CANVAS 0
+#define LV_USE_CANVAS 1 /* needed by the QR code */
 #define LV_USE_CHECKBOX 0
 #define LV_USE_ROLLER 0
 #define LV_USE_TABLE 0
@@ -76,5 +76,8 @@
 #define LV_USE_TABVIEW 0
 #define LV_USE_TILEVIEW 0
 #define LV_USE_WIN 0
+
+/* QR code of the access point page (S53c) */
+#define LV_USE_QRCODE 1
 
 #endif
