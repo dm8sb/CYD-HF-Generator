@@ -40,7 +40,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 5 WEB-HMI-Vorarbeiten | `dev` | V-1 bis V-6, V-11, C-16, C-17 (S42–S48): Ergebniscodes, Änderungszähler, Ereignisse mit Quelle, Speichern je Quelle und Schlüssel, Logger mit Ringpuffer, Befehlsqueue mit Schnappschuss, Netz-Parser |
 | 6 WEB-HMI bis S54a | `feature/web-hmi` | Befehlskern mit Quellen, Ratenbegrenzung und `Remote outputs`; SCPI über USB (E-29) mit Identify; Netzeinstellungen `hfnet` (E-30); WLAN-Manager (Client, Rückfall-AP, mDNS, Captive-DNS, D14); CONFIG `WiFi`/`Remote out.`, Statusleiste mit WLAN und `REMOTE`; Seiten WIFI (Scan, Tastatur), Access Point (QR) und Device (Name, statische IP); LVGL-Pool aus dem Heap (E-31); Host-Werkzeuge in `tools/` (`device_check.py`) |
 
-Host-Tests: 301 Fälle in `native-win` und 4 in `native-win-fault` (Stand S54a).
+Host-Tests: 308 Fälle in `native-win` und 4 in `native-win-fault` (Stand S57a).
 
 ### 1.2 Referenzwerte
 
@@ -104,6 +104,7 @@ Host-Tests: 301 Fälle in `native-win` und 4 in `native-win-fault` (Stand S54a).
 ### 2.3 Code und Tests
 
 - [ ] **DMA und Doppelpuffer** (nach der Migration): zwei Puffer 320 × 40 px (`DMA_ATTR`, je 25,6 KB), `LV_COLOR_16_SWAP` = 1, `setSwapBytes(false)`; in `DisplayPanel::begin()` erst Erkennung und Init mit rohem Buszugriff, dann `initDMA()` und einmal `startWrite()` (CS bleibt LOW, `endWrite()` nie); `flush()` = `dmaWait()`, `setAddrWindow()`, `pushPixelsDMA()`, `lv_disp_flush_ready()` sofort. Erwartung bis ≈ 30 Bilder/s, +36 KB RAM; Messung mit `LV_USE_PERF_MONITOR`. → N13
+- [ ] **`ScpiNumber::decimal` bei sehr langen Zahlen** (S57a, Fuzzing): ab Exponent 1000 werden weitere Exponentenziffern nicht mehr gelesen, führende Nullen des Bruchteils aber weiter gezählt; `"0."` + 1216 Nullen + `"1E12345"` (1225 B, 10^11128) ergibt `Ok` mit 10^17 statt `Range`. Über SCPI nicht erreichbar (Zeile ≤ 256 B); vor einer Nutzung für REST beheben, dann die 256-B-Grenze im Harness `scpi_number` aufheben. → S55
 - [ ] **Fakes:** Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln (mehrere Namespaces und Strings im Preferences-Fake seit S52a).
 
 ### 2.4 Plattform und Lieferkette
@@ -336,7 +337,8 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 - [ ] **S55 · Webserver (2 d).** `request_guard`, REST, WebSocket, Login und Web-Passwort (Seite Device), Header, CSP; Netzänderungen aus dem Web zweistufig mit Rückfall (W-S12); `test_http_guard`, `test_rest_json`. *Commit:* `S55: Add guarded web server and REST API`
 - [x] **S56a · Weboberfläche statisch und Mock.** `data/www/` (`index.html`, `app.js`, `style.css`: 49 275 B, gzip 16 758 B; ohne `innerHTML`, Inline-Handler, Inline-Stil und externe URLs, CSP-tauglich) und `tools/web_mock.py` (REST, WebSocket, Request-Guard, Login, zweistufige Netzänderung auf simuliertem Gerät). Geprüft gegen den Mock: Endpunkt-Skript 137/137, Headless-Edge 107/107 (Tastatur, Mausrad, Fokus, CH3 WAIT, Login, `local only`, offener AP, Polling-Rückfall, Handy 390 px ohne Querscrollen, Bedienelemente ≥ 44 px, keine CSP-Verletzung); `tools/rest_example.py` läuft gegen den Mock. Noch nicht auf echtem Handy, Safari, Firefox. Offene Vertragsfragen in 3.6. *Commit:* `S56a: Add web user interface and mock server`
 - [ ] **S56 · Weboberfläche (2,5 d).** Alle Bereiche, Tastatur, responsiv, Live-Hervorhebung, zweistufige Netzänderung, Identify. *Commit:* `S56: Add web user interface`
-- [ ] **S57 · Fuzzing und Dauertest (1 d + Laufzeit).** libFuzzer-CI-Job (≥ 10 Mio.), Zufallstest mit festem Seed; 24-h-Lauf mit Heap- und Stack-Bilanz. *Commit:* `S57: Add fuzzing job and long-run test`
+- [x] **S57a · Fuzz-Harnesses und CI.** `test/fuzz/`: 7 Ziele (`line_framer`, `sanitize`, `scpi` über `LineFramer` → `ScpiSession::execute`, `scpi_number`, `remote_frequency`, `net_settings`, `scan_list`) mit Seed-Korpus (69 Dateien), Wörterbuch, `build.sh` (libFuzzer/ASan/UBSan mit clang; `--standalone` mit gcc/MinGW); Suite `test_fuzz_random` (W-S25: Korpus und 100 000 Eingaben mit festem Seed je Ziel, +7 Fälle); `.github/workflows/fuzz.yml` (je Ziel 60 s bei Push/PR, manuell mit `runs` ≥ 10 Mio., Funde und Korpus als Artefakt, gcc-ASan-Job; Actions per SHA, `contents: read`); `.gitattributes` (`*.sh` LF, Korpus binär). Lokal (MinGW, Standalone): je Ziel 1 Mio. Eingaben ohne Fund außer `ScpiNumber::decimal` bei > 256 B (Abschnitt 2.3). libFuzzer-Lauf erst in der CI. *Commit:* `S57a: Add fuzzing harnesses and harden CI`
+- [ ] **S57 · Fuzzing und Dauertest (1 d + Laufzeit).** Rest: Harnesses für `request_guard` und REST-JSON (mit S55), manueller CI-Lauf mit ≥ 10 Mio. je Ziel, 24-h-Lauf mit Heap- und Stack-Bilanz. libFuzzer-CI-Job (≥ 10 Mio.), Zufallstest mit festem Seed; 24-h-Lauf mit Heap- und Stack-Bilanz. *Commit:* `S57: Add fuzzing job and long-run test`
 - [ ] **S58 · Doku und Release-Kandidat (1,5 d).** Handbuch DE/EN (WLAN, Web, SCPI-Referenz, REST, Python-Beispiel, Sicherheitshinweise, Fernbetrieb und Antenne), Spezifikation, README, `CLAUDE.md`, diese Datei; Version 1.4.0, lokaler Tag `v1.4.0-rc1`; Smoke-Test einschließlich L1 und `*IDN?`. *Commit:* `S58: Document WEB-HMI, release candidate 1.4.0-rc1`
 
 ### Phase 7 – Messungen ([MESSPLAN.md](MESSPLAN.md))
