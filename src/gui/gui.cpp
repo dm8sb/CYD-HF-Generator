@@ -319,6 +319,9 @@ void Gui::navigate(PageId page) {
         case PageId::Config: createConfig_(); break;
         case PageId::Numpad: createNumpad_(channel_); break;
         case PageId::TouchCal: createTouchCal_(); break;
+        case PageId::Wifi: createWifi_(); break;
+        case PageId::WifiScan: createWifiScan_(); break;
+        case PageId::TextEntry: createEntry_(); break;
     }
     // Dialogs wait while the calibration covers the screen.
     if (page != PageId::TouchCal) openMessage_();
@@ -354,6 +357,9 @@ void Gui::refresh_() {
         case PageId::Config: refreshConfig_(); break;
         case PageId::Numpad:
         case PageId::TouchCal: break;
+        case PageId::Wifi: refreshWifi_(); break;
+        case PageId::WifiScan: refreshWifiScan_(); break;
+        case PageId::TextEntry: refreshEntry_(); break;
     }
 }
 
@@ -528,6 +534,17 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::RemoteOutputs:
             app.setRemoteOutputsAllowed(lv_dropdown_get_selected(obj) == 0);
             break;
+        case Action::WifiEdit:
+        case Action::WifiDelete:
+        case Action::WifiRescan:
+        case Action::WifiScanPage:
+        case Action::WifiPick:
+        case Action::WifiOther:
+        case Action::EntryShow:
+        case Action::EntryChanged:
+        case Action::EntryDone:
+            handleWifiAction_(action, arg, obj);
+            return;
     }
     refresh_();
 }
@@ -618,6 +635,8 @@ void Gui::confirm_(Confirm what) {
     static const char* offButtons[] = {"Cancel", "High", ""};
     static const char* resetButtons[] = {"Cancel", "Reset", ""};
     static const char* eraseButtons[] = {"Cancel", "Erase", ""};
+    static const char* deleteButtons[] = {"Cancel", "Delete", ""};
+    static const char* useButtons[] = {"Cancel", "Use", ""};
     const char* title = "Off state High";
     const char* text = "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
                        "Do not use with DC-coupled mixers or inputs.";
@@ -632,6 +651,15 @@ void Gui::confirm_(Confirm what) {
         text = "Erases all stored settings including frequency correction and touch calibration, "
                "then restarts. The touch calibration runs again.";
         buttons = eraseButtons;
+    } else if (what == Confirm::DeleteNetwork) {
+        title = "Delete network";
+        text = wifiSlot_ == 0 ? "Network 1 and its password are deleted." : "Network 2 and its password are deleted.";
+        buttons = deleteButtons;
+    } else if (what == Confirm::OpenNetwork) {
+        title = "Open network";
+        text = "This network has no password: everything sent over it, including the web and SCPI "
+               "traffic, can be read and changed by others nearby.";
+        buttons = useButtons;
     }
     pendingConfirm_ = what;
     lv_obj_t* box = lv_msgbox_create(nullptr, title, text, buttons, false);
@@ -651,6 +679,16 @@ void Gui::confirmEventCb_(lv_event_t* e) {
     if (yes && g->pendingConfirm_ == Confirm::ResetDefaults) {
         g->app_->resetToDefaults();
         g->corrStepIdx_ = 1;
+    }
+    if (yes && g->pendingConfirm_ == Confirm::DeleteNetwork && g->wifi_) {
+        NetSettings s = g->wifi_->settings();
+        NetConfig::clearNetwork(s, g->wifiSlot_);
+        if (g->saveNet_ && !g->saveNet_(s)) g->showMessage("WiFi", "Saving the WiFi settings failed.");
+        g->wifi_->apply(s);
+        memset(&s, 0, sizeof(s));
+    }
+    if (yes && g->pendingConfirm_ == Confirm::OpenNetwork && g->storeNetwork_(g->entrySsid_, "")) {
+        g->requestNavigate_(PageId::Wifi);
     }
     if (yes && g->pendingConfirm_ == Confirm::FactoryReset && g->factoryReset_) {
         g->app_->resetToDefaults(); // outputs off before the restart

@@ -29,4 +29,20 @@ Targets decide(const Inputs& in) {
     return t;
 }
 
+int chooseSlot(const bool stored[2], const int rssi[2], int lastFailed, uint8_t next) {
+    if (!stored[0] && !stored[1]) return -1;
+    const bool seen0 = stored[0] && rssi[0] > NOT_SEEN;
+    const bool seen1 = stored[1] && rssi[1] > NOT_SEEN;
+    if (seen0 && seen1) {
+        if (lastFailed == 0) return 1;
+        if (lastFailed == 1) return 0;
+        return rssi[1] > rssi[0] ? 1 : 0;
+    }
+    if (seen0) return 0;
+    if (seen1) return 1;
+    // None seen: the stored ones in turn.
+    const uint8_t first = next % 2;
+    return stored[first] ? first : 1 - first;
+}
+
 }

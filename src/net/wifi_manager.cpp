@@ -22,6 +22,7 @@ constexpr uint32_t CONNECT_TIMEOUT_MS = 15000;
 constexpr uint32_t SCAN_INTERVAL_MS = 15000;
 constexpr uint8_t AP_MAX_STATIONS = 4;
 constexpr uint8_t OPEN_AP_MAX_STATIONS = 2; // W-S2
+constexpr uint32_t UI_SCAN_TIMEOUT_MS = 15000;
 
 IPAddress toIp(uint32_t v) { return IPAddress((uint8_t)(v >> 24), (uint8_t)(v >> 16), (uint8_t)(v >> 8), (uint8_t)v); }
 uint32_t fromIp(const IPAddress& a) { return (uint32_t)a[0] << 24 | (uint32_t)a[1] << 16 | (uint32_t)a[2] << 8 | a[3]; }
@@ -101,6 +102,7 @@ void WifiManager::apply(const NetSettings& s) {
     noIpSinceMs_ = apIdleSinceMs_ = millis();
     lastScanMs_ = 0;
     nextSlot_ = 0;
+    lastFailedSlot_ = attemptSlot_ = -1;
     char line[64];
     snprintf(line, sizeof(line), "Mode %s, name %s", modeName(s.mode), s.deviceName);
     Logger::info("WIFI", line);
@@ -158,45 +160,44 @@ void WifiManager::tryConnect_() {
     const WifiNetwork* nets = settings_.networks;
     const bool any = nets[0].ssid[0] || nets[1].ssid[0];
     if (!any) return;
-    int slot = -1;
+    // Strongest access point per stored network in the last scan.
+    int rssi[2] = {WifiPolicy::NOT_SEEN, WifiPolicy::NOT_SEEN};
+    wifi_auth_mode_t auth[2] = {WIFI_AUTH_OPEN, WIFI_AUTH_OPEN};
     const int found = WiFi.scanComplete();
-    if (found >= 0) {
-        // The strongest stored network that was seen.
-        int bestRssi = -1000;
-        for (int i = 0; i < found; ++i) {
-            const String seen = WiFi.SSID(i);
-            for (uint8_t k = 0; k < 2; ++k) {
-                if (!nets[k].ssid[0] || seen != nets[k].ssid) continue;
-                char line[96];
-                snprintf(line, sizeof(line), "Seen %.32s: channel %d, RSSI %d dBm, %s", nets[k].ssid, (int)WiFi.channel(i),
-                         (int)WiFi.RSSI(i), authName(WiFi.encryptionType(i)));
-                Logger::info("WIFI", line);
-                if (WiFi.RSSI(i) > bestRssi) {
-                    bestRssi = WiFi.RSSI(i);
-                    slot = k;
-                }
+    for (int i = 0; i < found; ++i) {
+        const String seen = WiFi.SSID(i);
+        for (uint8_t k = 0; k < 2; ++k) {
+            if (nets[k].ssid[0] && seen == nets[k].ssid && WiFi.RSSI(i) > rssi[k]) {
+                rssi[k] = WiFi.RSSI(i);
+                auth[k] = WiFi.encryptionType(i);
             }
         }
-        if (slot < 0) {
+    }
+    if (found >= 0) {
+        for (uint8_t k = 0; k < 2; ++k) {
+            if (rssi[k] == WifiPolicy::NOT_SEEN) continue;
+            char line[80];
+            snprintf(line, sizeof(line), "Seen %.32s, RSSI %d dBm, %s", nets[k].ssid, rssi[k], authName(auth[k]));
+            Logger::info("WIFI", line);
+        }
+        if (rssi[0] == WifiPolicy::NOT_SEEN && rssi[1] == WifiPolicy::NOT_SEEN) {
             char line[64];
             snprintf(line, sizeof(line), "No stored network among %d seen", found);
             Logger::info("WIFI", line);
         }
         WiFi.scanDelete();
     }
-    if (slot < 0) {
-        // Not seen (hidden SSID or out of range): try the stored networks in turn.
-        for (uint8_t n = 0; n < 2 && slot < 0; ++n) {
-            const uint8_t k = (uint8_t)((nextSlot_ + n) % 2);
-            if (nets[k].ssid[0]) slot = k;
-        }
-        nextSlot_ = (uint8_t)((slot + 1) % 2);
-    }
+    const bool stored[2] = {nets[0].ssid[0] != '\0', nets[1].ssid[0] != '\0'};
+    const int slot = WifiPolicy::chooseSlot(stored, rssi, lastFailedSlot_, nextSlot_);
+    if (slot < 0) return;
+    nextSlot_ = (uint8_t)((slot + 1) % 2);
+    attemptSlot_ = (int8_t)slot;
     const WifiNetwork& n = nets[slot];
     const bool open = n.key[0] == '\0';
     // W-S15: at least WPA2 unless the network was stored as open on purpose (W-E7 warning).
     WiFi.setMinSecurity(open ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK);
     lastDisconnectReason = 0;
+    status_.lastFailure = Failure::None;
     WiFi.begin(n.ssid, open ? nullptr : n.key);
     attempting_ = true;
     attemptMs_ = millis();
@@ -207,6 +208,7 @@ void WifiManager::tryConnect_() {
 
 void WifiManager::onGotIp_() {
     hadIp_ = true;
+    lastFailedSlot_ = -1;
     attempting_ = false;
     char ip[16];
     NetConfig::formatIpv4(fromIp(WiFi.localIP()), ip, sizeof(ip));
@@ -234,8 +236,15 @@ void WifiManager::update() {
                 char line[64];
                 snprintf(line, sizeof(line), "Network not reached (reason %u)", (unsigned)lastDisconnectReason);
                 Logger::info("WIFI", line);
+                // 201 no AP found; 2 auth expired, 15 4-way handshake timeout, 202 auth failed,
+                // 204 handshake timeout: most often a wrong password.
+                lastFailedSlot_ = attemptSlot_;
+                const uint8_t r = lastDisconnectReason;
+                status_.lastFailure = r == 201 ? Failure::NotFound
+                                      : (r == 2 || r == 15 || r == 202 || r == 204) ? Failure::WrongPassword
+                                                                                   : Failure::Other;
             }
-            if (!attempting_) {
+            if (!attempting_ && uiScan_ != ScanState::Running) {
                 const int sc = WiFi.scanComplete();
                 if (sc >= 0 || (scanning_ && sc == WIFI_SCAN_FAILED)) {
                     scanning_ = false;
@@ -248,6 +257,12 @@ void WifiManager::update() {
             }
         }
     }
+    // Scan of the WIFI page.
+    if (uiScan_ == ScanState::Running) {
+        const int sc = WiFi.scanComplete();
+        if (sc >= 0) finishUiScan_(sc);
+        else if (sc == WIFI_SCAN_FAILED || now - uiScanStartMs_ >= UI_SCAN_TIMEOUT_MS) finishUiScan_(-1);
+    }
     // Open AP without station (W-S2).
     if (apOn_) {
         if (WiFi.softAPgetStationNum() > 0) apIdleSinceMs_ = now;
@@ -258,6 +273,37 @@ void WifiManager::update() {
     applyTargets_(WifiPolicy::decide(in));
     if (dnsOn_) dnsServer.processNextRequest();
     updateStatus_();
+}
+
+void WifiManager::startScan() {
+    if (uiScan_ == ScanState::Running) return;
+    WiFi.scanDelete();
+    // Scanning needs the client interface; without it, switch it on for the scan only.
+    uiScanTempMode_ = !staOn_;
+    if (uiScanTempMode_) {
+        if (!apOn_) WiFi.setHostname(settings_.deviceName);
+        WiFi.mode(apOn_ ? WIFI_AP_STA : WIFI_STA);
+    }
+    uiScanStartMs_ = millis();
+    uiScan_ = WiFi.scanNetworks(true) == WIFI_SCAN_RUNNING ? ScanState::Running : ScanState::Failed;
+    if (uiScan_ == ScanState::Failed) finishUiScan_(-1);
+    else Logger::info("WIFI", "Scan started");
+}
+
+void WifiManager::finishUiScan_(int found) {
+    scanList_.clear();
+    for (int i = 0; i < found; ++i) {
+        const String ssid = WiFi.SSID(i);
+        scanList_.add(ssid.c_str(), ssid.length(), (int8_t)WiFi.RSSI(i), WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+    }
+    WiFi.scanDelete();
+    uiScan_ = found >= 0 ? ScanState::Done : ScanState::Failed;
+    if (uiScanTempMode_) WiFi.mode(apOn_ ? WIFI_AP : WIFI_OFF);
+    uiScanTempMode_ = false;
+    lastScanMs_ = millis(); // the connect loop scans again later
+    char line[48];
+    snprintf(line, sizeof(line), found >= 0 ? "Scan: %d networks" : "Scan failed", found);
+    Logger::info("WIFI", line);
 }
 
 void WifiManager::applyTargets_(const WifiPolicy::Targets& t) {
@@ -296,6 +342,7 @@ void WifiManager::updateStatus_() {
         status_.rssi = 0;
         status_.staIp = 0;
     }
+    status_.connecting = attempting_;
     status_.apActive = apOn_;
     status_.apOpen = apOn_ && apIsOpen_;
     status_.apStations = apOn_ ? (uint8_t)WiFi.softAPgetStationNum() : 0;

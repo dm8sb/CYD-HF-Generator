@@ -72,7 +72,16 @@ private:
         Ch3MasterFreq,  // CH3 page: tap on the frequency opens the master's numpad (U-16)
         Ch3InfoTap,     // CH3 page: status line; switches the master on while CH3 waits for it
         WifiMode,       // CONFIG: Off / Client / Access point
-        RemoteOutputs   // CONFIG: allowed / local only (W-E25)
+        RemoteOutputs,  // CONFIG: allowed / local only (W-E25)
+        WifiEdit,       // WIFI: arg slot 0/1, scan and choose a network
+        WifiDelete,     // WIFI: arg slot, confirm and delete
+        WifiRescan,
+        WifiScanPage,   // arg 0 back, 1 forward
+        WifiPick,       // arg row on the page
+        WifiOther,      // hidden network: enter the name
+        EntryShow,      // text entry: show / hide the password
+        EntryChanged,
+        EntryDone       // keyboard OK
     };
 
     struct Widgets {
@@ -110,6 +119,16 @@ private:
         lv_obj_t* heapInfo;
         lv_obj_t* wifiState;   // MAIN status bar: WiFi symbol or AP
         lv_obj_t* remoteState; // MAIN status bar: REMOTE <source>
+        lv_obj_t* netText[2];  // WIFI overview
+        lv_obj_t* netSub[2];
+        lv_obj_t* wifiStatus;
+        lv_obj_t* scanRow[5];  // WIFI scan list
+        lv_obj_t* scanName[5];
+        lv_obj_t* scanInfo[5];
+        lv_obj_t* scanPage;
+        lv_obj_t* scanState;
+        lv_obj_t* entryShow;   // text entry
+        lv_obj_t* entryInfo;
     };
 
     void createMain_();
@@ -119,6 +138,15 @@ private:
     void createNumpad_(uint8_t ch);
     lv_color_t numpadColor_() const;
     void createTouchCal_();
+    void createWifi_();
+    void createWifiScan_();
+    void createEntry_();
+    void refreshWifi_();
+    void refreshWifiScan_();
+    void refreshEntry_();
+    void addBackTitle_(PageId back, const char* title, lv_color_t color);
+    void handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj);
+    bool storeNetwork_(const char* ssid, const char* key);
     // Feeds raw touch samples to the wizard and moves the cross (every loop on that page).
     void tickTouchCal_();
     void showCalTarget_();
@@ -185,7 +213,7 @@ private:
     static void showState_(lv_obj_t* label, const StatusText::Text& state);
     // Off state High needs a confirmation: a switched-off output then carries DC.
     // Confirmation dialogs with Cancel and one action button in the warning color.
-    enum class Confirm : uint8_t { OffStateHigh, ResetDefaults, FactoryReset };
+    enum class Confirm : uint8_t { OffStateHigh, ResetDefaults, FactoryReset, DeleteNetwork, OpenNetwork };
     void confirm_(Confirm what);
     static void confirmEventCb_(lv_event_t* e);
     // Screen lock events from the touch callback (hint while pressed, LOCKED in the status bar).
@@ -208,6 +236,13 @@ private:
     uint32_t lastStatusSig_ = 0;
     WifiManager* wifi_ = nullptr;
     bool (*saveNet_)(const NetSettings&) = nullptr;
+    // WIFI pages (RAM only)
+    enum class EntryPurpose : uint8_t { Ssid, Password };
+    uint8_t wifiSlot_ = 0;
+    uint8_t scanPage_ = 0;
+    EntryPurpose entryPurpose_ = EntryPurpose::Password;
+    char entrySsid_[33] {};
+    char entryError_[24] {};
     // Identify (W-E28): the LED blinks with the backlight, then shows the page again.
     bool ledIdentify_ = false;
     bool ledLit_ = false;

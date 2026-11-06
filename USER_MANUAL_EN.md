@@ -490,7 +490,7 @@ The title bar with the save indicator and `MAIN` stays fixed. The area below it 
 | `Spread CH1` | drop-down list `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
 | `Corr.` | value in ppm (tap: entry), step button, `−`, `+` |
 | `Backlight` | `−`, value, `+` |
-| `WiFi` | drop-down `Off`, `Client`, `Access point` |
+| `WiFi` | drop-down `Off`, `Client`, `Access point`; button `Setup` (WIFI page) |
 | `Remote out.` | drop-down `allowed`, `local only` |
 | `Touch` | `Calibrate` button (touch calibration) |
 | `Screen` | `Lock` button (screen lock) |
@@ -640,7 +640,22 @@ Drop-down `Off` (default), `Client`, `Access point`. The setting is saved and ap
 - `Client`: the device looks for the stored networks and connects to the strongest. If it finds none for 60 s, it additionally opens its own access point (fallback) and keeps searching; as soon as it is connected, the access point goes off.
 - `Access point`: the device opens its own network `CYD-HF-<4 digits>` with a password.
 
-Networks, passwords and the access point data are set up on the WIFI page (to follow). The status bar and the info card show the state.
+Networks, passwords and the access point data are set up on the WIFI page (button `Setup` on the right of the row). The status bar and the info card show the state.
+
+### WIFI Page (Setup)
+
+`<` at the top left returns to CONFIG. Below are the two network slots `1` and `2`:
+
+- Network name and below it `Password set`, orange `Open network (no password)` or `Empty`.
+- `Change`: scans the networks around (`Scanning...`, about 3 s) and lists them, strongest first, 4 per page; `<` and `>` turn the pages, `Scan` scans again. On the right are the signal strength and for open networks an orange `open`. Hidden networks do not appear; for them there is `Other...` (enter the name).
+- Tap a network: for a network with a password the keyboard opens. Enter the password (8–63 characters), `Show`/`Hide` shows or hides it, the number of characters is on the right below the field. The check mark (✓) saves, the cross cancels. An open network is taken only after a warning (`Use`).
+- Trash can: deletes the slot after a confirmation.
+
+The keyboard has letters, digits and special characters, but no umlauts, `ß` and `€`. Network names are shown cleaned (control and invalid characters as `?`). A stored password is never shown again.
+
+A line at the bottom shows what the WiFi does: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, green `Connected <network>` with address and `<device name>.local`, red `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <name> active`, `Access point <name> active`, `No network stored. Tap Change.`
+
+After saving, the WiFi restarts with the new data. With both slots used the device connects to the stronger network; if that fails (e.g. wrong password) it tries the other one next time.
 
 ### Remote out. (Switching Outputs Remotely)
 
@@ -983,13 +998,15 @@ Important messages:
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
 | `[APP] Identify` | `SYST:IDEN`: backlight and LED blink for 5 s |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WiFi mode at boot or after a change and the device name; default `Off` (radio off) |
-| `[WIFI] Seen <network>: channel 6, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Scan result for the stored networks |
+| `[WIFI] Seen <network>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Scan result for the stored networks |
 | `[WIFI] Connecting to <network>`, `[WIFI] Connected to <network>, 192.168.1.50, RSSI -60 dBm` | Connecting and connected with an address |
 | `[WIFI] Network not reached (reason 201)` | No connection after 15 s; reason from the WiFi driver (201 = network not found, 2/15/202 = login or password refused) |
 | `[WIFI] Connection lost; searching` | Connection lost, the search goes on |
 | `[WIFI] Fallback AP CYD-HF-1A2B WPA2` | 60 s without connection: own access point as fallback; the search goes on |
 | `[WIFI] AP off (client has an address)` | Connected: the access point goes off at once |
 | `[WIFI] AP password created` | First start of the access point: random password created and saved |
+| `[WIFI] Scan started`, `[WIFI] Scan: 12 networks` | Scan of the WIFI page |
+| `[GUI] WiFi network stored` | Network stored on the WIFI page (no password in the log) |
 
 Error messages start with `[ERROR]`, e.g.:
 

@@ -87,5 +87,8 @@ enum class PageId : uint8_t {
     CH3,
     Config,
     Numpad,
-    TouchCal  // touch calibration (U-26)
+    TouchCal, // touch calibration (U-26)
+    Wifi,     // WIFI overview (S53b)
+    WifiScan, // scan list for one network slot
+    TextEntry // on-screen keyboard (network name, password)
 };

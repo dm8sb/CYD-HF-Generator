@@ -81,6 +81,27 @@ static void test_open_fallback_needs_confirmation() {
     TEST_ASSERT_FALSE(WifiPolicy::decide(i).ap);
 }
 
+static void test_choose_slot() {
+    using WifiPolicy::NOT_SEEN;
+    const bool both[2] = {true, true};
+    const bool first[2] = {true, false};
+    const bool none[2] = {false, false};
+    int r[2] = {-70, -60};
+    TEST_ASSERT_EQUAL_INT(1, WifiPolicy::chooseSlot(both, r, -1, 0)); // strongest
+    // The stronger one just failed (wrong password): the other one gets its turn.
+    TEST_ASSERT_EQUAL_INT(0, WifiPolicy::chooseSlot(both, r, 1, 0));
+    TEST_ASSERT_EQUAL_INT(1, WifiPolicy::chooseSlot(both, r, 0, 0));
+    // Only one seen: that one, also after it failed.
+    r[0] = NOT_SEEN;
+    TEST_ASSERT_EQUAL_INT(1, WifiPolicy::chooseSlot(both, r, 1, 0));
+    // None seen (hidden): round robin over the stored ones.
+    r[1] = NOT_SEEN;
+    TEST_ASSERT_EQUAL_INT(0, WifiPolicy::chooseSlot(both, r, -1, 0));
+    TEST_ASSERT_EQUAL_INT(1, WifiPolicy::chooseSlot(both, r, -1, 1));
+    TEST_ASSERT_EQUAL_INT(0, WifiPolicy::chooseSlot(first, r, -1, 1));
+    TEST_ASSERT_EQUAL_INT(-1, WifiPolicy::chooseSlot(none, r, -1, 0));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_off_runs_nothing);
@@ -88,5 +109,6 @@ int main(int, char**) {
     RUN_TEST(test_client_fallback_after_60_s);
     RUN_TEST(test_ap_never_with_client_address);
     RUN_TEST(test_open_fallback_needs_confirmation);
+    RUN_TEST(test_choose_slot);
     return UNITY_END();
 }

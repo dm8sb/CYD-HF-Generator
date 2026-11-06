@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "net_settings.h"
 #include "wifi_policy.h"
+#include "scan_list.h"
 
 // Drives the radio from NetSettings (ARBEITSPLAN 3.3/3.4): Off, Client with up to two networks
 // and the fallback AP, Access point. Runs in loop(): WiFi events only set flags, so nothing
@@ -15,6 +16,9 @@
 // together with a client address (D14).
 class WifiManager {
 public:
+    enum class Failure : uint8_t { None, NotFound, WrongPassword, Other };
+    enum class ScanState : uint8_t { Idle, Running, Done, Failed };
+
     struct Status {
         WifiMode mode;
         bool staConnected;
@@ -28,6 +32,8 @@ public:
         uint8_t apStations;
         uint32_t apIp;
         char apSsid[33];
+        bool connecting;        // a connection attempt runs
+        Failure lastFailure;    // why the last attempt failed (WIFI page feedback)
     };
 
     // saveSettings is called when the manager changed the settings (AP password created).
@@ -39,6 +45,11 @@ public:
     // The touch confirmed an open fallback AP (W-S2).
     void confirmOpenFallback() { openFallbackConfirmed_ = true; }
     void update();
+    // Scan for the WIFI page (W-E2): asynchronous; with the radio off the client interface runs
+    // only for the scan. The results stay until the next scan.
+    void startScan();
+    ScanState scanState() const { return uiScan_; }
+    const ScanList& scanList() const { return scanList_; }
     const Status& status() const { return status_; }
     const NetSettings& settings() const { return settings_; }
 
@@ -70,5 +81,12 @@ private:
     uint32_t attemptMs_ = 0;
     bool attempting_ = false;
     uint8_t nextSlot_ = 0;
+    int8_t attemptSlot_ = -1;
+    int8_t lastFailedSlot_ = -1; // WifiPolicy::chooseSlot
     bool scanning_ = false;
+    void finishUiScan_(int found);
+    ScanState uiScan_ = ScanState::Idle;
+    bool uiScanTempMode_ = false; // the radio was switched on only for the scan
+    uint32_t uiScanStartMs_ = 0;
+    ScanList scanList_;
 };
