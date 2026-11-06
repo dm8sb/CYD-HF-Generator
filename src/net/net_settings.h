@@ -70,6 +70,8 @@ enum class IpCheck : uint8_t { Ok, BadMask, ZeroAddress, SameAsGateway, OutsideS
 // network nor the broadcast address.
 IpCheck checkStaticIp(const StaticIp& ip);
 bool parseIpv4(const char* text, uint32_t* out);
+// Short English reason for the WIFI device page.
+const char* ipCheckText(IpCheck c);
 void formatIpv4(uint32_t ip, char* out, size_t outSize);
 
 // NVS "hfnet". load() replaces invalid values by the defaults; false if nothing usable was

@@ -323,6 +323,7 @@ void Gui::navigate(PageId page) {
         case PageId::WifiScan: createWifiScan_(); break;
         case PageId::TextEntry: createEntry_(); break;
         case PageId::WifiAp: createWifiAp_(); break;
+        case PageId::WifiDevice: createWifiDevice_(); break;
     }
     // Dialogs wait while the calibration covers the screen.
     if (page != PageId::TouchCal) openMessage_();
@@ -362,6 +363,7 @@ void Gui::refresh_() {
         case PageId::WifiScan: refreshWifiScan_(); break;
         case PageId::TextEntry: refreshEntry_(); break;
         case PageId::WifiAp: refreshWifiAp_(); break;
+        case PageId::WifiDevice: refreshWifiDevice_(); break;
     }
 }
 
@@ -557,6 +559,9 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::ApRegenerate:
         case Action::ApSet:
         case Action::ApOpenToggle:
+        case Action::DevName:
+        case Action::DevIpMode:
+        case Action::DevIpField:
             handleWifiAction_(action, arg, obj);
             return;
     }
