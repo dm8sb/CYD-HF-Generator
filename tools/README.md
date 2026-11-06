@@ -54,3 +54,17 @@ python tools/device_check.py --tcp 127.0.0.1:5025   # terminal 2
 
 The fake does not implement `*RST`, so `--allow-rst` reports one FAIL against it; `OUTP:REM?` always answers
 `ALLOWED`, so the `-221` check is skipped. Everything else passes against it.
+
+### Web interface without the device
+
+`web_mock.py` serves the web interface from `data/www/` with the REST API, the WebSocket and the
+request guard of ARBEITSPLAN 3.6 on a simulated device (standard library only):
+
+```bash
+python tools/web_mock.py --port 8080                 # then open http://127.0.0.1:8080/
+python tools/web_mock.py --password secret --demo    # with login and changing values
+python tools/rest_example.py 127.0.0.1:8080          # the REST example against the mock
+```
+
+Further flags: `--login-all`, `--local-only`, `--open-ap`, `--hw`, `--no-ws`, `--confirm-timeout`, `--token`
+(`--help` explains them).
