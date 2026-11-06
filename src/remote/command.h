@@ -21,7 +21,8 @@ enum class CommandType : uint8_t {
     Spread,          // value Spread
     OffState,        // value OffState
     ResetRemote,     // *RST
-    SaveNow          // SYSTem:SAVE
+    SaveNow,         // SYSTem:SAVE
+    Identify         // SYSTem:IDENtify
 };
 
 struct Command {
@@ -84,6 +85,9 @@ struct Snapshot {
     Ch3Status ch3Status;
     double actualHz[3];
     bool hardwareReady;
+    LinkState link;
+    uint64_t iqMinHz;
+    uint64_t iqMaxHz;
     bool remoteOutputsAllowed;
     uint32_t revision;
 };

@@ -185,6 +185,9 @@ private:
     uint32_t lastUpdateMs_ = 0;
     uint32_t lastRevision_ = 0;   // AppController::revision() of the last redraw
     uint16_t lastConnections_ = 0;
+    // Identify (W-E28): the LED blinks with the backlight, then shows the page again.
+    bool ledIdentify_ = false;
+    bool ledLit_ = false;
     char freqText_[24] {};      // plain frequency text on the channel page, for hit testing
     InputLogic::Numpad numpad_; // numpad input (InputLogic, host-tested)
     Widgets w_ {};

@@ -41,6 +41,11 @@ static constexpr uint32_t SETTINGS_RETRY_MS = 30000;
 static constexpr uint32_t SETTINGS_REMOTE_AUTOSAVE_MS = 30000;
 // Write commands per second and remote source (W-S11); more are refused (HTTP 429, SCPI -200 busy).
 static constexpr uint8_t REMOTE_WRITES_PER_S = 20;
+// SYSTem:IDENtify / web Identify (W-E28): backlight and RGB LED blink for this long.
+static constexpr uint32_t IDENTIFY_MS = 5000;
+static constexpr uint32_t IDENTIFY_BLINK_MS = 250;
+// SCPI over USB: the session (log only into the ring buffer, W-E27) ends after this idle time.
+static constexpr uint32_t SCPI_IDLE_TIMEOUT_MS = 600000;
 // SI5351 health check / reconnect interval.
 static constexpr uint32_t HW_CHECK_INTERVAL_MS = 2000;
 // Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).

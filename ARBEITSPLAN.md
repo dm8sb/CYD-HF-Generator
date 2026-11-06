@@ -37,7 +37,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 | 3 Laborbetrieb | 1.3.3 | U-11, U-13, U-16, U-20, E-16, N12; Bildschirmsperre, Grundzustand und Werksreset, Korrektur per Numpad, CH3-Seite mit Master-Steuerung, Halten langsamer am Anfang, Bereich 8 kHz–160 MHz, Fix um 112,5 MHz, kompakte Moduszeile |
 
-Host-Tests: 253 Fälle in `native-win` und 4 in `native-win-fault` (Stand S50).
+Host-Tests: 273 Fälle in `native-win` und 4 in `native-win-fault` (Stand S51).
 
 ### 1.2 Referenzwerte
 
@@ -107,7 +107,7 @@ Host-Tests: 253 Fälle in `native-win` und 4 in `native-win-fault` (Stand S50).
 | P-2, P-4, S-19 | espressif32 / Arduino / IDF | 6.7.0 / 2.0.16 / 4.4.7 (EOL, mbedTLS 2.28 EOL) | offiziell `espressif32@8.0.0` = Arduino 3.3.12 / IDF 5.5.5 (u. a. DHCP-Fix CVE-2026-45160); pioarduino 55.03.312-1 nur bei Bedarf an `custom_sdkconfig` → S37–S41. **Spike S37 (2026-11-05):** baut mit 8.0.0 nach zwei Änderungen: LEDC-API (`ledcAttach`/`ledcWrite(pin)`) und `-Os` – das PlatformIO-Skript von Arduino 3.3.12 setzt keine Optimierung (die Arduino-IDE ergänzt sie über `platform.txt`), mit `-O0` brauchte das erste Bild 636 statt 159 ms und der Flash 982 KB. Mit `-Os`, Release-Build: Flash 668 247 B (21,2 %; 2.x 645 445 B), RAM 96 440 B (2.x 94 496 B). Debug-Build, Original-CYD ohne SI5351: Heap frei 250 684 B (2.x 272 604 B), Minimum 221 872 B (2.x 267 008 B, Spitze beim Booten), größter Block und LVGL unverändert, Stack-Reserve `loop()` 4 880 B (2.x 4 780 B), erstes Bild 172 ms, `Setup complete` nach 0,9 s wie 2.x. Beide Boards booten, Display-Erkennung (MADCTL- und RDDID-Rücklesung) unverändert, SI5351 an 0x60. pioarduino nicht nötig. Offen für S40: `-Wvolatile` (`command.h`) und `-Wdeprecated-enum-enum-conversion` (LVGL-Makros mit `|`) unter gnu++2b; `CORE_DEBUG_LEVEL=0` des Frameworks per `build_unflags` ersetzt. |
 | P-5 | TFT_eSPI | 2.5.43 (letztes Release) | bleibt; mit Core 3.x im Spike unverändert lauffähig (Flush 35 ms je Vollbild wie unter 2.x); Fork oder LovyanGFX nur als Ausweg (eigene Display-Erkennung bleibt, LovyanGFX erwartet ST7789-ID 0x85, der CYD2USB meldet `8181B3`) |
 | P-6, P-8 | LVGL, Unity | 8.3.11, 2.6.1 | LVGL 8.4.0 (letztes 8.x, Fixes, API wie 8.3) in Phase 4 → S40a, damit die Abnahme S41 beides prüft; LVGL 9.x nicht: neue Display-, Eingabe-, Stil- und Widget-API, also Umbau aller Seiten und neuer Bedientest, ohne Funktion, die das Gerät braucht (D13). Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 → N11 |
-| P-9 | Web-Bibliotheken | – | ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, ArduinoJson 7.4.3, scpi-parser v2.3 (Commit), alle exakt gepinnt |
+| P-9 | Web-Bibliotheken | scpi-parser `8866159` (v2.3 + `strings.h`- und `-Wdouble-promotion`-Fix, seit S51, E-29) | ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, ArduinoJson 7.4.3, alle exakt gepinnt |
 | S-20 | Prüfung | XPT2046 auf Commit gepinnt | Plattform-Prüfsumme in der CI, Advisory-Check je Release (W-S24) |
 
 ### 2.5 Dokumentation
@@ -214,7 +214,7 @@ Kurzform groß; `n` = Kanal 1–3 (Standard 1). Zahlen: Ganzzahl in Hz oder Dezi
 | `*RST` | – | W-E19 |
 | `*CLS`, `*ESR?`, `*ESE`, `*STB?`, `*SRE`, `*OPC`, `*OPC?`, `*WAI`, `*TST?` | | IEEE 488.2 |
 | `OUTPut<n>[:STATe] ON\|OFF\|1\|0` | `OUTPut<n>?` | Ausgang (CH3 = Anforderung); `local only` → −221 für ON |
-| `OUTPut<n>:STATus?` | `ON`/`OFF`/`ERR`/`WAIT`/`NOHW` | tatsächlicher Zustand |
+| `OUTPut<n>:CONDition?` | `ON`/`OFF`/`ERR`/`WAIT`/`NOHW` | tatsächlicher Zustand (nicht `:STATus?`: Kurzform `STAT` wäre mehrdeutig mit `STATe`, E-29) |
 | `[SOURce<n>:]FREQuency[:CW] <f>` | `FREQ?` | Sollfrequenz CH1/CH2; CH3 nur Abfrage |
 | `[SOURce<n>:]FREQuency:ACTual?` | Hz mit 0,1 Hz | wie die Zeile `Out` (bei Spread Mittelwert) |
 | `SOURce3:IQ:MASTer 1\|2`, `SOURce3:PHASe 0\|90\|180\|270`, `SOURce3:IQ:RANGe?` | `?` | CH3 |
@@ -222,7 +222,7 @@ Kurzform groß; `n` = Kanal 1–3 (Standard 1). Zahlen: Ganzzahl in Hz oder Dezi
 | `OUTPut:REMote?` | `ALLOWED`/`LOCAL` | W-E25 (nur lesbar) |
 | `[SOURce1:]SSC OFF\|DOWN05\|DOWN15\|CENT05`, `SYSTem:TUNing FRAC\|LNO\|INT` | `?` | Signal |
 | `SYSTem:CORRection <ppm>`, `SYSTem:STEP <Hz>`, `SYSTem:BACKlight <%>` | `?` | Einstellungen |
-| `SYSTem:SI5351?`, `SYSTem:HEAP?`, `SYSTem:IDENtify`, `SYSTem:LOG?`, `SYSTem:SAVE` | | Diagnose, Identify, Log, Speichern |
+| `SYSTem:SI5351?`, `SYSTem:HEAP?`, `SYSTem:IDENtify`, `SYSTem:LOG?`, `SYSTem:SAVE` | | Diagnose (`CONN`/`NFO`/`BLOC`/`UNKN`; frei, Minimum, größter Block), Identify, Log (eine Zeile je Abfrage, `""` wenn leer), Speichern |
 | `SYSTem:ERRor[:NEXT]?`, `SYSTem:VERSion?` | | Fehlerwarteschlange, `1999.0` |
 
 Netzwerkeinstellungen und `Remote outputs` sind über SCPI nicht änderbar.
@@ -351,10 +351,10 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 
 - [ ] **S49 · Vorab-Messung WLAN (0,5 d, braucht SPEKTRUM; vorgezogen werden S50 und S51, die kein WLAN brauchen).** Client mit Dauerverkehr und AP, Spektrum an CLK0 bei 10 MHz (Span 200 kHz und 20 kHz), Modem-Sleep an/aus, Heap-Bilanz; Ergebnis in Abschnitt 3. *Commit:* `S49: Record WLAN spectrum pre-measurement and modem-sleep decision`
 - [x] **S50 · Befehlskern (0,75 d).** Grundgerüst aus S47; neu: Quellen `Web`, `Scpi`, `Usb` statt `Remote` (`isRemote()`; Speichern nach 5 s für Touch und Web, 30 s für SCPI, W-E17); `Result::Denied`; `Remote outputs` (W-E25, W-S21) im Controller: `local only` lehnt Einschalten aus dem Netz ab (Ausschalten erlaubt), nur die Touch-Quelle darf die Option ändern, sofort gespeichert (`rem_out` in `hfgen`), Grundzustand und `*RST` behalten sie, Werksreset nicht; im Schnappschuss. `CommandQueue::push()` liefert `PushResult` (`Queued`, `Full`, `RateLimited`) mit Token-Bucket je Quelle, 20 Schreibbefehle/s (W-S11). CONFIG-Zeile folgt in S53. Host-Tests `test_rate_limit_per_source`, `test_remote_outputs_local_only`, Web speichert nach 5 s. *Commit:* `S50: Add command core with source and remote-outputs option`
-- [ ] **S51 · SCPI über USB (1,5 d).** `line_framer`, scpi-parser v2.3, Befehlsbaum 3.5, Logger-Umschaltung, `SYSTem:LOG?`; `test_scpi`, `test_line_framer`; PyVISA mit DTR/RTS aus, 1000 × `*IDN?`. *Commit:* `S51: Add SCPI over USB serial`
+- [x] **S51 · SCPI über USB (1,5 d).** `remote/line_framer.*` (256 B, 16 Befehle, ASCII, HTTP-Erkennung für S54), `remote/scpi.*` auf scpi-parser `8866159` mit Befehlsbaum 3.5 und eigener exakter Zahlenauswertung (`ScpiNumber`), `remote/scpi_usb.*` (`LoopScpiBackend`: Queue, sofort ausführen, Schnappschuss neu; `ScpiUsbLink`: erste Zeile startet die Sitzung, Logger in den Ringpuffer, `Serial.setDebugOutput(false)`, 10 min Leerlauf beendet sie). `SYSTem:IDENtify` (Backlight und RGB-LED 5 s, `CommandType::Identify`), Schnappschuss mit Verbindung und IQ-Bereich. Abweichungen und Messwerte in E-29. Suites `test_scpi` (13 Fälle) und `test_line_framer` (7, mit Zufallstest); MinGW-Warnung der Bibliothek per `-Wno-attributes` nur in den Windows-Envs. Am CYD2USB mit pyserial (DTR/RTS aus, kein Neustart beim Öffnen): 1000 × `*IDN?` fehlerfrei, Median 6,0 ms, 99 % < 11,6 ms; Bedientest 2026-11-06: Identify (Backlight und LED blinken, danach wie vorher), per SCPI gesetzte Frequenzen auf MAIN, Touch unverändert OK. *Commit:* `S51: Add SCPI over USB serial`
 - [ ] **S52 · WLAN-Manager (1,5 d).** `Storage` mit String-API und Preferences-Fake mit mehreren Namespaces (aus S45); Betriebsarten, `WiFiMulti`, Rückfall-AP, `net_settings` (PMK, Zufallspasswort), mDNS, Captive-DNS nur im AP, kein Routing; `test_net_settings`. *Commit:* `S52: Add WiFi manager and network settings storage`
 - [ ] **S53 · WLAN am Gerät (2 d).** Statusleisten-Symbole, CONFIG `WiFi` und `Remote outputs`, Seiten WIFI mit Tastatur, QR, Spinner, `sanitize`; Info-Karte mit WLAN, Heap und LVGL-Heap (V-8); `test_sanitize`. *Commit:* `S53: Add WiFi setup pages with keyboard and QR`
-- [ ] **S54 · SCPI über TCP (0,5 d).** Port 5025 mit HTTP-Erkennung, Leerlauf-Timeout, eine Verbindung, mDNS `_scpi-raw._tcp`. *Commit:* `S54: Add SCPI over TCP`
+- [ ] **S54 · SCPI über TCP (0,5 d).** Port 5025 mit HTTP-Erkennung (`looksLikeHttp` aus S51), Leerlauf-Timeout, eine Verbindung, mDNS `_scpi-raw._tcp`; Backend wartet ≤ 1 s auf das Ticket, `loop()` veröffentlicht den Schnappschuss vor dem Freigeben der Ergebnisse (sonst sieht eine Abfrage in derselben Zeile den alten Stand). *Commit:* `S54: Add SCPI over TCP`
 - [ ] **S55 · Webserver (2 d).** `request_guard`, REST, WebSocket, Login, Header, CSP; `test_http_guard`, `test_rest_json`. *Commit:* `S55: Add guarded web server and REST API`
 - [ ] **S56 · Weboberfläche (2,5 d).** Alle Bereiche, Tastatur, responsiv, Live-Hervorhebung, zweistufige Netzänderung, Identify. *Commit:* `S56: Add web user interface`
 - [ ] **S57 · Fuzzing und Dauertest (1 d + Laufzeit).** libFuzzer-CI-Job (≥ 10 Mio.), Zufallstest mit festem Seed; 24-h-Lauf mit Heap- und Stack-Bilanz. *Commit:* `S57: Add fuzzing job and long-run test`

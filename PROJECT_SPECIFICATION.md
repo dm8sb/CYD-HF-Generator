@@ -1,6 +1,6 @@
 # CYD HF Generator – Project Specification
 
-Firmware 1.3.3 · Status 2026-11-05
+Firmware 1.3.3 · Status 2026-11-06
 
 This document contains only **requirements** (A-n, numbered and testable) and **decisions** (E-n, dated, with rationale and measured values where they exist). Behavior as seen by the user (pages, controls, messages, log lines, examples) is described only in [USER_MANUAL_DE.md](USER_MANUAL_DE.md); [USER_MANUAL_EN.md](USER_MANUAL_EN.md) is its translation. Build instructions and the change history are in [README.md](README.md), architecture and development rules in [CLAUDE.md](CLAUDE.md).
 
@@ -155,8 +155,8 @@ This table is authoritative; README and manual repeat parts of it.
 
 ### 3.6 Robustness and errors
 
-- **A-59** Every controller setter reports its result (`Ok`, `NoChange`, `OutOfRange`, `Invalid`, `Conflict`, `HwError`); values are checked in their full type and never cut or clamped silently, only the `adjust*`/step functions of the GUI clamp to the range; the channel index is 1–2 (frequency) or 1–3 (output) strictly (V-1, S-12, W-E18).
-- **A-60** The autosave writes only the NVS keys that changed; changes from remote commands are saved after 30 s of quiet, touch changes after 5 s; `*RST` sets the defaults in RAM without saving them until `SYSTem:SAVE`, and a later change saves only its own key (V-4, C-17, W-E17, W-E19).
+- **A-59** Every controller setter reports its result (`Ok`, `NoChange`, `OutOfRange`, `Invalid`, `Conflict`, `Denied`, `HwError`); values are checked in their full type and never cut or clamped silently, only the `adjust*`/step functions of the GUI clamp to the range; the channel index is 1–2 (frequency) or 1–3 (output) strictly (V-1, S-12, W-E18).
+- **A-60** The autosave writes only the NVS keys that changed; changes from SCPI (USB, later TCP) are saved after 30 s of quiet, touch and web changes after 5 s; `*RST` sets the defaults in RAM without saving them until `SYSTem:SAVE`, and a later change saves only its own key (V-4, C-17, W-E17, W-E19).
 - **A-34** SI5351 errors never crash the firmware; they are logged, shown as a dialog where useful, and leave the outputs in a safe state.
 - **A-35** Supervision every 2 s (`HW_CHECK_INTERVAL_MS`) reads back the output enable and CLK control registers. A failed transfer or unexpected content (e.g. after a power interruption) marks the SI5351 as lost (NO HW); the firmware tries to reconnect in the same cycle and then every 2 s, and restores all outputs with their states.
 - **A-36** Without SI5351 no output is configured and no repeated errors appear; all settings remain editable and are saved.
@@ -168,19 +168,29 @@ This table is authoritative; README and manual repeat parts of it.
 - **A-55** Touch test builds (`TEST_TOUCH_LOG`, `TEST_HIT_MAP`, own PlatformIO envs) log every touch and show a hit map for the operating tests; they are never released, the release env contains none of it, and CI builds the hit map env.
 - **A-51** An internal error never freezes the device with running outputs: a failed LVGL assert (e.g. pool full) and a `loop()` blocked for 5 s (task watchdog) restart it; after the restart all outputs are off (A-4). Test hooks `TEST_LVGL_ASSERT` and `TEST_LOOP_HANG` (`config.h`) trigger both 20 s after boot.
 
-### 3.7 Hardware detection
+### 3.7 Remote control
+
+- **A-62** SCPI over the USB serial port (115 200 baud, LF) with the command tree of the manual (section 15): IEEE 488.2 common commands, outputs, frequencies, CH3, all CONFIG settings except `Remote outputs`, diagnosis, log, save, identify. Commands go through the command queue and the controller like touch actions; queries read the state snapshot (V-6).
+- **A-63** Numbers are parsed exactly as integers (Hz, 0.01 ppm, %), with the units HZ/KHZ/MHZ, PPM, PCT, DEG, exponents and MIN/MAX/DEF; nothing is clipped: out of range −222, NAN/INF/hex/unknown units/values not in the set −224, wrong data type −104. A command with an extra parameter (−108) or any error changes nothing (W-E18, W-S19).
+- **A-64** A line has at most 256 bytes, 16 commands and only printable ASCII or TAB; otherwise it is discarded up to its LF without executing anything (−363, −101, −223) (W-S17).
+- **A-65** At most 20 setting commands per second and source; further ones are refused (`-200,"Execution error;Too many commands"`) (W-S11).
+- **A-66** The first line over USB starts an SCPI session: log lines go only into the ring buffer (A-61) and the Arduino core's own messages are off until 10 min without a line (W-E27, W-S22). Opening the port with DTR/RTS off does not restart the device.
+- **A-67** `Remote outputs` (W-E25, W-S21): `allowed` (default) or `local only`; with `local only` a remote source cannot switch an output on (`Denied`, SCPI −221), switching off stays allowed. Only the touch source changes it; it is saved at once, kept by `Defaults` and `*RST` and reset by the factory reset.
+- **A-68** `SYSTem:IDENtify` blinks the backlight and the RGB LED for 5 s (W-E28).
+
+### 3.8 Hardware detection
 
 - **A-41** The SI5351 works with SDA/SCL in either order on CN1. The assignment is detected at boot and every 2 s while the chip is not ready (hot plug, replugging); while it is ready, the pins are never changed (E-17).
 - **A-42** The identity of the device at 0x60 is checked before the first write; a foreign device is not programmed (at most a test byte in register 3).
 - **A-43** An I2C line held low at boot (SI5351 reset during a read) is released.
 - **A-44** One firmware for both boards: the display controller is detected before the display init at every boot; nothing is stored; a build flag can force it (E-18, E-26).
 
-### 3.8 Build and tests
+### 3.9 Build and tests
 
 - **A-45** PlatformIO + Arduino-ESP32. `esp32-2432S028R` is the only firmware environment and `default_envs`; `native` (gcc in PATH) and `native-win` (bundled MinGW) run the host tests.
-- **A-46** Pinned versions: `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43`, `lvgl/lvgl@8.4.0` (E-28), XPT2046_Touchscreen from GitHub, pinned to commit `d57f64c8b5f2bc5b8d10d121550806eeff7b06d9` (tag v1.4, E-4). Partition table `huge_app.csv`, 4 MB flash.
+- **A-46** Pinned versions: `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43`, `lvgl/lvgl@8.4.0` (E-28), XPT2046_Touchscreen from GitHub, pinned to commit `d57f64c8b5f2bc5b8d10d121550806eeff7b06d9` (tag v1.4, E-4), j123b567/scpi-parser pinned to commit `886615902b2777b71860445305bfe5a3faef4f3e` (E-29). Partition table `huge_app.csv`, 4 MB flash.
 - **A-47** TFT_eSPI is configured only through build flags (`USER_SETUP_LOADED`), never by editing library files.
-- **A-48** The host tests compile the hardware-independent sources (controller, SI5351 driver and planner, I2C bus, display detection, services, frequency utilities, logger) against fakes (E-15). These sources stay free of LVGL and TFT_eSPI; `constants.h`, `types.h` and `frequency_utils.h` do not include `Arduino.h`.
+- **A-48** The host tests compile the hardware-independent sources (controller, SI5351 driver and planner, I2C bus, display detection, services, frequency utilities, logger) against fakes (E-15), and the remote layer (command queue, line framer, SCPI with the parser library). These sources stay free of LVGL and TFT_eSPI; `constants.h`, `types.h` and `frequency_utils.h` do not include `Arduino.h`.
 - **A-49** The version is `APP_VERSION` in `config.h`. Branch, commit (with `+` for uncommitted changes) and build time are taken at build time; without git they read `unknown` (E-24).
 - **A-50** The own sources (`src/`) compile with `-Wall -Wextra` (`build_src_flags`) without warnings; libraries keep their default flags.
 
@@ -299,3 +309,6 @@ Whether `CLKx_PDN` leaves a pin high-impedance or pulls it low is unmeasured (ha
 
 ### E-28 LVGL 8.4.0, not LVGL 9
 *2026-11-05 (migration, ARBEITSPLAN S40a).* 8.4.0 is the last LVGL 8 release. Against 8.3.11 it changes almost only formatting; in content the screen load order, a group focus swap and a cast in `lv_obj_style.h` that removes the C++20 enum warning of GCC 14 (Arduino 3.x); the widgets the GUI uses (label, button matrix, dropdown, switch, textarea, message box, scrolling, input) are unchanged apart from whitespace, `lv_conf_internal.h` and the template keys are identical. Measured on the original CYD (debug build): first frame 159 ms (2.x core, as 8.3.11) and 169 ms (3.x core, 172 ms with 8.3.11), heap and LVGL memory unchanged, flash +72 B. LVGL 9 is not used: new display, input, style and widget APIs would mean rebuilding every page and a full operating test, for no feature the device needs.
+
+### E-29 SCPI on scpi-parser with own number parsing
+*2026-11-06 (ARBEITSPLAN S51).* The command tree runs on j123b567/scpi-parser (BSD-2): header matching with short/long forms and suffixes, error queue and IEEE 488.2 registers are tested there and fuzzed (issue #174: about 95 M executions of lexer and parser clean; the three findings are in the example code, which is not used). Pinned to commit `886615902b2777b71860445305bfe5a3faef4f3e` = v2.3 plus `strings.h` for `strncasecmp` and a `-Wdouble-promotion` fix. Configured identically for the ESP32 and the host (`include/scpi_user_config.h`): full error list, error info in a fixed 256-byte buffer per session (no malloc), LF line ending. Numbers are not converted through the library's `double`: `remote/scpi.cpp` parses the token text into exact integers, so `7.1E6` and `10.0000005 MHZ` give 7 100 000 and 10 000 001 Hz without binary rounding. Two deviations from the concept: the library knows no optional first node, so `[SOURce<n>:]` is listed twice; the actual output state is `OUTPut<n>:CONDition?` instead of `:STATus?`, because the short form `STAT` would also match `STATe`. `SYSTem:LOG?` returns one line per query, so line-based clients need no block format. Measured on the CYD2USB (Arduino 3.3.12): 1000 × `*IDN?` without error, median 6.0 ms, 99 % below 11.6 ms; flash +24 KB, RAM +1.3 KB.

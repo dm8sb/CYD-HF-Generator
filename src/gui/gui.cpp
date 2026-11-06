@@ -357,6 +357,16 @@ void Gui::refresh_() {
 }
 
 void Gui::update() {
+    if (app_->identifying()) {
+        if (!ledIdentify_ || app_->identifyLit() != ledLit_) {
+            ledIdentify_ = true;
+            ledLit_ = app_->identifyLit();
+            StatusLed::showAll(ledLit_);
+        }
+    } else if (ledIdentify_) {
+        ledIdentify_ = false;
+        StatusLed::showPage(currentPage_);
+    }
     if (currentPage_ == PageId::TouchCal) {
         tickTouchCal_();
         return;

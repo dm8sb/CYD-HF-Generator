@@ -21,6 +21,7 @@ This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware
 - [12. Serial Diagnostics](#12-serial-diagnostics)
 - [13. Current Hardware Pinout](#13-current-hardware-pinout)
 - [14. Safety Note](#14-safety-note)
+- [15. Remote Control over USB (SCPI)](#15-remote-control-over-usb-scpi)
 - [Appendix A: Page Sketches](#appendix-a-page-sketches)
 - [Appendix B: Glossary](#appendix-b-glossary)
 - [Appendix C: Symptoms and Remedies](#appendix-c-symptoms-and-remedies)
@@ -718,6 +719,8 @@ The display controller is not stored but detected at every startup (section 13).
 
 The touch calibration is stored per board; an implausible stored value is not used (the calibration then starts again).
 
+Settings changed over SCPI are saved only after 30 s without a further change, `SYST:SAVE` at once; `*RST` saves nothing (section 15).
+
 The ON/OFF state of the outputs is not saved; all outputs are off after power-up. Switching outputs on or off therefore does not trigger saving, nor does a setting that already has the selected value. This spares the flash memory.
 
 ---
@@ -953,6 +956,10 @@ Important messages:
 | `[SETTINGS] Saved to NVS` | Autosave |
 | `[APP] Restoring outputs` | After reconnecting, the outputs are being restored |
 | `[APP] Output error cleared` | An output error (`! ERR`) has been cleared |
+| `[SCPI] USB session started; log in SYSTem:LOG?` | First SCPI line over USB: further log lines only go into the buffer (section 15); this line is already in the buffer |
+| `[SCPI] USB session ended (idle); log on serial again` | 10 min without an SCPI line: the log runs over USB again |
+| `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
+| `[APP] Identify` | `SYST:IDEN`: backlight and LED blink for 5 s |
 
 Error messages start with `[ERROR]`, e.g.:
 
@@ -1016,8 +1023,89 @@ The SI5351 outputs deliver digital square-wave signals. Before connecting them t
 
 For operation:
 
-- **Physical access is full access:** anyone who can operate the device or reflash it via USB can change all settings and outputs; there is no lock and no password.
+- **Physical access is full access:** anyone who can operate the device or reflash it via USB can change all settings and outputs; there is no lock and no password. This includes SCPI over USB (section 15): any program on the connected PC can switch outputs on.
 - **Foreign device at 0x60:** if another device answers at I2C address 0x60, the firmware reads its identification and writes at most one test byte into its register 3 before it recognizes it as "not an SI5351" (section 11). Do not connect other devices with this address to CN1.
+
+---
+
+## 15. Remote Control over USB (SCPI)
+
+The generator understands SCPI commands over the same USB connection that also carries the log. Every change appears on the display at once; touch and SCPI have equal rights, the last change wins.
+
+### Connection
+
+- 115 200 baud, 8N1; every line ends with LF (`\n`), a CR before it is ignored. Answers end with LF.
+- Open the port with **DTR and RTS off**. Otherwise the board's auto-reset circuit restarts it when the port is opened.
+- The first line received starts an **SCPI session**: from then on the device writes no log lines to USB, so they do not mix with answers. They go into a buffer (32 lines, the oldest drop out) and can be read with `SYST:LOG?`. After 10 minutes without a line the session ends and the log runs over USB again (`[SCPI] USB session ended (idle); log on serial again`).
+- A line has at most 256 characters and at most 16 commands separated by `;`. Only printable ASCII characters and TAB are allowed. A line that breaks these rules is discarded completely: error −363 (too long), −101 (invalid character) or −223 (too many commands).
+- At most 20 setting commands per second; every further one is refused with `-200,"Execution error;Too many commands"`.
+
+### Commands
+
+Short form in capitals, any case (`FREQ`, `freq`, `FREQuency`). `<n>` is the channel 1–3, 1 if omitted. `[ ]` is optional. Queries end with `?`.
+
+| Command | Query answer | Meaning |
+|---|---|---|
+| `*IDN?` | `CYD,HF-Generator,<MAC>,<version>` | Identification |
+| `*RST` | – | All outputs off, defaults in RAM (correction kept), **not saved** until `SYST:SAVE` or the next change (then only its value) |
+| `*CLS`, `*ESE`, `*ESE?`, `*ESR?`, `*SRE`, `*SRE?`, `*STB?`, `*OPC`, `*OPC?`, `*WAI` | | Status registers per IEEE 488.2; commands run at once, `*OPC?` answers `1` |
+| `*TST?` | `0` / `1` | `1`: no SI5351 connected |
+| `OUTPut<n>[:STATe] ON\|OFF\|1\|0` | `1` / `0` | Output on/off (CH3: request like the switch) |
+| `OUTPut<n>:CONDition?` | `ON`, `OFF`, `ERR`, `WAIT`, `NOHW` | Actual state as shown (`WAIT`: CH3 waits, `NOHW`: no SI5351) |
+| `[SOURce<n>:]FREQuency[:CW] <f>` | Hz | Frequency CH1/CH2; CH3 query only (frequency of its master) |
+| `[SOURce<n>:]FREQuency:ACTual?` | Hz with 0.1 Hz | Actual frequency like the `Out` line |
+| `SOURce3:IQ:MASTer 1\|2` | `1` / `2` | Master of CH3 |
+| `SOURce3:PHASe 0\|90\|180\|270` | degrees | Phase of CH3 |
+| `SOURce3:IQ:RANGe?` | `<min>,<max>` in Hz | IQ range of the master (narrower with spread spectrum) |
+| `OUTPut:DRIVe 2\|4\|6\|8` | mA | `Drive all` |
+| `OUTPut:OFFState LOW\|HIGH\|HIZ` | | `Off state` |
+| `OUTPut:REMote?` | `ALLOWED` / `LOCAL` | `Remote outputs` (read only, see below) |
+| `[SOURce1:]SSC OFF\|DOWN05\|DOWN15\|CENT05` | | `Spread CH1` |
+| `SYSTem:TUNing FRACtional\|LNOise\|INTeger` | `FRAC`, `LNO`, `INT` | `Tuning` |
+| `SYSTem:CORRection <ppm>` | ppm with 2 places | Frequency correction, ±50 ppm, rounded to 0.01 ppm |
+| `SYSTem:STEP <Hz>` | Hz | Frequency step (1 Hz … 1 MHz, powers of ten) |
+| `SYSTem:BACKlight <%>` | % | Brightness (10–100 %) |
+| `SYSTem:SI5351?` | `CONN`, `NFO`, `BLOC`, `UNKN` | Connection: connected, not found, line held low, foreign device |
+| `SYSTem:HEAP?` | `<free>,<minimum>,<largest block>` | Memory in bytes |
+| `SYSTem:IDENtify` | – | Backlight and RGB LED blink for 5 s |
+| `SYSTem:LOG?` | `"<line>"` | Oldest buffered log line, `""` when none is left |
+| `SYSTem:SAVE` | – | Save all settings at once |
+| `SYSTem:ERRor[:NEXT]?`, `SYSTem:ERRor:COUNt?` | `<code>,"<text>"` | Error queue (16 entries), `0,"No error"` when empty |
+| `SYSTem:VERSion?` | `1999.0` | SCPI version |
+
+Numbers: whole Hz (`7100000`), a decimal number with or without the unit `HZ`, `KHZ`, `MHZ` (`7.1 MHZ`, `455khz`) or with an exponent (`7.1E6`); rounded to 1 Hz. `MIN`, `MAX` and `DEF` set the limit or the default. Nothing is clipped: values out of range give −222, `NAN`, `INF`, hex numbers, unknown units and values not allowed −224, strings −104. A refused command changes nothing.
+
+Several commands in one line: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` starts again at the root); queries answer in one line separated by `;`: `FREQ?;:OUTP1?` → `7100000;1`.
+
+### Saving, Defaults and Errors
+
+- Settings changed over SCPI are saved after 30 s without a further change (at the touch screen after 5 s). `SYST:SAVE` saves at once.
+- Errors caused by an SCPI command (e.g. output errors) open no dialog on the display; they are in the error queue (`-240,"Hardware error;SI5351"`) and in the log.
+- `Remote outputs`: with the option at `local only` the device refuses `OUTP<n> ON` with `-221,"Settings conflict;Remote outputs: local only"`; switching off stays allowed. The option can only be changed at the device; its CONFIG row comes with the WiFi firmware, until then `allowed` applies.
+
+### Example (Python with pyserial)
+
+```python
+import serial
+
+gen = serial.Serial()
+gen.port = "COM5"          # Linux: /dev/ttyUSB0
+gen.baudrate = 115200
+gen.timeout = 2
+gen.dtr = False            # before open(): no restart when opening
+gen.rts = False
+gen.open()
+
+def query(cmd):
+    gen.write((cmd + "\n").encode())
+    return gen.readline().decode().strip()
+
+print(query("*IDN?"))
+gen.write(b"FREQ 7.1 MHZ\n")
+gen.write(b"OUTP1 ON\n")
+print(query("FREQ:ACT?"))
+print(query("SYST:ERR?"))
+```
 
 ---
 
