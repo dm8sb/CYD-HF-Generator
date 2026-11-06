@@ -342,7 +342,21 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 - [ ] **S57 · Fuzzing und Dauertest (1 d + Laufzeit).** Rest: Harnesses für `request_guard` und REST-JSON (mit S55), manueller CI-Lauf mit ≥ 10 Mio. je Ziel, 24-h-Lauf mit Heap- und Stack-Bilanz. libFuzzer-CI-Job (≥ 10 Mio.), Zufallstest mit festem Seed; 24-h-Lauf mit Heap- und Stack-Bilanz. *Commit:* `S57: Add fuzzing job and long-run test`
 - [ ] **S58 · Doku und Release-Kandidat (1,5 d).** Handbuch DE/EN (WLAN, Web, SCPI-Referenz, REST, Python-Beispiel, Sicherheitshinweise, Fernbetrieb und Antenne), Spezifikation, README, `CLAUDE.md`, diese Datei; Version 1.4.0, lokaler Tag `v1.4.0-rc1`; Smoke-Test einschließlich L1 und `*IDN?`. *Commit:* `S58: Document WEB-HMI, release candidate 1.4.0-rc1`
 
-### Phase 7 – Messungen ([MESSPLAN.md](MESSPLAN.md))
+### Phase 7 – GitHub und Verteilung (≈ 2–2,5 d, je ein Commit; `[Nutzer]` = Einstellung im Repo, nur durch den Nutzer)
+
+Stand 2026-11-06: im Repo nur `ci.yml`, `fuzz.yml`, `LICENSE` und Tags `v1.3.0`–`v1.3.3` ohne Release-Dateien.
+
+- [ ] **G1 · Release-Workflow (0,5 d).** Bei Tag `v*`: beide Envs bauen, ans GitHub-Release `firmware.bin`, die Teile für den Webflasher (`bootloader.bin` 0x1000, `partitions.bin` 0x8000, `boot_app0.bin` 0xE000, `firmware.bin` 0x10000) und `SHA256SUMS` hängen; Herkunftsnachweis mit `actions/attest-build-provenance` (W-S24); Actions per SHA, `contents: write` nur in diesem Job. *Commit:* `G1: Add release workflow with build provenance`
+- [ ] **G2 · Webflasher über WebSerial (0,5–1 d, nach G1; Voraussetzung `[Nutzer]` Pages-Quelle „GitHub Actions“).** ESP Web Tools (feste Version vom CDN) auf GitHub Pages: `index.html` mit `<esp-web-install-button manifest="manifest.json">`, `manifest.json` mit `chipFamily` `ESP32` und den **einzelnen Teilen** aus G1 – kein `merge_bin` ab 0, das füllt Lücken mit `0xFF` und löscht bei jedem Update NVS (Touch-Abgleich, Korrektur, WLAN); `new_install_prompt_erase` für die Erstinstallation. Die `.bin` liegen auf Pages selbst (Release-Downloads haben keine CORS-Header), HTTPS liefert Pages. Deployment per `actions/deploy-pages` aus dem Release-Workflow. Handbuch DE/EN: Chrome/Edge am Desktop (nicht Firefox/Safari), CH340-Treiber unter Windows, Update ohne Erase behält die Einstellungen. Prüfung: beide Boards über die Seite flashen, Update ohne Erase behält Abgleich und WLAN. Abhängig von S55: Weboberfläche in die Firmware einbetten (gzip ≈ 17 KB), damit es ein einziges Image bleibt; sonst LittleFS-Image als weiterer Teil. *Commit:* `G2: Add web flasher on GitHub Pages`
+- [ ] **G3 · Improv Serial (optional, 0,5 d, nach G2).** WLAN direkt nach dem Flashen aus ESP Web Tools einrichten. Kollidiert mit SCPI über USB: der Zeilenleser lehnt Binärpakete ab; Improv-Pakete (Kopf `IMPROV`) vor dem `LineFramer` erkennen. Zugangsdaten nur RAM → `NetConfig`, nie im Log. *Commit:* `G3: Add Improv serial WiFi provisioning`
+- [ ] **G4 · Sicherheit im Repo.** `[Nutzer]` Secret Scanning mit Push-Schutz (zweite Sicherung neben `include/test_wifi_local.h` in `.gitignore`) und private Vulnerability Reports einschalten; `SECURITY.md` (Meldeweg, unterstützte Versionen); CodeQL für C/C++ ohne eigenen Build (`build-mode: none`). *Commit:* `G4: Add security policy and CodeQL`
+- [ ] **G5 · Regeln für `main`.** `[Nutzer]` Branch-Ruleset: CI und Fuzz grün, kein Force-Push, kein Löschen, Änderungen nur per Pull Request. Kein Commit nötig; Ergebnis in Abschnitt 1.3 notieren.
+- [ ] **G6 · Abhängigkeiten aktuell halten.** Dependabot für GitHub Actions (hält die SHA-Pins aktuell, wöchentlich, gruppiert); optional Renovate für die PlatformIO-Bibliotheken (Dependabot kann `platformio.ini` nicht). Updates nur über Pull Request mit grüner CI. *Commit:* `G6: Add Dependabot for GitHub Actions`
+- [ ] **G7 · Größenbericht in der CI.** Flash/RAM beider Envs je Build als Job-Zusammenfassung und Artefakt, Differenz zum Ziel-Branch im Pull Request. *Commit:* `G7: Report firmware size in CI`
+- [ ] **G8 · Vorlagen.** Issue-Formulare (Fehlerbericht mit Firmware-Version und Commit von der Info-Karte, Board CYD/CYD2USB, Log; Wunsch), Pull-Request-Vorlage mit der Gate-Checkliste (Abschnitt 0); optional Discussions für Fragen `[Nutzer]`. *Commit:* `G8: Add issue and pull request templates`
+- [ ] **G9 · Projektseite.** `[Nutzer]` Beschreibung, Topics (`esp32`, `si5351`, `lvgl`, `scpi`, `ham-radio`, `signal-generator`), Vorschaubild; README mit Badges (CI, Release, Lizenz) und Link auf Webflasher und Handbuch; `docs/` mit Fotos, Verdrahtung des SI5351 und Stückliste; Handbuch als Pages-Seite (neben G2). *Commit:* `G9: Add project page, badges and hardware docs`
+
+### Phase 8 – Messungen ([MESSPLAN.md](MESSPLAN.md))
 
 Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md` (ohne Medien); Befunde (M-n) sofort in Abschnitt 2 eintragen. Stufe 1 und 2 laufen **sobald Zähler und Oszilloskop verfügbar sind**; dieser Lauf ist die Referenz R0 (MESSPLAN 9.2).
 
@@ -353,7 +367,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **S63 · Handbuchwerte.** Pegeltabelle (F2), Tastverhältnis (E5), Aufwärmzeit (C7), WLAN-Hinweis (L13), „SI5351 läuft beim Flashen weiter“ (A10), Hardware-Hinweise; DE und EN. *Commit:* `S63: Add measured values to the manuals`
 - [ ] **S64 · Freigabe 1.4.0.** Kriterien MESSPLAN 9.4 erfüllt; Version, README, Tag `v1.4.0`; Merge nach `dev` und `main` nur auf Anweisung. *Commit:* `S64: Release 1.4.0`
 
-### Phase 8 – Folgearbeiten (je ein Commit, nach Messergebnis oder Rückfrage)
+### Phase 9 – Folgearbeiten (je ein Commit, nach Messergebnis oder Rückfrage)
 
 - [ ] **N1 · Standard-Tuning** ändern, wenn die Stufe-2-Messungen es tragen (Rückfrage 2, E-19).
 - [ ] **N2 · IQ-Abstimmen ohne Aussetzer** (Abschnitt 2.1).
@@ -368,20 +382,6 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release.
 - [ ] **N13 · DMA und Doppelpuffer** (Abschnitt 2.3, nach der Migration).
 - [ ] **N14 · Erweiterungen nach Rückfrage 1:** Speicherplätze, Wobbeln, Drive je Kanal, gekoppelter Betrieb CH2 = CH1 ± Offset (Überlagerungsempfänger mit fester ZF), Modulationsarten (AM/FM über den PLL-Bruchteil), externe Referenz (SI5351C mit `CLKIN`), Kalibrierassistent (falls nicht in S32).
-
-### Phase 9 – GitHub und Verteilung (≈ 2–2,5 d, je ein Commit; `[Nutzer]` = Einstellung im Repo, nur durch den Nutzer)
-
-Stand 2026-11-06: im Repo nur `ci.yml`, `fuzz.yml`, `LICENSE` und Tags `v1.3.0`–`v1.3.3` ohne Release-Dateien.
-
-- [ ] **G1 · Release-Workflow (0,5 d).** Bei Tag `v*`: beide Envs bauen, ans GitHub-Release `firmware.bin`, die Teile für den Webflasher (`bootloader.bin` 0x1000, `partitions.bin` 0x8000, `boot_app0.bin` 0xE000, `firmware.bin` 0x10000) und `SHA256SUMS` hängen; Herkunftsnachweis mit `actions/attest-build-provenance` (W-S24); Actions per SHA, `contents: write` nur in diesem Job. *Commit:* `G1: Add release workflow with build provenance`
-- [ ] **G2 · Webflasher über WebSerial (0,5–1 d, nach G1; Voraussetzung `[Nutzer]` Pages-Quelle „GitHub Actions“).** ESP Web Tools (feste Version vom CDN) auf GitHub Pages: `index.html` mit `<esp-web-install-button manifest="manifest.json">`, `manifest.json` mit `chipFamily` `ESP32` und den **einzelnen Teilen** aus G1 – kein `merge_bin` ab 0, das füllt Lücken mit `0xFF` und löscht bei jedem Update NVS (Touch-Abgleich, Korrektur, WLAN); `new_install_prompt_erase` für die Erstinstallation. Die `.bin` liegen auf Pages selbst (Release-Downloads haben keine CORS-Header), HTTPS liefert Pages. Deployment per `actions/deploy-pages` aus dem Release-Workflow. Handbuch DE/EN: Chrome/Edge am Desktop (nicht Firefox/Safari), CH340-Treiber unter Windows, Update ohne Erase behält die Einstellungen. Prüfung: beide Boards über die Seite flashen, Update ohne Erase behält Abgleich und WLAN. Abhängig von S55: Weboberfläche in die Firmware einbetten (gzip ≈ 17 KB), damit es ein einziges Image bleibt; sonst LittleFS-Image als weiterer Teil. *Commit:* `G2: Add web flasher on GitHub Pages`
-- [ ] **G3 · Improv Serial (optional, 0,5 d, nach G2).** WLAN direkt nach dem Flashen aus ESP Web Tools einrichten. Kollidiert mit SCPI über USB: der Zeilenleser lehnt Binärpakete ab; Improv-Pakete (Kopf `IMPROV`) vor dem `LineFramer` erkennen. Zugangsdaten nur RAM → `NetConfig`, nie im Log. *Commit:* `G3: Add Improv serial WiFi provisioning`
-- [ ] **G4 · Sicherheit im Repo.** `[Nutzer]` Secret Scanning mit Push-Schutz (zweite Sicherung neben `include/test_wifi_local.h` in `.gitignore`) und private Vulnerability Reports einschalten; `SECURITY.md` (Meldeweg, unterstützte Versionen); CodeQL für C/C++ ohne eigenen Build (`build-mode: none`). *Commit:* `G4: Add security policy and CodeQL`
-- [ ] **G5 · Regeln für `main`.** `[Nutzer]` Branch-Ruleset: CI und Fuzz grün, kein Force-Push, kein Löschen, Änderungen nur per Pull Request. Kein Commit nötig; Ergebnis in Abschnitt 1.3 notieren.
-- [ ] **G6 · Abhängigkeiten aktuell halten.** Dependabot für GitHub Actions (hält die SHA-Pins aktuell, wöchentlich, gruppiert); optional Renovate für die PlatformIO-Bibliotheken (Dependabot kann `platformio.ini` nicht). Updates nur über Pull Request mit grüner CI. *Commit:* `G6: Add Dependabot for GitHub Actions`
-- [ ] **G7 · Größenbericht in der CI.** Flash/RAM beider Envs je Build als Job-Zusammenfassung und Artefakt, Differenz zum Ziel-Branch im Pull Request. *Commit:* `G7: Report firmware size in CI`
-- [ ] **G8 · Vorlagen.** Issue-Formulare (Fehlerbericht mit Firmware-Version und Commit von der Info-Karte, Board CYD/CYD2USB, Log; Wunsch), Pull-Request-Vorlage mit der Gate-Checkliste (Abschnitt 0); optional Discussions für Fragen `[Nutzer]`. *Commit:* `G8: Add issue and pull request templates`
-- [ ] **G9 · Projektseite.** `[Nutzer]` Beschreibung, Topics (`esp32`, `si5351`, `lvgl`, `scpi`, `ham-radio`, `signal-generator`), Vorschaubild; README mit Badges (CI, Release, Lizenz) und Link auf Webflasher und Handbuch; `docs/` mit Fotos, Verdrahtung des SI5351 und Stückliste; Handbuch als Pages-Seite (neben G2). *Commit:* `G9: Add project page, badges and hardware docs`
 
 ---
 
