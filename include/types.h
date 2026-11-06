@@ -90,5 +90,6 @@ enum class PageId : uint8_t {
     TouchCal, // touch calibration (U-26)
     Wifi,     // WIFI overview (S53b)
     WifiScan, // scan list for one network slot
-    TextEntry // on-screen keyboard (network name, password)
+    TextEntry, // on-screen keyboard (network name, password)
+    WifiAp     // access point with QR code (S53c)
 };

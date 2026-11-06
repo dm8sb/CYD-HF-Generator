@@ -292,6 +292,21 @@ static void test_storage_strings() {
     TEST_ASSERT_FALSE(st.putString("k", "x"));
 }
 
+static void test_wifi_qr_text() {
+    char out[128];
+    TEST_ASSERT_TRUE(NetConfig::wifiQrText("CYD-HF-1A2B", "abcdefghjkmn", false, out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("WIFI:T:WPA;S:CYD-HF-1A2B;P:abcdefghjkmn;;", out);
+    TEST_ASSERT_TRUE(NetConfig::wifiQrText("CYD-HF-1A2B", "ignored", true, out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("WIFI:T:nopass;S:CYD-HF-1A2B;;", out);
+    // Special characters are escaped, so the phone reads the right password.
+    TEST_ASSERT_TRUE(NetConfig::wifiQrText("a;b", "p:w,\"x\\y", false, out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("WIFI:T:WPA;S:a\\;b;P:p\\:w\\,\\\"x\\\\y;;", out);
+    // Too small: false and an empty text, never a cut password.
+    char small[20];
+    TEST_ASSERT_FALSE(NetConfig::wifiQrText("CYD-HF-1A2B", "abcdefghjkmn", false, small, sizeof(small)));
+    TEST_ASSERT_EQUAL_STRING("", small);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_sha1_and_hmac_vectors);
@@ -305,5 +320,6 @@ int main(int, char**) {
     RUN_TEST(test_load_replaces_invalid_values);
     RUN_TEST(test_erase_all);
     RUN_TEST(test_storage_strings);
+    RUN_TEST(test_wifi_qr_text);
     return UNITY_END();
 }

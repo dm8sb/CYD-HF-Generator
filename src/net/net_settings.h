@@ -79,4 +79,8 @@ bool save(Storage& storage, const NetSettings& s);
 // Factory reset (W-S14): erases "hfnet" and the WiFi driver's namespace.
 bool eraseAll();
 
+// Text of the "join" QR code (W-E3): WIFI:T:WPA;S:<ssid>;P:<password>;; or, open,
+// WIFI:T:nopass;S:<ssid>;; with \ ; , : " escaped by a backslash. false if it does not fit.
+bool wifiQrText(const char* ssid, const char* password, bool open, char* out, size_t outSize);
+
 }

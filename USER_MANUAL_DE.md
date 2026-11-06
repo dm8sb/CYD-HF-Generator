@@ -657,6 +657,17 @@ Unten zeigt eine Zeile, was das WLAN gerade tut: `WiFi is Off. Choose Client in 
 
 Nach einem Speichern startet das WLAN mit den neuen Daten neu. Sind beide Plätze belegt, verbindet sich das Gerät mit dem stärkeren Netz; scheitert es dort (z. B. falsches Passwort), versucht es beim nächsten Mal das andere.
 
+Die dritte Karte `AP  CYD-HF-<4 Stellen>` zeigt den eigenen Access Point (`WPA2` oder orange `open`, `active` oder `off`); `Show` öffnet seine Seite.
+
+### Access Point (Seite)
+
+- Links ein QR-Code zum Verbinden: Handy-Kamera darauf richten, das Handy verbindet sich ohne Eintippen. Rechts Name, Passwort (im Klartext, damit es abgetippt werden kann) und die Adresse `192.168.4.1`.
+- Das Passwort (12 Zeichen ohne verwechselbare wie `0`/`O`, `1`/`l`/`I`) entsteht zufällig beim ersten Öffnen der Seite bzw. beim ersten Start des Access Points und wird gespeichert.
+- `Regenerate`: neues Zufallspasswort; `Set...`: eigenes Passwort (8–63 Zeichen) über die Tastatur. Ein laufender Access Point startet mit dem neuen Passwort neu, verbundene Geräte müssen sich neu verbinden.
+- `Open...`: Access Point ohne Passwort, erst nach einer Warnung. Das Passwort zeigt dann orange `none (open)`, die Taste heißt `Secure` und stellt WPA2 wieder her. Ein offener Access Point geht nach 15 min ohne verbundenes Gerät aus.
+- Unten der Zustand: `Active, 1 connected`, `Off; starts as fallback after 60 s without network` (Betriebsart `Client`), `Off. Choose Access point in CONFIG > WiFi.`
+- Ist der Access Point offen eingestellt und findet das Gerät im Betrieb `Client` kein Netz, startet der Rückfall-Access-Point erst nach der Frage `Open fallback AP` (`Start`).
+
 ### Remote out. (Fernschalten der Ausgänge)
 
 Auswahlliste `allowed` (Standard) und `local only`. Bei `local only` darf die Fernsteuerung (SCPI, später Web) alles einstellen und Ausgänge ausschalten, aber **nicht einschalten** (Abschnitt 15). Die Einstellung lässt sich nur hier am Gerät ändern, wird sofort gespeichert und bleibt bei `Defaults` und `*RST` erhalten; `Factory` setzt sie auf `allowed` zurück.
@@ -1007,6 +1018,7 @@ Wichtige Meldungen:
 | `[WIFI] AP password created` | Erstes Einschalten des Access Points: Zufallspasswort erzeugt und gespeichert |
 | `[WIFI] Scan started`, `[WIFI] Scan: 12 networks` | Netzsuche der Seite WIFI |
 | `[GUI] WiFi network stored` | Netz auf der Seite WIFI gespeichert (ohne Passwort im Log) |
+| `[GUI] AP stored: WPA2` / `AP stored: open`, `[WIFI] AP off` | Access-Point-Passwort bzw. „offen“ gespeichert; ein laufender Access Point startet neu |
 
 Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 

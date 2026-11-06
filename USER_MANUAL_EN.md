@@ -657,6 +657,17 @@ A line at the bottom shows what the WiFi does: `WiFi is Off. Choose Client in CO
 
 After saving, the WiFi restarts with the new data. With both slots used the device connects to the stronger network; if that fails (e.g. wrong password) it tries the other one next time.
 
+The third card `AP  CYD-HF-<4 digits>` shows the own access point (`WPA2` or orange `open`, `active` or `off`); `Show` opens its page.
+
+### Access Point (Page)
+
+- On the left a QR code to connect: point the phone camera at it, the phone connects without typing. On the right name, password (in clear, so it can be typed) and the address `192.168.4.1`.
+- The password (12 characters without look-alikes such as `0`/`O`, `1`/`l`/`I`) is created at random on the first visit of the page or the first start of the access point, and saved.
+- `Regenerate`: new random password; `Set...`: own password (8–63 characters) on the keyboard. A running access point restarts with the new password, connected devices must connect again.
+- `Open...`: access point without password, only after a warning. The password then shows orange `none (open)`, the button reads `Secure` and restores WPA2. An open access point goes off after 15 min without a connected device.
+- At the bottom the state: `Active, 1 connected`, `Off; starts as fallback after 60 s without network` (mode `Client`), `Off. Choose Access point in CONFIG > WiFi.`
+- If the access point is set to open and the device finds no network in `Client` mode, the fallback access point starts only after the question `Open fallback AP` (`Start`).
+
 ### Remote out. (Switching Outputs Remotely)
 
 Drop-down `allowed` (default) and `local only`. With `local only` remote control (SCPI, later web) may set everything and switch outputs off, but **not on** (section 15). The setting can only be changed here at the device, is saved at once and kept by `Defaults` and `*RST`; `Factory` resets it to `allowed`.
@@ -1007,6 +1018,7 @@ Important messages:
 | `[WIFI] AP password created` | First start of the access point: random password created and saved |
 | `[WIFI] Scan started`, `[WIFI] Scan: 12 networks` | Scan of the WIFI page |
 | `[GUI] WiFi network stored` | Network stored on the WIFI page (no password in the log) |
+| `[GUI] AP stored: WPA2` / `AP stored: open`, `[WIFI] AP off` | Access point password or "open" saved; a running access point restarts |
 
 Error messages start with `[ERROR]`, e.g.:
 

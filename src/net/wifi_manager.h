@@ -42,6 +42,11 @@ public:
     void begin(const NetSettings& s, const uint8_t mac[6], SaveFn save);
     // New settings (from the WiFi pages); restarts what changed.
     void apply(const NetSettings& s);
+    // Access point settings (password, open) without touching the client connection: a running
+    // AP restarts with them.
+    void applyAp(const NetSettings& s);
+    // A new random AP password (W-E3), also with the radio off (bootloader RNG then).
+    void newApPassword(char out[NetConfig::AP_PASSWORD_LEN + 1]);
     // The touch confirmed an open fallback AP (W-S2).
     void confirmOpenFallback() { openFallbackConfirmed_ = true; }
     void update();

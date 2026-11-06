@@ -81,7 +81,10 @@ private:
         WifiOther,      // hidden network: enter the name
         EntryShow,      // text entry: show / hide the password
         EntryChanged,
-        EntryDone       // keyboard OK
+        EntryDone,      // keyboard OK
+        ApRegenerate,   // AP page: new random password
+        ApSet,          // AP page: type a password
+        ApOpenToggle    // AP page: open (with confirmation) or secure again
     };
 
     struct Widgets {
@@ -129,6 +132,13 @@ private:
         lv_obj_t* scanState;
         lv_obj_t* entryShow;   // text entry
         lv_obj_t* entryInfo;
+        lv_obj_t* apText;      // WIFI overview: AP card
+        lv_obj_t* apSub;
+        lv_obj_t* apQr;        // AP page
+        lv_obj_t* apName;
+        lv_obj_t* apPass;
+        lv_obj_t* apOpenBtn;
+        lv_obj_t* apState;
     };
 
     void createMain_();
@@ -141,6 +151,10 @@ private:
     void createWifi_();
     void createWifiScan_();
     void createEntry_();
+    void createWifiAp_();
+    void refreshWifiAp_();
+    // Stores AP password / open flag (saved, running AP restarts).
+    void storeAp_(const char* password, bool open);
     void refreshWifi_();
     void refreshWifiScan_();
     void refreshEntry_();
@@ -213,7 +227,7 @@ private:
     static void showState_(lv_obj_t* label, const StatusText::Text& state);
     // Off state High needs a confirmation: a switched-off output then carries DC.
     // Confirmation dialogs with Cancel and one action button in the warning color.
-    enum class Confirm : uint8_t { OffStateHigh, ResetDefaults, FactoryReset, DeleteNetwork, OpenNetwork };
+    enum class Confirm : uint8_t { OffStateHigh, ResetDefaults, FactoryReset, DeleteNetwork, OpenNetwork, ApOpen, OpenFallback };
     void confirm_(Confirm what);
     static void confirmEventCb_(lv_event_t* e);
     // Screen lock events from the touch callback (hint while pressed, LOCKED in the status bar).
@@ -237,7 +251,9 @@ private:
     WifiManager* wifi_ = nullptr;
     bool (*saveNet_)(const NetSettings&) = nullptr;
     // WIFI pages (RAM only)
-    enum class EntryPurpose : uint8_t { Ssid, Password };
+    enum class EntryPurpose : uint8_t { Ssid, Password, ApPassword };
+    PageId entryBack_ = PageId::WifiScan;
+    bool openFallbackAsked_ = false; // W-S2 question shown for the current need
     uint8_t wifiSlot_ = 0;
     uint8_t scanPage_ = 0;
     EntryPurpose entryPurpose_ = EntryPurpose::Password;
