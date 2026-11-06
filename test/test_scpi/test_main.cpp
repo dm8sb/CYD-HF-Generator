@@ -201,6 +201,17 @@ static void test_number_parser() {
     TEST_ASSERT_EQUAL(Parse::Syntax, decimal("5E", 2, 0, nullptr, &v));
     TEST_ASSERT_EQUAL(Parse::Syntax, decimal("80 PCT", 6, 0, nullptr, &v)); // no unit allowed
     TEST_ASSERT_EQUAL(Parse::Syntax, decimal("1.2.3", 5, 0, nullptr, &v));
+    // Many leading zeros of the fraction against a long exponent (fuzzing, S57b).
+    std::string tiny = "0." + std::string(1216, '0') + "1E12345";
+    TEST_ASSERT_EQUAL(Parse::Range, decimal(tiny.c_str(), tiny.size(), 0, nullptr, &v));
+    tiny = "0." + std::string(1216, '0') + "1E1217";
+    TEST_ASSERT_EQUAL(Parse::Ok, decimal(tiny.c_str(), tiny.size(), 0, nullptr, &v));
+    TEST_ASSERT_EQUAL_INT64(1, v);
+    tiny = "5E-" + std::string(30, '9');
+    TEST_ASSERT_EQUAL(Parse::Ok, decimal(tiny.c_str(), tiny.size(), 0, nullptr, &v));
+    TEST_ASSERT_EQUAL_INT64(0, v);
+    tiny = "5E" + std::string(30, '9');
+    TEST_ASSERT_EQUAL(Parse::Range, decimal(tiny.c_str(), tiny.size(), 0, nullptr, &v));
     uint64_t hz = 0;
     TEST_ASSERT_EQUAL(Parse::Ok, frequency("160MHZ", 6, &hz));
     TEST_ASSERT_EQUAL_UINT64(FREQ_MAX_HZ, hz);
