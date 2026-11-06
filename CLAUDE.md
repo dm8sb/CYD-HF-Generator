@@ -15,6 +15,7 @@ pio test -e native-win                    # host unit tests on Windows (bundled 
 pio test -e native                        # host unit tests on Linux/macOS (gcc in PATH)
 pio test -e native-win -f test_si5351     # run a single test suite (test/test_<name>/)
 pio test -e native-win-fault              # IQ error state: test_fault_iq with -DTEST_FAULT_IQ=1 (native-fault on Linux)
+test/fuzz/build.sh [target]               # libFuzzer + ASan/UBSan (Linux, clang); --standalone for gcc/MinGW (test/fuzz/README.md)
 pio test -e native-cpp20                  # host tests in C++20 like the firmware on Arduino 3.x (Linux/CI; MinGW is GCC 5.1)
 pio run -e esp32-2432S028R-touchlog -t upload --upload-port COMx   # test build: one log line per touch
 pio run -e esp32-2432S028R-hitmap -t upload --upload-port COMx     # test build: hit map + touch log
