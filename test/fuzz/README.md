@@ -104,8 +104,7 @@ the host tests: `pio test -e native-win -f test_fuzz_random`.
 
 ## Known findings
 
-- `ScpiNumber::decimal` stops reading exponent digits once the exponent is ≥ 1000 (it caps at
-  four digits) but counts every leading zero of the fraction: `0.` + 1216 zeros + `1E12345`
-  (1225 bytes, value 10^11128) gives `Ok` with 10^17. Not reachable over SCPI (lines ≤ 256
-  bytes, then the zeros cannot outweigh a four-digit exponent), so `scpi_number` checks the
-  reference only for tokens ≤ 256 bytes and longer ones for memory safety.
+- Fixed in S57b: `ScpiNumber::decimal` capped the exponent at four digits but counted every
+  leading zero of the fraction, so `0.` + 1216 zeros + `1E12345` gave `Ok` with 10^17. The
+  exponent now saturates above the token length; `scpi_number` checks every length against
+  the reference.

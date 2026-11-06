@@ -35,7 +35,7 @@ Parse decimal(const char* s, size_t n, int8_t scaleExp, const Unit* units, int64
     // Significant digits (leading zeros skipped) and the decimal exponent of the last digit.
     uint64_t mantissa = 0;
     int significant = 0;
-    int exp10 = 0;
+    int64_t exp10 = 0;
     int digits = 0;
     while (i < n && digit(s[i])) {
         if (significant > 0 || s[i] != '0') {
@@ -72,10 +72,13 @@ Parse decimal(const char* s, size_t n, int8_t scaleExp, const Unit* units, int64
         ++i;
         bool expNegative = false;
         if (i < n && (s[i] == '+' || s[i] == '-')) expNegative = s[i++] == '-';
-        int e = 0;
+        // Saturates above the token length: the digits can shift the decimal point by at most n
+        // places, so a larger exponent decides the result alone (out of range or 0).
+        const int64_t cap = (int64_t)n + 40;
+        int64_t e = 0;
         int expDigits = 0;
         while (i < n && digit(s[i])) {
-            if (e < 1000) e = e * 10 + (s[i] - '0');
+            if (e <= cap) e = e * 10 + (s[i] - '0');
             ++expDigits;
             ++i;
         }
@@ -107,13 +110,13 @@ Parse decimal(const char* s, size_t n, int8_t scaleExp, const Unit* units, int64
     uint64_t magnitude;
     if (exp10 >= 0) {
         if (exp10 > 18) return Parse::Range;
-        const uint64_t p = pow10u(exp10);
+        const uint64_t p = pow10u((int)exp10);
         if (mantissa > (uint64_t)INT64_MAX / p) return Parse::Range;
         magnitude = mantissa * p;
     } else if (exp10 < -19) {
         magnitude = 0; // below half a unit
     } else {
-        const uint64_t p = pow10u(-exp10);
+        const uint64_t p = pow10u((int)-exp10);
         magnitude = mantissa / p;
         const uint64_t rest = mantissa % p;
         if (rest >= p - rest) ++magnitude; // half away from zero

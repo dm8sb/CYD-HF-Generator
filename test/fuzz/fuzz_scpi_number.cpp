@@ -104,12 +104,8 @@ int run(const uint8_t* data, size_t size) {
     const Parse p = ScpiNumber::decimal(s, n, scaleExp, units, &v);
     const Reference ref = reference(text, scaleExp, units);
 
-    // Tokens come from framed lines (<= MAX_LINE bytes). Longer text is run for memory safety
-    // only: decimal() caps the exponent digits at 4, which over 1200 leading zeros in the
-    // fraction can no longer balance (README, "Known findings").
-    if (n > LineFramer::MAX_LINE) {
-        FUZZ_CHECK(p != Parse::Ok || v != INT64_MIN);
-    } else if (!ref.grammar) {
+    // Any length, not only framed lines: REST may pass longer tokens.
+    if (!ref.grammar) {
         FUZZ_CHECK(p == Parse::Syntax);
     } else if (ref.significant > 18) {
         FUZZ_CHECK(p == Parse::Syntax);
