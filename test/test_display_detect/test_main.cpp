@@ -194,6 +194,7 @@ static void test_post_init_st7789() {
 
 static void test_stored_display_choice_is_removed_once() {
     Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
     p.putUChar("disp_panel", 2);
     SettingsService s;
     TEST_ASSERT_TRUE(s.begin());

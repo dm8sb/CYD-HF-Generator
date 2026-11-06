@@ -163,6 +163,7 @@ static void test_calibration_is_stored_and_loaded() {
     TEST_ASSERT_EQUAL_INT32(250, c.y_max);
     // A broken value is not used.
     Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
     p.putInt("tc_x1", 600);
     TEST_ASSERT_FALSE(s.loadTouchCalibration(&c));
 }

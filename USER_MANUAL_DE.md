@@ -659,7 +659,7 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 | Taste | Wirkung |
 |---|---|
 | `Defaults` | Nach Bestätigung (`Reset`) gelten alle Werkseinstellungen (Kurzanleitung), auch die Frequenzen, CH3-Master und -Phase und der Schritt; alle Ausgänge gehen aus. **Frequenzkorrektur und Touch-Abgleich bleiben.** Gespeichert wird nach 5 s wie bei jeder Änderung. |
-| `Factory` (rot) | Nach Bestätigung (`Erase`) löscht das Gerät alle gespeicherten Einstellungen einschließlich Frequenzkorrektur und Touch-Abgleich und startet neu. Danach erscheint der Touch-Abgleich wie beim ersten Start. |
+| `Factory` (rot) | Nach Bestätigung (`Erase`) löscht das Gerät alle gespeicherten Einstellungen einschließlich Frequenzkorrektur, Touch-Abgleich, `Remote outputs` und WLAN-Einstellungen (auch die des WLAN-Treibers) und startet neu. Danach erscheint der Touch-Abgleich wie beim ersten Start. |
 
 `Cancel` lässt alles unverändert.
 

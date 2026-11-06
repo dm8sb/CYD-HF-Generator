@@ -15,6 +15,10 @@ public:
     bool putI32(const char* key, int32_t value);
     uint8_t getU8(const char* key, uint8_t def);
     bool putU8(const char* key, uint8_t value);
+    // Text up to outSize - 1 bytes; false (out = "") if missing or longer.
+    bool getString(const char* key, char* out, size_t outSize);
+    // An empty text removes the key (NVS cannot tell "" from a failed write).
+    bool putString(const char* key, const char* value);
     // Deletes the key; false if it did not exist or the delete failed.
     bool remove(const char* key);
     // Deletes every key of the namespace.
