@@ -871,7 +871,7 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 `Geräte` Smartphone, Laptop · `Dauer` 15 min
 
 1. AP-Modus: Smartphone verbinden, Gateway/DNS in den Netzwerkdetails ablesen (DHCP ohne Gateway-Option).
-2. Mit Verbindung zum Router: der AP schaltet ab (L1); Zeit von der STA-IP (Log) bis zum Verschwinden des AP am Smartphone messen.
+2. Mit Verbindung zum Router: der AP schaltet ab (L1); Zeit von der STA-IP (Log) bis zum Verschwinden des AP am Smartphone messen. Vorab S52b (2026-11-06, Log): AP 0,1 s nach `Connected` aus.
 3. Optional (Stufe 3): Laptop am Rückfall-AP mit statischer Route `route add <Heimnetz> mask <Maske> 192.168.4.1`, Zugriff auf einen Host im Heimnetz versuchen.
 
 **Soll:** kein Gateway per DHCP; AP aus ≤ 1 s nach der STA-IP (D14: das IDF leitet weiter, solange beide eine Adresse haben); optional: kein Host im Heimnetz erreichbar.
@@ -886,7 +886,7 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 3. `strings nvs.bin full.bin | findstr /i "Testpass Webpass"`.
 4. Werksreset auslösen; Dump wiederholen.
 
-**Soll:** keine Passphrase im Klartext (WLAN als PMK, Web-Passwort als Hash); nach Werksreset weder `hfnet` noch `nvs.net80211` noch Coredump mit Inhalt.
+**Soll:** Web-Passwort nur als Hash; die WLAN-Passphrase liegt nach D15 (E-30) bewusst im Klartext in `hfnet` und erscheint sonst nirgends (nicht in `nvs.net80211`, nicht im Log); nach Werksreset weder `hfnet` noch `nvs.net80211` noch Coredump mit Inhalt.
 **Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
 
 #### L-S8 · `Remote outputs: local only` (W-S21)

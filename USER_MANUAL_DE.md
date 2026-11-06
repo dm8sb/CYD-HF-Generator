@@ -960,6 +960,14 @@ Wichtige Meldungen:
 | `[SCPI] USB session ended (idle); log on serial again` | 10 min ohne SCPI-Zeile: das Log läuft wieder über USB |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
 | `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
+| `[WIFI] Mode Off, name cyd-hf-1a2b` | WLAN-Betriebsart beim Start bzw. nach einer Änderung und Gerätename; Standard `Off` (Funk aus) |
+| `[WIFI] Seen <Netz>: channel 6, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Ergebnis der Netzsuche für die gespeicherten Netze |
+| `[WIFI] Connecting to <Netz>`, `[WIFI] Connected to <Netz>, 192.168.1.50, RSSI -60 dBm` | Verbindungsaufbau und Verbindung mit Adresse |
+| `[WIFI] Network not reached (reason 201)` | Nach 15 s keine Verbindung; Grund des WLAN-Treibers (201 = Netz nicht gefunden, 2/15/202 = Anmeldung bzw. Passwort abgelehnt) |
+| `[WIFI] Connection lost; searching` | Verbindung verloren, die Suche läuft weiter |
+| `[WIFI] Fallback AP CYD-HF-1A2B WPA2` | 60 s ohne Verbindung: eigener Access Point als Rückfall; die Suche läuft weiter |
+| `[WIFI] AP off (client has an address)` | Verbunden: der Access Point geht sofort aus |
+| `[WIFI] AP password created` | Erstes Einschalten des Access Points: Zufallspasswort erzeugt und gespeichert |
 
 Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 
