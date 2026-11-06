@@ -169,8 +169,9 @@ static void test_begin_tolerates_sys_init_stuck() {
 static void test_begin_stops_at_first_io_error() {
     chip.reset();
     chip.initReads = 0;
-    // Probe 1, status 2-3, reg183 4-5, OE write 6, OE read-back 7-8: the off state write fails.
-    chip.failAfter = 8;
+    // Probe 1, status 2, reg183 3, OE write 4, OE read-back 5 (a read is one transaction with
+    // repeated start): the off state write fails.
+    chip.failAfter = 5;
     TEST_ASSERT_FALSE(si.begin(0));
     TEST_ASSERT_EQUAL(SI5351Manager::Error::Io, si.lastError());
     TEST_ASSERT_EQUAL_UINT(1, chip.writes.size()); // only the output enable

@@ -105,7 +105,9 @@ void setup() {
     if (!settingsOk) {
         gui.showMessage("Settings", "Flash storage (NVS) unavailable. Settings will not be saved.");
     }
+    const uint32_t frameStart = millis();
     lv_refr_now(nullptr);
+    Logger::debugValue("GUI", "First frame ms", millis() - frameStart);
     backlight.setPercent(loadedState.sys.backlight);
 
     // 9. Program stored frequencies; all outputs start off (no-op without SI5351)

@@ -39,6 +39,9 @@ jobs:
         run: pio test -e native
       - name: Host tests of the IQ error state
         run: pio test -e native-fault
+      # The firmware on Arduino 3.x is C++20: the host tests in the same standard.
+      - name: Host tests in C++20
+        run: pio test -e native-cpp20
 
   firmware:
     name: Firmware build
@@ -59,6 +62,9 @@ jobs:
         run: pip install "platformio==${PLATFORMIO_VERSION}"
       - name: Build firmware
         run: pio run -e esp32-2432S028R
+      # Migration (phase 4): the same firmware on Arduino 3.3.12 until the acceptance (S41).
+      - name: Build firmware on Arduino 3.x
+        run: pio run -e esp32-2432S028R-core3
       # The touch test build (hit map + touch log) must keep compiling.
       - name: Build touch test firmware
         run: pio run -e esp32-2432S028R-hitmap

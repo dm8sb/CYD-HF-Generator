@@ -140,6 +140,7 @@ public:
     uint32_t clockHz = 0;
     uint16_t timeOutMs = 50;
     bool failBegin = false;
+    unsigned deferredWrites = 0; // endTransmission(false) calls (sent with the next requestFrom)
     // end() reports a failure (arduino-esp32 2.0.x: driver left installed without buffers).
     bool failEnd = false;
 
@@ -167,11 +168,12 @@ public:
     bool begun() const { return begun_; }
     int sda() const { return sda_; }
     int scl() const { return scl_; }
-    void resetCounters() { beginCalls = endCalls = setClockCalls = 0; }
+    void resetCounters() { beginCalls = endCalls = setClockCalls = deferredWrites = 0; }
 
     void beginTransmission(uint8_t addr) {
         addr_ = addr;
         txLen_ = 0;
+        repeatedStart_ = false;
     }
     size_t write(uint8_t b) {
         if (txLen_ >= sizeof(tx_)) return 0;
@@ -184,7 +186,17 @@ public:
         return n;
     }
     // 0 = ACK, 2 = address NACK, 4 = bus not started, 5 = timeout.
-    uint8_t endTransmission(bool = true) {
+    // Like both cores: without STOP nothing is sent yet, the bytes go out with requestFrom().
+    uint8_t endTransmission(bool stop = true) {
+        if (!stop) {
+            if (!begun_) {
+                Fake::wireMisuse() = true;
+                return 4;
+            }
+            repeatedStart_ = true;
+            ++deferredWrites;
+            return 0;
+        }
         const uint8_t r = address_(addr_);
         if (r != 0) return r;
         if (txLen_ == 0) return 0; // probe
@@ -196,7 +208,11 @@ public:
     }
     uint8_t requestFrom(uint8_t addr, uint8_t len, uint8_t) {
         rxLen_ = rxPos_ = 0;
+        const bool pointer = repeatedStart_;
+        repeatedStart_ = false;
+        if (pointer && addr != addr_) return 0; // core: "Unfinished Repeated Start transaction"
         if (address_(addr) != 0) return 0;
+        if (pointer && txLen_ > 0 && !ghost_) pointer_ = tx_[0];
         Fake::Si5351Chip& chip = Fake::si5351();
         for (uint8_t i = 0; i < len && rxLen_ < sizeof(rx_); ++i) rx_[rxLen_++] = ghost_ ? 0xFF : chip.read(pointer_++);
         return (uint8_t)rxLen_;
@@ -225,6 +241,7 @@ private:
     }
 
     bool begun_ = false;
+    bool repeatedStart_ = false;
     int sda_ = -1;
     int scl_ = -1;
     bool ghost_ = false;

@@ -960,6 +960,7 @@ Error messages start with `[ERROR]`, e.g.:
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Supervision: the SI5351 does not respond or has lost its configuration |
 | `[E][Wire.cpp:499] requestFrom(): i2cWriteReadNonStop returned Error -1` | Message of the Arduino core about a failed I2C transfer, usually right before `Device lost or reset`; harmless on its own |
+| `[E][esp32-hal-i2c-ng.c:372] i2cWriteReadNonStop(): i2c_master_transmit_receive failed: [259] ESP_ERR_INVALID_STATE`, then `[E][Wire.cpp:532] requestFrom(): i2cWriteReadNonStop returned Error 259` | The same message in firmware built with Arduino core 3.x |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Unusual register 183, e.g. a clone; the module is used anyway |
 | `[ERROR][APP] I2C fails at 400 kHz; staying at 100 kHz` | The bus only works at 100 kHz (e.g. weak pull-ups) |
 | `[ERROR][SETTINGS] Saving to NVS failed` | Saving failed |

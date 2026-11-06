@@ -330,7 +330,7 @@ Aufbau 7 – Netz
 
 ### 4.3 Smoke-Test (je Entwicklungsphase, beide Boards)
 
-`Dauer` ≈ 30 min · nach jeder Phase des Arbeitsplans; das Ergebnis steht im Release-Schritt des [ARBEITSPLAN.md](ARBEITSPLAN.md) (zuletzt S17 für 1.3.1, S30 für 1.3.2 und S36 für 1.3.3).
+`Dauer` ≈ 30 min · nach jeder Phase des Arbeitsplans; das Ergebnis steht im Release-Schritt des [ARBEITSPLAN.md](ARBEITSPLAN.md) (zuletzt S17 für 1.3.1, S30 für 1.3.2, S36 für 1.3.3 und S41b für Core 3).
 
 | Schritt | Prüfung | Erwartung |
 |---|---|---|
@@ -342,7 +342,7 @@ Aufbau 7 – Netz
 | 6 | CH3 IQ 90° an OSZI | zwei Signale mit 25 ns Versatz |
 | 7 (ab WEB-HMI) | L1 (Client), `*IDN?` über TCP 5025 und USB, Webseite öffnet | siehe 5.11 |
 
-Bei 1.3.1 bis 1.3.3 blieben die Schritte 5 und 6 offen (kein Messgerät verfügbar); der erste Stufe-1-Lauf schließt sie (C3, E1).
+Bei 1.3.1 bis 1.3.3 und beim Core-3-Stand (S41b, 2026-11-06) blieben die Schritte 5 und 6 offen (kein Messgerät verfügbar); der erste Stufe-1-Lauf schließt sie (C3, E1).
 
 ---
 
@@ -716,7 +716,7 @@ Seit 1.3.0 schaltet die Firmware CLK2 bei ausgeschaltetem CH3 nur mit `Off state
 3. Log und Zeit bis zum Neustart; Zustand der Ausgänge danach.
 
 **Soll:** Logzeile mit Ursache, Neustart innerhalb 5 s (kein dauerhaftes Einfrieren); nach dem Neustart alle Ausgänge aus (bis dahin läuft CLK0 weiter wie in A10).
-**Ergebnis:** ✔ 2026-11-04 (< 1 s, ohne Modul) · nach S41: ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Ergebnis:** ✔ 2026-11-04 (< 1 s, ohne Modul) · nach S41: ☒ ✔ ☐ ✘ ☐ ○ · Messwert: 2026-11-05, Core 3.3.12 vor der Abnahme (S41a), COM13 mit Modul, nur Log: Assert → `[ERROR][FATAL] LVGL assert; restarting`, `SW_CPU_RESET` nach < 0,1 s, danach `[SI5351] Init OK; all outputs off`; CLK0 am OSZI noch offen
 
 #### Q5 · Loop-Watchdog (S-23, W-S23)
 
@@ -728,7 +728,7 @@ Seit 1.3.0 schaltet die Firmware CLK2 bei ausgeschaltetem CH3 nur mit `Off state
 2. Zeit bis zum Watchdog-Reset (Log: Reset-Grund), Ausgang an CLK0 währenddessen.
 
 **Soll:** Watchdog-Reset 5 s nach dem Blockieren; Ausgänge nach dem Neustart aus; Dauer des Weiterlaufens im Hängezustand dokumentieren.
-**Ergebnis:** ✔ 2026-11-04 (5 s, ohne Modul) · nach S41: ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Ergebnis:** ✔ 2026-11-04 (5 s, ohne Modul) · nach S41: ☒ ✔ ☐ ✘ ☐ ○ · Messwert: 2026-11-05, Core 3.3.12 vor der Abnahme (S41a), COM13 mit Modul, nur Log: `task_wdt` meldet `loopTask` nach 5,0 s, `SW_CPU_RESET`, danach `all outputs off`; CLK0 im Hängezustand am OSZI noch offen
 
 H1 und H2 stehen in Block F (C3).
 
@@ -871,10 +871,10 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 `Geräte` Smartphone, Laptop · `Dauer` 15 min
 
 1. AP-Modus: Smartphone verbinden, Gateway/DNS in den Netzwerkdetails ablesen (DHCP ohne Gateway-Option).
-2. Mit Verbindung zum Router: der AP schaltet ab (L1).
+2. Mit Verbindung zum Router: der AP schaltet ab (L1); Zeit von der STA-IP (Log) bis zum Verschwinden des AP am Smartphone messen.
 3. Optional (Stufe 3): Laptop am Rückfall-AP mit statischer Route `route add <Heimnetz> mask <Maske> 192.168.4.1`, Zugriff auf einen Host im Heimnetz versuchen.
 
-**Soll:** kein Gateway per DHCP; AP aus bei STA-IP; optional: kein Host im Heimnetz erreichbar.
+**Soll:** kein Gateway per DHCP; AP aus ≤ 1 s nach der STA-IP (D14: das IDF leitet weiter, solange beide eine Adresse haben); optional: kein Host im Heimnetz erreichbar.
 **Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
 
 #### L-S7 · Keine Klartext-Passwörter im Flash (W-S14)
