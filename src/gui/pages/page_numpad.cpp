@@ -75,8 +75,8 @@ void Gui::createNumpad_(uint8_t ch) {
     // still-touching finger hit a widget of the next page.
     lv_btnmatrix_set_btn_ctrl_all(m, LV_BTNMATRIX_CTRL_CLICK_TRIG);
     // Confirm keys in the page color.
-    lv_obj_set_style_bg_color(m, color, LV_PART_ITEMS | LV_STATE_CHECKED);
-    lv_obj_set_style_text_color(m, Colors::textOn(color), LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(m, color, partState(LV_PART_ITEMS, LV_STATE_CHECKED));
+    lv_obj_set_style_text_color(m, Colors::textOn(color), partState(LV_PART_ITEMS, LV_STATE_CHECKED));
     if (numpadPpm_) {
         for (uint16_t id : PPM_CONFIRM_IDS) lv_btnmatrix_set_btn_ctrl(m, id, LV_BTNMATRIX_CTRL_CHECKED);
     } else {

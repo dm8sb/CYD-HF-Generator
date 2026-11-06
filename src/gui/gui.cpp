@@ -208,7 +208,7 @@ lv_obj_t* Gui::addSwitch_(lv_obj_t* parent, uint8_t ch, lv_color_t color) {
     // Track off 5.2:1 against the card, 3.4:1 against the knob (theme: 1.4:1, audit U-7).
     lv_obj_set_style_bg_color(sw, Colors::outline(), LV_PART_MAIN);
     lv_obj_set_style_bg_color(sw, Colors::knob(), LV_PART_KNOB);
-    lv_obj_set_style_bg_color(sw, color, LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(sw, color, partState(LV_PART_INDICATOR, LV_STATE_CHECKED));
     // A bigger touch area than the 50x26 switch itself.
     lv_obj_set_ext_click_area(sw, 6);
     on_(sw, LV_EVENT_VALUE_CHANGED, Action::ChannelSwitch, ch);
@@ -545,8 +545,8 @@ static void styleDialog(lv_obj_t* box, uint8_t buttons) {
     lv_obj_set_style_bg_opa(btns, LV_OPA_COVER, LV_PART_ITEMS);
     lv_obj_set_style_text_color(btns, Colors::textDark(), LV_PART_ITEMS);
     lv_obj_set_style_text_font(btns, &lv_font_montserrat_16, LV_PART_ITEMS);
-    lv_obj_set_style_bg_color(btns, Colors::warn(), LV_PART_ITEMS | LV_STATE_CHECKED);
-    lv_obj_set_style_text_color(btns, Colors::textDark(), LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(btns, Colors::warn(), partState(LV_PART_ITEMS, LV_STATE_CHECKED));
+    lv_obj_set_style_text_color(btns, Colors::textDark(), partState(LV_PART_ITEMS, LV_STATE_CHECKED));
 }
 
 // Creates the box of the open message unless it exists (several async calls may be pending).

@@ -1,6 +1,6 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: 2026-11-05 · Firmware **1.3.3** (`main` = Tag `v1.3.3` = `5ffc228`); `dev` = 1.3.3 + Phase 5 (S42–S48, am Gerät geprüft) · nächste Ziele: Migration Core 3.x (Phase 4), **1.4.0** (WEB-HMI)
+Stand: 2026-11-06 · Firmware **1.3.3** (`main` = Tag `v1.3.3` = `5ffc228`); `dev` = 1.3.3 + Phase 5 (S42–S48) + Phase 4 bis S41b (Core 3.3.12, LVGL 8.4.0; die 2.x-Env bleibt bis S41c), am Gerät geprüft · nächste Ziele: **1.4.0** (WEB-HMI, Phase 6), Abnahme der Migration mit Messgeräten (S41c)
 
 Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufgabenliste. Sie ersetzt `todo.md`, `AUDIT_2026-11.md` und `KONZEPT_WEB_HMI.md` (vollständig in der Git-Historie bis `ee2b91a`). Die Befund-IDs aus dem Audit (C-n Code, S-n Security, U-n Bedienung, P-n Plattform, T-n Tests) und dem Konzept (W-E, W-S, V-n) bleiben als Namen gültig. Messungen am Gerät: [MESSPLAN.md](MESSPLAN.md). Verhalten: [USER_MANUAL_DE.md](USER_MANUAL_DE.md); Anforderungen und Entscheidungen: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md).
 
@@ -19,7 +19,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 4. **Bedientest am Gerät vor dem Commit**, wenn sich die Oberfläche ändert: flashen, die Prüfpunkte dem Nutzer nennen, Rückmeldung abwarten.
 5. **Commit-Text:** Betreff Englisch im Imperativ mit Schrittnummer (`S31: Add screen lock …`), im Text die Befund-IDs und eine Zeile zur Prüfung; am Ende die Attributionszeile.
 6. **Nur lokal.** Push, Merge nach `main` und Tags veröffentlichen nur auf ausdrückliche Anweisung.
-7. **Branches:** Phase 4 auf `feature/core3`; Phase 6 auf `feature/web-hmi`, neu von `dev` nach der Migration. Phase 5 lief auf `feature/web-hmi` und ist seit 2026-11-05 in `dev` (Merge `262119f`), weil sie das Verhalten nicht ändert und die Migration sonst neben ihr auseinanderliefe.
+7. **Branches:** Phase 4 auf `feature/core3`, bis S41b seit 2026-11-06 in `dev` (S41c folgt auf `feature/core3`, sobald Messgeräte da sind); Phase 6 auf `feature/web-hmi`, neu von `dev` nach diesem Merge, baut auf Core 3. Phase 5 lief auf `feature/web-hmi` und ist seit 2026-11-05 in `dev` (Merge `262119f`), weil sie das Verhalten nicht ändert und die Migration sonst neben ihr auseinanderliefe.
 8. **Smoke-Test nach jeder Phase** auf beiden Boards (MESSPLAN 4.3); Ergebnis im Release-Commit bzw. direkt danach.
 9. **Nicht mischen:** Ein Commit enthält Verhalten oder Aufräumen, nicht beides.
 10. **Messprotokolle** (`messungen/*.md`) werden committet, Medien und Binärdateien nicht (`messungen/*/` ist ignoriert).
@@ -37,7 +37,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 | 3 Laborbetrieb | 1.3.3 | U-11, U-13, U-16, U-20, E-16, N12; Bildschirmsperre, Grundzustand und Werksreset, Korrektur per Numpad, CH3-Seite mit Master-Steuerung, Halten langsamer am Anfang, Bereich 8 kHz–160 MHz, Fix um 112,5 MHz, kompakte Moduszeile |
 
-Host-Tests: 241 Fälle in `native-win` und 4 in `native-win-fault` (Stand S48 mit 1.3.3).
+Host-Tests: 251 Fälle in `native-win` und 4 in `native-win-fault` (Stand S39).
 
 ### 1.2 Referenzwerte
 
@@ -64,6 +64,8 @@ Host-Tests: 241 Fälle in `native-win` und 4 in `native-win-fault` (Stand S48 mi
 | D10 | Boot-Geste entfernt, nur automatische Display-Erkennung (2026-11-04, E-26) |
 | D11 | Touch-Abgleich beim ersten Start (2026-11-04, E-27) |
 | D12 | Ein Plan statt todo/Audit/Konzept; Messplan nach Priorität (Stufe 1 Pflicht, 1W Pflicht ab WEB-HMI, 2 Entscheidungen, 3 optional). Ändert D9: Stufe 1 (und möglichst 2) läuft, sobald Zähler und Oszilloskop verfügbar sind, auf 1.3.x vor der Migration und ist die Referenz R0; ein eigener R0-Lauf mit 1.3.0 entfällt (2026-11-04) |
+| D13 | LVGL 8.4.0 kommt mit der Migration (S40a), LVGL 9 bleibt ausgeschlossen; Phase 5 ist ohne Verhaltensänderung schon in `dev` (2026-11-05) |
+| D14 | Routing (S-16, Rückfrage 3): offizielle Plattform mit vorkompiliertem IDF bleibt, obwohl `CONFIG_LWIP_IP_FORWARD=y` fest eingebaut ist. Stattdessen W-S3 strikt: AP und STA nie gleichzeitig mit Adresse, der AP geht im Event der STA-IP aus, Prüfung ≤ 1 s (L-S6). Kein pioarduino mit `custom_sdkconfig` (eigener IDF-Build, längere Builds, zweite Plattform-Quelle) (2026-11-06) |
 
 **Nicht umsetzen:** RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
 
@@ -95,17 +97,16 @@ Host-Tests: 241 Fälle in `native-win` und 4 in `native-win-fault` (Stand S48 mi
 ### 2.3 Code und Tests
 
 - [ ] **Heap auf der Info-Karte** (V-8): freier/minimaler Heap und LVGL-Heap; kommt mit der Info-Karten-Erweiterung in S53.
-- [ ] **C-14 I2C bündeln:** Register-Transfers rufen `Wire` direkt; 2.0.x-Semantik verteilt, ändert sich mit Core 3.x. → S39
 - [ ] **DMA und Doppelpuffer** (nach der Migration): zwei Puffer 320 × 40 px (`DMA_ATTR`, je 25,6 KB), `LV_COLOR_16_SWAP` = 1, `setSwapBytes(false)`; in `DisplayPanel::begin()` erst Erkennung und Init mit rohem Buszugriff, dann `initDMA()` und einmal `startWrite()` (CS bleibt LOW, `endWrite()` nie); `flush()` = `dmaWait()`, `setAddrWindow()`, `pushPixelsDMA()`, `lv_disp_flush_ready()` sofort. Erwartung bis ≈ 30 Bilder/s, +36 KB RAM; Messung mit `LV_USE_PERF_MONITOR`. → N13
-- [ ] **Fakes:** `endTransmission(false)` erst mit `requestFrom` ausführen; Preferences mit mehreren Namespaces und Strings (für `hfnet`); LEDC-API von Core 3.x. Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln. → S38, S45, S52
+- [ ] **Fakes:** Preferences mit mehreren Namespaces und Strings (für `hfnet`). Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln. → S52
 
 ### 2.4 Plattform und Lieferkette
 
 | ID | Komponente | heute | Ziel |
 |---|---|---|---|
-| P-2, P-4, S-19 | espressif32 / Arduino / IDF | 6.7.0 / 2.0.16 / 4.4.7 (EOL, mbedTLS 2.28 EOL) | offiziell `espressif32@8.0.0` = Arduino 3.3.12 / IDF 5.5.5 (u. a. DHCP-Fix CVE-2026-45160); pioarduino 55.03.312-1 nur bei Bedarf an `custom_sdkconfig` → S37–S41 |
-| P-5 | TFT_eSPI | 2.5.43 (letztes Release) | bleibt; Build mit Core 3.x im Spike prüfen; Fork oder LovyanGFX nur als Ausweg (eigene Display-Erkennung bleibt, LovyanGFX erwartet ST7789-ID 0x85, der CYD2USB meldet `8181B3`) |
-| P-6, P-8 | LVGL, Unity | 8.3.11, 2.6.1 | später LVGL 8.4.0 (nur Fixes), Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 → N11 |
+| P-2, P-4, S-19 | espressif32 / Arduino / IDF | 6.7.0 / 2.0.16 / 4.4.7 (EOL, mbedTLS 2.28 EOL) | offiziell `espressif32@8.0.0` = Arduino 3.3.12 / IDF 5.5.5 (u. a. DHCP-Fix CVE-2026-45160); pioarduino 55.03.312-1 nur bei Bedarf an `custom_sdkconfig` → S37–S41. **Spike S37 (2026-11-05):** baut mit 8.0.0 nach zwei Änderungen: LEDC-API (`ledcAttach`/`ledcWrite(pin)`) und `-Os` – das PlatformIO-Skript von Arduino 3.3.12 setzt keine Optimierung (die Arduino-IDE ergänzt sie über `platform.txt`), mit `-O0` brauchte das erste Bild 636 statt 159 ms und der Flash 982 KB. Mit `-Os`, Release-Build: Flash 668 247 B (21,2 %; 2.x 645 445 B), RAM 96 440 B (2.x 94 496 B). Debug-Build, Original-CYD ohne SI5351: Heap frei 250 684 B (2.x 272 604 B), Minimum 221 872 B (2.x 267 008 B, Spitze beim Booten), größter Block und LVGL unverändert, Stack-Reserve `loop()` 4 880 B (2.x 4 780 B), erstes Bild 172 ms, `Setup complete` nach 0,9 s wie 2.x. Beide Boards booten, Display-Erkennung (MADCTL- und RDDID-Rücklesung) unverändert, SI5351 an 0x60. pioarduino nicht nötig. Offen für S40: `-Wvolatile` (`command.h`) und `-Wdeprecated-enum-enum-conversion` (LVGL-Makros mit `|`) unter gnu++2b; `CORE_DEBUG_LEVEL=0` des Frameworks per `build_unflags` ersetzt. |
+| P-5 | TFT_eSPI | 2.5.43 (letztes Release) | bleibt; mit Core 3.x im Spike unverändert lauffähig (Flush 35 ms je Vollbild wie unter 2.x); Fork oder LovyanGFX nur als Ausweg (eigene Display-Erkennung bleibt, LovyanGFX erwartet ST7789-ID 0x85, der CYD2USB meldet `8181B3`) |
+| P-6, P-8 | LVGL, Unity | 8.3.11, 2.6.1 | LVGL 8.4.0 (letztes 8.x, Fixes, API wie 8.3) in Phase 4 → S40a, damit die Abnahme S41 beides prüft; LVGL 9.x nicht: neue Display-, Eingabe-, Stil- und Widget-API, also Umbau aller Seiten und neuer Bedientest, ohne Funktion, die das Gerät braucht (D13). Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 → N11 |
 | P-9 | Web-Bibliotheken | – | ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, ArduinoJson 7.4.3, scpi-parser v2.3 (Commit), alle exakt gepinnt |
 | S-20 | Prüfung | XPT2046 auf Commit gepinnt | Plattform-Prüfsumme in der CI, Advisory-Check je Release (W-S24) |
 
@@ -267,7 +268,7 @@ Fehler: HTTP 400 mit `{"error":"-222,Data out of range"}` (dieselben Codes wie S
 |---|---|
 | W-S1 | Über einen offenen AP lehnt der Server WLAN- und Web-Passwortfelder ab (403); Standard ist der WPA2-AP mit Zufallspasswort. (S-1, S-2) |
 | W-S2 | Offener Rückfall-AP nur nach Bestätigung am Touch; offener AP ohne Station nach 15 min aus, ≤ 2 Stationen, Statusleiste `AP open`. (S-2, S-3) |
-| W-S3 | Kein Routing AP ↔ STA (NAPT aus, AP aus bei STA-IP, DHCP ohne Gateway). (S-16) |
+| W-S3 | Kein Routing AP ↔ STA: NAPT aus, DHCP ohne Gateway, AP und STA nie gleichzeitig mit Adresse (AP aus im Event der STA-IP, ≤ 1 s), weil das vorkompilierte IDF `IP_FORWARD` fest eingeschaltet hat (D14). (S-16) |
 | W-S4 | Host-Allowlist für HTTP und WebSocket (eigene IPv4, `<name>.local`, `<name>`, im AP fürs Captive-DNS), sonst 421; IPv6 aus. (S-5) |
 | W-S5 | POST nur mit `application/json` (415), gültigem `X-CYD-Token` (403), `Origin` leer oder eigener Host, `Sec-Fetch-Site` nicht `cross-site`; keine CORS-Header, `OPTIONS` abgelehnt, GET ohne Wirkung. (S-4) |
 | W-S6 | WebSocket-Upgrade mit Host-, Origin- und Token-Prüfung; nur Push; ≤ 512 B; Ping alle 15 s, Trennen nach 30 s ohne Pong. (S-10) |
@@ -325,13 +326,16 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 - [x] **S35 · Bereich 8 kHz bis 160 MHz (E-16).** `FREQ_MIN_HZ`/`FREQ_MAX_HZ` 8 kHz / 160 MHz; Anzeige unter 1 MHz in kHz; Numpad 10 Zeichen, Fehlertext `8 kHz - 160 MHz` (passt neben `Now 160.000 000 MHz`); Hinweis auf der Kanalseite (`>100MHz: low level`, `<1MHz: harmonics`); CH3 wartet über 100 MHz (Test); auf MAIN entfällt das `~` ab 100 MHz (passt nicht in 183 px). Host-Tests für kHz-Format, Grenzen, R-Teiler in allen Modi, CH3-Grenze; Tests der Kerngenauigkeit (1–100 MHz) mit eigener Konstante. Bedientest 2026-11-05 OK (455 kHz, 150 MHz; Moduszeile danach gekürzt, 6bf0318). *Commit:* `S35: Extend CH1/CH2 range to 8 kHz-160 MHz (E-16)`
 - [x] **S36 · Release 1.3.3.** Version, README, Smoke-Test beider Boards 2026-11-05 (Schritte 1–4 OK, 5 und 6 ohne Messgerät offen), lokaler Tag `v1.3.3`. *Commit:* `S36: Release 1.3.3`
 
-### Phase 4 – Migration Core 3.x (≈ 2,5–3 d, `feature/core3`)
+### Phase 4 – Migration Core 3.x (≈ 2,5–3 d, `feature/core3`, bis S41b in `dev` seit 2026-11-06)
 
-- [ ] **S37 · Spike.** `espressif32@8.0.0` gegen pioarduino 55.03.312-1, TFT_eSPI/XPT2046/LVGL unverändert; Flash, RAM, Heap gegen 1.3.x (Abschnitt 1.2); Ergebnis in Abschnitt 2.4. *Prüfung:* startet auf beiden Boards. *Commit:* `S37: Spike espressif32@8.0.0 with Arduino 3.3.12`
-- [ ] **S38 · LEDC.** `ledcAttach()`/`ledcWrite(pin, …)` samt Fake. *Commit:* `S38: Port backlight PWM to the Arduino 3 LEDC API`
-- [ ] **S39 · I2CBus bündeln (C-14, V-7).** `writeRegs`/`readRegs` in `I2CBus`; 2.0.x-Annahmen als benannte Fake-Tests (Rückgabecode 5, `end()`/`begin()`, Lock). *Commit:* `S39: Bundle I2C register transfers in I2CBus (C-14)`
-- [ ] **S40 · Compiler.** GCC-14-Warnungen beheben; Host-Env mit `-std=gnu++17`; CI erweitern. *Commit:* `S40: Fix GCC 14 warnings and add gnu++17 host environment`
-- [ ] **S41 · Abnahme.** Beide Cores als Envs bis zur Abnahme, dann 2.x-Env entfernen; Spezifikation A-46, README, `CLAUDE.md`; S-16 prüfen (`IP_FORWARD`/`NAPT`); Stufe-1-Auswahl nach der Migration (MESSPLAN 5.10, ≈ 4 h), Q4/Q5 wiederholen, Smoke-Test beider Boards; Merge nach `dev` (lokal). *Commit:* `S41: Switch to the official espressif32@8.0.0 platform`
+- [x] **S37 · Spike.** Env `esp32-2432S028R-core3` mit `espressif32@8.0.0` (Arduino 3.3.12 / IDF 5.5.5) neben 2.x, `-Os` und `CORE_DEBUG_LEVEL` dort gesetzt, LEDC per `ESP_ARDUINO_VERSION_MAJOR`; TFT_eSPI/XPT2046/LVGL unverändert; Debug-Zeile `[GUI] First frame ms`; CI baut beide Cores. Ergebnis in Abschnitt 2.4; startet auf beiden Boards, pioarduino nicht nötig. *Commit:* `S37: Spike espressif32@8.0.0 with Arduino 3.3.12`
+- [x] **S38 · LEDC.** `ledcAttach()`/`ledcWrite(pin, …)`; die Fakes bilden die 3.x-API nach (`ESP_ARDUINO_VERSION_MAJOR` 3, 2 wählt die alte), `ledcWrite` auf einen nicht angebundenen Pin bzw. Kanal zählt als Fehler; Host-Test `test_backlight_pwm_on_its_pin` (Gegenprobe: Schreiben auf Kanal 0 scheitert). *Commit:* `S38: Port backlight PWM to the Arduino 3 LEDC API`
+- [x] **S39 · I2CBus bündeln (C-14, V-7).** `I2CBus::writeRegs`/`readRegs`, `Wire` nur noch in `hal/i2c_bus.cpp`. Quelltext von Arduino 3.3.12 geprüft (I2C-ng-Treiber): `begin()` auf laufendem Bus behält die Pins, Übertragung auf geschlossenem Bus nimmt den Lock dauerhaft (nächstes `begin()`/`end()` blockiert), `endTransmission(false)` sendet erst mit `requestFrom`, Codes 0/2/5 wie 2.0.x. Fake: Repeated Start wie die Cores (Lesen = eine Transaktion). Suite `test_i2c_bus` mit `test_core_*`-Fällen (Gegenprobe: ohne Prüfung auf offenen Bus scheitert `test_core_closed_bus_is_never_touched`). Code 5 bei Leitung auf GND unter 3.x am Gerät noch nicht geprüft (S41, MESSPLAN J6). *Commit:* `S39: Bundle I2C register transfers in I2CBus (C-14)`
+- [x] **S40 · Compiler.** GCC-14-Warnungen in `src/` behoben (`++` auf `volatile` im Seqlock-Testhelfer, `|` zwischen LVGL-Teil- und Zustands-Enums → `partState()`, leere Host-`Lock`-Structs); beide Cores 0 Warnungen. Host-Env `native-cpp20` mit `-std=gnu++20 -Wextra` statt gnu++17, weil Arduino 3.x die Firmware als gnu++2a baut; läuft nur unter Linux/CI (MinGW von `windows_x86` ist GCC 5.1), lokal ersatzweise Syntax-Check mit Xtensa-GCC 14. CI baut beide Cores und testet in C++20. *Commit:* `S40: Fix GCC 14 warnings and add a C++20 host environment`
+- [x] **S40a · LVGL 8.4.0.** `lvgl/lvgl@8.4.0` in beiden Envs (E-28). Template-Schlüssel und `lv_conf_internal.h` identisch; inhaltlich nur Bildschirm-Ladereihenfolge, Gruppen-Fokus und der Cast in `lv_obj_style.h` (beseitigt die C++20-Warnung aus dem Header); benutzte Widgets nur Leerzeichen. Erstes Bild 159 ms (2.x) / 169 ms (3.x), Heap und LVGL-Speicher gleich, Flash +72 B; beide Cores 0 Warnungen, auch in den Bibliotheken. *Commit:* `S40a: Update LVGL to 8.4.0`
+- [x] **S41a · Vorprüfung.** S-16 geprüft: `IP_FORWARD` und `IPV4_NAPT` im vorkompilierten IDF an → Rückfrage 3, entschieden in S41b (D14). Q4 und Q5 unter Core 3 am CYD2USB bestanden (Log; CLK0 am OSZI offen, MESSPLAN). Beide Boards booten mit Core 3 und LVGL 8.4.0. *Commit:* `S41a: Pre-check the migration (S-16, Q4, Q5)`
+- [x] **S41b · Smoke-Test und Routing.** Smoke-Test 4.3 Schritte 1 bis 4 auf beiden Boards mit Core 3 und LVGL 8.4.0 (`a32fb74`) am 2026-11-06 bestanden: Info-Karte, Erkennung `detected`, Touch, je ein Verbindungsdialog, Wiederverbinden, Speichern, alle Seiten, Halten wie 1.3.3; Schritte 5 und 6 offen (kein Messgerät). Neue Core-Meldungen beim Abziehen von SDA (`esp32-hal-i2c-ng.c:372`, `Wire.cpp:532`) im Handbuch. Rückfrage 3 entschieden: W-S3 strikt statt eigenem IDF-Build (D14, L-S6 mit ≤ 1 s). *Commit:* `S41b: Smoke test on core 3, decide S-16 routing`
+- [ ] **S41c · Abnahme.** Stufe-1-Auswahl nach der Migration (MESSPLAN 5.10, ≈ 4 h, braucht ZÄHLER und OSZI), dabei CLK0 bei Q4/Q5 und J6 (Code 5 bei Leitung auf GND); dann 2.x-Env entfernen (der 2.x-Zweig in `backlight.cpp`, `ESP_ARDUINO_VERSION_MAJOR` 2 im Fake und die Handbuchzeile `Wire.cpp:499` gehen mit), Spezifikation A-46, README, `CLAUDE.md`; Merge nach `dev` (lokal). *Commit:* `S41c: Switch to the official espressif32@8.0.0 platform`
 
 ### Phase 5 – WEB-HMI-Vorarbeiten (≈ 4 d, `feature/web-hmi`, in `dev` seit 2026-11-05)
 
@@ -379,7 +383,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N8 · Anwendungskapitel „Mischer-Experimente“** (Abschnitt 2.5) nach F2, G1, G2, E10.
 - [ ] **N9 · Sticky-Bit und „PLL locked“** (Abschnitt 2.1).
 - [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
-- [ ] **N11 · Spätere Updates:** LVGL 8.4.0, Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release.
+- [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release.
 - [x] **N12 · Feste Koordinaten** durch benannte Konstanten ersetzt (Karte der Kanal- und CH3-Seite und Header-`MAIN` in `gui_layout.h`, Chips/Tasten/Numpad als lokale Konstanten). Geprüft: Maschinencode von `gui.cpp`, `page_channel.cpp`, `page_ch3.cpp`, `page_numpad.cpp` vorher und nachher identisch.
 - [ ] **N13 · DMA und Doppelpuffer** (Abschnitt 2.3, nach der Migration).
 - [ ] **N14 · Erweiterungen nach Rückfrage 1:** Speicherplätze, Wobbeln, Drive je Kanal, gekoppelter Betrieb CH2 = CH1 ± Offset (Überlagerungsempfänger mit fester ZF), Modulationsarten (AM/FM über den PLL-Bruchteil), externe Referenz (SI5351C mit `CLKIN`), Kalibrierassistent (falls nicht in S32).

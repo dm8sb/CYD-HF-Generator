@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PlatformIO + Arduino-ESP32 firmware (LVGL 8.3 GUI) for a 3-channel SI5351 HF square-wave generator on the ESP32-2432S028R "Cheap Yellow Display". See README.md for pinout, features and changes, PROJECT_SPECIFICATION.md for requirements and decisions, USER_MANUAL_DE.md for all behavior.
+PlatformIO + Arduino-ESP32 firmware (LVGL 8.4 GUI) for a 3-channel SI5351 HF square-wave generator on the ESP32-2432S028R "Cheap Yellow Display". See README.md for pinout, features and changes, PROJECT_SPECIFICATION.md for requirements and decisions, USER_MANUAL_DE.md for all behavior.
 
 ## Commands
 
@@ -15,6 +15,7 @@ pio test -e native-win                    # host unit tests on Windows (bundled 
 pio test -e native                        # host unit tests on Linux/macOS (gcc in PATH)
 pio test -e native-win -f test_si5351     # run a single test suite (test/test_<name>/)
 pio test -e native-win-fault              # IQ error state: test_fault_iq with -DTEST_FAULT_IQ=1 (native-fault on Linux)
+pio test -e native-cpp20                  # host tests in C++20 like the firmware on Arduino 3.x (Linux/CI; MinGW is GCC 5.1)
 pio run -e esp32-2432S028R-touchlog -t upload --upload-port COMx   # test build: one log line per touch
 pio run -e esp32-2432S028R-hitmap -t upload --upload-port COMx     # test build: hit map + touch log
 ```
@@ -31,11 +32,11 @@ The ESP32 envs set `test_ignore = *`; tests only run in the native envs.
 - Display: one firmware for the original CYD (ILI9341) and the CYD2USB (ST7789). TFT_eSPI is built for the ILI9341; `drivers/display_detect.*` (host-testable) reads the controller ID over SPI before `tft.init()`, `drivers/display_panel.*` owns TFT_eSPI and sends the ST7789 init/MADCTL when needed. GUI code goes through `DisplayPanel`, never `TFT_eSPI::setRotation()`. The CYD2USB drives MISO so weakly that any internal pull on GPIO12 breaks the read-back.
 - `include/config.h` (`APP_VERSION`, `LOG_DEBUG`, `DISPLAY_FORCE_PANEL`), `pins.h`, `constants.h`, `types.h`, `palette.h` (colors as hex; `test_contrast` checks the pairs the pages use, add new pairs there). `tools/build_info.py` (`extra_scripts = pre:`) passes git branch, commit (`+` = dirty) and build time only to `src/utils/build_info.cpp` via `env.AddBuildMiddleware`, so a build recompiles just that file; don't use `__DATE__`/`__TIME__` or add these defines globally. `build_info.cpp` is not part of the host tests. TFT_eSPI is configured entirely via build flags in `platformio.ini` (`USER_SETUP_LOADED`), not a User_Setup.h. Touch (XPT2046) is on a separate VSPI bus; its calibration per board comes from the wizard (`utils/touch_cal.*`, host-tested; NVS keys `tc_*`), `TOUCH_CAL_DEFAULT` without one.
 - Remote access (WEB-HMI groundwork): `remote/command.*` queues `Command`s from network tasks (bounded, results by ticket) and `loop()` executes them through `execute()`, which sets the event source; network tasks read only the `StateSnapshot` (seqlock). They never call `AppController`, LVGL, I2C or NVS directly. Setters return `Result` and never clamp (only `adjust*`).
-- SI5351 at 0x60 on CN1 (GPIO22/27) with SDA/SCL in either order: `hal/i2c_bus.*` owns `Wire` and opens one assignment (`I2CMap`); `AppController::connect_()` tries both at boot and every 2 s while the chip is not ready, and `SI5351Manager::begin()` checks the identity before writing. Never call `Wire` without `I2CBus::isOpen()` — in arduino-esp32 2.0.x a transfer on a closed bus leaks the Wire lock and the next one deadlocks.
+- SI5351 at 0x60 on CN1 (GPIO22/27) with SDA/SCL in either order: `hal/i2c_bus.*` owns `Wire` and opens one assignment (`I2CMap`); `AppController::connect_()` tries both at boot and every 2 s while the chip is not ready, and `SI5351Manager::begin()` checks the identity before writing. `Wire` is called only in `hal/i2c_bus.cpp` (`probe`, `writeRegs`, `readRegs`, all checking `isOpen()`): in arduino-esp32 2.0.x and 3.x a transfer on a closed bus keeps the Wire lock and the next `begin()`/`end()` deadlocks. `test_i2c_bus` (`test_core_*`) pins down the assumed core behavior.
 
 ## Host tests
 
-The native envs compile only hardware-independent sources (see `build_src_filter` in `[native_test]`: app_controller, backlight, display_detect, touch_filter, si5351_manager, si5351_plan, hal/i2c_bus, remote, services, contrast, frequency_utils, input_logic, message_queue, status_text, touch_cal, touch_test, logger) with `-std=gnu++11`. Keep those files free of LVGL/TFT dependencies. `test/fakes/` replaces Arduino, `Wire` (an SI5351 register model with fault injection, straight/swapped wiring, line held low, foreign device; `Fake::wireMisuse()` flags transfers on a closed bus) and `Preferences`. `test/helpers/si5351_model.h` decodes written registers back into frequencies independently of the driver's arithmetic — use it to verify driver changes rather than reusing driver math.
+The native envs compile only hardware-independent sources (see `build_src_filter` in `[native_test]`: app_controller, backlight, display_detect, touch_filter, si5351_manager, si5351_plan, hal/i2c_bus, remote, services, contrast, frequency_utils, input_logic, message_queue, status_text, touch_cal, touch_test, logger) with `-std=gnu++11`, in `native-cpp20` with `-std=gnu++20` (Arduino 3.x builds the firmware as gnu++2a). Keep those files free of LVGL/TFT dependencies. `test/fakes/` replaces Arduino, `Wire` (an SI5351 register model with fault injection, straight/swapped wiring, line held low, foreign device; `Fake::wireMisuse()` flags transfers on a closed bus) and `Preferences`. `test/helpers/si5351_model.h` decodes written registers back into frequencies independently of the driver's arithmetic — use it to verify driver changes rather than reusing driver math.
 
 ## Documentation
 

@@ -19,7 +19,12 @@ struct Lock {
 };
 inline void barrier() { __sync_synchronize(); }
 #else
-struct Lock {};
+// Host: no task switch. User-provided constructor and destructor, so newer GCC does not
+// warn about an unused variable.
+struct Lock {
+    Lock() {}
+    ~Lock() {}
+};
 inline void barrier() {}
 #endif
 

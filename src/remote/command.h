@@ -80,8 +80,8 @@ public:
     void publish(const AppController& app);
     // false while nothing is published or a write is in progress (the caller retries).
     bool read(Snapshot* out) const;
-    void beginWriteForTest() { ++seq_; }
-    void endWriteForTest() { ++seq_; }
+    void beginWriteForTest() { seq_ = seq_ + 1; } // C++20: no ++ on volatile
+    void endWriteForTest() { seq_ = seq_ + 1; }
 
 private:
     Snapshot data_ {};
