@@ -13,6 +13,7 @@
 #include <dhcpserver/dhcpserver.h>
 #include <bootloader_random.h>
 #include <utils/logger.h>
+#include <constants.h>
 
 namespace {
 
@@ -341,6 +342,7 @@ void WifiManager::applyTargets_(const WifiPolicy::Targets& t) {
     if (mdnsWanted && !mdnsOn_) {
         mdnsOn_ = MDNS.begin(settings_.deviceName);
         if (!mdnsOn_) Logger::error("WIFI", "mDNS start failed");
+        else MDNS.addService("scpi-raw", "tcp", SCPI_TCP_PORT); // W-E12: _scpi-raw._tcp
     } else if (!mdnsWanted && mdnsOn_) {
         MDNS.end();
         mdnsOn_ = false;

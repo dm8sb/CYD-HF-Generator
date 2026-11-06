@@ -733,3 +733,9 @@ void ScpiSession::pushError(int16_t code) {
 }
 
 int32_t ScpiSession::errorCount() { return SCPI_ErrorCount(&ctx_); }
+
+void ScpiSession::clearStatus() {
+    SCPI_CoreCls(&ctx_);
+    SCPI_RegSet(&ctx_, SCPI_REG_ESE, 0);
+    SCPI_RegSet(&ctx_, SCPI_REG_SRE, 0);
+}
