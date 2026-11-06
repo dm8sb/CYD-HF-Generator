@@ -21,7 +21,7 @@ This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware
 - [12. Serial Diagnostics](#12-serial-diagnostics)
 - [13. Current Hardware Pinout](#13-current-hardware-pinout)
 - [14. Safety Note](#14-safety-note)
-- [15. Remote Control over USB (SCPI)](#15-remote-control-over-usb-scpi)
+- [15. Remote Control over USB and Network (SCPI)](#15-remote-control-over-usb-and-network-scpi)
 - [Appendix A: Page Sketches](#appendix-a-page-sketches)
 - [Appendix B: Glossary](#appendix-b-glossary)
 - [Appendix C: Symptoms and Remedies](#appendix-c-symptoms-and-remedies)
@@ -1028,6 +1028,8 @@ Important messages:
 | `[APP] Output error cleared` | An output error (`! ERR`) has been cleared |
 | `[SCPI] USB session started; log in SYSTem:LOG?` | First SCPI line over USB: further log lines only go into the buffer (section 15); this line is already in the buffer |
 | `[SCPI] USB session ended (idle); log on serial again` | 10 min without an SCPI line: the log runs over USB again |
+| `[SCPI] TCP server on port: 5025`, `[SCPI] TCP server stopped` | SCPI over TCP on (WiFi connected or AP with password) or off |
+| `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP connection; when closed with the reason: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Commands are never logged |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
 | `[APP] Identify` | `SYST:IDEN`: backlight and LED blink for 5 s |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WiFi mode at boot or after a change and the device name; default `Off` (radio off) |
@@ -1109,7 +1111,7 @@ For operation:
 
 ---
 
-## 15. Remote Control over USB (SCPI)
+## 15. Remote Control over USB and Network (SCPI)
 
 The generator understands SCPI commands over the same USB connection that also carries the log. Every change appears on the display at once; touch and SCPI have equal rights, the last change wins.
 
@@ -1120,6 +1122,15 @@ The generator understands SCPI commands over the same USB connection that also c
 - The first line received starts an **SCPI session**: from then on the device writes no log lines to USB, so they do not mix with answers. They go into a buffer (32 lines, the oldest drop out) and can be read with `SYST:LOG?`. After 10 minutes without a line the session ends and the log runs over USB again (`[SCPI] USB session ended (idle); log on serial again`).
 - A line has at most 256 characters and at most 16 commands separated by `;`. Only printable ASCII characters and TAB are allowed. A line that breaks these rules is discarded completely: error −363 (too long), −101 (invalid character) or −223 (too many commands).
 - At most 20 setting commands per second; every further one is refused with `-200,"Execution error;Too many commands"`.
+
+### Connection over the Network (TCP)
+
+- With WiFi (mode `Client` connected, or the own access point with password) the device also takes SCPI over TCP: port **5025**, address from the status line of the WIFI page or `<device name>.local`; announced by mDNS as `_scpi-raw._tcp`. PyVISA: `TCPIP0::<address>::5025::SOCKET` with `read_termination` and `write_termination` `\n`.
+- Lines, commands, limits and errors as over USB; the TCP connection has its own error queue, which starts empty with every new connection (`*ESE` and `*SRE` 0 as well). The status bar shows `REMOTE SCPI`.
+- **One connection** at a time; a second one is closed at once without an answer. After 10 min without a line the device closes the connection; a peer that disappears is noticed after about 90 s (keepalive).
+- If a line starts like an HTTP request (e.g. a browser on `http://<address>:5025/`), the device closes the connection without executing this or any later line.
+- If the peer does not read the answers, the device stops reading too and closes the connection when the buffer is full.
+- Over an open access point (without password) SCPI over TCP is blocked.
 
 ### Commands
 

@@ -44,8 +44,15 @@ static constexpr uint8_t REMOTE_WRITES_PER_S = 20;
 // SYSTem:IDENtify / web Identify (W-E28): backlight and RGB LED blink for this long.
 static constexpr uint32_t IDENTIFY_MS = 5000;
 static constexpr uint32_t IDENTIFY_BLINK_MS = 250;
-// SCPI over USB: the session (log only into the ring buffer, W-E27) ends after this idle time.
+// SCPI over USB: the session (log only into the ring buffer, W-E27) ends after this idle time;
+// SCPI over TCP closes the connection after it (W-E13).
 static constexpr uint32_t SCPI_IDLE_TIMEOUT_MS = 600000;
+// SCPI over TCP (W-E12, W-S20): port; keepalive of the client socket (first probe after IDLE s
+// without traffic, then every INTERVAL s, closed after COUNT unanswered probes).
+static constexpr uint16_t SCPI_TCP_PORT = 5025;
+static constexpr int SCPI_TCP_KEEPALIVE_IDLE_S = 60;
+static constexpr int SCPI_TCP_KEEPALIVE_INTERVAL_S = 10;
+static constexpr int SCPI_TCP_KEEPALIVE_COUNT = 3;
 // MAIN status bar: REMOTE <source> stays this long after the last remote command (W-E14).
 static constexpr uint32_t REMOTE_INDICATOR_MS = 10000;
 // SI5351 health check / reconnect interval.

@@ -61,6 +61,8 @@ public:
     void pushError(int16_t code);
     // Errors waiting in the queue.
     int32_t errorCount();
+    // A new connection (TCP): error queue, event and enable registers empty as after power-on.
+    void clearStatus();
 
     // Library callbacks and command handlers (scpi.cpp) reach the session through these.
     ScpiBackend& backend() { return backend_; }

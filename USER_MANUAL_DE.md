@@ -21,7 +21,7 @@ Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_E
 - [12. Serielle Diagnose](#12-serielle-diagnose)
 - [13. Aktuelle Hardware-Pinbelegung](#13-aktuelle-hardware-pinbelegung)
 - [14. Sicherheitshinweis](#14-sicherheitshinweis)
-- [15. Fernsteuerung über USB (SCPI)](#15-fernsteuerung-über-usb-scpi)
+- [15. Fernsteuerung über USB und Netz (SCPI)](#15-fernsteuerung-über-usb-und-netz-scpi)
 - [Anhang A: Seitenbilder](#anhang-a-seitenbilder)
 - [Anhang B: Glossar](#anhang-b-glossar)
 - [Anhang C: Symptome und Abhilfe](#anhang-c-symptome-und-abhilfe)
@@ -1028,6 +1028,8 @@ Wichtige Meldungen:
 | `[APP] Output error cleared` | Ein Ausgangsfehler (`! ERR`) ist behoben |
 | `[SCPI] USB session started; log in SYSTem:LOG?` | Erste SCPI-Zeile über USB: weitere Logzeilen nur noch im Puffer (Abschnitt 15); steht selbst schon im Puffer |
 | `[SCPI] USB session ended (idle); log on serial again` | 10 min ohne SCPI-Zeile: das Log läuft wieder über USB |
+| `[SCPI] TCP server on port: 5025`, `[SCPI] TCP server stopped` | SCPI über TCP an (WLAN verbunden oder AP mit Passwort) bzw. aus |
+| `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP-Verbindung; beim Schließen mit Grund: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Befehle werden nie geloggt |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
 | `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WLAN-Betriebsart beim Start bzw. nach einer Änderung und Gerätename; Standard `Off` (Funk aus) |
@@ -1109,7 +1111,7 @@ Zum Betrieb:
 
 ---
 
-## 15. Fernsteuerung über USB (SCPI)
+## 15. Fernsteuerung über USB und Netz (SCPI)
 
 Der Generator versteht SCPI-Befehle über dieselbe USB-Verbindung, die auch das Log ausgibt. Jede Änderung erscheint sofort auf dem Display; Touch und SCPI sind gleichberechtigt, die letzte Änderung gilt.
 
@@ -1120,6 +1122,15 @@ Der Generator versteht SCPI-Befehle über dieselbe USB-Verbindung, die auch das 
 - Die erste empfangene Zeile startet eine **SCPI-Sitzung**: Ab dann schreibt das Gerät keine Logzeilen mehr auf USB, damit sie sich nicht mit Antworten mischen. Sie landen in einem Puffer (32 Zeilen, die ältesten fallen heraus) und lassen sich mit `SYST:LOG?` lesen. Nach 10 Minuten ohne Zeile endet die Sitzung, das Log läuft wieder über USB (`[SCPI] USB session ended (idle); log on serial again`).
 - Eine Zeile hat höchstens 256 Zeichen und höchstens 16 Befehle, getrennt durch `;`. Nur druckbare ASCII-Zeichen und TAB sind erlaubt. Eine Zeile, die dagegen verstößt, wird ganz verworfen: Fehler −363 (zu lang), −101 (ungültiges Zeichen) bzw. −223 (zu viele Befehle).
 - Höchstens 20 einstellende Befehle pro Sekunde; jeder weitere wird mit `-200,"Execution error;Too many commands"` abgelehnt.
+
+### Verbindung über das Netz (TCP)
+
+- Mit WLAN (Betriebsart `Client` verbunden, oder eigener Access Point mit Passwort) nimmt das Gerät SCPI auch über TCP an: Port **5025**, Adresse aus der Statuszeile der Seite WIFI oder `<Gerätename>.local`; per mDNS als `_scpi-raw._tcp` angekündigt. PyVISA: `TCPIP0::<Adresse>::5025::SOCKET` mit `read_termination` und `write_termination` `\n`.
+- Zeilen, Befehle, Grenzen und Fehler wie über USB; die TCP-Verbindung hat eine eigene Fehlerwarteschlange, die bei jeder neuen Verbindung leer beginnt (`*ESE` und `*SRE` ebenfalls 0). Die Statusleiste zeigt `REMOTE SCPI`.
+- **Eine Verbindung** zur Zeit; eine zweite wird sofort ohne Antwort geschlossen. Nach 10 min ohne Zeile schließt das Gerät die Verbindung; ein Gegenüber, das verschwindet, erkennt es nach etwa 90 s (Keepalive).
+- Beginnt eine Zeile wie eine HTTP-Anfrage (z. B. Browser auf `http://<Adresse>:5025/`), schließt das Gerät die Verbindung, ohne diese oder eine spätere Zeile auszuführen.
+- Liest das Gegenüber die Antworten nicht ab, liest auch das Gerät nichts mehr und schließt die Verbindung, wenn der Puffer voll ist.
+- Über einen offenen Access Point (ohne Passwort) ist SCPI über TCP gesperrt.
 
 ### Befehle
 

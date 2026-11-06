@@ -13,6 +13,8 @@
 #include <remote/command.h>
 #include <remote/scpi.h>
 #include <remote/scpi_usb.h>
+#include <remote/scpi_tcp_server.h>
+#include <new>
 #include <net/net_settings.h>
 #include <net/wifi_manager.h>
 // Test build with WiFi credentials from a local file that is never committed (.gitignore):
@@ -51,9 +53,18 @@ static void heapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) 
 }
 static void coreDebugOutput(bool enabled) { Serial.setDebugOutput(enabled); }
 static void serialWrite(const char* data, size_t len, void*) { Serial.write((const uint8_t*)data, len); }
-static LoopScpiBackend usbBackend(commands, app, snapshot, heapInfo);
-static ScpiSession usbSession(usbBackend, Source::Usb);
+// One backend for both links: it holds no session state, the source comes from the session.
+static LoopScpiBackend loopBackend(commands, app, snapshot, heapInfo);
+static ScpiSession usbSession(loopBackend, Source::Usb);
 static ScpiUsbLink usbLink(usbSession, coreDebugOutput);
+// SCPI over TCP 5025 (S54): also in loop(), own session and error queue; on the heap (E-31).
+static ScpiTcpServer* scpiTcp = nullptr;
+
+static void pollTcpScpi() {
+    if (!scpiTcp) return;
+    const WifiManager::Status& s = wifi.status();
+    scpiTcp->update(ScpiTcpLink::allowedFor(s.staConnected, s.apActive, s.apOpen));
+}
 
 static void pollUsbScpi() {
     // At most 4 chunks per loop(): a flood cannot starve the GUI.
@@ -106,6 +117,8 @@ void setup() {
     uint8_t macBytes[6];
     for (uint8_t i = 0; i < 6; ++i) macBytes[i] = (uint8_t)((efuse >> (8 * i)) & 0xFF);
     usbSession.setWriter(serialWrite, nullptr);
+    scpiTcp = new (std::nothrow) ScpiTcpServer(loopBackend, mac);
+    if (!scpiTcp) Logger::error("BOOT", "No memory for SCPI over TCP");
 
     // 2. I2C on CN1; which pin is SDA is detected in step 5
     I2CBus::begin();
@@ -212,6 +225,7 @@ void loop() {
     commands.drain(app);
     pollUsbScpi();
     wifi.update();
+    pollTcpScpi();
     app.update();
     if (app.revision() != publishedRevision) {
         publishedRevision = app.revision();
