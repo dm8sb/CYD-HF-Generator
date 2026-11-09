@@ -6,6 +6,9 @@
 // Request guard of the web server (ARBEITSPLAN 3.3, 3.7): decides about every HTTP request and
 // WebSocket upgrade before the server reads a body or queues a command. Pure and deterministic:
 // the time comes in as nowMs, randomness through a function pointer, nothing is executed here.
+// nowMs is a 64-bit monotonic millisecond count (the server passes esp_timer_get_time() / 1000):
+// with 32-bit millis() an expired session, login lock or scan stamp came back after the 49.7-day
+// wrap (fuzz finding S57c).
 // No Arduino or web server types; the server copies what it needs into GuardRequest. Not
 // thread-safe: the server calls it from one task (async_tcp) or under its own lock.
 //
@@ -125,7 +128,7 @@ public:
     const GuardConfig& config() const { return config_; }
 
     // The decision for one request (see the order above); nowMs for the session expiry.
-    GuardDecision check(const GuardRequest& r, uint32_t nowMs);
+    GuardDecision check(const GuardRequest& r, uint64_t nowMs);
     // W-S1: over an open access point a body with password fields (RestJson::carriesSecret())
     // is refused with 403, whatever the endpoint.
     GuardDecision checkSecrets(const GuardRequest& r, bool bodyCarriesSecret) const;
@@ -138,20 +141,20 @@ public:
     // Login: loginAllowed() before the password is checked (429 while locked), then
     // loginFailed() or loginSucceeded(); the latter starts a session and writes the
     // Set-Cookie value. The password check itself (WebPassword::verify, slow) is the server's.
-    GuardDecision loginAllowed(uint32_t nowMs) const;
-    uint32_t loginRetryAfterS(uint32_t nowMs) const; // 0 when not locked
-    void loginFailed(uint32_t nowMs);
-    bool loginSucceeded(uint32_t nowMs, Random32 random, char* setCookie, size_t setCookieSize);
+    GuardDecision loginAllowed(uint64_t nowMs) const;
+    uint32_t loginRetryAfterS(uint64_t nowMs) const; // 0 when not locked
+    void loginFailed(uint64_t nowMs);
+    bool loginSucceeded(uint64_t nowMs, Random32 random, char* setCookie, size_t setCookieSize);
     // Ends the session of this Cookie header (logout); clearCookie() gives the Set-Cookie value.
     void logout(const char* cookieHeader);
     static void clearCookie(char* out, size_t outSize);
     // Password changed or removed: every session ends.
     void endAllSessions();
-    uint8_t sessionCount(uint32_t nowMs) const;
-    bool sessionValid(const char* cookieHeader, uint32_t nowMs) const;
+    uint8_t sessionCount(uint64_t nowMs) const;
+    bool sessionValid(const char* cookieHeader, uint64_t nowMs) const;
 
     // GET /api/wifi/scan: Allow (and noted) at most every SCAN_INTERVAL_MS, else 429.
-    GuardDecision scanAllowed(uint32_t nowMs);
+    GuardDecision scanAllowed(uint64_t nowMs);
 
     // Per-boot token for X-CYD-Token and the WebSocket query: TOKEN_LEN lower-case hex digits.
     static void makeToken(Random32 random, char out[TOKEN_LEN + 1]);
@@ -164,12 +167,12 @@ private:
     bool tokenMatches_(const char* given, size_t n) const;
     // -1 broken header, 0 no session cookie, 1 id in *id.
     static int parseCookie_(const char* header, uint8_t id[16]);
-    int findSession_(const uint8_t id[16], uint32_t nowMs) const;
+    int findSession_(const uint8_t id[16], uint64_t nowMs) const;
 
     struct Session {
         uint8_t id[16];
-        uint32_t createdMs;
-        uint32_t lastUseMs;
+        uint64_t createdMs;
+        uint64_t lastUseMs;
         bool used;
     };
     GuardConfig config_ {};
@@ -179,11 +182,11 @@ private:
     uint8_t failures_ = 0;
     uint8_t lockLevel_ = 0;
     bool locked_ = false;
-    uint32_t lockStartMs_ = 0;
+    uint64_t lockStartMs_ = 0;
     uint32_t lockMs_ = 0;
-    uint32_t lastFailureMs_ = 0;
+    uint64_t lastFailureMs_ = 0;
     bool scanned_ = false;
-    uint32_t lastScanMs_ = 0;
+    uint64_t lastScanMs_ = 0;
 };
 
 // Web password (W-S13): 8..64 bytes of UTF-8 without control characters, stored as
@@ -215,6 +218,8 @@ bool valid(const char* password, size_t len);
 bool hash(const char* password, size_t len, RequestGuard::Random32 random, char out[RECORD_SIZE]);
 // Constant-time comparison of the derived key; false for a malformed record.
 bool verify(const char* password, size_t len, const char* record);
+// The record has the stored form (prefix, iterations in range, hex salt and hash); NVS check.
+bool wellFormed(const char* record);
 // Compares n bytes without an early exit.
 bool constantTimeEqual(const void* a, const void* b, size_t n);
 

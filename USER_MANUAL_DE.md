@@ -22,6 +22,7 @@ Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_E
 - [13. Aktuelle Hardware-Pinbelegung](#13-aktuelle-hardware-pinbelegung)
 - [14. Sicherheitshinweis](#14-sicherheitshinweis)
 - [15. Fernsteuerung über USB und Netz (SCPI)](#15-fernsteuerung-über-usb-und-netz-scpi)
+- [16. Weboberfläche](#16-weboberfläche)
 - [Anhang A: Seitenbilder](#anhang-a-seitenbilder)
 - [Anhang B: Glossar](#anhang-b-glossar)
 - [Anhang C: Symptome und Abhilfe](#anhang-c-symptome-und-abhilfe)
@@ -1030,6 +1031,10 @@ Wichtige Meldungen:
 | `[SCPI] USB session ended (idle); log on serial again` | 10 min ohne SCPI-Zeile: das Log läuft wieder über USB |
 | `[SCPI] TCP server on port: 5025`, `[SCPI] TCP server stopped` | SCPI über TCP an (WLAN verbunden oder AP mit Passwort) bzw. aus |
 | `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP-Verbindung; beim Schließen mit Grund: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Befehle werden nie geloggt |
+| `[WEB] Server on port: 80` | Weboberfläche bereit (WLAN verbunden oder Access Point) |
+| `[WEB] Login`, `[WEB] Login failed` | Anmeldung mit Web-Passwort richtig bzw. falsch (das Passwort wird nie geloggt) |
+| `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Netzänderung aus dem Browser (Abschnitt 16) |
+| `[WEB] WebSocket closed: no pong`, `[WEB] No memory for the web server`, `[WEB] Saving the network settings failed` | Browser antwortet nicht mehr; zu wenig Speicher; Speichern fehlgeschlagen |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
 | `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WLAN-Betriebsart beim Start bzw. nach einer Änderung und Gerätename; Standard `Off` (Funk aus) |
@@ -1205,6 +1210,52 @@ Weitere Skripte liegen im Ordner `tools/` (Anleitung in `tools/README.md`):
 - `rest_example.py`: Beispiel für die REST-Schnittstelle (folgt mit der Weboberfläche).
 
 ---
+
+## 16. Weboberfläche
+
+Mit WLAN (Abschnitt 8, Seite WIFI) lässt sich der Generator auch im Browser bedienen: `http://<Gerätename>.local/` oder die Adresse aus der Statuszeile der Seite WIFI; im eigenen Access Point `http://192.168.4.1/` (ein Handy öffnet die Seite beim Verbinden meist von selbst). Die Seite liegt im Gerät, es braucht keine Internetverbindung. Kein HTTPS: nur in einem vertrauenswürdigen Netz oder im eigenen Access Point mit Passwort benutzen.
+
+### Bedienen
+
+- Oben Name, Version und Verbindung (`Live`, `Polling`, `Offline`), Speicherzustand, `REMOTE <Quelle>`, `Identify`, `Save` und `?` (Hilfe); darunter die Bereiche MAIN, CH1, CH2, CH3 IQ, CONFIG und WiFi wie am Gerät. Auf dem Handy liegen die Bereiche untereinander, die Ein/Aus-Schalter der Kanäle stehen fest am unteren Rand.
+- Frequenzen: Ziffer antippen bzw. anklicken wählt den Schritt, Mausrad über einer Ziffer ändert sie, die Einheit öffnet ein Eingabefeld (`10.7M`, `455k`, `7 100 000`, `10,7 MHz`; ein Fehler bleibt neben dem Feld stehen).
+- Tastatur: `↑`/`↓` (auch `+`/`−`) Frequenz im Schritt, `←`/`→` Schritt größer/kleiner, `Bild↑`/`Bild↓` Frequenz × 10 / ÷ 10, `1`/`2`/`3` Kanal, `F` oder `Enter` Eingabefeld, `O` Ausgang ein/aus, `?` Hilfe.
+- Änderungen am Gerät oder per SCPI erscheinen nach etwa 1 s und werden kurz hervorgehoben; ein Feld mit Fokus wird nicht überschrieben. Ohne Verbindung ist alles grau.
+- Die Statusleiste am Gerät zeigt nach einer Änderung aus dem Browser 10 s lang `REMOTE WEB`. `Remote out.` `local only` (Abschnitt 8) gilt auch hier: Einschalten wird abgelehnt.
+- Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`.
+- Nur am Gerät: Grundzustand und Werksreset, Touch-Abgleich, Bildschirmsperre, neues Access-Point-Passwort, Web-Passwort.
+
+### Web-Passwort
+
+Ist ein Web-Passwort gesetzt, fragt die Seite vor dem ersten Ändern danach (Lesen geht ohne). Die Anmeldung dauert etwa 1,5 s und gilt 12 h. Nach 5 falschen Versuchen ist die Anmeldung 30 s gesperrt, jede weitere Sperre dauert doppelt so lang (bis 16 min). Das Web-Passwort wird am Gerät festgelegt; das Feld auf der Seite Device folgt noch.
+
+### Netzeinstellungen aus dem Browser
+
+Betriebsart, Gerätename, Netze, statische IP und Access Point lassen sich auch im Browser ändern. Damit man sich nicht aussperrt, gilt eine Änderung erst nach einer Bestätigung:
+
+1. Nach `Apply` startet das WLAN mit den neuen Daten neu. Die Seite zeigt `Confirm within 120 s`.
+2. Die Seite unter der neuen Adresse öffnen und dort `Confirm` drücken.
+3. Ohne Web-Passwort fragt zusätzlich das Gerät `Network change` (`Revert`/`Keep`); erst `Keep` am Gerät und `Confirm` im Browser zusammen behalten die Änderung.
+4. Ohne Bestätigung innerhalb von 120 s oder mit `Revert` kehren die vorherigen Einstellungen zurück.
+
+`Off` aus dem Browser gilt sofort und ohne Bestätigung (über eine neue Verbindung ließe sie sich nicht bestätigen); einschalten lässt sich das WLAN danach nur am Gerät. Passwortfelder sind über einen offenen Access Point gesperrt.
+
+### Fernsteuerung über REST
+
+Programme können dieselben Funktionen über HTTP und JSON nutzen; Beispiel in `tools/rest_example.py`, die Beschreibung aller Aufrufe in `data/www/README.md`.
+
+| Aufruf | Inhalt |
+|---|---|
+| `GET /api/state` | Zustand als JSON (Kanäle, CH3, CONFIG, WLAN, Speichern, `REMOTE`) |
+| `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` oder `{"frequencyText":"7.1M"}` |
+| `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
+| `POST /api/config` | `drive`, `tuning`, `spread`, `offState`, `correction` (0,01 ppm), `step`, `backlight` |
+| `POST /api/save`, `/api/identify` | `{}` |
+| `POST /api/login` | `{"password":"…"}`, Antwort mit Sitzungs-Cookie |
+| `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Netzeinstellungen (Passwörter nur schreibend), Bestätigung, Netzsuche (höchstens alle 10 s) |
+| WebSocket `/ws?t=<Token>` | Zustand bei jeder Änderung |
+
+Jeder `POST` braucht `Content-Type: application/json` und den Kopf `X-CYD-Token` mit dem Token aus der Seite (neu bei jedem Neustart, `GET /api/token`). Fehler kommen wie bei SCPI als `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` 403, zu viele Befehle 429, Gerät beschäftigt 503, nicht angemeldet 401. Grenzen: Anfrage höchstens 1 KB, Adresse 256 Zeichen, 20 Schreibbefehle pro Sekunde.
 
 ## Anhang A: Seitenbilder
 

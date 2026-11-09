@@ -5,11 +5,13 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | File | Purpose |
 |---|---|
 | `scpi_example.py` | Minimal SCPI example: connect, `*IDN?`, CH1 to 7.1 MHz, on, `FREQ:ACT?`, read the error queue, off. |
-| `rest_example.py` | Minimal REST example (urllib only): token from the index page, `GET /api/state`, `POST /api/channel/1`. The REST API is **not in the firmware yet**; the script follows `ARBEITSPLAN.md` section 3.6. |
+| `rest_example.py` | Minimal REST example (urllib only): token from the index page, `GET /api/state`, `POST /api/channel/1`. |
+| `web_check.py` | Contract check of the web server (S55) against the device or `web_mock.py`: page and headers, guard answers (token, origin, host, sizes), REST error codes, writes answered with the state, rate limit, WiFi settings without keys, scan semantics, WebSocket push and limits, login. Never switches an output on or changes WiFi. |
 | `device_check.py` | Automated SCPI check for the smoke test and the measurement plan (`MESSPLAN.md` 4.3, L6, L-S). |
 | `fake_scpi_device.py` | Fake device (local TCP server, subset of the manual) to try the scripts without hardware. |
 | `size_report.py` | Flash/RAM of the firmware envs from the ELF as `size.json` and a Markdown table with the difference to a baseline (CI job summary, G7). Local: `python tools/size_report.py measure -e esp32-2432S028R-core3` after `pio run`; `--self-test` runs its tests. |
 | `build_info.py` | PlatformIO build script (not a host tool). |
+| `embed_www.py` | PlatformIO build script: embeds `data/www` into the firmware (`app.js`, `style.css` gzip with ETag, `index.html` for the per-boot token) as `$BUILD_DIR/www/www_assets.h`. |
 
 ## Install
 
@@ -65,7 +67,11 @@ request guard of ARBEITSPLAN 3.6 on a simulated device (standard library only):
 python tools/web_mock.py --port 8080                 # then open http://127.0.0.1:8080/
 python tools/web_mock.py --password secret --demo    # with login and changing values
 python tools/rest_example.py 127.0.0.1:8080          # the REST example against the mock
+python tools/web_check.py 127.0.0.1:8080             # the contract check against the mock
+python tools/web_check.py cyd-hf-1a2b.local --password secret123   # ... against the device
 ```
+
+The mock gives the firmware's answers (S55); where they differ, the firmware is the reference.
 
 Further flags: `--login-all`, `--local-only`, `--open-ap`, `--hw`, `--no-ws`, `--confirm-timeout`, `--token`
 (`--help` explains them).

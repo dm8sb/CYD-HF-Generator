@@ -45,7 +45,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 - Dependabot keeps the pinned GitHub Actions up to date (weekly, grouped, to `dev`)
 - CI: Flash and static RAM of both firmware envs as a job summary table and artifact `firmware-size` (`tools/size_report.py`), compared with the target branch in pull requests and with the previous commit on pushes
 - Release workflow with build provenance and checksums; web flasher site for GitHub Pages (ESP Web Tools, separate parts so an update keeps the settings), goes live with the first release
-- Web interface files in `data/www/` (not served by the firmware yet) with `tools/web_mock.py` to try them without the device
+- Web interface on port 80 (manual section 16): embedded page, REST API and WebSocket, request guard with session login (web password set at the device), two-stage network changes with confirmation, at most 3 browsers; `tools/web_mock.py` to try it without the device, `tools/web_check.py` checks the contract
 - Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, built with `-Os`) and LVGL 8.4.0; the Arduino 2.0.x build is gone (E-32), the last firmware on it is 1.3.3
 - WiFi (CONFIG `WiFi` and `Remote out.`, WIFI page with network scan and on-screen keyboard, access point page with QR code, device page with name and static IP, WiFi state and `REMOTE <source>` in the status bar, WiFi and heap lines on the info card; default Off): network settings in NVS `hfnet`, client with up to two networks, fallback access point after 60 s, AP off as soon as the client has an address, mDNS, captive DNS; the factory reset also erases the WiFi settings
 

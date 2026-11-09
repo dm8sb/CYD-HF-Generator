@@ -21,8 +21,8 @@
 //   duplicate key                                                 -102 Syntax error
 //   no key at all where one is needed                             -109 Missing parameter
 //   integer that does not fit int64 (or any float >= 9.2e18)      -222 Data out of range
-//   unknown enum text, frequencyText not parseable or outside
-//   8 kHz-160 MHz (parseRemoteFrequency tells no difference), NUL in a string
+//   frequencyText outside 8 kHz-160 MHz                           -222 Data out of range
+//   unknown enum text, frequencyText not parseable, NUL in a string
 //                                                                 -224 Illegal parameter value
 //   remoteOutputs in /api/config (only on the device, W-E25)      403, -221
 // Numbers are passed on in the full type (int64); ranges and allowed values are the
@@ -37,7 +37,7 @@ namespace RestJson {
 static constexpr size_t MAX_BODY = 1024;   // W-S10; the guard refuses larger with 413
 static constexpr uint8_t MAX_NESTING = 10; // ARBEITSPLAN 3.3
 static constexpr uint8_t MAX_COMMANDS = 8;
-static constexpr size_t STATE_SIZE = 1024;  // enough for buildState() (the state is ~750 B)
+static constexpr size_t STATE_SIZE = 1280;  // buildState() with the longest escaped texts (typical ~800 B)
 static constexpr size_t ERROR_SIZE = 96;    // enough for errorJson()
 
 // SCPI error codes of the REST API.
@@ -109,6 +109,8 @@ struct DeviceInfo {
     bool apOpen;
     uint8_t apStations;
     const char* version;  // nullptr: APP_VERSION
+    uint16_t confirmWithin; // wifi.confirmWithin: seconds left to confirm a network change, 0 = none
+    bool passwordSet;       // device.passwordSet: a web password is set (it is set at the device only)
 };
 
 // The state JSON (contract in ARBEITSPLAN S55): rev, hw, save, remote (the last remote source
@@ -118,5 +120,33 @@ struct DeviceInfo {
 // "2mA"/"6mA"/"8mA"), [] with the defaults. actual with 0.1 Hz. Returns the length, 0 if it
 // does not fit (out is "" then).
 size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* out, size_t outSize);
+
+// What the WebSocket push compares (S55): a new state goes out when any of these changed, i.e.
+// the revision, the save state, the REMOTE indicator (also when it expires), the WiFi state
+// (not the RSSI, which the UI's 15 s poll picks up), a pending network change, the password flag.
+struct PushKey {
+    uint32_t revision;
+    uint8_t save;
+    bool remote;
+    uint8_t mode;
+    bool connected;
+    uint32_t ip;
+    bool apActive;
+    bool apOpen;
+    uint8_t apStations;
+    bool confirmPending;
+    bool passwordSet;
+    uint32_t textHash; // SSID, device name, AP SSID
+    bool operator==(const PushKey& o) const;
+    bool operator!=(const PushKey& o) const { return !(*this == o); }
+};
+PushKey pushKey(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs);
+
+// Error bodies of refusals that come from the request guard or the server itself:
+// {"error":"-200,<text>"}; status 403 with reason "Bad token" becomes "Invalid token: reload the
+// page" (stale token after a restart, ARBEITSPLAN 3.6 point 4), 401 "Login required".
+size_t guardErrorJson(uint16_t status, const char* reason, char* out, size_t outSize);
+// 429 of the login lock: {"error":"-200,Too many failed logins","retryAfter":<s>}.
+size_t loginLockedJson(uint32_t retryAfterS, char* out, size_t outSize);
 
 }

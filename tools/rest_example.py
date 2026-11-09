@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Minimal REST example for the CYD HF generator (urllib only, no requests).
 
-NOTE: the REST API is NOT in the firmware yet. This script follows the
-concept in ARBEITSPLAN.md section 3.6 and may need small changes once the
-real API exists (paths, field names, error format).
+The REST API is in the firmware since S55 (net/web_server.cpp); tools/web_mock.py
+answers the same way. tools/web_check.py checks the whole contract.
 
 What it does:
   1. GET /                      -> extract the per-boot token from

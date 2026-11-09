@@ -563,7 +563,7 @@ scpi_result_t save(scpi_t* c) { return submit(c, CommandType::SaveNow, 0, 0); }
 scpi_result_t logQ(scpi_t* c) {
     char line[Logger::LINE_LEN + 2];
     line[0] = '\0';
-    if (Logger::readBuffered(line, sizeof(line)) > 0) {
+    if (Logger::readBuffered(line, sizeof(line), 1) > 0) { // one line: no LF inside the string
         const size_t n = strlen(line);
         if (n > 0 && line[n - 1] == '\n') line[n - 1] = '\0';
     }

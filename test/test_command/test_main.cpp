@@ -208,6 +208,76 @@ static void test_snapshot_publish_and_read() {
     TEST_ASSERT_TRUE(snap.read(&s));
 }
 
+// S55: a REST body is one batch: all or nothing, executed in order, stopped at the first error.
+static void test_batch_is_atomic_and_stops_at_the_first_error() {
+    Device d;
+    CommandQueue q;
+    Command list[3] = {cmd(CommandType::SetFrequency, 1, 1, Source::Web), cmd(CommandType::SetEnabled, 1, 1, Source::Web),
+                       cmd(CommandType::Drive, 0, 8, Source::Web)};
+    uint32_t first = 0;
+    TEST_ASSERT_EQUAL(PushResult::Queued, q.pushBatch(list, 3, &first));
+    TEST_ASSERT_EQUAL_UINT8(3, q.drain(d.app));
+    Result r = Result::Ok;
+    TEST_ASSERT_TRUE(q.result(first, &r));
+    TEST_ASSERT_EQUAL(Result::OutOfRange, r);
+    TEST_ASSERT_TRUE(q.result(first + 1, &r));
+    TEST_ASSERT_EQUAL(Result::OutOfRange, r); // skipped with the first error
+    TEST_ASSERT_TRUE(q.result(first + 2, &r));
+    TEST_ASSERT_EQUAL(Result::OutOfRange, r);
+    TEST_ASSERT_FALSE(d.app.channel(1).enabled); // not switched on after the refused frequency
+    TEST_ASSERT_EQUAL_UINT8(4, d.app.system().drive_ma);
+    // NoChange is no error: the next command runs.
+    list[0] = cmd(CommandType::SetFrequency, 1, (int64_t)d.app.channel(1).frequency, Source::Web);
+    TEST_ASSERT_EQUAL(PushResult::Queued, q.pushBatch(list, 2, &first));
+    q.drain(d.app);
+    TEST_ASSERT_TRUE(q.result(first, &r));
+    TEST_ASSERT_EQUAL(Result::NoChange, r);
+    TEST_ASSERT_TRUE(d.app.channel(1).enabled);
+    // A single push after a failed batch is not skipped.
+    TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::SetFrequency, 2, 1, Source::Web)));
+    uint32_t t = 0;
+    TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::Drive, 0, 2, Source::Web), &t));
+    q.drain(d.app);
+    TEST_ASSERT_TRUE(q.result(t, &r));
+    TEST_ASSERT_EQUAL(Result::Ok, r);
+    // Not enough room or rate tokens: nothing is queued.
+    Fake::advanceMs(5000);
+    CommandQueue full;
+    for (uint8_t i = 0; i < CommandQueue::CAPACITY - 1; ++i) full.push(cmd(CommandType::Step, 0, 1000, (i % 2) ? Source::Usb : Source::Scpi));
+    TEST_ASSERT_EQUAL(PushResult::Full, full.pushBatch(list, 2));
+    TEST_ASSERT_EQUAL(PushResult::Queued, full.pushBatch(list, 1));
+    CommandQueue rate;
+    for (uint8_t i = 0; i < REMOTE_WRITES_PER_S - 1; ++i) {
+        rate.push(cmd(CommandType::Step, 0, 1000, Source::Web));
+        rate.drain(d.app);
+    }
+    TEST_ASSERT_EQUAL(PushResult::RateLimited, rate.pushBatch(list, 2));
+    TEST_ASSERT_EQUAL(PushResult::Queued, rate.pushBatch(list, 1)); // the last token was kept
+}
+
+// S55: a waiting request answers once its command is in the published snapshot.
+static void test_visible_after_publish() {
+    Device d;
+    CommandQueue q;
+    StateSnapshot snap;
+    uint32_t t = 0;
+    TEST_ASSERT_FALSE(q.visible(0));
+    TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::SetFrequency, 2, 3500000, Source::Web), &t));
+    TEST_ASSERT_FALSE(q.visible(t));
+    q.drain(d.app);
+    TEST_ASSERT_FALSE(q.visible(t)); // executed, not yet published
+    snap.publish(d.app);
+    q.markVisible();
+    TEST_ASSERT_TRUE(q.visible(t));
+    Snapshot s {};
+    TEST_ASSERT_TRUE(snap.read(&s));
+    TEST_ASSERT_EQUAL_UINT64(3500000, s.state.ch2.frequency);
+    uint32_t t2 = 0;
+    q.push(cmd(CommandType::Drive, 0, 6, Source::Web), &t2);
+    TEST_ASSERT_TRUE(q.visible(t));
+    TEST_ASSERT_FALSE(q.visible(t2));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_execute_maps_to_the_setters);
@@ -216,5 +286,7 @@ int main(int, char**) {
     RUN_TEST(test_rate_limit_per_source);
     RUN_TEST(test_remote_outputs_local_only);
     RUN_TEST(test_snapshot_publish_and_read);
+    RUN_TEST(test_batch_is_atomic_and_stops_at_the_first_error);
+    RUN_TEST(test_visible_after_publish);
     return UNITY_END();
 }

@@ -1,6 +1,6 @@
 # Web user interface (WEB-HMI)
 
-Static files the firmware serves from LittleFS (`data/` is the upload image). No framework, no external resources, English only (W-E11).
+Static files the firmware embeds and serves (S55: `tools/embed_www.py` gzips `app.js` and `style.css` into the image at build time, `index.html` gets the per-boot token at runtime; no LittleFS). No framework, no external resources, English only (W-E11).
 
 | File | Bytes | gzip -9 | Content |
 |---|---:|---:|---|
@@ -9,7 +9,7 @@ Static files the firmware serves from LittleFS (`data/` is the upload image). No
 | `style.css` | 8 626 | 2 871 | Dark theme in the colors of `include/palette.h`, responsive layout |
 | total | 49 275 | 16 758 | |
 
-This README is not needed on the device; leave it out of the LittleFS image or don't serve it.
+This README is not embedded and not served.
 
 ## Rules the files keep
 
@@ -74,7 +74,7 @@ State (`GET /api/state`, every WebSocket text message, body of every successful 
  "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"remoteOutputs":"allowed"},
  "wifi":{"mode":"client","connected":true,"ssid":"Lab","rssi":-60,"ip":"192.168.1.50","name":"cyd-hf-1a2b",
          "ap":{"active":false,"ssid":"CYD-HF-1A2B","open":false,"stations":0},"confirmWithin":0},
- "device":{"version":"1.4.0"}}
+ "device":{"version":"1.4.0","passwordSet":false}}
 ```
 
 Values: `hw` CONN | NFO | BLOC | UNKN; `save` saved | pending | failed | unavailable; `remote` null | usb | web | scpi; status ON | OFF | ERR | WAIT | NOHW; `correction` in 0.01 ppm (±5000); `tuning` fractional | lownoise | integer; `spread` off | down05 | down15 | center05; `offState` low | high | hiz; `remoteOutputs` allowed | local; `wifi.mode` off | client | ap.
@@ -92,9 +92,10 @@ How the UI reads it:
 | `POST /api/save`, `POST /api/identify` | `{}` | 200 state |
 | `POST /api/login` | `{"password":str}` | 204 + `Set-Cookie` (HttpOnly, SameSite=Strict, 12 h) |
 | `GET /api/wifi` | | `{"mode","networks":[{"ssid","key":"set\|open\|none"}×2],"ap":{"ssid","open","passwordSet"},"name","staticIp":{"enabled","ip","mask","gateway","dns"}}` |
-| `POST /api/wifi` | subset of `mode`, `networks:[{slot,ssid,password}]`, `delete:[slot]`, `name`, `staticIp:{…}`, `ap:{open,password}` | 202 `{"confirmWithin":120}` |
+| `POST /api/wifi` | subset of `mode`, `networks:[{slot,ssid,password}]`, `delete:[slot]`, `name`, `staticIp:{…}`, `ap:{open,password}` | 202 `{"confirmWithin":120}`; mode `off` is final: `{"confirmWithin":0}` |
 | `POST /api/wifi/confirm` | `{}` | 204 |
 | `GET /api/wifi/scan` | | `{"state":"running\|done\|failed","networks":[{"ssid","rssi","secure"}]}` |
+| `GET /api/token` | | `{"token":"…"}` (same-origin only, for scripts) |
 | WebSocket `/ws?t=<token>` | push only | state on connect and on every change |
 
 What the UI sends for networks: an entry for a slot only when its SSID changed or a password was typed; `password` only when typed, or `""` for a new SSID without password (open network, the UI asks first). A cleared SSID or `Delete` → `delete`. `staticIp` is sent complete when any of its fields changed.
@@ -105,11 +106,14 @@ Errors (mock = the expected device answers): 400 `{"error":"-104,Data type error
 
 Scan: the first GET starts a scan (`running`), the GET after it finished returns `done` once; another start within 10 s of the previous start answers 429. The UI polls once per second while `running`.
 
-## Open points
+## Settled in S55 (firmware = reference, the mock follows it)
 
-- `wifi.confirmWithin` (seconds left, 0 = nothing pending) is **not in the agreed contract**; the mock sends it and the UI uses it if present, so a page opened at the new address can still show `Confirm`. Without it, confirming after an address change only works from the page that made the change.
+- `wifi.confirmWithin` (seconds left, 0 = nothing pending) is part of the state; a page opened at the new address shows `Confirm`.
+- Mode `off` over the web is final: applied after the answer and saved, `confirmWithin` 0, the UI says WiFi switches off.
+- `device.passwordSet` tells whether a web password is set; it is set at the device only (no REST call). Without one, a network change needs `Keep` at the touch screen as well: a web `Confirm` before that answers `-221,Confirm at the device as well` and counts once the touch confirms.
+- Stale token after a restart: 403 `-200,Invalid token: reload the page`.
+- Invalid JSON and duplicate keys `-102`; wrong type `-104`; unknown key and `frequency` with `frequencyText` `-108`; `{}` where a key is needed `-109`; out of range `-222` (also `frequencyText` outside 8 kHz–160 MHz; text that is no frequency `-224`); values outside a list (master, phase, drive, step, enums, slot) `-224`; backlight any integer 10–100.
+- `/api/state` and `/ws` are readable without login also when a password is set (they hold no secrets, MAC or commit).
+- Without connection `wifi.ssid`/`ip` are `""`, `rssi` 0; with the AP `ip` is the AP address.
 - No REST call for `Defaults` / `Factory`, touch calibration, screen lock, AP `Regenerate` and the web password; the UI says these are set at the device.
-- Mode `off` over the web cannot be confirmed over a "new connection"; the UI asks first and shows the normal countdown. The device behavior is to be decided.
-- The UI cannot tell whether a web password is set; the hint "Without a web password, confirm at the device as well" is always shown with the countdown.
 - `PgUp`/`PgDn` are read as frequency × 10 / ÷ 10 (ARBEITSPLAN 3.6 "× 10 / ÷ 10"); `←`/`→` already step the step size by decades.
-- A stale token after a device restart gives 403 on every write; the UI says "reload the page" only if the device sends no error text.

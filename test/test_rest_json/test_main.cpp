@@ -117,7 +117,8 @@ static void test_channel_bodies() {
         assertCommand(c.list[0], CommandType::SetFrequency, 1, t.hz);
     }
     ASSERT_REPLY(400, -224, channel(1, "{\"frequencyText\":\"10.7\"}", &c));
-    ASSERT_REPLY(400, -224, channel(1, "{\"frequencyText\":\"200 MHz\"}", &c));
+    ASSERT_REPLY(400, -222, channel(1, "{\"frequencyText\":\"200 MHz\"}", &c)); // S55: range, not syntax
+    ASSERT_REPLY(400, -222, channel(1, "{\"frequencyText\":\"7.9k\"}", &c));
     ASSERT_REPLY(400, -224, channel(1, "{\"frequencyText\":\"1e7\"}", &c));
     ASSERT_REPLY(400, -224, channel(1, "{\"frequencyText\":\"10M\\u0000garbage\"}", &c)); // NUL
     ASSERT_REPLY(400, -104, channel(1, "{\"frequencyText\":10000000}", &c));
@@ -406,6 +407,14 @@ static void test_login_body_and_password_fields() {
                                   "{\"apPassword\":\"x\"}", "{\"PASSWORD\":1}", "{\"wifi\":{\"psk\":\"x\"}}",
                                   "{\"secret\":null}", "{\"pass\\u0077ord\":\"x\"}", "[{\"a\":[{\"newPassphrase\":1}]}]"};
     for (const char* b : secret) TEST_ASSERT_TRUE_MESSAGE(carriesSecret(b, strlen(b)), b);
+    // Duplicate keys hide nothing (ArduinoJson keeps the last value; fuzz finding S57c), nor do
+    // escapes or long keys.
+    const char* const hidden[] = {"{\"a\":{\"password\":\"x\"},\"a\":1}",
+                                  "{\"networks\":[{\"slot\":0,\"ssid\":\"a\",\"password\":\"b\"}],\"networks\":[]}",
+                                  "{\"ap\":{\"x\":{\"psk\":1},\"x\":2}}", "{\"\\u0050ASS\":1}"};
+    for (const char* b : hidden) TEST_ASSERT_TRUE_MESSAGE(carriesSecret(b, strlen(b)), b);
+    const std::string longKey = "{\"" + std::string(70, 'x') + "Password\":1}";
+    TEST_ASSERT_TRUE(carriesSecret(longKey.c_str(), longKey.size()));
     const char* const plain[] = {"{\"drive\":4}", "{\"ssid\":\"password\"}", "[\"password\"]", "{}", "{password:1}", "",
                                  "{\"mode\":\"client\",\"ssid\":\"Lab\"}"};
     for (const char* b : plain) TEST_ASSERT_FALSE_MESSAGE(carriesSecret(b, strlen(b)), b);
@@ -508,7 +517,8 @@ static void test_state_json_contract() {
     TEST_ASSERT_EQUAL(80, cfg["backlight"].as<int>());
     TEST_ASSERT_EQUAL_STRING("allowed", cfg["remoteOutputs"]);
     JsonObjectConst w = doc["wifi"];
-    TEST_ASSERT_EQUAL(7, (int)keyCount(w));
+    TEST_ASSERT_EQUAL(8, (int)keyCount(w));
+    TEST_ASSERT_EQUAL(0, w["confirmWithin"].as<int>()); // S55: 0 = no network change to confirm
     TEST_ASSERT_EQUAL_STRING("client", w["mode"]);
     TEST_ASSERT_TRUE(w["connected"].as<bool>());
     TEST_ASSERT_EQUAL_STRING("Lab", w["ssid"]);
@@ -522,7 +532,16 @@ static void test_state_json_contract() {
     TEST_ASSERT_FALSE(ap["open"].as<bool>());
     TEST_ASSERT_EQUAL(0, ap["stations"].as<int>());
     TEST_ASSERT_EQUAL_STRING("1.4.0", doc["device"]["version"]);
-    TEST_ASSERT_EQUAL(1, (int)keyCount(doc["device"]));
+    TEST_ASSERT_FALSE(doc["device"]["passwordSet"].as<bool>());
+    TEST_ASSERT_TRUE(doc["device"]["passwordSet"].is<bool>());
+    TEST_ASSERT_EQUAL(2, (int)keyCount(doc["device"]));
+    DeviceInfo pending = info();
+    pending.confirmWithin = 117;
+    pending.passwordSet = true;
+    JsonDocument pd;
+    parse(state(s, pending), pd);
+    TEST_ASSERT_EQUAL(117, pd["wifi"]["confirmWithin"].as<int>());
+    TEST_ASSERT_TRUE(pd["device"]["passwordSet"].as<bool>());
     // Without a version the firmware's.
     DeviceInfo noVersion = info();
     noVersion.version = nullptr;
@@ -536,6 +555,8 @@ static void test_state_json_contract() {
     memset(longest.apSsid, '"', 32);
     const std::string slashes(32, '\\');
     longest.version = slashes.c_str();
+    longest.confirmWithin = 65535;
+    longest.passwordSet = true;
     const std::string big = state(s, longest);
     TEST_ASSERT_TRUE(big.size() < STATE_SIZE);
     char small[200];
@@ -578,6 +599,68 @@ static void test_state_save_and_remote_indicator() {
     d.app.update();
     parse(state(d.snapshot(), info()), doc);
     TEST_ASSERT_EQUAL_STRING("saved", doc["save"]);
+}
+
+// S55: the WebSocket push goes out when anything of the push key changed, including the
+// REMOTE indicator expiring and a pending network change, but not for the RSSI alone.
+static void test_push_key() {
+    Device d;
+    Snapshot s = d.snapshot();
+    DeviceInfo i = info();
+    const PushKey k0 = pushKey(s, i, 0);
+    TEST_ASSERT_TRUE(k0 == pushKey(s, i, 0));
+    DeviceInfo rssi = i;
+    rssi.rssi = -80;
+    TEST_ASSERT_TRUE(k0 == pushKey(s, rssi, 0));
+    DeviceInfo pending = i;
+    pending.confirmWithin = 120;
+    TEST_ASSERT_TRUE(k0 != pushKey(s, pending, 0));
+    pending.confirmWithin = 119;
+    TEST_ASSERT_TRUE(pushKey(s, pending, 0) == pushKey(s, pending, 1000)); // the countdown itself is not pushed
+    DeviceInfo other = i;
+    strcpy(other.ssid, "Lab2");
+    TEST_ASSERT_TRUE(k0 != pushKey(s, other, 0));
+    other = i;
+    other.apStations = 1;
+    TEST_ASSERT_TRUE(k0 != pushKey(s, other, 0));
+    other = i;
+    other.passwordSet = true;
+    TEST_ASSERT_TRUE(k0 != pushKey(s, other, 0));
+    // Revision and save state.
+    Snapshot t = s;
+    t.revision++;
+    TEST_ASSERT_TRUE(k0 != pushKey(t, i, 0));
+    t = s;
+    t.saveState = SaveState::Pending;
+    TEST_ASSERT_TRUE(k0 != pushKey(t, i, 0));
+    // REMOTE: on with a remote command, off again after REMOTE_INDICATOR_MS without a change.
+    t = s;
+    t.lastRemote = Source::Web;
+    t.lastRemoteMs = 5000;
+    const PushKey on = pushKey(t, i, 5000);
+    TEST_ASSERT_TRUE(on.remote);
+    TEST_ASSERT_TRUE(on == pushKey(t, i, 5000 + REMOTE_INDICATOR_MS - 1));
+    TEST_ASSERT_TRUE(on != pushKey(t, i, 5000 + REMOTE_INDICATOR_MS));
+    TEST_ASSERT_FALSE(pushKey(t, i, 5000 + REMOTE_INDICATOR_MS).remote);
+}
+
+// S55: refusals of the guard and the server as {"error":"-200,<text>"} (ARBEITSPLAN 3.6 point 4).
+static void test_guard_error_bodies() {
+    char buf[ERROR_SIZE];
+    TEST_ASSERT_TRUE(guardErrorJson(403, "Bad token", buf, sizeof(buf)) > 0);
+    TEST_ASSERT_EQUAL_STRING("{\"error\":\"-200,Invalid token: reload the page\"}", buf);
+    guardErrorJson(401, "Login required", buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("{\"error\":\"-200,Login required\"}", buf);
+    guardErrorJson(421, "Host not allowed", buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("{\"error\":\"-200,Host not allowed\"}", buf);
+    guardErrorJson(403, "Foreign origin", buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("{\"error\":\"-200,Foreign origin\"}", buf);
+    guardErrorJson(503, nullptr, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("{\"error\":\"-200,Refused\"}", buf);
+    TEST_ASSERT_TRUE(loginLockedJson(30, buf, sizeof(buf)) > 0);
+    TEST_ASSERT_EQUAL_STRING("{\"error\":\"-200,Too many failed logins\",\"retryAfter\":30}", buf);
+    char tiny[8];
+    TEST_ASSERT_EQUAL(0, (int)loginLockedJson(30, tiny, sizeof(tiny)));
 }
 
 static void test_state_status_texts() {
@@ -846,6 +929,8 @@ int main(int, char**) {
     RUN_TEST(test_state_json_contract);
     RUN_TEST(test_state_save_and_remote_indicator);
     RUN_TEST(test_state_status_texts);
+    RUN_TEST(test_push_key);
+    RUN_TEST(test_guard_error_bodies);
     RUN_TEST(test_state_escapes_hostile_ssids);
     RUN_TEST(test_random_bodies_keep_the_rules);
     RUN_TEST(test_random_ssids_stay_valid_json);

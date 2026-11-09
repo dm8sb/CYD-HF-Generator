@@ -40,6 +40,12 @@ public:
     void setFactoryReset(void (*reset)()) { factoryReset_ = reset; }
     // WiFi (S53): status for the status bar and the info card, mode from CONFIG; save writes
     // the network settings (set by main). Without it the WiFi rows show Off.
+    // Web network change without web password (W-S12, S55): needed() asks whether the touch
+    // must confirm now, answer(true) keeps the new settings, answer(false) restores the old ones.
+    void setNetConfirm(bool (*needed)(), void (*answer)(bool keep)) {
+        netConfirmNeeded_ = needed;
+        netConfirmAnswer_ = answer;
+    }
     void setWifi(WifiManager& wifi, bool (*save)(const NetSettings&)) {
         wifi_ = &wifi;
         saveNet_ = save;
@@ -237,7 +243,7 @@ private:
     static void showState_(lv_obj_t* label, const StatusText::Text& state);
     // Off state High needs a confirmation: a switched-off output then carries DC.
     // Confirmation dialogs with Cancel and one action button in the warning color.
-    enum class Confirm : uint8_t { OffStateHigh, ResetDefaults, FactoryReset, DeleteNetwork, OpenNetwork, ApOpen, OpenFallback };
+    enum class Confirm : uint8_t { OffStateHigh, ResetDefaults, FactoryReset, DeleteNetwork, OpenNetwork, ApOpen, OpenFallback, WebNetwork };
     void confirm_(Confirm what);
     static void confirmEventCb_(lv_event_t* e);
     // Screen lock events from the touch callback (hint while pressed, LOCKED in the status bar).
@@ -265,6 +271,9 @@ private:
     uint8_t entryField_ = 0; // IpField: 0 address, 1 mask, 2 gateway, 3 DNS
     PageId entryBack_ = PageId::WifiScan;
     bool openFallbackAsked_ = false; // W-S2 question shown for the current need
+    bool (*netConfirmNeeded_)() = nullptr;
+    void (*netConfirmAnswer_)(bool keep) = nullptr;
+    bool netConfirmAsked_ = false;   // W-S12 question shown for the current web change
     uint8_t wifiSlot_ = 0;
     uint8_t scanPage_ = 0;
     EntryPurpose entryPurpose_ = EntryPurpose::Password;

@@ -17,6 +17,8 @@
 #include <new>
 #include <net/net_settings.h>
 #include <net/wifi_manager.h>
+#include <net/web_server.h>
+#include <esp_random.h>
 // Test build with WiFi credentials from a local file that is never committed (.gitignore):
 // build with -DTEST_WIFI=1 and include/test_wifi_local.h defining TEST_WIFI_SSID/TEST_WIFI_PASS.
 #if defined(TEST_WIFI) && TEST_WIFI && __has_include(<test_wifi_local.h>)
@@ -44,6 +46,16 @@ static NetSettings netSettings;
 static WifiManager wifi;
 static bool saveNetSettings(const NetSettings& s) { return NetConfig::save(netStorage, s); }
 static uint32_t publishedRevision = 0xFFFFFFFF;
+// The snapshot is also published when only the save state or the REMOTE time changed (S55a):
+// neither counts in the revision, and the web state shows both.
+static SaveState publishedSave = SaveState::Saved;
+static uint32_t publishedRemoteMs = 0;
+// Web server (S55) on the heap (E-31); it starts when WiFi first comes up.
+static WebHmiServer* web = nullptr;
+static bool webConfirmNeeded() { return web && web->touchConfirmNeeded(); }
+static void webConfirmAnswer(bool keep) {
+    if (web) web->touchConfirm(keep);
+}
 
 // SCPI over USB (S51): runs in loop(), commands through the queue.
 static void heapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) {
@@ -149,7 +161,17 @@ void setup() {
     saveNet = nullptr;
     Logger::info("TEST", "WiFi test settings applied (RAM only)");
 #endif
+#ifdef TEST_WEB_PASSWORD
+    // Test web password from include/test_wifi_local.h, RAM only (the device page gets the
+    // field later); hashing takes ~0.3 s once at boot.
+    if (NetConfig::setWebPassword(netSettings, TEST_WEB_PASSWORD, strlen(TEST_WEB_PASSWORD), esp_random)) {
+        saveNet = nullptr;
+        Logger::info("TEST", "Web password set (RAM only)");
+    }
+#endif
     wifi.begin(netSettings, macBytes, saveNet);
+    web = new (std::nothrow) WebHmiServer(commands, snapshot, wifi, saveNet);
+    if (!web) Logger::error("BOOT", "No memory for the web server");
 
     // 5. SI5351 init, SDA/SCL in either order
     const bool si5351Ok = app.connectHardware();
@@ -176,6 +198,7 @@ void setup() {
     gui.setTouchCalibrationStore(saveTouchCalibration);
     gui.setFactoryReset(factoryReset);
     gui.setWifi(wifi, saveNetSettings);
+    gui.setNetConfirm(webConfirmNeeded, webConfirmAnswer);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
     if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
     app.addListener(Gui::onAppEvent, &gui);
@@ -227,10 +250,15 @@ void loop() {
     wifi.update();
     pollTcpScpi();
     app.update();
-    if (app.revision() != publishedRevision) {
+    if (app.revision() != publishedRevision || app.saveState() != publishedSave || app.lastRemoteMs() != publishedRemoteMs) {
         publishedRevision = app.revision();
+        publishedSave = app.saveState();
+        publishedRemoteMs = app.lastRemoteMs();
         snapshot.publish(app);
     }
+    // Every command executed so far is in the snapshot now: waiting web requests may answer.
+    commands.markVisible();
+    if (web) web->loop();
     gui.update();
     MemMonitor::update();
     runRestartTests();

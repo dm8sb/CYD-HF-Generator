@@ -18,7 +18,8 @@
 // - > MAX_BODY 413/-223; invalid JSON (also nesting > 10) and duplicate keys 400/-102; top level
 //   not an object and wrong types 400/-104; unknown keys 400/-108 (frequency with frequencyText
 //   too); no key 400/-109; integers outside int64 (and floats >= 9.2e18) 400/-222; unknown
-//   enum text, NUL in a string, bad frequencyText 400/-224; remoteOutputs 403/-221; channel
+//   enum text, NUL in a string, bad frequencyText 400/-224 (outside the range -222, S55);
+//   remoteOutputs 403/-221; channel
 //   not 1/2 404/-114; the first problem in key order answers;
 // - Ok results carry at most 8 commands, exactly the expected ones in the documented fixed
 //   order, source Web, values inside their types (bool 0/1, enums in range, frequencyText in
@@ -32,9 +33,8 @@
 //   ArduinoJson), has no raw control bytes, every string strict UTF-8 without control
 //   characters, foreign strings = Sanitize::text of the raw bytes, numbers and enums as in the
 //   snapshot; a smaller buffer gives 0 (or the same text when it fits) and is never overrun.
-// Known finding (FUZZ_KNOWN_FINDINGS=1 makes it a failing check, see test/fuzz/README.md):
-// ArduinoJson keeps the last of duplicate keys, so a secret key inside an overwritten value is
-// not seen: {"a":{"password":"x"},"a":1} gives false.
+// Fixed in S55: carriesSecret() looks at the raw keys, so a secret key inside a value that a
+// later duplicate key replaces ({"a":{"password":"x"},"a":1}) is seen as well.
 
 #include "fuzz_common.h"
 
@@ -47,10 +47,6 @@
 #include <remote/rest_json.h>
 #include <utils/frequency_utils.h>
 #include <utils/sanitize.h>
-
-#ifndef FUZZ_KNOWN_FINDINGS
-#define FUZZ_KNOWN_FINDINGS 0
-#endif
 
 namespace fuzz_rest_json {
 
@@ -407,7 +403,10 @@ Want convert(const Field& f, const JV& v) {
             if (v.k != JV::Str) return err(DATA_TYPE_ERROR);
             if (v.s.find('\0') != std::string::npos) return err(ILLEGAL_PARAMETER_VALUE);
             uint64_t hz = 0;
-            if (!FrequencyUtils::parseRemoteFrequency(v.s.c_str(), &hz)) return err(ILLEGAL_PARAMETER_VALUE);
+            bool outOfRange = false;
+            if (!FrequencyUtils::parseRemoteFrequency(v.s.c_str(), &hz, &outOfRange)) {
+                return err(outOfRange ? DATA_OUT_OF_RANGE : ILLEGAL_PARAMETER_VALUE);
+            }
             return okv((int64_t)hz);
         }
         case Kind::Tuning: return choice(v, TUNING, 3);
@@ -638,14 +637,11 @@ void login(uint8_t param, const Body& b) {
 
 void secrets(const Body& b, bool rawSecret) {
     const bool got = carriesSecret(b.ptr, b.len);
-    const bool want = b.len <= MAX_BODY && b.valid && secretKept(b.top);
+    // Every key as written, at any depth (also under duplicate keys); what ArduinoJson keeps is
+    // a part of it.
+    const bool want = b.len <= MAX_BODY && b.valid && rawSecret;
     FUZZ_CHECK(got == want);
-#if FUZZ_KNOWN_FINDINGS
-    // Finding: a secret key inside a value replaced by a later duplicate key is not seen.
-    FUZZ_CHECK(got || !(b.len <= MAX_BODY && b.valid && rawSecret));
-#else
-    (void)rawSecret;
-#endif
+    FUZZ_CHECK(!(b.len <= MAX_BODY && b.valid && secretKept(b.top)) || got);
 }
 
 // --- state ----------------------------------------------------------------------------------

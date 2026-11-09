@@ -120,13 +120,13 @@ void raw(const char* line) {
     else emitf("%s\n", line);
 }
 
-uint16_t readBuffered(char* out, size_t outSize) {
+uint16_t readBuffered(char* out, size_t outSize, uint16_t maxLines) {
     if (!out || outSize == 0) return 0;
     Lock lock;
     out[0] = '\0';
     size_t used = 0;
     uint16_t lines = 0;
-    while (count_ > 0) {
+    while (count_ > 0 && lines < maxLines) {
         const char* slot = ring_[head_];
         const size_t n = strlen(slot);
         if (used + n + 1 > outSize) break;

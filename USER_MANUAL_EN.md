@@ -22,6 +22,7 @@ This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware
 - [13. Current Hardware Pinout](#13-current-hardware-pinout)
 - [14. Safety Note](#14-safety-note)
 - [15. Remote Control over USB and Network (SCPI)](#15-remote-control-over-usb-and-network-scpi)
+- [16. Web Interface](#16-web-interface)
 - [Appendix A: Page Sketches](#appendix-a-page-sketches)
 - [Appendix B: Glossary](#appendix-b-glossary)
 - [Appendix C: Symptoms and Remedies](#appendix-c-symptoms-and-remedies)
@@ -1030,6 +1031,10 @@ Important messages:
 | `[SCPI] USB session ended (idle); log on serial again` | 10 min without an SCPI line: the log runs over USB again |
 | `[SCPI] TCP server on port: 5025`, `[SCPI] TCP server stopped` | SCPI over TCP on (WiFi connected or AP with password) or off |
 | `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP connection; when closed with the reason: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Commands are never logged |
+| `[WEB] Server on port: 80` | Web interface ready (WiFi connected or access point) |
+| `[WEB] Login`, `[WEB] Login failed` | Login with the web password right or wrong (the password is never logged) |
+| `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Network change from the browser (section 16) |
+| `[WEB] WebSocket closed: no pong`, `[WEB] No memory for the web server`, `[WEB] Saving the network settings failed` | Browser no longer answers; too little memory; saving failed |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
 | `[APP] Identify` | `SYST:IDEN`: backlight and LED blink for 5 s |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WiFi mode at boot or after a change and the device name; default `Off` (radio off) |
@@ -1205,6 +1210,52 @@ More scripts are in the `tools/` folder (instructions in `tools/README.md`):
 - `rest_example.py`: example for the REST interface (follows with the web interface).
 
 ---
+
+## 16. Web Interface
+
+With WiFi (section 8, WIFI page) the generator can also be operated in a browser: `http://<device name>.local/` or the address from the status line of the WIFI page; in the own access point `http://192.168.4.1/` (a phone usually opens the page by itself when connecting). The page is stored in the device, no internet connection is needed. No HTTPS: use it only in a trusted network or in the own access point with password.
+
+### Operation
+
+- At the top name, version and connection (`Live`, `Polling`, `Offline`), save state, `REMOTE <source>`, `Identify`, `Save` and `?` (help); below the areas MAIN, CH1, CH2, CH3 IQ, CONFIG and WiFi as on the device. On a phone the areas are stacked, the on/off switches of the channels stay at the bottom edge.
+- Frequencies: tapping or clicking a digit selects the step, the mouse wheel over a digit changes it, the unit opens an input field (`10.7M`, `455k`, `7 100 000`, `10,7 MHz`; an error stays next to the field).
+- Keyboard: `↑`/`↓` (also `+`/`−`) frequency by the step, `←`/`→` step larger/smaller, `PgUp`/`PgDn` frequency × 10 / ÷ 10, `1`/`2`/`3` channel, `F` or `Enter` input field, `O` output on/off, `?` help.
+- Changes at the device or over SCPI appear after about 1 s and are highlighted briefly; a field with focus is not overwritten. Without connection everything is gray.
+- After a change from the browser the device status bar shows `REMOTE WEB` for 10 s. `Remote out.` `local only` (section 8) applies here too: switching on is refused.
+- At most 3 browsers at a time; a fourth sees `Too many clients (max. 3)`.
+- Only at the device: defaults and factory reset, touch calibration, screen lock, new access point password, web password.
+
+### Web Password
+
+If a web password is set, the page asks for it before the first change (reading works without). The login takes about 1.5 s and lasts 12 h. After 5 wrong attempts the login is locked for 30 s, every further lock lasts twice as long (up to 16 min). The web password is set at the device; the field on the Device page is still to come.
+
+### Network Settings from the Browser
+
+Mode, device name, networks, static IP and access point can also be changed in the browser. So that nobody locks themselves out, a change only stays after a confirmation:
+
+1. After `Apply` the WiFi restarts with the new data. The page shows `Confirm within 120 s`.
+2. Open the page at the new address and press `Confirm` there.
+3. Without a web password the device asks `Network change` (`Revert`/`Keep`) as well; only `Keep` at the device and `Confirm` in the browser together keep the change.
+4. Without confirmation within 120 s or with `Revert` the previous settings return.
+
+`Off` from the browser applies at once and without confirmation (it could not be confirmed over a new connection); the WiFi can then only be switched on at the device. Password fields are blocked over an open access point.
+
+### Remote Control over REST
+
+Programs can use the same functions over HTTP and JSON; example in `tools/rest_example.py`, the description of all calls in `data/www/README.md`.
+
+| Call | Content |
+|---|---|
+| `GET /api/state` | State as JSON (channels, CH3, CONFIG, WiFi, saving, `REMOTE`) |
+| `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` or `{"frequencyText":"7.1M"}` |
+| `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
+| `POST /api/config` | `drive`, `tuning`, `spread`, `offState`, `correction` (0.01 ppm), `step`, `backlight` |
+| `POST /api/save`, `/api/identify` | `{}` |
+| `POST /api/login` | `{"password":"…"}`, answer with a session cookie |
+| `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Network settings (passwords write-only), confirmation, network scan (at most every 10 s) |
+| WebSocket `/ws?t=<token>` | State on every change |
+
+Every `POST` needs `Content-Type: application/json` and the header `X-CYD-Token` with the token from the page (new with every restart, `GET /api/token`). Errors come as with SCPI as `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` 403, too many commands 429, device busy 503, not logged in 401. Limits: request at most 1 KB, address 256 characters, 20 setting commands per second.
 
 ## Appendix A: Page Sketches
 

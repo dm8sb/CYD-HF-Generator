@@ -315,7 +315,7 @@ int RequestGuard::parseCookie_(const char* header, uint8_t id[16]) {
     return found;
 }
 
-int RequestGuard::findSession_(const uint8_t id[16], uint32_t nowMs) const {
+int RequestGuard::findSession_(const uint8_t id[16], uint64_t nowMs) const {
     // Every slot is compared (no early exit on the id).
     int hit = -1;
     for (uint8_t i = 0; i < MAX_SESSIONS; ++i) {
@@ -327,14 +327,14 @@ int RequestGuard::findSession_(const uint8_t id[16], uint32_t nowMs) const {
     return hit;
 }
 
-bool RequestGuard::sessionValid(const char* cookieHeader, uint32_t nowMs) const {
+bool RequestGuard::sessionValid(const char* cookieHeader, uint64_t nowMs) const {
     if (!cookieHeader) return false;
     uint8_t id[16];
     if (parseCookie_(cookieHeader, id) != 1) return false;
     return findSession_(id, nowMs) >= 0;
 }
 
-uint8_t RequestGuard::sessionCount(uint32_t nowMs) const {
+uint8_t RequestGuard::sessionCount(uint64_t nowMs) const {
     uint8_t n = 0;
     for (const Session& s : sessions_) {
         if (s.used && nowMs - s.createdMs < SESSION_MS) ++n;
@@ -369,7 +369,7 @@ void RequestGuard::makeToken(Random32 random, char out[TOKEN_LEN + 1]) {
 // ---------------------------------------------------------------------------
 // Decisions
 
-GuardDecision RequestGuard::check(const GuardRequest& r, uint32_t nowMs) {
+GuardDecision RequestGuard::check(const GuardRequest& r, uint64_t nowMs) {
     if (!r.method || !r.path || r.path[0] != '/') return refuse(Verdict::BadRequest, "Bad request line");
     if (r.freeHeap < MIN_FREE_HEAP) return refuse(Verdict::ServiceUnavailable, "Low memory");
     const size_t queryLen = r.query && r.query[0] ? 1 + strlen(r.query) : 0;
@@ -477,18 +477,18 @@ GuardDecision RequestGuard::checkSecrets(const GuardRequest& r, bool bodyCarries
     return ALLOW;
 }
 
-GuardDecision RequestGuard::loginAllowed(uint32_t nowMs) const {
+GuardDecision RequestGuard::loginAllowed(uint64_t nowMs) const {
     if (locked_ && nowMs - lockStartMs_ < lockMs_) return refuse(Verdict::TooManyRequests, "Login locked");
     return ALLOW;
 }
 
-uint32_t RequestGuard::loginRetryAfterS(uint32_t nowMs) const {
+uint32_t RequestGuard::loginRetryAfterS(uint64_t nowMs) const {
     if (!locked_ || nowMs - lockStartMs_ >= lockMs_) return 0;
-    const uint32_t left = lockMs_ - (nowMs - lockStartMs_);
+    const uint32_t left = (uint32_t)(lockMs_ - (nowMs - lockStartMs_));
     return (left + 999) / 1000;
 }
 
-void RequestGuard::loginFailed(uint32_t nowMs) {
+void RequestGuard::loginFailed(uint64_t nowMs) {
     if (failures_ > 0 || lockLevel_ > 0) {
         if (nowMs - lastFailureMs_ >= LOGIN_FORGET_MS) {
             failures_ = 0;
@@ -505,7 +505,7 @@ void RequestGuard::loginFailed(uint32_t nowMs) {
     if (lockLevel_ < LOGIN_MAX_DOUBLINGS) ++lockLevel_;
 }
 
-bool RequestGuard::loginSucceeded(uint32_t nowMs, Random32 random, char* setCookie, size_t setCookieSize) {
+bool RequestGuard::loginSucceeded(uint64_t nowMs, Random32 random, char* setCookie, size_t setCookieSize) {
     if (!setCookie || setCookieSize < SET_COOKIE_SIZE || !random) return false;
     failures_ = 0;
     lockLevel_ = 0;
@@ -534,7 +534,7 @@ bool RequestGuard::loginSucceeded(uint32_t nowMs, Random32 random, char* setCook
     return true;
 }
 
-GuardDecision RequestGuard::scanAllowed(uint32_t nowMs) {
+GuardDecision RequestGuard::scanAllowed(uint64_t nowMs) {
     if (scanned_ && nowMs - lastScanMs_ < SCAN_INTERVAL_MS) return refuse(Verdict::TooManyRequests, "Scan at most every 10 s");
     scanned_ = true;
     lastScanMs_ = nowMs;
@@ -595,22 +595,39 @@ bool hash(const char* password, size_t len, RequestGuard::Random32 random, char 
     return true;
 }
 
-bool verify(const char* password, size_t len, const char* record) {
-    if (!password || !record || len > MAX_LEN) return false;
+namespace {
+bool parseRecord(const char* record, uint32_t* iterations, uint8_t salt[SALT_LEN], uint8_t expected[HASH_LEN]) {
+    if (!record) return false;
     const size_t p = sizeof(PREFIX) - 1;
     if (strncmp(record, PREFIX, p) != 0) return false;
     const char* s = record + p;
-    uint32_t iterations = 0;
+    uint32_t it = 0;
     int digits = 0;
     while (digit(*s)) {
         if (++digits > 6) return false;
-        iterations = iterations * 10 + (uint32_t)(*s++ - '0');
+        it = it * 10 + (uint32_t)(*s++ - '0');
     }
-    if (digits == 0 || *s++ != '$' || iterations < MIN_ITERATIONS || iterations > MAX_ITERATIONS) return false;
-    uint8_t salt[SALT_LEN];
+    if (digits == 0 || *s++ != '$' || it < MIN_ITERATIONS || it > MAX_ITERATIONS) return false;
     if (strlen(s) != 2 * SALT_LEN + 1 + 2 * HASH_LEN || s[2 * SALT_LEN] != '$') return false;
-    uint8_t expected[HASH_LEN];
     if (!parseHex(s, 2 * SALT_LEN, salt) || !parseHex(s + 2 * SALT_LEN + 1, 2 * HASH_LEN, expected)) return false;
+    *iterations = it;
+    return true;
+}
+}
+
+bool wellFormed(const char* record) {
+    uint32_t iterations = 0;
+    uint8_t salt[SALT_LEN];
+    uint8_t expected[HASH_LEN];
+    return parseRecord(record, &iterations, salt, expected);
+}
+
+bool verify(const char* password, size_t len, const char* record) {
+    if (!password || !record || len > MAX_LEN) return false;
+    uint32_t iterations = 0;
+    uint8_t salt[SALT_LEN];
+    uint8_t expected[HASH_LEN];
+    if (!parseRecord(record, &iterations, salt, expected)) return false;
     uint8_t dk[HASH_LEN];
     derive(password, len, salt, iterations, dk);
     const bool same = constantTimeEqual(dk, expected, HASH_LEN);

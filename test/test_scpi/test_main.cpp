@@ -337,6 +337,19 @@ static void test_rate_limit_gives_execution_error() {
 }
 
 // W-E27: the first line starts a USB session; the log goes into the ring buffer until it ends.
+static void test_log_query_gives_one_line() {
+    Device d;
+    Logger::setOutput(Logger::Output::ToBuffer);
+    drainLog();
+    Logger::info("T", "a");
+    Logger::info("T", "b");
+    // Short lines fit together into the answer buffer, but SYST:LOG? hands out one per query
+    // (device test 2026-11-09: several lines with LF inside one string).
+    ASSERT_ANSWER("\"[T] a\"", d.q("SYST:LOG?"));
+    ASSERT_ANSWER("\"[T] b\"", d.q("SYST:LOG?"));
+    ASSERT_ANSWER("\"\"", d.q("SYST:LOG?"));
+}
+
 static void test_usb_session_and_log() {
     Device d;
     ScpiUsbLink link(d.scpi, debugOutput);
@@ -387,6 +400,7 @@ int main(int, char**) {
     RUN_TEST(test_rst_and_save);
     RUN_TEST(test_status_registers);
     RUN_TEST(test_rate_limit_gives_execution_error);
+    RUN_TEST(test_log_query_gives_one_line);
     RUN_TEST(test_usb_session_and_log);
     return UNITY_END();
 }

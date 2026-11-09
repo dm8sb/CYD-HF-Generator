@@ -465,6 +465,7 @@ function renderWifi(wf) {
     ap.active && ap.open ? 'warn' : '');
   set(W.sAddr, wf.name ? 'http://' + wf.name + '.local/' : '-');
   W.openWarn.hidden = !(ap.active && ap.open);
+  W.pendTouch.hidden = !!(S.device && S.device.passwordSet);
   // Optional (proposed) field: a pending change is also visible over the new connection.
   if (typeof wf.confirmWithin === 'number') {
     if (wf.confirmWithin > 0 && !pendEnd) startPending(wf.confirmWithin, '');
@@ -618,7 +619,7 @@ function buildWifi() {
     W.pend = h('div', {class: 'pend', hidden: true},
       W.pendT = h('p', {class: 'big-t'}),
       W.addr = h('p'),
-      h('p', {class: 'mu sm', text: 'Without a web password, confirm at the device as well.'}),
+      W.pendTouch = h('p', {class: 'mu sm', text: 'Without a web password, confirm at the device as well.'}),
       h('button', {type: 'button', class: 'pri', text: 'Confirm', onclick: confirmNet})),
     h('form', {class: 'wf', autocomplete: 'off', onsubmit: applyNet},
       h('div', {class: 'grid2'},
@@ -726,7 +727,9 @@ async function applyNet(e) {
     W.slots.forEach((s) => { s.pw.value = ''; });
     W.apPw.value = '';
     W.err.textContent = '';
-    startPending((r && r.confirmWithin) || 120, newAddr(b));
+    // confirmWithin 0: final (WiFi off), nothing to confirm.
+    if (r && r.confirmWithin === 0) toast('WiFi switches off; switch it on again at the device', true);
+    else startPending((r && r.confirmWithin) || 120, newAddr(b));
   } catch (x) { line(W.err, x.msg, 'err'); }
 }
 function newAddr(b) {

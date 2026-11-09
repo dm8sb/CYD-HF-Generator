@@ -111,15 +111,18 @@ the host tests: `pio test -e native-win -f test_fuzz_random`.
   leading zero of the fraction, so `0.` + 1216 zeros + `1E12345` gave `Ok` with 10^17. The
   exponent now saturates above the token length; `scpi_number` checks every length against
   the reference.
-- Open (S57c, not fixed here): `RestJson::carriesSecret` misses a secret key inside a value that
-  a later duplicate key replaces, because ArduinoJson keeps only the last value of a repeated
-  key: `{"a":{"password":"x"},"a":1}` gives false (`corpus/rest_json/secret_overwritten_duplicate`
-  reproduces it with `EXTRA_FLAGS=-DFUZZ_KNOWN_FINDINGS=1`). The request endpoints refuse
-  top-level duplicates with -102 anyway; nested objects (a future `/api/wifi`) would pass.
-- Open (S57c): `RequestGuard` compares times with unsigned 32-bit differences, so after
-  `millis()` wraps (49.7 days) an old, never replaced session and an old login lock count again
-  until the next 12 h / lock window passes. The harness keeps each input below 2^31 ms.
+- Fixed in S55: `RestJson::carriesSecret` missed a secret key inside a value that a later
+  duplicate key replaces, because ArduinoJson keeps only the last value of a repeated key:
+  `{"a":{"password":"x"},"a":1}` gave false (`corpus/rest_json/secret_overwritten_duplicate`).
+  It now scans every key of the raw text (escapes decoded, any depth); the harness expects
+  exactly that.
+- Fixed in S55: `RequestGuard` compared times with unsigned 32-bit differences, so after
+  `millis()` wrapped (49.7 days) an old, never replaced session and an old login lock counted
+  again. The guard now takes 64-bit monotonic milliseconds (the server passes
+  `esp_timer_get_time() / 1000`); the harness passes the start of its clock plus the elapsed
+  time as 64 bit.
 - Noted (S57c): ArduinoJson refuses a top-level number with trailing blanks and numbers longer
   than 63 characters, so such bodies give -102 instead of the documented -104 / -222; the
   harness models this. The state JSON with every value at its device limit and 32-byte SSIDs
-  of quotes is 968 bytes (995 with a 32-byte version), 56 bytes below `STATE_SIZE`.
+  of quotes is 968 bytes (995 with a 32-byte version); S55 adds `wifi.confirmWithin` and
+  `device.passwordSet` and raised `STATE_SIZE` to 1280 bytes (heap and stack buffers only).

@@ -377,6 +377,15 @@ void Gui::update() {
     } else {
         openFallbackAsked_ = false;
     }
+    // W-S12: a network change from the web without web password is confirmed here as well.
+    if (netConfirmNeeded_ && netConfirmNeeded_()) {
+        if (!netConfirmAsked_ && currentPage_ != PageId::TouchCal) {
+            netConfirmAsked_ = true;
+            confirm_(Confirm::WebNetwork);
+        }
+    } else {
+        netConfirmAsked_ = false;
+    }
     if (app_->identifying()) {
         if (!ledIdentify_ || app_->identifyLit() != ledLit_) {
             ledIdentify_ = true;
@@ -658,6 +667,7 @@ void Gui::confirm_(Confirm what) {
     static const char* useButtons[] = {"Cancel", "Use", ""};
     static const char* openButtons[] = {"Cancel", "Open", ""};
     static const char* startButtons[] = {"Cancel", "Start", ""};
+    static const char* keepButtons[] = {"Revert", "Keep", ""};
     const char* title = "Off state High";
     const char* text = "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
                        "Do not use with DC-coupled mixers or inputs.";
@@ -691,6 +701,11 @@ void Gui::confirm_(Confirm what) {
         text = "No stored network found. Start the access point without a password? Everyone "
                "nearby can then connect and operate the generator.";
         buttons = startButtons;
+    } else if (what == Confirm::WebNetwork) {
+        title = "Network change";
+        text = "The network settings were changed from the web. Keep them? Without Keep here and "
+               "Confirm in the browser, the previous settings return after 120 s.";
+        buttons = keepButtons;
     }
     pendingConfirm_ = what;
     lv_obj_t* box = lv_msgbox_create(nullptr, title, text, buttons, false);
@@ -722,6 +737,9 @@ void Gui::confirmEventCb_(lv_event_t* e) {
         g->storeAp_(g->wifi_->settings().apPassword, true);
     }
     if (yes && g->pendingConfirm_ == Confirm::OpenFallback && g->wifi_) g->wifi_->confirmOpenFallback();
+    if (g->pendingConfirm_ == Confirm::WebNetwork && g->netConfirmAnswer_) {
+        g->netConfirmAnswer_(btn && strcmp(btn, "Keep") == 0);
+    }
     if (yes && g->pendingConfirm_ == Confirm::OpenNetwork && g->storeNetwork_(g->entrySsid_, "")) {
         g->requestNavigate_(PageId::Wifi);
     }

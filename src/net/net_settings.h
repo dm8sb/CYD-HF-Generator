@@ -30,6 +30,7 @@ struct NetSettings {
     bool apOpen;                           // only on request, with warning (W-E3, W-S2)
     char deviceName[33];                   // RFC 1123 (W-E5)
     StaticIp staticIp;                     // W-E4
+    char webPassword[96];                  // WebPassword record (W-E8, W-S13), "" = none; set only at the device
 };
 
 namespace NetConfig {
@@ -73,6 +74,13 @@ bool parseIpv4(const char* text, uint32_t* out);
 // Short English reason for the WIFI device page.
 const char* ipCheckText(IpCheck c);
 void formatIpv4(uint32_t ip, char* out, size_t outSize);
+
+// Web password (W-E8, W-S13): stored as a WebPassword record (PBKDF2, net/request_guard.h),
+// never as text. setWebPassword() hashes (slow, ~0.2-0.3 s on the ESP32: only from loop());
+// false if the password is not WebPassword::valid() (8..64 bytes UTF-8, no control characters).
+bool webPasswordSet(const NetSettings& s);
+bool setWebPassword(NetSettings& s, const char* password, size_t len, uint32_t (*rand32)());
+void clearWebPassword(NetSettings& s);
 
 // NVS "hfnet". load() replaces invalid values by the defaults; false if nothing usable was
 // stored (defaults then). save() writes everything.

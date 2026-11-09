@@ -8,6 +8,7 @@
 #include <string>
 #include <net/net_settings.h>
 #include <net/pbkdf2.h>
+#include <net/request_guard.h>
 
 static const uint8_t MAC[6] = {0x8C, 0x94, 0xDF, 0x93, 0x1A, 0x2B};
 
@@ -256,6 +257,41 @@ static void test_load_replaces_invalid_values() {
     TEST_ASSERT_FALSE(s.staticIp.enabled);
 }
 
+static uint32_t counterValue = 1;
+static uint32_t counter() { return counterValue++; }
+
+// W-E8, W-S13 (S55): the web password is stored as a PBKDF2 record only, set at the device.
+static void test_web_password() {
+    Storage st;
+    st.begin(NetConfig::NAMESPACE);
+    NetSettings s;
+    NetConfig::defaults(s, MAC);
+    TEST_ASSERT_FALSE(NetConfig::webPasswordSet(s));
+    TEST_ASSERT_FALSE(NetConfig::setWebPassword(s, "short", 5, counter)); // < 8
+    TEST_ASSERT_FALSE(NetConfig::webPasswordSet(s));
+    TEST_ASSERT_TRUE(NetConfig::setWebPassword(s, "bench-secret", 12, counter));
+    TEST_ASSERT_TRUE(NetConfig::webPasswordSet(s));
+    TEST_ASSERT_NULL(strstr(s.webPassword, "bench-secret"));
+    TEST_ASSERT_TRUE(WebPassword::verify("bench-secret", 12, s.webPassword));
+    TEST_ASSERT_TRUE(NetConfig::save(st, s));
+    NetSettings r;
+    TEST_ASSERT_TRUE(NetConfig::load(st, r, MAC));
+    TEST_ASSERT_EQUAL_STRING(s.webPassword, r.webPassword);
+    TEST_ASSERT_TRUE(WebPassword::verify("bench-secret", 12, r.webPassword));
+    // A damaged record is dropped: no password instead of a login nobody can pass.
+    st.putString("web_pw", "pbkdf2-sha1$10000$zz$00");
+    TEST_ASSERT_TRUE(NetConfig::load(st, r, MAC));
+    TEST_ASSERT_FALSE(NetConfig::webPasswordSet(r));
+    TEST_ASSERT_FALSE(WebPassword::wellFormed("pbkdf2-sha1$10000$zz$00"));
+    TEST_ASSERT_TRUE(WebPassword::wellFormed(s.webPassword));
+    // Cleared: the key goes.
+    NetConfig::clearWebPassword(s);
+    TEST_ASSERT_FALSE(NetConfig::webPasswordSet(s));
+    TEST_ASSERT_TRUE(NetConfig::save(st, s));
+    char buf[96];
+    TEST_ASSERT_FALSE(st.getString("web_pw", buf, sizeof(buf)));
+}
+
 // Factory reset: both network namespaces are erased, the generator's settings are left to
 // SettingsService::eraseAll().
 static void test_erase_all() {
@@ -325,5 +361,6 @@ int main(int, char**) {
     RUN_TEST(test_erase_all);
     RUN_TEST(test_storage_strings);
     RUN_TEST(test_wifi_qr_text);
+    RUN_TEST(test_web_password);
     return UNITY_END();
 }

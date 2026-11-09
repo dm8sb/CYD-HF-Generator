@@ -2,6 +2,9 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "request_guard.h"
+
+static_assert(sizeof(((NetSettings*)nullptr)->webPassword) == WebPassword::RECORD_SIZE, "web password record size");
 
 namespace NetConfig {
 
@@ -160,6 +163,17 @@ void formatIpv4(uint32_t ip, char* out, size_t outSize) {
              (unsigned)((ip >> 8) & 255), (unsigned)(ip & 255));
 }
 
+bool webPasswordSet(const NetSettings& s) { return s.webPassword[0] != '\0'; }
+
+bool setWebPassword(NetSettings& s, const char* password, size_t len, uint32_t (*rand32)()) {
+    char record[sizeof(s.webPassword)];
+    if (!WebPassword::hash(password, len, rand32, record)) return false;
+    memcpy(s.webPassword, record, sizeof(record));
+    return true;
+}
+
+void clearWebPassword(NetSettings& s) { memset(s.webPassword, 0, sizeof(s.webPassword)); }
+
 bool load(Storage& st, NetSettings& s, const uint8_t mac[6]) {
     defaults(s, mac);
     const uint8_t mode = st.getU8("mode", 0xFF);
@@ -186,6 +200,9 @@ bool load(Storage& st, NetSettings& s, const uint8_t mac[6]) {
     // An implausible static IP is kept as values but switched off (DHCP).
     if (ip.enabled && checkStaticIp(ip) != IpCheck::Ok) ip.enabled = false;
     s.staticIp = ip;
+    // A damaged record is dropped (no password) rather than locking the web login for good.
+    char web[sizeof(s.webPassword)];
+    if (st.getString("web_pw", web, sizeof(web)) && WebPassword::wellFormed(web)) copy(s.webPassword, sizeof(s.webPassword), web);
     return true;
 }
 
@@ -203,6 +220,7 @@ bool save(Storage& st, const NetSettings& s) {
     ok &= st.putU32("sip_mask", s.staticIp.mask);
     ok &= st.putU32("sip_gw", s.staticIp.gateway);
     ok &= st.putU32("sip_dns", s.staticIp.dns);
+    ok &= st.putString("web_pw", s.webPassword);
     return ok;
 }
 

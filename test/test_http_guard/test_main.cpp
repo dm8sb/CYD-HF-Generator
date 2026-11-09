@@ -81,7 +81,7 @@ static RequestGuard guard(const GuardConfig& c) {
     return g;
 }
 
-static uint16_t status(RequestGuard& g, const GuardRequest& r, uint32_t now = 0) { return g.check(r, now).status(); }
+static uint16_t status(RequestGuard& g, const GuardRequest& r, uint64_t now = 0) { return g.check(r, now).status(); }
 
 static uint16_t hostStatus(RequestGuard& g, const char* host) { return status(g, get("/api/state", host)); }
 
@@ -598,12 +598,37 @@ static void test_login_lock_doubles() {
     TEST_ASSERT_TRUE(g.loginAllowed(t).allowed());
     g.loginFailed(t);
     TEST_ASSERT_EQUAL_UINT32(30, g.loginRetryAfterS(t));
-    // Across the millis() wrap.
+    // Across 2^32 ms (64-bit time).
     RequestGuard w = guard(config(true));
-    const uint32_t nearWrap = 0xFFFFFFFFu - 10000;
+    const uint64_t nearWrap = 0xFFFFFFFFull - 10000;
     for (int i = 0; i < 5; ++i) w.loginFailed(nearWrap);
     TEST_ASSERT_EQUAL_UINT16(429, w.loginAllowed(nearWrap + 25000).status());
     TEST_ASSERT_TRUE(w.loginAllowed(nearWrap + 30000).allowed());
+}
+
+// Fuzz finding S57c: with 32-bit time an expired session, login lock or scan stamp came back
+// 2^32 ms (49.7 days) later. The guard takes 64-bit monotonic milliseconds.
+static void test_nothing_comes_back_after_49_days() {
+    const uint64_t WRAP = 0x100000000ull;
+    RequestGuard g = guard(config(true));
+    char setCookie[RequestGuard::SET_COOKIE_SIZE];
+    TEST_ASSERT_TRUE(g.loginSucceeded(1000, rnd, setCookie, sizeof(setCookie)));
+    const std::string c = cookieOf(setCookie);
+    GuardRequest r = post("/api/config");
+    r.cookie = c.c_str();
+    TEST_ASSERT_EQUAL_UINT16(200, status(g, r, 2000));
+    TEST_ASSERT_EQUAL_UINT16(401, status(g, r, 1000 + RequestGuard::SESSION_MS));
+    TEST_ASSERT_EQUAL_UINT16(401, status(g, r, WRAP + 2000));
+    TEST_ASSERT_FALSE(g.sessionValid(c.c_str(), WRAP + 2000));
+    TEST_ASSERT_EQUAL_UINT8(0, g.sessionCount(WRAP + 2000));
+    // A login lock of 30 s is over, also 2^32 ms later.
+    for (int i = 0; i < 5; ++i) g.loginFailed(5000);
+    TEST_ASSERT_EQUAL_UINT16(429, g.loginAllowed(6000).status());
+    TEST_ASSERT_TRUE(g.loginAllowed(WRAP + 6000).allowed());
+    TEST_ASSERT_EQUAL_UINT32(0, g.loginRetryAfterS(WRAP + 6000));
+    // The scan interval as well.
+    TEST_ASSERT_TRUE(g.scanAllowed(100).allowed());
+    TEST_ASSERT_TRUE(g.scanAllowed(WRAP + 200).allowed());
 }
 
 static void test_scan_at_most_every_10_s() {
@@ -869,6 +894,7 @@ int main(int, char**) {
     RUN_TEST(test_sessions);
     RUN_TEST(test_login_lock_doubles);
     RUN_TEST(test_scan_at_most_every_10_s);
+    RUN_TEST(test_nothing_comes_back_after_49_days);
     RUN_TEST(test_no_passwords_over_an_open_ap);
     RUN_TEST(test_tokens);
     RUN_TEST(test_web_password_hash);

@@ -5,7 +5,8 @@
 //   byte 0: bit 0 web password set, bit 1 loginForReads, bits 2-3 own addresses (0 STA, 1 AP,
 //           2 both, 3 none), bit 4 open AP, bit 5 captive DNS, bit 6 the connection arrives
 //           over the AP, bit 7 local address unknown (the guard decides by the peer's subnet)
-//   bytes 1-4: start of the clock (ms, big endian; it may wrap during the script)
+//   bytes 1-4: start of the clock (ms, big endian); the guard gets it as 64-bit monotonic
+//           time (S55), so it may pass 2^32 during the script without wrapping
 //   byte 5: bits 0-5 seed of the token and the session ids, bit 6 no token configured,
 //           bit 7 no device name
 // A script line starting with '!' is an operation:
@@ -532,7 +533,7 @@ public:
     }
 
 private:
-    uint32_t nowRaw() const { return (uint32_t)(t0_ + elapsed_); }
+    uint64_t nowRaw() const { return (uint64_t)t0_ + elapsed_; }
 
     static std::string nextLine(const uint8_t* d, size_t n, size_t* i) {
         const size_t start = *i;
@@ -561,7 +562,7 @@ private:
     }
 
     void checkState() {
-        const uint32_t now = nowRaw();
+        const uint64_t now = nowRaw();
         const GuardDecision l = g_.loginAllowed(now);
         const uint32_t retry = g_.loginRetryAfterS(now);
         FUZZ_CHECK(retry == m_.retryS(elapsed_));
@@ -583,7 +584,7 @@ private:
 
     void op(const std::string& raw) {
         const std::string line = expand(raw);
-        const uint32_t now = nowRaw();
+        const uint64_t now = nowRaw();
         if (startsWith(line, "!ok")) {
             if (line.size() > 4) {
                 const uint32_t b = (uint8_t)line[4];
@@ -714,7 +715,7 @@ private:
     }
 
     void decide(const Req& q) {
-        const uint32_t now = nowRaw();
+        const uint64_t now = nowRaw();
         const GuardRequest r = toGuard(q);
         // Variants that must give the same decision: case of the values HTTP compares
         // case-insensitively, blanks around values the guard trims. On copies of the guard

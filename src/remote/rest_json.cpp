@@ -1,4 +1,5 @@
 #include "rest_json.h"
+#include "rest_json_detail.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -36,6 +37,9 @@ public:
     }
     // Members of a top-level object as written (ArduinoJson merges duplicates).
     size_t topKeys() const { return topKeys_; }
+    // Some key at any depth names a password or key (W-S1), seen on the raw text: also under
+    // duplicate keys, which ArduinoJson drops, and with escapes ("\u0070ass").
+    bool secretKey() const { return secret_; }
 
 private:
     static bool digit(char c) { return c >= '0' && c <= '9'; }
@@ -78,8 +82,10 @@ private:
         ws();
         if (eat('}')) return true;
         for (;;) {
+            const size_t keyStart = i_;
             if (!at('"') || !string()) return false;
             if (depth == 1) ++topKeys_;
+            if (!secret_) secret_ = secretName(s_ + keyStart + 1, i_ - keyStart - 2);
             ws();
             if (!eat(':')) return false;
             ws();
@@ -138,10 +144,44 @@ private:
         return true;
     }
 
+    // The key's text (between the quotes, grammar already checked) decoded character by
+    // character (escapes, ASCII lower case, anything else '?'), matched against the secret names
+    // on a sliding window of the last 6 characters: no length limit.
+    static bool endsWith(const char* w, const char* name) {
+        const size_t k = strlen(name);
+        return memcmp(w + 6 - k, name, k) == 0;
+    }
+    static bool secretName(const char* k, size_t n) {
+        char w[6] = {'?', '?', '?', '?', '?', '?'};
+        for (size_t i = 0; i < n; ++i) {
+            unsigned c = (unsigned char)k[i];
+            if (c == '\\' && i + 1 < n) {
+                const char e = k[++i];
+                if (e == 'u' && i + 4 < n) {
+                    unsigned v = 0;
+                    for (int j = 1; j <= 4; ++j) {
+                        const char h = k[i + j];
+                        v = v * 16 + (unsigned)(h <= '9' ? h - '0' : (h | 0x20) - 'a' + 10);
+                    }
+                    i += 4;
+                    c = v;
+                } else {
+                    c = (unsigned char)e;
+                }
+            }
+            if (c >= 'A' && c <= 'Z') c += 32;
+            memmove(w, w + 1, 5);
+            w[5] = (c > 0 && c < 0x80) ? (char)c : '?';
+            if (endsWith(w, "pass") || endsWith(w, "psk") || endsWith(w, "secret") || endsWith(w, "key")) return true;
+        }
+        return false;
+    }
+
     const char* s_;
     size_t n_;
     size_t i_ = 0;
     size_t topKeys_ = 0;
+    bool secret_ = false;
 };
 
 // Grammar, then ArduinoJson; any JSON value.
@@ -261,7 +301,10 @@ Reply convert(const Field& f, JsonVariantConst v, int64_t* out) {
             const Reply r = text(v, &s);
             if (!r.ok()) return r;
             uint64_t hz = 0;
-            if (!FrequencyUtils::parseRemoteFrequency(s.c_str(), &hz)) return bad(ILLEGAL_PARAMETER_VALUE);
+            bool outOfRange = false;
+            if (!FrequencyUtils::parseRemoteFrequency(s.c_str(), &hz, &outOfRange)) {
+                return bad(outOfRange ? DATA_OUT_OF_RANGE : ILLEGAL_PARAMETER_VALUE);
+            }
             *out = (int64_t)hz;
             return ok();
         }
@@ -320,43 +363,6 @@ Reply parseWith(const Field* fields, uint8_t count, uint8_t channel, const char*
     if (!r.ok()) return r;
     emit(fields, count, v, channel, out);
     return ok();
-}
-
-bool containsCi(const char* s, size_t n, const char* needle) {
-    const size_t k = strlen(needle);
-    for (size_t i = 0; i + k <= n; ++i) {
-        size_t j = 0;
-        while (j < k) {
-            char c = s[i + j];
-            if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
-            if (c != needle[j]) break;
-            ++j;
-        }
-        if (j == k) return true;
-    }
-    return false;
-}
-
-bool secretKey(JsonString key) {
-    static const char* const NAMES[] = {"pass", "psk", "secret", "key"};
-    for (const char* n : NAMES) {
-        if (containsCi(key.c_str(), key.size(), n)) return true;
-    }
-    return false;
-}
-
-// Depth is bounded by the grammar (MAX_NESTING).
-bool hasSecret(JsonVariantConst v) {
-    if (v.is<JsonObjectConst>()) {
-        for (JsonPairConst kv : v.as<JsonObjectConst>()) {
-            if (secretKey(kv.key()) || hasSecret(kv.value())) return true;
-        }
-    } else if (v.is<JsonArrayConst>()) {
-        for (JsonVariantConst e : v.as<JsonArrayConst>()) {
-            if (hasSecret(e)) return true;
-        }
-    }
-    return false;
 }
 
 // --- state ------------------------------------------------------------------
@@ -455,6 +461,14 @@ void addModes(JsonArray modes, const SystemSettings& sys, Spread spread) {
 
 } // namespace
 
+// Shared with rest_wifi.cpp (rest_json_detail.h).
+namespace detail {
+Reply load(const char* body, size_t len, JsonDocument& doc) { return RestJson::load(body, len, doc); }
+bool keyIs(JsonString key, const char* name) { return RestJson::keyIs(key, name); }
+Reply integer(JsonVariantConst v, int64_t* out) { return RestJson::integer(v, out); }
+Reply text(JsonVariantConst v, JsonString* out) { return RestJson::text(v, out); }
+}
+
 // ---------------------------------------------------------------------------
 // Requests
 
@@ -517,9 +531,11 @@ Reply parseLogin(const char* body, size_t len, char* password, size_t passwordSi
 }
 
 bool carriesSecret(const char* body, size_t len) {
-    JsonDocument doc;
-    if (!parse(body, len, doc, nullptr).ok()) return false;
-    return hasSecret(doc.as<JsonVariantConst>());
+    // On the raw text, not on ArduinoJson's document: that keeps only the last of duplicate
+    // keys, so {"a":{"password":"x"},"a":1} would hide the password (fuzz finding, S57c).
+    if (!body || len > MAX_BODY) return false;
+    Grammar g(body, len);
+    return g.check() && g.secretKey();
 }
 
 uint8_t channelFromPath(const char* path) {
@@ -663,11 +679,70 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
     ap["ssid"] = apSsid;
     ap["open"] = d.apOpen;
     ap["stations"] = (unsigned)d.apStations;
+    wifi["confirmWithin"] = (unsigned)d.confirmWithin;
 
     doc["device"]["version"] = version;
+    doc["device"]["passwordSet"] = d.passwordSet;
 
     if (doc.overflowed()) return 0;
     if (measureJson(doc) >= outSize) return 0;
+    return serializeJson(doc, out, outSize);
+}
+
+// ---------------------------------------------------------------------------
+// WebSocket push and server errors
+
+namespace {
+uint32_t fnv(uint32_t h, const char* s, size_t maxLen) {
+    for (size_t i = 0; s && i < maxLen && s[i]; ++i) {
+        h ^= (uint8_t)s[i];
+        h *= 16777619u;
+    }
+    return (h ^ 0xFFu) * 16777619u; // separator
+}
+}
+
+bool PushKey::operator==(const PushKey& o) const {
+    return revision == o.revision && save == o.save && remote == o.remote && mode == o.mode && connected == o.connected &&
+           ip == o.ip && apActive == o.apActive && apOpen == o.apOpen && apStations == o.apStations &&
+           confirmPending == o.confirmPending && passwordSet == o.passwordSet && textHash == o.textHash;
+}
+
+PushKey pushKey(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs) {
+    PushKey k {};
+    k.revision = s.revision;
+    k.save = (uint8_t)s.saveState;
+    k.remote = remoteName(s.lastRemote) != nullptr && nowMs - s.lastRemoteMs < REMOTE_INDICATOR_MS;
+    k.mode = (uint8_t)d.mode;
+    k.connected = d.connected;
+    k.ip = d.ip;
+    k.apActive = d.apActive;
+    k.apOpen = d.apOpen;
+    k.apStations = d.apStations;
+    k.confirmPending = d.confirmWithin > 0;
+    k.passwordSet = d.passwordSet;
+    uint32_t h = 2166136261u;
+    h = fnv(h, d.ssid, sizeof(d.ssid));
+    h = fnv(h, d.name, sizeof(d.name));
+    h = fnv(h, d.apSsid, sizeof(d.apSsid));
+    k.textHash = h;
+    return k;
+}
+
+size_t guardErrorJson(uint16_t status, const char* reason, char* out, size_t outSize) {
+    const char* text = reason && reason[0] ? reason : "Refused";
+    if (status == 403 && strcmp(text, "Bad token") == 0) text = "Invalid token: reload the page";
+    else if (status == 401) text = "Login required";
+    return errorJson(Reply {status, EXECUTION_ERROR, text}, out, outSize);
+}
+
+size_t loginLockedJson(uint32_t retryAfterS, char* out, size_t outSize) {
+    if (!out || outSize == 0) return 0;
+    out[0] = '\0';
+    JsonDocument doc;
+    doc["error"] = "-200,Too many failed logins";
+    doc["retryAfter"] = retryAfterS;
+    if (doc.overflowed() || measureJson(doc) >= outSize) return 0;
     return serializeJson(doc, out, outSize);
 }
 

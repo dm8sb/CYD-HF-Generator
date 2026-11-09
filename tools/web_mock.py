@@ -12,7 +12,8 @@ UI meets the same answers as on the device.
     python tools/web_mock.py --open-ap           # client sits on the open AP (passwords -> 403)
     python tools/web_mock.py --hw NFO --no-ws --demo --confirm-timeout 20
 
-See data/www/README.md for the API contract.
+See data/www/README.md for the API contract. The firmware (S55, net/web_server.cpp) gives the
+same answers; where the two differ, the firmware is the reference and this mock follows it.
 """
 import argparse
 import base64
@@ -44,6 +45,7 @@ STEPS = (1, 10, 100, 1000, 10000, 100000, 1000000)
 SPREAD = {"down05": (0.005, 0.0), "down15": (0.015, 0.0), "center05": (0.005, 0.005)}
 SSC_TEXT = {"down05": "SSC -0.5%", "down15": "SSC -1.5%", "center05": "SSC +/-0.5%"}
 
+E_SYNTAX = "-102,Syntax error"
 E_TYPE = "-104,Data type error"
 E_KEY = "-108,Parameter not allowed"
 E_CONFLICT = "-221,Settings conflict"
@@ -80,10 +82,13 @@ def is_int(v):
     return isinstance(v, int) and not isinstance(v, bool)
 
 
-def check_obj(body, types):
-    """Unknown keys -> -108, wrong JSON types -> -104 (bool is not an int, 4.0 is not an int)."""
+def check_obj(body, types, need_one=False):
+    """Unknown keys -> -108, wrong JSON types -> -104 (bool is not an int, 4.0 is not an int),
+    need_one: {} -> -109."""
     if not isinstance(body, dict):
         raise ApiError(400, E_TYPE)
+    if need_one and not body:
+        raise ApiError(400, "-109,Missing parameter")
     for k, v in body.items():
         if k not in types:
             raise ApiError(400, E_KEY)
@@ -231,7 +236,7 @@ class Model:
                           ip=n["staticIp"]["ip"] if n["staticIp"]["enabled"] else "192.168.1.50")
         elif n["mode"] == "ap":
             st["ip"] = "192.168.4.1"
-        # Proposed extension (not in the fixed contract): a pending change is visible to every client.
+        # Seconds left to confirm a network change (0 = none): visible to every client (S55).
         st["confirmWithin"] = max(0, math.ceil(self.pending[0] - time.monotonic())) if self.pending else 0
         return st
 
@@ -247,7 +252,8 @@ class Model:
                     "ch3": {"enabled": self.ch3["enabled"], "master": self.ch3["master"], "phase": self.ch3["phase"],
                             "status": s3, "frequency": m["frequency"],
                             "actual": self.actual(3, m["frequency"]) if s3 == "ON" else 0.0, "iqMin": lo, "iqMax": hi},
-                    "config": dict(self.cfg), "wifi": self.wifi_status(), "device": {"version": "1.4.0"}}
+                    "config": dict(self.cfg), "wifi": self.wifi_status(),
+                    "device": {"version": "1.4.0", "passwordSet": bool(self.args.password)}}
 
     def wifi_settings(self):
         n = self.net
@@ -261,9 +267,9 @@ class Model:
             raise ApiError(403, "-221,Remote outputs: local only")
 
     def post_channel(self, n, b):
-        check_obj(b, {"enabled": bool, "frequency": int, "frequencyText": str})
+        check_obj(b, {"enabled": bool, "frequency": int, "frequencyText": str}, need_one=True)
         if "frequency" in b and "frequencyText" in b:
-            raise ApiError(400, E_CONFLICT)
+            raise ApiError(400, "-108,frequency or frequencyText, not both")
         f = None
         if "frequency" in b:
             f = b["frequency"]
@@ -282,7 +288,7 @@ class Model:
         self.changed(save)
 
     def post_ch3(self, b):
-        check_obj(b, {"enabled": bool, "master": int, "phase": int})
+        check_obj(b, {"enabled": bool, "master": int, "phase": int}, need_one=True)
         if "master" in b and b["master"] not in (1, 2):
             raise ApiError(400, E_ILLEGAL)
         if "phase" in b and b["phase"] not in (0, 90, 180, 270):
@@ -296,7 +302,7 @@ class Model:
     def post_config(self, b):
         if isinstance(b, dict) and "remoteOutputs" in b:
             raise ApiError(403, "-221,Remote outputs can only be changed at the device")
-        check_obj(b, {"drive": int, "tuning": str, "spread": str, "offState": str, "correction": int, "step": int, "backlight": int})
+        check_obj(b, {"drive": int, "tuning": str, "spread": str, "offState": str, "correction": int, "step": int, "backlight": int}, need_one=True)
         enums = {"drive": (2, 4, 6, 8), "tuning": ("fractional", "lownoise", "integer"),
                  "spread": ("off", "down05", "down15", "center05"), "offState": ("low", "high", "hiz"), "step": STEPS}
         for k, allowed in enums.items():
@@ -304,11 +310,8 @@ class Model:
                 raise ApiError(400, E_ILLEGAL)
         if "correction" in b and abs(b["correction"]) > 5000:
             raise ApiError(400, E_RANGE)
-        if "backlight" in b:
-            if not 10 <= b["backlight"] <= 100:
-                raise ApiError(400, E_RANGE)
-            if b["backlight"] % 10:
-                raise ApiError(400, E_ILLEGAL)
+        if "backlight" in b and not 10 <= b["backlight"] <= 100:
+            raise ApiError(400, E_RANGE)
         tuning = b.get("tuning", self.cfg["tuning"])
         if tuning == "integer" and b.get("spread", "off") != "off":
             raise ApiError(400, E_CONFLICT)
@@ -320,9 +323,9 @@ class Model:
         self.changed(save)
 
     def post_wifi(self, b, open_ap_client):
-        check_obj(b, {"mode": str, "networks": list, "delete": list, "name": str, "staticIp": dict, "ap": dict})
+        check_obj(b, {"mode": str, "networks": list, "delete": list, "name": str, "staticIp": dict, "ap": dict}, need_one=True)
         if self.pending:
-            raise ApiError(400, "-221,Settings conflict: a network change waits for confirmation")
+            raise ApiError(400, "-221,A network change waits for confirmation")
         has_pw = any(isinstance(x, dict) and "password" in x for x in b.get("networks", [])) or "password" in b.get("ap", {})
         if has_pw and open_ap_client:
             raise ApiError(403, "-221,Passwords cannot be sent over the open access point")
@@ -338,7 +341,9 @@ class Model:
             if pw is not None and pw != "" and not 8 <= len(pw) <= 63:
                 raise ApiError(400, E_ILLEGAL)
         for s in b.get("delete", []):
-            if not is_int(s) or s not in (0, 1):
+            if not is_int(s):
+                raise ApiError(400, E_TYPE)
+            if s not in (0, 1):
                 raise ApiError(400, E_ILLEGAL)
         if "name" in b and not NAME_RE.match(b["name"]):
             raise ApiError(400, E_ILLEGAL)
@@ -384,15 +389,19 @@ class Model:
             n["ap"].update({k: v for k, v in ap.items() if k == "open"})
             if "password" in ap:
                 n["ap"]["pw"] = ap["password"]
-        self.pending = (time.monotonic() + self.args.confirm_timeout, prev)
         self.changed()
+        if n["mode"] == "off":
+            # Final, like the device (ARBEITSPLAN 3.6 point 2): no new connection to confirm over.
+            print("[mock] network change: WiFi off (final, nothing to confirm)")
+            return 0
+        self.pending = (time.monotonic() + self.args.confirm_timeout, prev)
         print("[mock] network change applied, confirm within %d s" % self.args.confirm_timeout)
         return self.args.confirm_timeout
 
     def confirm_wifi(self, b):
         check_obj(b, {})
         if not self.pending:
-            raise ApiError(400, "-221,Settings conflict: nothing to confirm")
+            raise ApiError(400, "-221,Nothing to confirm")
         self.pending = None
         self.changed()
         print("[mock] network change confirmed")
@@ -405,7 +414,7 @@ class Model:
             self.scan_state, self.scan_delivered = "done", True
             return {"state": "done", "networks": [{"ssid": s, "rssi": r, "secure": sec} for s, r, sec in SCAN_LIST[:15]]}
         if now - self.scan_started < SCAN_EVERY:
-            raise ApiError(429, E_RATE)
+            raise ApiError(429, "-200,Scan at most every 10 s")
         self.scan_state, self.scan_started, self.scan_delivered = "running", now, False
         return {"state": "running", "networks": []}
 
@@ -478,7 +487,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.server.password:
             return True
         cookie = self.headers.get("Cookie") or ""
-        m = re.search(r"(?:^|;\s*)cyd_s=([A-Za-z0-9_-]{1,64})(?:;|$)", cookie)
+        m = re.search(r"(?:^|;\s*)cyd_sid=([0-9a-f]{32})(?:;|$)", cookie)
         exp = self.model.sessions.get(m.group(1)) if m else None
         return exp is not None and exp > time.monotonic()
 
@@ -487,7 +496,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # ---- methods
     def do_OPTIONS(self):
-        self.send(405, {"error": "-200,Method not allowed"}, headers={"Allow": "GET, POST"})
+        self.send(405, {"error": "-200,OPTIONS not allowed"}, headers={"Allow": "GET, POST"})
 
     do_PUT = do_DELETE = do_PATCH = do_OPTIONS
 
@@ -495,8 +504,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_GET(self):
+        if len(self.path) > 256:
+            return self.send(414, {"error": "-200,URL too long"})
         if not self.host_ok():
-            return self.send(421, {"error": "-200,Misdirected request"})
+            return self.send(421, {"error": "-200,Host not allowed"})
         url = urllib.parse.urlsplit(self.path)
         if url.path == "/ws":
             return self.websocket(url)
@@ -514,6 +525,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         m = self.model
         try:
             with m.lock:
+                if url.path == "/api/token":
+                    return self.send(200, {"token": self.token})
                 if url.path == "/api/state":
                     if self.server.login_all and not self.session_ok():
                         raise ApiError(401, "-200,Login required")
@@ -528,11 +541,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.host_ok():
-            return self.send(421, {"error": "-200,Misdirected request"})
+            return self.send(421, {"error": "-200,Host not allowed"})
         m = self.model
         try:
             if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
-                raise ApiError(415, "-200,Chunked bodies are not accepted")
+                raise ApiError(415, "-200,Transfer-Encoding not allowed")
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY:
                 self.close_connection = True
@@ -551,7 +564,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 body = json.loads(raw.decode("utf-8")) if raw else None
             except (ValueError, UnicodeDecodeError):
-                raise ApiError(400, E_TYPE)
+                raise ApiError(400, E_SYNTAX)
             path = urllib.parse.urlsplit(self.path).path
             if path == "/api/login":
                 return self.login(body)
@@ -560,7 +573,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with m.lock:
                 self.rate_limit()
                 if body is None:
-                    raise ApiError(400, E_TYPE)
+                    raise ApiError(400, E_SYNTAX)
                 ch = re.fullmatch(r"/api/channel/(\d+)", path)
                 if ch and ch.group(1) in ("1", "2"):
                     m.post_channel(int(ch.group(1)), body)
@@ -600,7 +613,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         m = self.model
         check_obj(body, {"password": str})
         if "password" not in body:
-            raise ApiError(400, E_TYPE)
+            raise ApiError(400, "-109,Missing parameter")
         now = time.monotonic()
         with m.lock:
             if now < m.login_lock_until:
@@ -613,9 +626,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     m.login_lock_s *= 2
                 raise ApiError(401, "-200,Wrong password")
             m.login_fails, m.login_lock_s = 0, LOGIN_LOCK
-            sid = secrets.token_urlsafe(24)
+            if not self.server.password:
+                return self.send(204)  # no password: nothing to log in to, no cookie
+            sid = secrets.token_hex(16)
             m.sessions[sid] = now + 12 * 3600
-        self.send(204, headers={"Set-Cookie": "cyd_s=%s; Path=/; Max-Age=43200; HttpOnly; SameSite=Strict" % sid})
+        self.send(204, headers={"Set-Cookie": "cyd_sid=%s; Path=/; Max-Age=43200; HttpOnly; SameSite=Strict" % sid})
 
     # ---- WebSocket (RFC 6455, push only)
     def websocket(self, url):
