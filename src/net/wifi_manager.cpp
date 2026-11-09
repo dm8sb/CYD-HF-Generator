@@ -127,6 +127,18 @@ void WifiManager::newApPassword(char out[NetConfig::AP_PASSWORD_LEN + 1]) {
     if (!radio) bootloader_random_disable();
 }
 
+void WifiManager::randomBytes(uint8_t* out, size_t n) {
+    if (!out) return;
+    const bool radio = staOn_ || apOn_;
+    if (!radio) bootloader_random_enable();
+    esp_fill_random(out, n);
+    if (!radio) bootloader_random_disable();
+}
+
+void WifiManager::applyWebPassword(const char* record) {
+    snprintf(settings_.webPassword, sizeof(settings_.webPassword), "%s", record ? record : "");
+}
+
 void WifiManager::startSta_() {
     staOn_ = true;
     hadIp_ = attempting_ = scanning_ = false;

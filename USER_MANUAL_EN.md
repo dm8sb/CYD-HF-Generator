@@ -678,6 +678,7 @@ The third card `AP  CYD-HF-<4 digits>` shows the own access point (`WPA2` or ora
 | `Name` | Device name under which the device is reachable as `<name>.local` (default `cyd-hf-<4 digits>`). Tapping opens the keyboard; allowed are 1–32 characters `a`–`z`, `0`–`9` and `-`, not at the start or end. Otherwise `a-z 0-9 - (1-32)` appears below the field. |
 | `IP` | `DHCP` (address from the router) or `Static` (fixed address) |
 | `Address`, `Mask`, `Gateway`, `DNS` | With `DHCP` in gray the stored fixed values, for empty fields the router's lease (`-` without connection). With `Static` in black the stored values; tapping opens a numeric field (`192.168.1.50`). An empty `DNS` means `= gateway`. |
+| `Web pw.` | Web password for the web interface (section 16): `Set (login needed)` or orange `None (no login)`, the password itself is never shown. Tapping opens the `Web password` keyboard (8–64 characters, otherwise `8-64 characters`); OK saves it, hashing takes about 1.3 s (`Saving...`) while the device stays usable. With a password set, an empty field and OK removes it after the question `Remove web password`. Every change ends all web sessions; the WiFi does not restart. |
 
 When switching to `Static`, empty fields are filled from the current DHCP lease, so usually only `Address` needs changing. An implausible combination is refused, the message `Static IP` gives the reason and the old value stays (when switching, `DHCP` stays):
 
@@ -752,6 +753,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Touch` | `Touch calibrated x … y …`: stored calibration with the raw values of the screen edges; `Touch not calibrated (default)`: fixed values |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
 | `WiFi` | `WiFi off`; connected: network, address, signal strength; `WiFi searching (<device name>)`; access point: `AP` or `Fallback AP`, name, address, number of connected devices (orange without password). Foreign network names are cleaned (control and invalid characters as `?`, at most 32 bytes) |
+| `Remote` | `web <n>` open browser pages, `SCPI <address>` or `-` the SCPI TCP client. Below it the button `Disconnect all`: closes all browser connections, ends the web sessions and the SCPI TCP connection. Without a web password a browser reconnects within seconds. |
 | `Heap` | free memory and its minimum since boot, largest contiguous block, free memory of the user interface (LVGL), each in KB |
 
 ---
@@ -1033,6 +1035,8 @@ Important messages:
 | `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP connection; when closed with the reason: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Commands are never logged |
 | `[WEB] Server on port: 80` | Web interface ready (WiFi connected or access point) |
 | `[WEB] Login`, `[WEB] Login failed` | Login with the web password right or wrong (the password is never logged) |
+| `[GUI] Web password set` / `removed`, `[GUI] Disconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web password on the Device page; `Disconnect all` on the info card |
+| `[WEB] Server stopped (WiFi off)` | WiFi `Off`: the web server accepts nothing more, open pages are disconnected |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Network change from the browser (section 16) |
 | `[WEB] WebSocket closed: no pong`, `[WEB] No memory for the web server`, `[WEB] Saving the network settings failed` | Browser no longer answers; too little memory; saving failed |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
@@ -1223,11 +1227,11 @@ With WiFi (section 8, WIFI page) the generator can also be operated in a browser
 - Changes at the device or over SCPI appear after about 1 s and are highlighted briefly; a field with focus is not overwritten. Without connection everything is gray.
 - After a change from the browser the device status bar shows `REMOTE WEB` for 10 s. `Remote out.` `local only` (section 8) applies here too: switching on is refused.
 - At most 3 browsers at a time; a fourth sees `Too many clients (max. 3)`.
-- Only at the device: defaults and factory reset, touch calibration, screen lock, new access point password, web password.
+- Only at the device: defaults and factory reset, touch calibration, screen lock, new access point password, web password (WIFI → `Device`, row `Web pw.`).
 
 ### Web Password
 
-If a web password is set, the page asks for it before the first change (reading works without). The login takes about 1.5 s and lasts 12 h. After 5 wrong attempts the login is locked for 30 s, every further lock lasts twice as long (up to 16 min). The web password is set at the device; the field on the Device page is still to come.
+If a web password is set, the page asks for it before the first change (reading works without). The login takes about 1.5 s and lasts 12 h. After 5 wrong attempts the login is locked for 30 s, every further lock lasts twice as long (up to 16 min). The web password is set at the device on the Device page (section 8); without a web password everyone in the network can operate the device.
 
 ### Network Settings from the Browser
 

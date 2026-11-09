@@ -583,11 +583,20 @@ bool hash(const char* password, size_t len, RequestGuard::Random32 random, char 
     if (!random || !valid(password, len)) return false;
     uint8_t salt[SALT_LEN];
     randomBytes(random, salt, sizeof(salt));
+    const bool ok = hashWithSalt(password, len, salt, out);
+    wipe(salt, sizeof(salt));
+    return ok;
+}
+
+bool hashWithSalt(const char* password, size_t len, const uint8_t salt[SALT_LEN], char out[RECORD_SIZE]) {
+    if (!out) return false;
+    out[0] = '\0';
+    if (!salt || !valid(password, len)) return false;
     uint8_t dk[HASH_LEN];
     derive(password, len, salt, ITERATIONS, dk);
     char saltHex[2 * SALT_LEN + 1];
     char dkHex[2 * HASH_LEN + 1];
-    toHex(salt, sizeof(salt), saltHex);
+    toHex(salt, SALT_LEN, saltHex); // salt is a pointer here
     toHex(dk, sizeof(dk), dkHex);
     snprintf(out, RECORD_SIZE, "%s%lu$%s$%s", PREFIX, (unsigned long)ITERATIONS, saltHex, dkHex);
     wipe(dk, sizeof(dk));

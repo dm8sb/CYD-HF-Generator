@@ -50,6 +50,11 @@ public:
     void applyAp(const NetSettings& s);
     // A new random AP password (W-E3), also with the radio off (bootloader RNG then).
     void newApPassword(char out[NetConfig::AP_PASSWORD_LEN + 1]);
+    // True random bytes (salt of the web password), also with the radio off.
+    void randomBytes(uint8_t* out, size_t n);
+    // The web password record only ("" = none): nothing restarts, the web server ends its
+    // sessions when it sees the change (S55b).
+    void applyWebPassword(const char* record);
     // The touch confirmed an open fallback AP (W-S2).
     void confirmOpenFallback() { openFallbackConfirmed_ = true; }
     void update();

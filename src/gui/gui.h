@@ -8,6 +8,7 @@
 #include <drivers/display_panel.h>
 #include <drivers/touch.h>
 #include <net/wifi_manager.h>
+#include <net/web_state.h>
 #include <utils/input_logic.h>
 #include <utils/message_queue.h>
 #include <utils/status_text.h>
@@ -49,6 +50,19 @@ public:
     void setWifi(WifiManager& wifi, bool (*save)(const NetSettings&)) {
         wifi_ = &wifi;
         saveNet_ = save;
+    }
+    // Web password on the device page (S55b): start() hands the typed password to the hashing
+    // worker (false: busy or invalid), poll() fetches the record once it is ready.
+    void setWebPassword(bool (*start)(const char* password, size_t len), WebPasswordJob::Poll (*poll)(char* record)) {
+        webPwStart_ = start;
+        webPwPoll_ = poll;
+    }
+    // Remote clients on the info card (S55b): open WebSockets, address of the SCPI TCP client
+    // (0 = none), and Disconnect all (served by the next loop()).
+    void setRemoteClients(uint8_t (*webClients)(), uint32_t (*scpiClient)(), void (*disconnectAll)()) {
+        webClients_ = webClients;
+        scpiClient_ = scpiClient;
+        disconnectRemote_ = disconnectAll;
     }
 
 private:
@@ -93,7 +107,9 @@ private:
         ApOpenToggle,   // AP page: open (with confirmation) or secure again
         DevName,        // device page: edit the name
         DevIpMode,      // device page: DHCP / Static (dropdown)
-        DevIpField      // device page: arg 0..3 address, mask, gateway, DNS
+        DevIpField,     // device page: arg 0..3 address, mask, gateway, DNS
+        DevWebPassword, // device page: set, change or remove the web password
+        RemoteDisconnect // CONFIG info card: disconnect all web and SCPI clients
     };
 
     struct Widgets {
@@ -151,6 +167,8 @@ private:
         lv_obj_t* devName;     // device page
         lv_obj_t* devIpMode;
         lv_obj_t* devField[4];
+        lv_obj_t* devWebPw;
+        lv_obj_t* remoteInfo;  // CONFIG info card: web and SCPI clients
     };
 
     void createMain_();
@@ -165,6 +183,10 @@ private:
     void createEntry_();
     void createWifiDevice_();
     void refreshWifiDevice_();
+    // Web password (S55b): stores a record ("" = none) without restarting the WiFi.
+    void storeWebPassword_(const char* record);
+    // In update(): collects a finished hash.
+    void pollWebPassword_();
     // Saves and applies network settings (restarts the WiFi).
     void storeNet_(NetSettings& s);
     void createWifiAp_();
@@ -243,7 +265,17 @@ private:
     static void showState_(lv_obj_t* label, const StatusText::Text& state);
     // Off state High needs a confirmation: a switched-off output then carries DC.
     // Confirmation dialogs with Cancel and one action button in the warning color.
-    enum class Confirm : uint8_t { OffStateHigh, ResetDefaults, FactoryReset, DeleteNetwork, OpenNetwork, ApOpen, OpenFallback, WebNetwork };
+    enum class Confirm : uint8_t {
+        OffStateHigh,
+        ResetDefaults,
+        FactoryReset,
+        DeleteNetwork,
+        OpenNetwork,
+        ApOpen,
+        OpenFallback,
+        WebNetwork,
+        RemoveWebPassword
+    };
     void confirm_(Confirm what);
     static void confirmEventCb_(lv_event_t* e);
     // Screen lock events from the touch callback (hint while pressed, LOCKED in the status bar).
@@ -267,13 +299,19 @@ private:
     WifiManager* wifi_ = nullptr;
     bool (*saveNet_)(const NetSettings&) = nullptr;
     // WIFI pages (RAM only)
-    enum class EntryPurpose : uint8_t { Ssid, Password, ApPassword, DeviceName, IpField };
+    enum class EntryPurpose : uint8_t { Ssid, Password, ApPassword, DeviceName, IpField, WebPassword };
     uint8_t entryField_ = 0; // IpField: 0 address, 1 mask, 2 gateway, 3 DNS
     PageId entryBack_ = PageId::WifiScan;
     bool openFallbackAsked_ = false; // W-S2 question shown for the current need
     bool (*netConfirmNeeded_)() = nullptr;
     void (*netConfirmAnswer_)(bool keep) = nullptr;
     bool netConfirmAsked_ = false;   // W-S12 question shown for the current web change
+    bool (*webPwStart_)(const char*, size_t) = nullptr;
+    WebPasswordJob::Poll (*webPwPoll_)(char*) = nullptr;
+    bool webPwHashing_ = false;      // the device page shows "Saving..."
+    uint8_t (*webClients_)() = nullptr;
+    uint32_t (*scpiClient_)() = nullptr;
+    void (*disconnectRemote_)() = nullptr;
     uint8_t wifiSlot_ = 0;
     uint8_t scanPage_ = 0;
     EntryPurpose entryPurpose_ = EntryPurpose::Password;

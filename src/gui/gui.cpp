@@ -386,6 +386,7 @@ void Gui::update() {
     } else {
         netConfirmAsked_ = false;
     }
+    pollWebPassword_();
     if (app_->identifying()) {
         if (!ledIdentify_ || app_->identifyLit() != ledLit_) {
             ledIdentify_ = true;
@@ -556,6 +557,11 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::RemoteOutputs:
             app.setRemoteOutputsAllowed(lv_dropdown_get_selected(obj) == 0);
             break;
+        case Action::RemoteDisconnect:
+            // Served by the next loop(); the info card shows the new counts then.
+            if (disconnectRemote_) disconnectRemote_();
+            Logger::info("GUI", "Disconnect all remote clients");
+            break;
         case Action::WifiEdit:
         case Action::WifiDelete:
         case Action::WifiRescan:
@@ -571,6 +577,7 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::DevName:
         case Action::DevIpMode:
         case Action::DevIpField:
+        case Action::DevWebPassword:
             handleWifiAction_(action, arg, obj);
             return;
     }
@@ -668,6 +675,7 @@ void Gui::confirm_(Confirm what) {
     static const char* openButtons[] = {"Cancel", "Open", ""};
     static const char* startButtons[] = {"Cancel", "Start", ""};
     static const char* keepButtons[] = {"Revert", "Keep", ""};
+    static const char* removeButtons[] = {"Cancel", "Remove", ""};
     const char* title = "Off state High";
     const char* text = "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
                        "Do not use with DC-coupled mixers or inputs.";
@@ -706,6 +714,11 @@ void Gui::confirm_(Confirm what) {
         text = "The network settings were changed from the web. Keep them? Without Keep here and "
                "Confirm in the browser, the previous settings return after 120 s.";
         buttons = keepButtons;
+    } else if (what == Confirm::RemoveWebPassword) {
+        title = "Remove web password";
+        text = "Everyone who can reach the device over the network can then operate it in the "
+               "browser without logging in. Open web sessions end.";
+        buttons = removeButtons;
     }
     pendingConfirm_ = what;
     lv_obj_t* box = lv_msgbox_create(nullptr, title, text, buttons, false);
@@ -737,6 +750,11 @@ void Gui::confirmEventCb_(lv_event_t* e) {
         g->storeAp_(g->wifi_->settings().apPassword, true);
     }
     if (yes && g->pendingConfirm_ == Confirm::OpenFallback && g->wifi_) g->wifi_->confirmOpenFallback();
+    if (yes && g->pendingConfirm_ == Confirm::RemoveWebPassword) {
+        g->storeWebPassword_("");
+        Logger::info("GUI", "Web password removed");
+        g->requestNavigate_(PageId::WifiDevice);
+    }
     if (g->pendingConfirm_ == Confirm::WebNetwork && g->netConfirmAnswer_) {
         g->netConfirmAnswer_(btn && strcmp(btn, "Keep") == 0);
     }

@@ -192,8 +192,12 @@ uint32_t Gui::statusSignature_() const {
         sig ^= ((uint32_t)wifi_->scanState() | (uint32_t)wifi_->scanList().count() << 2 | (uint32_t)w.connecting << 7 |
                 (uint32_t)w.lastFailure << 8) * 97u;
     }
-    // The heap line of the info card in 1 KB steps.
-    if (currentPage_ == PageId::Config) sig ^= (ESP.getFreeHeap() / 1024) * 40503u;
+    // The heap line of the info card in 1 KB steps, and its remote clients (S55b).
+    if (currentPage_ == PageId::Config) {
+        sig ^= (ESP.getFreeHeap() / 1024) * 40503u;
+        if (webClients_) sig ^= (uint32_t)webClients_() * 0x01000193u;
+        if (scpiClient_) sig ^= scpiClient_() * 0x9E3779B1u;
+    }
     return sig;
 }
 

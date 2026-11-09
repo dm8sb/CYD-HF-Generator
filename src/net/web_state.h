@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "net_settings.h"
+#include "request_guard.h"
 
 // State machines of the web server (S55). Pure and host-tested; the device glue
 // (net/web_server.*) runs them in loop() (NetChange, ScanSession) or under its lock
@@ -126,4 +127,42 @@ private:
     bool cancelled_ = false;
     uint32_t nextId_ = 1;
     Job job_ {};
+};
+
+// Setting the web password at the device (S55b): PBKDF2 with 10 000 iterations takes about
+// 1.3 s on the ESP32, too long for loop() (GUI, SCPI and the web server would stall). loop()
+// submits the password with a salt it drew from the true RNG, a worker task hashes it, loop()
+// collects the record and stores it. One job at a time; the password is wiped as soon as the
+// worker took it, the record once it was collected.
+class WebPasswordJob {
+public:
+    struct Job {
+        char password[WebPassword::MAX_LEN + 1];
+        size_t len;
+        uint8_t salt[WebPassword::SALT_LEN];
+    };
+    enum class Poll : uint8_t { Idle, Busy, Done, Failed };
+
+    // false while a job runs or is not collected yet, or if the password is not
+    // WebPassword::valid() (8..64 bytes UTF-8 without control characters).
+    bool submit(const char* password, size_t len, const uint8_t salt[WebPassword::SALT_LEN]);
+    // Worker: takes the queued job into *job (false if none) and marks it running.
+    bool take(Job* job);
+    // Worker step without the lock: hashes a job from take() into record and wipes the job.
+    static bool hash(Job* job, char record[WebPassword::RECORD_SIZE]);
+    // Worker: the result (record "" or ok false = failed).
+    void finish(const char* record, bool ok);
+    // loop(): Done copies the record into out and frees the job; Failed frees it as well.
+    Poll collect(char out[WebPassword::RECORD_SIZE]);
+    bool busy() const { return state_ != State::Idle; }
+    // take(), hash() and finish() at once (host tests).
+    bool runOne();
+    static void wipe(Job* job);
+
+private:
+    enum class State : uint8_t { Idle, Queued, Running, Done };
+    State state_ = State::Idle;
+    bool ok_ = false;
+    Job job_ {};
+    char record_[WebPassword::RECORD_SIZE] {};
 };

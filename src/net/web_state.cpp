@@ -1,5 +1,6 @@
 #include "web_state.h"
 
+#include <stdio.h>
 #include <string.h>
 
 namespace {
@@ -200,4 +201,67 @@ void LoginQueue::cancel(uint32_t id) {
     } else if (state_ == State::Running) {
         cancelled_ = true;
     }
+}
+
+// ---------------------------------------------------------------------------
+// WebPasswordJob
+
+void WebPasswordJob::wipe(Job* job) {
+    if (job) wipeBytes(job, sizeof(*job));
+}
+
+bool WebPasswordJob::submit(const char* password, size_t len, const uint8_t salt[WebPassword::SALT_LEN]) {
+    if (state_ != State::Idle || !salt || !WebPassword::valid(password, len)) return false;
+    memcpy(job_.password, password, len);
+    job_.password[len] = '\0';
+    job_.len = len;
+    memcpy(job_.salt, salt, sizeof(job_.salt));
+    ok_ = false;
+    state_ = State::Queued;
+    return true;
+}
+
+bool WebPasswordJob::take(Job* job) {
+    if (state_ != State::Queued || !job) return false;
+    *job = job_;
+    wipe(&job_);
+    state_ = State::Running;
+    return true;
+}
+
+bool WebPasswordJob::hash(Job* job, char record[WebPassword::RECORD_SIZE]) {
+    if (!record) return false;
+    record[0] = '\0';
+    if (!job) return false;
+    const bool ok = WebPassword::hashWithSalt(job->password, job->len, job->salt, record);
+    wipe(job);
+    return ok;
+}
+
+void WebPasswordJob::finish(const char* record, bool ok) {
+    if (state_ != State::Running) return;
+    ok_ = ok && record && WebPassword::wellFormed(record);
+    if (ok_) snprintf(record_, sizeof(record_), "%s", record);
+    state_ = State::Done;
+}
+
+WebPasswordJob::Poll WebPasswordJob::collect(char out[WebPassword::RECORD_SIZE]) {
+    if (state_ == State::Idle) return Poll::Idle;
+    if (state_ != State::Done) return Poll::Busy;
+    const bool ok = ok_ && out;
+    if (ok) memcpy(out, record_, sizeof(record_));
+    wipeBytes(record_, sizeof(record_));
+    ok_ = false;
+    state_ = State::Idle;
+    return ok ? Poll::Done : Poll::Failed;
+}
+
+bool WebPasswordJob::runOne() {
+    Job j;
+    if (!take(&j)) return false;
+    char record[WebPassword::RECORD_SIZE];
+    const bool ok = hash(&j, record);
+    finish(record, ok);
+    wipeBytes(record, sizeof(record));
+    return true;
 }

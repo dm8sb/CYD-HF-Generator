@@ -18,6 +18,7 @@
 #include <net/net_settings.h>
 #include <net/wifi_manager.h>
 #include <net/web_server.h>
+#include <net/web_password_worker.h>
 #include <esp_random.h>
 // Test build with WiFi credentials from a local file that is never committed (.gitignore):
 // build with -DTEST_WIFI=1 and include/test_wifi_local.h defining TEST_WIFI_SSID/TEST_WIFI_PASS.
@@ -71,6 +72,26 @@ static ScpiSession usbSession(loopBackend, Source::Usb);
 static ScpiUsbLink usbLink(usbSession, coreDebugOutput);
 // SCPI over TCP 5025 (S54): also in loop(), own session and error queue; on the heap (E-31).
 static ScpiTcpServer* scpiTcp = nullptr;
+// Web password typed at the device (S55b): hashed by a worker task, salt from the true RNG.
+static WebPasswordWorker* webPassword = nullptr;
+static bool startWebPassword(const char* password, size_t len) {
+    if (!webPassword) return false;
+    uint8_t salt[WebPassword::SALT_LEN];
+    wifi.randomBytes(salt, sizeof(salt));
+    const bool started = webPassword->start(password, len, salt);
+    memset(salt, 0, sizeof(salt));
+    return started;
+}
+static WebPasswordJob::Poll pollWebPassword(char* record) {
+    return webPassword ? webPassword->poll(record) : WebPasswordJob::Poll::Idle;
+}
+// Remote clients on the info card (S55b).
+static uint8_t webClients() { return web ? web->webClients() : 0; }
+static uint32_t scpiClient() { return scpiTcp ? scpiTcp->link().clientIp() : 0; }
+static void disconnectRemote() {
+    if (web) web->disconnectAll();
+    if (scpiTcp) scpiTcp->link().disconnect(); // no-op without a connection
+}
 
 static void pollTcpScpi() {
     if (!scpiTcp) return;
@@ -172,6 +193,7 @@ void setup() {
     wifi.begin(netSettings, macBytes, saveNet);
     web = new (std::nothrow) WebHmiServer(commands, snapshot, wifi, saveNet);
     if (!web) Logger::error("BOOT", "No memory for the web server");
+    webPassword = new (std::nothrow) WebPasswordWorker();
 
     // 5. SI5351 init, SDA/SCL in either order
     const bool si5351Ok = app.connectHardware();
@@ -199,6 +221,8 @@ void setup() {
     gui.setFactoryReset(factoryReset);
     gui.setWifi(wifi, saveNetSettings);
     gui.setNetConfirm(webConfirmNeeded, webConfirmAnswer);
+    gui.setWebPassword(startWebPassword, pollWebPassword);
+    gui.setRemoteClients(webClients, scpiClient, disconnectRemote);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
     if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
     app.addListener(Gui::onAppEvent, &gui);

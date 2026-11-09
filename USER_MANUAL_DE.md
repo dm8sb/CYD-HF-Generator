@@ -678,6 +678,7 @@ Die dritte Karte `AP  CYD-HF-<4 Stellen>` zeigt den eigenen Access Point (`WPA2`
 | `Name` | Gerätename, unter dem das Gerät als `<Name>.local` erreichbar ist (Standard `cyd-hf-<4 Stellen>`). Antippen öffnet die Tastatur; erlaubt sind 1–32 Zeichen `a`–`z`, `0`–`9` und `-`, nicht am Anfang oder Ende. Sonst steht unter dem Feld `a-z 0-9 - (1-32)`. |
 | `IP` | `DHCP` (Adresse vom Router) oder `Static` (feste Adresse) |
 | `Address`, `Mask`, `Gateway`, `DNS` | Bei `DHCP` grau die gespeicherten festen Werte, für leere Felder die Zuteilung des Routers (`-` ohne Verbindung). Bei `Static` schwarz die gespeicherten Werte; antippen öffnet ein Ziffernfeld (`192.168.1.50`). `DNS` leer heißt `= gateway`. |
+| `Web pw.` | Web-Passwort für die Weboberfläche (Abschnitt 16): `Set (login needed)` oder orange `None (no login)`, das Passwort selbst wird nie angezeigt. Antippen öffnet die Tastatur `Web password` (8–64 Zeichen, sonst `8-64 characters`); OK speichert, das Verschlüsseln dauert etwa 1,3 s (`Saving...`), die Bedienung läuft weiter. Ist ein Passwort gesetzt, entfernt ein leeres Feld mit OK es nach der Rückfrage `Remove web password`. Jede Änderung beendet alle Web-Anmeldungen; das WLAN startet dabei nicht neu. |
 
 Beim Umschalten auf `Static` werden leere Felder mit der aktuellen DHCP-Zuteilung gefüllt, meist muss also nur `Address` geändert werden. Eine unplausible Kombination wird abgelehnt, die Meldung `Static IP` nennt den Grund, und der alte Wert bleibt (beim Umschalten bleibt `DHCP`):
 
@@ -752,6 +753,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
 | `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke; `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
+| `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-TCP-Client. Darunter die Taste `Disconnect all`: schließt alle Browser-Verbindungen, beendet die Web-Anmeldungen und die SCPI-TCP-Verbindung. Ohne Web-Passwort verbindet sich ein Browser nach wenigen Sekunden wieder. |
 | `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB |
 
 ---
@@ -1033,6 +1035,8 @@ Wichtige Meldungen:
 | `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP-Verbindung; beim Schließen mit Grund: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Befehle werden nie geloggt |
 | `[WEB] Server on port: 80` | Weboberfläche bereit (WLAN verbunden oder Access Point) |
 | `[WEB] Login`, `[WEB] Login failed` | Anmeldung mit Web-Passwort richtig bzw. falsch (das Passwort wird nie geloggt) |
+| `[GUI] Web password set` / `removed`, `[GUI] Disconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web-Passwort auf der Seite Device; `Disconnect all` auf der Info-Karte |
+| `[WEB] Server stopped (WiFi off)` | WLAN `Off`: der Webserver nimmt nichts mehr an, offene Seiten werden getrennt |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Netzänderung aus dem Browser (Abschnitt 16) |
 | `[WEB] WebSocket closed: no pong`, `[WEB] No memory for the web server`, `[WEB] Saving the network settings failed` | Browser antwortet nicht mehr; zu wenig Speicher; Speichern fehlgeschlagen |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
@@ -1223,11 +1227,11 @@ Mit WLAN (Abschnitt 8, Seite WIFI) lässt sich der Generator auch im Browser bed
 - Änderungen am Gerät oder per SCPI erscheinen nach etwa 1 s und werden kurz hervorgehoben; ein Feld mit Fokus wird nicht überschrieben. Ohne Verbindung ist alles grau.
 - Die Statusleiste am Gerät zeigt nach einer Änderung aus dem Browser 10 s lang `REMOTE WEB`. `Remote out.` `local only` (Abschnitt 8) gilt auch hier: Einschalten wird abgelehnt.
 - Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`.
-- Nur am Gerät: Grundzustand und Werksreset, Touch-Abgleich, Bildschirmsperre, neues Access-Point-Passwort, Web-Passwort.
+- Nur am Gerät: Grundzustand und Werksreset, Touch-Abgleich, Bildschirmsperre, neues Access-Point-Passwort, Web-Passwort (WIFI → `Device`, Zeile `Web pw.`).
 
 ### Web-Passwort
 
-Ist ein Web-Passwort gesetzt, fragt die Seite vor dem ersten Ändern danach (Lesen geht ohne). Die Anmeldung dauert etwa 1,5 s und gilt 12 h. Nach 5 falschen Versuchen ist die Anmeldung 30 s gesperrt, jede weitere Sperre dauert doppelt so lang (bis 16 min). Das Web-Passwort wird am Gerät festgelegt; das Feld auf der Seite Device folgt noch.
+Ist ein Web-Passwort gesetzt, fragt die Seite vor dem ersten Ändern danach (Lesen geht ohne). Die Anmeldung dauert etwa 1,5 s und gilt 12 h. Nach 5 falschen Versuchen ist die Anmeldung 30 s gesperrt, jede weitere Sperre dauert doppelt so lang (bis 16 min). Das Web-Passwort wird am Gerät auf der Seite Device festgelegt (Abschnitt 8); ohne Web-Passwort kann jeder im Netz das Gerät bedienen.
 
 ### Netzeinstellungen aus dem Browser
 

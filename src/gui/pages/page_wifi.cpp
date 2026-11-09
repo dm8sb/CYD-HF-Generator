@@ -1,6 +1,7 @@
 #include "../gui.h"
 #include "../gui_layout.h"
 #include <net/net_settings.h>
+#include <net/request_guard.h>
 #include <utils/logger.h>
 #include <utils/sanitize.h>
 #include <string.h>
@@ -193,9 +194,15 @@ void Gui::refreshWifiScan_() {
 
 // --- Text entry -------------------------------------------------------------
 
+// Longest text per purpose (the counter shows it).
+static unsigned entryMaxLen(bool password, bool webPassword, bool ip) {
+    return webPassword ? (unsigned)WebPassword::MAX_LEN : password ? 63u : ip ? 15u : 32u;
+}
+
 void Gui::createEntry_() {
     const bool apPass = entryPurpose_ == EntryPurpose::ApPassword;
-    const bool password = entryPurpose_ == EntryPurpose::Password || apPass;
+    const bool webPass = entryPurpose_ == EntryPurpose::WebPassword;
+    const bool password = entryPurpose_ == EntryPurpose::Password || apPass || webPass;
     char title[48];
     const bool name = entryPurpose_ == EntryPurpose::DeviceName;
     const bool ip = entryPurpose_ == EntryPurpose::IpField;
@@ -206,6 +213,8 @@ void Gui::createEntry_() {
         snprintf(title, sizeof(title), "%s", FIELD_NAMES[entryField_ & 3]);
     } else if (apPass) {
         snprintf(title, sizeof(title), "AP password");
+    } else if (webPass) {
+        snprintf(title, sizeof(title), "Web password");
     } else if (password) {
         char shown[33];
         Sanitize::text(entrySsid_, strlen(entrySsid_), shown, sizeof(shown));
@@ -218,7 +227,7 @@ void Gui::createEntry_() {
     lv_obj_set_pos(w_.ta, 4, ENTRY_TA_Y);
     lv_obj_set_size(w_.ta, password ? SCREEN_WIDTH - 4 - 4 - 76 : SCREEN_WIDTH - 8, ENTRY_TA_H);
     lv_textarea_set_one_line(w_.ta, true);
-    lv_textarea_set_max_length(w_.ta, ip ? 15 : password ? 63 : 32);
+    lv_textarea_set_max_length(w_.ta, entryMaxLen(password, webPass, ip));
     if (name) lv_textarea_set_accepted_chars(w_.ta, "abcdefghijklmnopqrstuvwxyz0123456789-");
     if (ip) lv_textarea_set_accepted_chars(w_.ta, "0123456789.");
     // The AP password is shown on the AP page anyway: typed in clear.
@@ -253,11 +262,14 @@ void Gui::createEntry_() {
 
 void Gui::refreshEntry_() {
     if (!w_.ta) return;
-    const bool password = entryPurpose_ == EntryPurpose::Password || entryPurpose_ == EntryPurpose::ApPassword;
-    const unsigned maxLen = password ? 63u : entryPurpose_ == EntryPurpose::IpField ? 15u : 32u;
+    const bool webPass = entryPurpose_ == EntryPurpose::WebPassword;
+    const bool password = entryPurpose_ == EntryPurpose::Password || entryPurpose_ == EntryPurpose::ApPassword || webPass;
+    const unsigned maxLen = entryMaxLen(password, webPass, entryPurpose_ == EntryPurpose::IpField);
     const size_t len = strlen(lv_textarea_get_text(w_.ta));
     char buf[48];
     if (entryError_[0]) snprintf(buf, sizeof(buf), "%s", entryError_);
+    else if (webPass && len == 0 && wifi_ && NetConfig::webPasswordSet(wifi_->settings()))
+        snprintf(buf, sizeof(buf), "empty + OK: remove");
     else snprintf(buf, sizeof(buf), "%u/%u", (unsigned)len, maxLen);
     lv_label_set_text(w_.entryInfo, buf);
     lv_obj_set_style_text_color(w_.entryInfo, entryError_[0] ? Colors::error() : Colors::muted(), 0);
@@ -361,6 +373,26 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                 requestNavigate_(PageId::WifiDevice);
                 return;
             }
+            if (entryPurpose_ == EntryPurpose::WebPassword) {
+                const size_t len = strlen(text);
+                if (len == 0 && wifi_ && NetConfig::webPasswordSet(wifi_->settings())) {
+                    confirm_(Confirm::RemoveWebPassword);
+                    return; // confirm_() redraws
+                }
+                if (!WebPassword::valid(text, len)) {
+                    snprintf(entryError_, sizeof(entryError_), "8-64 characters");
+                    break;
+                }
+                // Hashed by a worker (~1.3 s); the device page shows "Saving..." until then.
+                if (webPwHashing_ || !webPwStart_ || !webPwStart_(text, len)) {
+                    snprintf(entryError_, sizeof(entryError_), "Busy, try again");
+                    break;
+                }
+                webPwHashing_ = true;
+                lv_textarea_set_text(w_.ta, "");
+                requestNavigate_(PageId::WifiDevice);
+                return;
+            }
             if (entryPurpose_ == EntryPurpose::ApPassword) {
                 if (!NetConfig::validPassphrase(text)) {
                     snprintf(entryError_, sizeof(entryError_), "8-63 characters");
@@ -412,6 +444,14 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             if (!wifi_) return;
             snprintf(entrySsid_, sizeof(entrySsid_), "%s", wifi_->settings().deviceName);
             entryPurpose_ = EntryPurpose::DeviceName;
+            entryBack_ = PageId::WifiDevice;
+            entryError_[0] = '\0';
+            requestNavigate_(PageId::TextEntry);
+            return;
+        case Action::DevWebPassword:
+            if (!wifi_ || webPwHashing_) return;
+            entrySsid_[0] = '\0';
+            entryPurpose_ = EntryPurpose::WebPassword;
             entryBack_ = PageId::WifiDevice;
             entryError_[0] = '\0';
             requestNavigate_(PageId::TextEntry);
@@ -555,11 +595,48 @@ void Gui::refreshWifiAp_() {
 
 // --- Device (S53d) ----------------------------------------------------------
 
-static constexpr int DEV_Y = 44;
-static constexpr int DEV_H = 30;
+// Seven rows: name, IP mode, the four static IP fields and the web password (S55b). The rows
+// are 26 px high (30 px until S55b) so that the seventh fits below the back button.
+static constexpr int DEV_ROWS = 7;
+static constexpr int DEV_Y = 42;
+static constexpr int DEV_H = 26;
 static constexpr int DEV_PITCH = DEV_H + 2;
+static constexpr int DEV_LABEL_DY = (DEV_H - 16) / 2; // montserrat 14: 16 px line
 static constexpr int DEV_VALUE_X = 104;
-static_assert(DEV_Y + 6 * DEV_PITCH <= SCREEN_HEIGHT, "six rows fit");
+static constexpr int DEV_VALUE_W = CONTENT_W + MARGIN - DEV_VALUE_X;
+static_assert(DEV_Y >= 3 + 36 + 2, "first row below the back button");
+static_assert(DEV_Y + DEV_ROWS * DEV_PITCH <= SCREEN_HEIGHT, "seven rows fit");
+
+// The device page shows a stored web password only as set / none (W-S13: never as text).
+static const char* webPasswordText(bool set, bool hashing) {
+    if (hashing) return "Saving...";
+    return set ? "Set (login needed)" : "None (no login)";
+}
+
+void Gui::storeWebPassword_(const char* record) {
+    if (!wifi_) return;
+    NetSettings s = wifi_->settings();
+    snprintf(s.webPassword, sizeof(s.webPassword), "%s", record ? record : "");
+    if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
+    wifi_->applyWebPassword(s.webPassword); // no WiFi restart; the web server ends its sessions
+    memset(&s, 0, sizeof(s));
+}
+
+void Gui::pollWebPassword_() {
+    if (!webPwHashing_ || !webPwPoll_) return;
+    char record[WebPassword::RECORD_SIZE];
+    const WebPasswordJob::Poll p = webPwPoll_(record);
+    if (p == WebPasswordJob::Poll::Busy) return;
+    webPwHashing_ = false;
+    if (p == WebPasswordJob::Poll::Done) {
+        storeWebPassword_(record);
+        Logger::info("GUI", "Web password set");
+    } else {
+        showMessage("Web password", "Setting the web password failed. Try again.");
+    }
+    memset(record, 0, sizeof(record));
+    refresh_();
+}
 
 void Gui::storeNet_(NetSettings& s) {
     if (!wifi_) return;
@@ -570,22 +647,24 @@ void Gui::storeNet_(NetSettings& s) {
 
 void Gui::createWifiDevice_() {
     addBackTitle_(PageId::Wifi, "Device", Colors::config());
-    static const char* const NAMES[6] = {"Name", "IP", "Address", "Mask", "Gateway", "DNS"};
-    for (uint8_t i = 0; i < 6; ++i) {
+    static const char* const NAMES[DEV_ROWS] = {"Name", "IP", "Address", "Mask", "Gateway", "DNS", "Web pw."};
+    for (uint8_t i = 0; i < DEV_ROWS; ++i) {
         const int y = DEV_Y + i * DEV_PITCH;
-        addLabel_(root_, NAMES[i], &lv_font_montserrat_14, Colors::text(), MARGIN + 2, y + 7);
+        addLabel_(root_, NAMES[i], &lv_font_montserrat_14, Colors::text(), MARGIN + 2, y + DEV_LABEL_DY);
         if (i == 1) {
             w_.devIpMode = lv_dropdown_create(root_);
             lv_dropdown_set_options(w_.devIpMode, "DHCP\nStatic");
             lv_obj_set_pos(w_.devIpMode, DEV_VALUE_X, y);
-            lv_obj_set_size(w_.devIpMode, CONTENT_W + MARGIN - DEV_VALUE_X, DEV_H);
+            lv_obj_set_size(w_.devIpMode, DEV_VALUE_W, DEV_H);
             lv_obj_set_style_pad_ver(w_.devIpMode, 4, 0);
             on_(w_.devIpMode, LV_EVENT_VALUE_CHANGED, Action::DevIpMode, 0);
             continue;
         }
         // The value is a tappable field that opens the keyboard.
-        lv_obj_t* b = addButton_(root_, "", DEV_VALUE_X, y, CONTENT_W + MARGIN - DEV_VALUE_X, DEV_H, Colors::cardBg(),
-                                 i == 0 ? Action::DevName : Action::DevIpField, (uint8_t)(i == 0 ? 0 : i - 2));
+        const bool web = i == DEV_ROWS - 1;
+        const Action action = i == 0 ? Action::DevName : web ? Action::DevWebPassword : Action::DevIpField;
+        lv_obj_t* b = addButton_(root_, "", DEV_VALUE_X, y, DEV_VALUE_W, DEV_H, Colors::cardBg(), action,
+                                 (uint8_t)(i >= 2 && !web ? i - 2 : 0));
         lv_obj_set_style_border_width(b, 1, 0);
         lv_obj_set_style_border_color(b, Colors::outline(), 0);
         lv_obj_t* l = lv_obj_get_child(b, 0);
@@ -593,6 +672,7 @@ void Gui::createWifiDevice_() {
         lv_obj_set_style_text_color(l, Colors::text(), 0);
         lv_obj_align(l, LV_ALIGN_LEFT_MID, 6, 0);
         if (i == 0) w_.devName = l;
+        else if (web) w_.devWebPw = l;
         else w_.devField[i - 2] = l;
     }
 }
@@ -617,4 +697,8 @@ void Gui::refreshWifiDevice_() {
         lv_label_set_text(w_.devField[i], buf);
         lv_obj_set_style_text_color(w_.devField[i], s.staticIp.enabled ? Colors::text() : Colors::muted(), 0);
     }
+    const bool pwSet = NetConfig::webPasswordSet(s);
+    lv_label_set_text(w_.devWebPw, webPasswordText(pwSet, webPwHashing_));
+    // No password: everyone in the network can operate the device in the browser (warning color).
+    lv_obj_set_style_text_color(w_.devWebPw, pwSet || webPwHashing_ ? Colors::text() : Colors::warn(), 0);
 }

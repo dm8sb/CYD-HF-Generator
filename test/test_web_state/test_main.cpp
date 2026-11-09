@@ -237,6 +237,75 @@ static void test_login_queue() {
     TEST_ASSERT_TRUE(ok);
 }
 
+// --- WebPasswordJob ------------------------------------------------------------------------
+
+static void test_web_password_job() {
+    WebPasswordJob j;
+    const uint8_t salt[WebPassword::SALT_LEN] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    char record[WebPassword::RECORD_SIZE] = "x";
+    TEST_ASSERT_FALSE(j.busy());
+    TEST_ASSERT_EQUAL(WebPasswordJob::Poll::Idle, j.collect(record));
+    // Invalid passwords never reach the worker: too short, too long, control characters.
+    TEST_ASSERT_FALSE(j.submit("short", 5, salt));
+    char longPw[WebPassword::MAX_LEN + 1];
+    memset(longPw, 'a', sizeof(longPw));
+    TEST_ASSERT_FALSE(j.submit(longPw, sizeof(longPw), salt));
+    TEST_ASSERT_TRUE(j.submit(longPw, WebPassword::MAX_LEN, salt)); // 64 is the maximum
+    TEST_ASSERT_TRUE(j.runOne());
+    TEST_ASSERT_EQUAL(WebPasswordJob::Poll::Done, j.collect(record));
+    TEST_ASSERT_FALSE(j.submit("bad\npass", 8, salt));
+    TEST_ASSERT_FALSE(j.submit("secret12", 8, nullptr));
+    TEST_ASSERT_FALSE(j.busy());
+
+    TEST_ASSERT_TRUE(j.submit("secret12", 8, salt));
+    TEST_ASSERT_TRUE(j.busy());
+    TEST_ASSERT_FALSE(j.submit("other123", 8, salt)); // one at a time
+    TEST_ASSERT_EQUAL(WebPasswordJob::Poll::Busy, j.collect(record));
+    // The worker path of the device: take() wipes the queued copy, hash() wipes the worker's.
+    WebPasswordJob::Job w;
+    TEST_ASSERT_TRUE(j.take(&w));
+    TEST_ASSERT_FALSE(j.take(&w)); // nothing queued any more
+    TEST_ASSERT_EQUAL_STRING("secret12", w.password);
+    TEST_ASSERT_EQUAL(WebPasswordJob::Poll::Busy, j.collect(record)); // running
+    char out[WebPassword::RECORD_SIZE];
+    TEST_ASSERT_TRUE(WebPasswordJob::hash(&w, out));
+    TEST_ASSERT_EQUAL_STRING("", w.password);
+    TEST_ASSERT_EQUAL_UINT32(0, w.len);
+    j.finish(out, true);
+    TEST_ASSERT_EQUAL(WebPasswordJob::Poll::Done, j.collect(record));
+    TEST_ASSERT_FALSE(j.busy());
+    TEST_ASSERT_EQUAL(WebPasswordJob::Poll::Idle, j.collect(record)); // collected once
+    // The record is the stored form with this salt and verifies the password.
+    TEST_ASSERT_TRUE(WebPassword::wellFormed(record));
+    TEST_ASSERT_NOT_NULL(strstr(record, "$0102030405060708090a0b0c0d0e0f10$"));
+    TEST_ASSERT_TRUE(WebPassword::verify("secret12", 8, record));
+    TEST_ASSERT_FALSE(WebPassword::verify("secret13", 8, record));
+    // Same as hash() with the same salt bytes from the random source.
+    char viaHash[WebPassword::RECORD_SIZE];
+    TEST_ASSERT_TRUE(WebPassword::hash("secret12", 8, [] { return 0x04030201u; }, viaHash));
+    char viaSalt[WebPassword::RECORD_SIZE];
+    const uint8_t salt2[WebPassword::SALT_LEN] = {1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4};
+    TEST_ASSERT_TRUE(WebPassword::hashWithSalt("secret12", 8, salt2, viaSalt));
+    TEST_ASSERT_EQUAL_STRING(viaHash, viaSalt);
+
+    // A failed or malformed result frees the job without a record.
+    TEST_ASSERT_TRUE(j.submit("secret12", 8, salt));
+    TEST_ASSERT_TRUE(j.take(&w));
+    j.finish("not-a-record", true);
+    record[0] = 'x';
+    TEST_ASSERT_EQUAL(WebPasswordJob::Poll::Failed, j.collect(record));
+    TEST_ASSERT_EQUAL_CHAR('x', record[0]);
+    TEST_ASSERT_TRUE(j.submit("secret12", 8, salt));
+    TEST_ASSERT_TRUE(j.take(&w));
+    j.finish("", false);
+    TEST_ASSERT_EQUAL(WebPasswordJob::Poll::Failed, j.collect(record));
+    j.finish("x", true); // no job running: ignored
+    TEST_ASSERT_FALSE(j.busy());
+    TEST_ASSERT_FALSE(WebPasswordJob::hash(nullptr, out));
+    TEST_ASSERT_EQUAL_STRING("", out);
+    WebPasswordJob::wipe(&w);
+}
+
 // --- Limits --------------------------------------------------------------------------------
 
 static HttpPreFilter::Verdict feedAll(HttpPreFilter& f, const std::string& s, uint32_t now = 0) {
@@ -355,6 +424,7 @@ int main(int, char**) {
     RUN_TEST(test_change_across_the_millis_wrap);
     RUN_TEST(test_scan_semantics);
     RUN_TEST(test_login_queue);
+    RUN_TEST(test_web_password_job);
     RUN_TEST(test_prefilter_limits);
     RUN_TEST(test_connection_tables);
     return UNITY_END();

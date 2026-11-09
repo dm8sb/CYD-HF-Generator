@@ -216,6 +216,8 @@ static constexpr size_t RECORD_SIZE = 96; // incl. NUL
 bool valid(const char* password, size_t len);
 // false if the password is not valid().
 bool hash(const char* password, size_t len, RequestGuard::Random32 random, char out[RECORD_SIZE]);
+// The same with a given salt (the device draws it in loop() and hashes in a worker task, S55b).
+bool hashWithSalt(const char* password, size_t len, const uint8_t salt[SALT_LEN], char out[RECORD_SIZE]);
 // Constant-time comparison of the derived key; false for a malformed record.
 bool verify(const char* password, size_t len, const char* record);
 // The record has the stored form (prefix, iterations in range, hex salt and hash); NVS check.

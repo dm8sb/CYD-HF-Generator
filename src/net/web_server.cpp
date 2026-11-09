@@ -33,6 +33,7 @@ constexpr uint32_t CLEANUP_MS = 1000;
 constexpr uint32_t STACK_LOG_MS = 60000; // debug log of the task stack reserves (W-S23)
 constexpr uint16_t WS_TOO_BIG = 1009;
 constexpr uint16_t WS_POLICY = 1008;
+constexpr uint16_t WS_GOING_AWAY = 1001;
 
 uint32_t hwRandom() { return esp_random(); }
 
@@ -211,6 +212,8 @@ struct WebHmiServer::Impl {
     uint32_t lastStackLogMs = 0;
     NetSettings lastSettings {};
     bool settingsKnown = false;
+    bool listening = false;
+    bool disconnectRequested = false; // set and served in loop() (GUI)
 
     Impl(CommandQueue& c, StateSnapshot& s, WifiManager& w, bool (*sv)(const NetSettings&))
         : commands(c), snapshot(s), wifi(w), save(sv) {
@@ -250,9 +253,30 @@ struct WebHmiServer::Impl {
         // passes allowed upgrades of /ws to it.
         server->addHandler(handler);
         if (xTaskCreatePinnedToCore(loginWorker, "web_login", 4096, this, 1, &loginTask, 0) != pdPASS) return false;
-        server->startListening();
-        Logger::value("WEB", "Server on port", PORT);
+        listen(true);
         return true;
+    }
+
+    // ---------------------------------------------------------------- listening (loop)
+    // WiFi Off: no listening socket and no WebSocket or session left; back when WiFi is up.
+    void listen(bool on) {
+        if (on == listening) return;
+        listening = on;
+        if (on) {
+            server->startListening();
+            Logger::value("WEB", "Server on port", PORT);
+            return;
+        }
+        server->end();
+        dropClients();
+        Logger::info("WEB", "Server stopped (WiFi off)");
+    }
+
+    // Every WebSocket closes (the browser shows Offline and retries), every session ends.
+    void dropClients() {
+        ws->closeAll(WS_GOING_AWAY);
+        Lock l(mutex);
+        guard.endAllSessions();
     }
 
     // ---------------------------------------------------------------- accept (async_tcp)
@@ -970,6 +994,18 @@ struct WebHmiServer::Impl {
         }
     }
 
+    void serveDisconnect() {
+        if (!disconnectRequested) return;
+        disconnectRequested = false;
+        uint8_t n;
+        {
+            Lock l(mutex);
+            n = wsc.count();
+        }
+        dropClients();
+        Logger::value("WEB", "Disconnected at the device, WebSockets", n);
+    }
+
     void keepAlive(uint32_t now) {
         uint32_t ping, dead;
         {
@@ -1004,15 +1040,21 @@ void WebHmiServer::loop() {
     Impl* s = impl_;
     if (!s || !s->mutex) return;
     const uint32_t now = millis();
+    const WifiManager::Status& st = s->wifi.status();
+    const bool up = st.staConnected || st.apActive;
     if (!s->server) {
-        const WifiManager::Status& st = s->wifi.status();
-        if (!st.staConnected && !st.apActive) return;
+        if (!up) return;
         if (!s->start()) {
             Logger::error("WEB", "No memory for the web server");
             impl_ = nullptr; // never retried; the leak is bounded to this one attempt
             return;
         }
+    } else if (st.mode == WifiMode::Off) {
+        s->listen(false);
+    } else if (up) {
+        s->listen(true);
     }
+    s->serveDisconnect();
     s->updateShared(now);
     s->serveJob(now);
     s->runNetChange(now);
@@ -1024,6 +1066,10 @@ bool WebHmiServer::touchConfirmNeeded() const { return impl_ && impl_->netChange
 
 void WebHmiServer::touchConfirm(bool keep) {
     if (impl_) impl_->netChange.confirmTouch(keep);
+}
+
+void WebHmiServer::disconnectAll() {
+    if (impl_ && impl_->server) impl_->disconnectRequested = true;
 }
 
 uint8_t WebHmiServer::webClients() const {
