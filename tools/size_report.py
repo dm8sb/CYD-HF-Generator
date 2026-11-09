@@ -12,7 +12,7 @@ measure  reads the ELF and the partition table of each PlatformIO build and writ
 report   prints a Markdown table of size.json, with the difference to a baseline size.json.
 
 Examples:
-  python tools/size_report.py measure -e esp32-2432S028R -e esp32-2432S028R-core3 -o size.json
+  python tools/size_report.py measure -e esp32-2432S028R -o size.json
   python tools/size_report.py report size.json --baseline base/size.json --baseline-label "main @ 1a2b3c4"
   python tools/size_report.py --self-test
 """

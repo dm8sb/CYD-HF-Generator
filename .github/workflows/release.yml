@@ -27,9 +27,8 @@ concurrency:
 
 env:
   PLATFORMIO_VERSION: "6.2.0"
-  # The one env behind the web flasher and the flash parts of the release (core 3, all WiFi
-  # work was tested there; the 2.x env goes away in S41c).
-  FLASHER_ENV: esp32-2432S028R-core3
+  # The env behind the web flasher and the flash parts of the release (Arduino core 3, E-32).
+  FLASHER_ENV: esp32-2432S028R
 
 jobs:
   meta:
@@ -88,7 +87,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        env: [esp32-2432S028R, esp32-2432S028R-core3]
+        env: [esp32-2432S028R]
     env:
       ENV_NAME: ${{ matrix.env }}
     steps:
@@ -224,12 +223,11 @@ jobs:
 
           | File | Content |
           |---|---|
-          | \`$prefix-firmware.bin\` | Application at 0x10000, Arduino core 3 (the build behind the web flasher) |
-          | \`cyd-hf-generator-$VERSION-esp32-2432S028R-firmware.bin\` | Application at 0x10000, Arduino core 2 (previous core, for comparison) |
-          | \`$prefix-bootloader.bin\`, \`-partitions.bin\`, \`-boot_app0.bin\` | Flash parts of the core 3 build |
+          | \`$prefix-firmware.bin\` | Application at 0x10000 (the build behind the web flasher) |
+          | \`$prefix-bootloader.bin\`, \`-partitions.bin\`, \`-boot_app0.bin\` | Flash parts of the same build |
           | \`SHA256SUMS\` | Checksums; provenance: \`gh attestation verify <file> --repo $GH_REPO\` |
 
-          Offsets of the core 3 build (PlatformIO upload):
+          Offsets (PlatformIO upload):
           \`\`\`
           $offsets
           \`\`\`

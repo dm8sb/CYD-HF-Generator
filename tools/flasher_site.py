@@ -3,8 +3,8 @@
 
 Python 3 standard library only. Used by .github/workflows/release.yml and locally:
 
-  pio project metadata -e esp32-2432S028R-core3 --json-output > meta.json
-  python tools/flasher_site.py collect --metadata meta.json --env esp32-2432S028R-core3 --out parts
+  pio project metadata -e esp32-2432S028R --json-output > meta.json
+  python tools/flasher_site.py collect --metadata meta.json --env esp32-2432S028R --out parts
   python tools/flasher_site.py assemble --parts parts --version 1.4.0 --commit abc1234 --out site
   python tools/flasher_site.py check site [--verify-cdn]
   python tools/flasher_site.py lock 10.4.0      # rewrite flasher/esp-web-tools.json (version bump)

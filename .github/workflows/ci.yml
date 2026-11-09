@@ -69,11 +69,6 @@ jobs:
           set -o pipefail
           mkdir -p size-logs
           pio run -e esp32-2432S028R 2>&1 | tee size-logs/esp32-2432S028R.log
-      # Migration (phase 4): the same firmware on Arduino 3.3.12 until the acceptance (S41).
-      - name: Build firmware on Arduino 3.x
-        run: |
-          set -o pipefail
-          pio run -e esp32-2432S028R-core3 2>&1 | tee size-logs/esp32-2432S028R-core3.log
       # The touch test build (hit map + touch log) must keep compiling.
       - name: Build touch test firmware
         run: pio run -e esp32-2432S028R-hitmap
@@ -85,14 +80,14 @@ jobs:
           grep -a -q -- "$commit" "$bin" || { echo "commit $commit not found in $bin"; exit 1; }
           if grep -a -q -- "$commit+" "$bin"; then echo "image is marked dirty"; exit 1; fi
           echo "build information OK: $commit"
-      # G7: Flash and static RAM of both envs as job summary and artifact (tools/size_report.py).
+      # G7: Flash and static RAM of the firmware as job summary and artifact (tools/size_report.py).
       - name: Measure firmware size
         env:
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           REF: ${{ github.head_ref || github.ref_name }}
         run: >-
           python tools/size_report.py measure --github
-          -e esp32-2432S028R -e esp32-2432S028R-core3
+          -e esp32-2432S028R
           --log-dir size-logs --commit "$COMMIT" --ref "$REF" -o size.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

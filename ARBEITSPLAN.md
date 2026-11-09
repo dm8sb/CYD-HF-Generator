@@ -1,6 +1,6 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: 2026-11-06 · Firmware **1.3.3** (`main` = Tag `v1.3.3` = `5ffc228`); `dev` = 1.3.3 + Phase 5 + Phase 4 bis S41b (Core 3.3.12, LVGL 8.4.0; die 2.x-Env bleibt bis S41c); `feature/web-hmi` = `dev` + Phase 6 bis S54a (gepusht), am Gerät geprüft · nächste Ziele: **1.4.0** (WEB-HMI, Phase 6), Abnahme der Migration mit Messgeräten (S41c)
+Stand: 2026-11-06 · Firmware **1.3.3** (`main` = Tag `v1.3.3` = `5ffc228`); `dev` = 1.3.3 + Phase 5 + Phase 4 bis S41b (Core 3.3.12, LVGL 8.4.0); seit 2026-11-09 nur noch Core 3 (D16, S41d); `feature/web-hmi` = `dev` + Phase 6 bis S54a (gepusht), am Gerät geprüft · nächste Ziele: **1.4.0** (WEB-HMI, Phase 6), Abnahme der Migration mit Messgeräten (S41c)
 
 Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufgabenliste. Sie ersetzt `todo.md`, `AUDIT_2026-11.md` und `KONZEPT_WEB_HMI.md` (vollständig in der Git-Historie bis `ee2b91a`). Die Befund-IDs aus dem Audit (C-n Code, S-n Security, U-n Bedienung, P-n Plattform, T-n Tests) und dem Konzept (W-E, W-S, V-n) bleiben als Namen gültig. Messungen am Gerät: [MESSPLAN.md](MESSPLAN.md). Verhalten: [USER_MANUAL_DE.md](USER_MANUAL_DE.md); Anforderungen und Entscheidungen: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md).
 
@@ -19,7 +19,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 4. **Bedientest am Gerät vor dem Commit**, wenn sich die Oberfläche ändert: flashen, die Prüfpunkte dem Nutzer nennen, Rückmeldung abwarten.
 5. **Commit-Text:** Betreff Englisch im Imperativ mit Schrittnummer (`S31: Add screen lock …`), im Text die Befund-IDs und eine Zeile zur Prüfung; am Ende die Attributionszeile.
 6. **Push nach jedem Schritt.** Der Arbeitszweig wird nach jedem Commit gepusht, damit kein Zwischenstand verloren geht (Nutzer, 2026-11-06); Arbeitszweige der Agenten ebenso, sobald sie committet sind. Merge nach `main` und Tags veröffentlichen nur auf ausdrückliche Anweisung.
-7. **Branches:** Phase 6 auf `feature/web-hmi` (von `dev` nach dem Core-3-Merge); S41c auf `feature/core3`, sobald Messgeräte da sind.
+7. **Branches:** Phase 6 und 7 auf `feature/web-hmi` (von `dev` nach dem Core-3-Merge); `feature/core3` wird nicht mehr gebraucht (D16).
 8. **Smoke-Test nach jeder Phase** auf beiden Boards (MESSPLAN 4.3); Ergebnis im Release-Commit bzw. direkt danach.
 9. **Nicht mischen:** Ein Commit enthält Verhalten oder Aufräumen, nicht beides.
 10. **Messprotokolle** (`messungen/*.md`) werden committet, Medien und Binärdateien nicht (`messungen/*/` ist ignoriert).
@@ -36,7 +36,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 1 Robustheit | 1.3.1 | C-1 bis C-13, M-1; Assert- und Loop-Watchdog-Neustart (am Gerät geprüft), gehärteter Parser, Speichern nur bei Änderung und mit Wiederholung, Wiederverbinden im selben Zyklus |
 | 2 Bedienung | 1.3.2 | U-1 bis U-10, U-12, U-14, U-15, U-17 bis U-19, U-21 bis U-26; GUI-Logik host-getestet (T-10 bis T-15); Statusleiste auf MAIN, CONFIG neu geordnet, Kontraste, Boot-Geste entfernt, Touch-Testbuilds, Touch-Abgleich, Handbuch mit Kurzanleitung und Glossar |
 | 3 Laborbetrieb | 1.3.3 | U-11, U-13, U-16, U-20, E-16, N12; Bildschirmsperre, Grundzustand und Werksreset, Korrektur per Numpad, CH3-Seite mit Master-Steuerung, Halten langsamer am Anfang, Bereich 8 kHz–160 MHz, Fix um 112,5 MHz, kompakte Moduszeile |
-| 4 Migration bis S41b | `dev` | Env `-core3` mit espressif32 8.0.0 (Arduino 3.3.12 / IDF 5.5.5, `-Os`) neben 2.x, LEDC-API, I2C-Zugriffe in `I2CBus` (C-14, V-7), GCC-14-Warnungen behoben, Host-Env `native-cpp20`, LVGL 8.4.0 (E-28), Smoke-Test mit Core 3, Routing-Entscheidung D14 |
+| 4 Migration bis S41b | `dev` | Env `-core3` mit espressif32 8.0.0 (Arduino 3.3.12 / IDF 5.5.5, `-Os`) neben 2.x, LEDC-API, I2C-Zugriffe in `I2CBus` (C-14, V-7), GCC-14-Warnungen behoben, Host-Env `native-cpp20`, LVGL 8.4.0 (E-28), Smoke-Test mit Core 3, Routing-Entscheidung D14; seit 2026-11-09 nur noch Core 3 (S41d, D16, E-32) |
 | 5 WEB-HMI-Vorarbeiten | `dev` | V-1 bis V-6, V-11, C-16, C-17 (S42–S48): Ergebniscodes, Änderungszähler, Ereignisse mit Quelle, Speichern je Quelle und Schlüssel, Logger mit Ringpuffer, Befehlsqueue mit Schnappschuss, Netz-Parser |
 | 6 WEB-HMI bis S54a | `feature/web-hmi` | Befehlskern mit Quellen, Ratenbegrenzung und `Remote outputs`; SCPI über USB (E-29) mit Identify; Netzeinstellungen `hfnet` (E-30); WLAN-Manager (Client, Rückfall-AP, mDNS, Captive-DNS, D14); CONFIG `WiFi`/`Remote out.`, Statusleiste mit WLAN und `REMOTE`; Seiten WIFI (Scan, Tastatur), Access Point (QR) und Device (Name, statische IP); LVGL-Pool aus dem Heap (E-31); Host-Werkzeuge in `tools/` (`device_check.py`) |
 
@@ -73,6 +73,7 @@ Host-Tests: 350 Fälle in `native-win` und 4 in `native-win-fault` (Stand S54).
 | D13 | LVGL 8.4.0 kommt mit der Migration (S40a), LVGL 9 bleibt ausgeschlossen; Phase 5 ist ohne Verhaltensänderung schon in `dev` (2026-11-05) |
 | D14 | Routing (S-16, Rückfrage 3): offizielle Plattform mit vorkompiliertem IDF bleibt, obwohl `CONFIG_LWIP_IP_FORWARD=y` fest eingebaut ist. Stattdessen W-S3 strikt: AP und STA nie gleichzeitig mit Adresse, der AP geht im Event der STA-IP aus, Prüfung ≤ 1 s (L-S6). Kein pioarduino mit `custom_sdkconfig` (eigener IDF-Build, längere Builds, zweite Plattform-Quelle) (2026-11-06) |
 | D15 | WLAN-Schlüssel als Passphrase statt PMK (W-S14 geändert, E-30): ESP-IDF 5.5 nimmt bei WPA2/WPA3-Übergangsnetzen immer SAE, das die Passphrase braucht; mit PMK scheiterte das Büro-WLAN (Grund 2/202), mit Passphrase verbunden in 3,4 s. Nie angezeigt, geloggt oder exportiert (2026-11-06, Nutzer) |
+| D16 | Nur noch Core 3 (`espressif32@8.0.0`), Core 2 vor der Abnahmemessung verworfen; Abnahmemessungen bleiben (S41c), Rückweg Tag `v1.3.3` (2026-11-09, Nutzer, E-32) |
 
 **Nicht umsetzen:** RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); Kanalwahl im Header (Rest von U-16, 2026-11-05: kein Platz neben Zustand und `MAIN`, über MAIN und die Karten 2 Tipps); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
 
@@ -111,7 +112,7 @@ Host-Tests: 350 Fälle in `native-win` und 4 in `native-win-fault` (Stand S54).
 
 | ID | Komponente | heute | Ziel |
 |---|---|---|---|
-| P-2, P-4, S-19 | espressif32 / Arduino / IDF | Standard-Env 6.7.0 / 2.0.16 / 4.4.7 (EOL, mbedTLS 2.28 EOL); Env `-core3` 8.0.0 / 3.3.12 / 5.5.5 seit S37–S41b am Gerät geprüft (Werte in 1.2) | nur noch `espressif32@8.0.0` nach der Abnahme S41c (u. a. DHCP-Fix CVE-2026-45160); pioarduino nicht nötig |
+| P-2, P-4, S-19 | espressif32 / Arduino / IDF | 8.0.0 / 3.3.12 / 5.5.5, seit 2026-11-09 einzige Plattform (D16, E-32; DHCP-Fix CVE-2026-45160 enthalten) | Updates → N11 |
 | P-5 | TFT_eSPI | 2.5.43 (letztes Release) | bleibt; mit Core 3.x im Spike unverändert lauffähig (Flush 35 ms je Vollbild wie unter 2.x); Fork oder LovyanGFX nur als Ausweg (eigene Display-Erkennung bleibt, LovyanGFX erwartet ST7789-ID 0x85, der CYD2USB meldet `8181B3`) |
 | P-6, P-8 | LVGL, Unity | 8.4.0 (E-28, LVGL 9 ausgeschlossen, D13), 2.6.1 | Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 → N11 |
 | P-9 | Web-Bibliotheken | scpi-parser `8866159` (v2.3 + `strings.h`- und `-Wdouble-promotion`-Fix, seit S51, E-29) | ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, ArduinoJson 7.4.3, alle exakt gepinnt |
@@ -326,9 +327,10 @@ Spätere Optionen: OTA (neue Partitionstabelle), VXI-11/LXI, HTTPS.
 
 Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird beim nächsten Aufräumen entfernt; Zusammenfassung in 1.1, Details in der Git-Historie).
 
-### Phase 4 – Migration Core 3.x (Rest, `feature/core3`)
+### Phase 4 – Migration Core 3.x (Rest: Abnahmemessungen)
 
-- [ ] **S41c · Abnahme.** Stufe-1-Auswahl nach der Migration (MESSPLAN 5.10, ≈ 4 h, braucht ZÄHLER und OSZI), dabei CLK0 bei Q4/Q5 und J6 (Code 5 bei Leitung auf GND); dann 2.x-Env entfernen (der 2.x-Zweig in `backlight.cpp`, `ESP_ARDUINO_VERSION_MAJOR` 2 im Fake und die Handbuchzeile `Wire.cpp:499` gehen mit), Spezifikation A-46, README, `CLAUDE.md`; Merge nach `dev` (lokal). *Commit:* `S41c: Switch to the official espressif32@8.0.0 platform`
+- [x] **S41d · Nur noch Core 3 (D16).** Env `esp32-2432S028R` auf `espressif32@8.0.0` mit `-Os` und eigenem `CORE_DEBUG_LEVEL`, Env `-core3` entfernt (die Testbuilds `-touchlog`/`-hitmap` erben Core 3); 2.0.x-Zweig in `backlight.cpp` und im Fake entfernt; CI baut nur noch eine Firmware, Release und Webflasher nutzen `esp32-2432S028R`, Größenbericht und PR-Vorlage mit einer Env; Handbuchzeile `Wire.cpp:499` (2.x) gestrichen; Spezifikation A-46, E-32, README. *Commit:* `S41d: Build on Arduino core 3 only`
+- [ ] **S41c · Abnahme Core 3 (Messungen).** Stufe-1-Auswahl nach der Migration (MESSPLAN 5.10, ≈ 4 h, braucht ZÄHLER und OSZI), dabei CLK0 bei Q4/Q5 und J6 (Code 5 bei Leitung auf GND). Bei einem Befund ist der Rückweg Tag `v1.3.3` (Core 2). *Commit:* `S41c: Record the core 3 acceptance measurements`
 
 ### Phase 6 – WEB-HMI 1.4.0 (Rest ≈ 8 d, `feature/web-hmi`)
 

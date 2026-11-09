@@ -26,7 +26,6 @@ One step = one commit; the gate holds before the commit. Tick what applies, stri
 | Env | Flash (bytes, %) | RAM (bytes, %) | Change vs. target branch |
 |---|---:|---:|---:|
 | `esp32-2432S028R` | | | |
-| `esp32-2432S028R-core3` | | | |
 
 ## Test notes
 

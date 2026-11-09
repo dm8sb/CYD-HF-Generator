@@ -46,7 +46,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 - CI: Flash and static RAM of both firmware envs as a job summary table and artifact `firmware-size` (`tools/size_report.py`), compared with the target branch in pull requests and with the previous commit on pushes
 - Release workflow with build provenance and checksums; web flasher site for GitHub Pages (ESP Web Tools, separate parts so an update keeps the settings), goes live with the first release
 - Web interface files in `data/www/` (not served by the firmware yet) with `tools/web_mock.py` to try them without the device
-- Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, env `esp32-2432S028R-core3`) and LVGL 8.4.0
+- Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, built with `-Os`) and LVGL 8.4.0; the Arduino 2.0.x build is gone (E-32), the last firmware on it is 1.3.3
 - WiFi (CONFIG `WiFi` and `Remote out.`, WIFI page with network scan and on-screen keyboard, access point page with QR code, device page with name and static IP, WiFi state and `REMOTE <source>` in the status bar, WiFi and heap lines on the info card; default Off): network settings in NVS `hfnet`, client with up to two networks, fallback access point after 60 s, AP off as soon as the client has an address, mDNS, captive DNS; the factory reset also erases the WiFi settings
 
 ### 1.3.3
@@ -103,7 +103,7 @@ The firmware tries SDA=22 first, then the swapped assignment; the log shows the 
 
 ## Libraries
 
-Pinned in `platformio.ini`: Arduino-ESP32 via `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it), `lvgl/lvgl@8.4.0`, XPT2046_Touchscreen at commit `d57f64c` (tag v1.4), scpi-parser at commit `8866159` (v2.3 + build fixes), `Preferences` from Arduino-ESP32.
+Pinned in `platformio.ini`: Arduino-ESP32 3.3.12 via `espressif32@8.0.0`, `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it), `lvgl/lvgl@8.4.0`, XPT2046_Touchscreen at commit `d57f64c` (tag v1.4), scpi-parser at commit `8866159` (v2.3 + build fixes), `Preferences` from Arduino-ESP32.
 
 ## Build and Flash
 
