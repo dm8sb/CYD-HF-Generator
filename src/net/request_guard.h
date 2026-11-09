@@ -30,7 +30,7 @@
 //       Content-Length, 403 without the valid X-CYD-Token (W-S5)
 //   403 WebSocket upgrade without the valid token in the query (t=<token>) (W-S6)
 //   401 a web password is set and the request has no valid session: every POST except
-//       /api/login and GET /api/wifi, /api/wifi/*; with loginForReads also all other /api/ and
+//       /api/login and /api/logout, and GET /api/wifi, /api/wifi/*; with loginForReads also all other /api/ and
 //       /ws (like the mock's --login-all). Pages, their files and by default the state load
 //       without login (ARBEITSPLAN 3.6: the state never holds secrets, MAC or commit)
 // After parsing a body the server calls checkSecrets() (W-S1), on /api/login loginAllowed()

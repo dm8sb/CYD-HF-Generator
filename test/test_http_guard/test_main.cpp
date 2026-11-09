@@ -465,6 +465,13 @@ static void test_login_scope() {
     TEST_ASSERT_EQUAL_UINT16(401, status(g, post("/api/wifi/confirm")));
     TEST_ASSERT_EQUAL_STRING("Login required", g.check(post("/api/config"), 0).reason);
     TEST_ASSERT_EQUAL_UINT16(200, status(g, post("/api/login")));
+    // The logout needs no session either (an expired one must not ask for the password), but
+    // token and JSON like every POST (S56).
+    TEST_ASSERT_EQUAL_UINT16(200, status(g, post("/api/logout")));
+    GuardRequest out = post("/api/logout");
+    out.token = nullptr;
+    TEST_ASSERT_EQUAL_UINT16(403, status(g, out));
+    TEST_ASSERT_EQUAL_UINT16(401, status(g, post("/api/logoutx")));
     // Without a password nothing needs a session, loginForReads alone changes nothing.
     GuardConfig c = config(false);
     c.loginForReads = true;
@@ -781,7 +788,7 @@ static std::string randomBytes(size_t maxLen) {
 static void test_random_requests_keep_the_rules() {
     static const char* const methods[] = {"GET", "HEAD", "POST", "OPTIONS", "PUT", "get", "", "POST "};
     static const char* const paths[] = {"/", "/api/state", "/api/config", "/api/login", "/api/token", "/ws", "/ws/",
-                                        "/api/wifi/scan", "/apix", "api/state", "/app.js"};
+                                        "/api/wifi/scan", "/apix", "api/state", "/app.js", "/api/logout"};
     static const char* const hosts[] = {"192.168.1.50", "cyd-hf-1a2b.local", "cyd-hf-1a2b:80", "evil.example",
                                         "192.168.4.1", "[::1]", "", "192.168.1.50:99999"};
     static const char* const origins[] = {"http://192.168.1.50", "http://evil.example", "null", "", "http://cyd-hf-1a2b.local"};
@@ -870,7 +877,8 @@ static void test_random_requests_keep_the_rules() {
         if (ws) TEST_ASSERT_TRUE(r.query && strstr(r.query, "t=0123456789abcdef0123456789abcdef"));
         const bool wifi = strncmp(r.path, "/api/wifi", 9) == 0 && (r.path[9] == '\0' || r.path[9] == '/');
         const bool needed = post || wifi || (c.loginForReads && (api || ws));
-        if (password && needed && !(post && strcmp(r.path, "/api/login") == 0)) {
+        const bool sessionFree = post && (strcmp(r.path, "/api/login") == 0 || strcmp(r.path, "/api/logout") == 0);
+        if (password && needed && !sessionFree) {
             TEST_ASSERT_TRUE(g.sessionValid(r.cookie, 1000));
             ++sessions;
         }

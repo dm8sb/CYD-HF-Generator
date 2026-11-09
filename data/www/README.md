@@ -4,10 +4,10 @@ Static files the firmware embeds and serves (S55: `tools/embed_www.py` gzips `ap
 
 | File | Bytes | gzip -9 | Content |
 |---|---:|---:|---|
-| `index.html` | 3 226 | 1 278 | Skeleton: header, dialogs (help, login, confirm), `<meta name="cyd-token" content="{{TOKEN}}">` |
-| `app.js` | 37 423 | 12 609 | Everything else: areas, rendering, REST, WebSocket/polling, keyboard |
-| `style.css` | 8 626 | 2 871 | Dark theme in the colors of `include/palette.h`, responsive layout |
-| total | 49 275 | 16 758 | |
+| `index.html` | 3 323 | 1 313 | Skeleton: header, dialogs (help, login, confirm), `<meta name="cyd-token" content="{{TOKEN}}">` |
+| `app.js` | 40 197 | 13 675 | Everything else: areas, rendering, REST, WebSocket/polling, keyboard |
+| `style.css` | 8 823 | 2 989 | Dark theme in the colors of `include/palette.h`, responsive layout |
+| total | 52 343 | 17 977 | |
 
 This README is not embedded and not served.
 
@@ -20,7 +20,7 @@ This README is not embedded and not served.
 
 ## Areas
 
-- **Header:** device name and version, connection (`Live` = WebSocket, `Polling`, `Offline`), save state (`Saved`, `Saving...`, `Save failed`, `Not saved`), `REMOTE <source>`, SI5351 problem, `Identify`, `Save`, `?`.
+- **Header:** device name and version, connection (`Live` = WebSocket, `Polling`, `Offline`), save state (`Saved`, `Saving...`, `Save failed`, `Not saved`), `REMOTE <source>`, SI5351 problem, `Identify`, `Save`, `Log out` (only while a web password is set and this browser is logged in), `?`, and the links MAIN, CH1, CH2, CH3, CONFIG, WiFi. It stays at the top on every width (on a phone as well, like the output bar at the bottom); anchors stop below it (`--toph` follows its height). On a phone `MAIN` scrolls to the top, the cards are the output bar.
 - **MAIN:** three cards as on the device: state (`ON`, `OFF`, `! ERR`, `WAIT`, `! NO HW`), frequency (`~` in Integer mode from 1 Hz deviation, below 100 MHz), mode line (`IQ master` / `IQ master of CH3`; CH3: `CH1 / 90°` with the reason for `WAIT`), switch. On a phone (< 700 px) the cards form a fixed output bar at the bottom and the areas are stacked.
 - **CH1, CH2:** switch and state, frequency digits (the digit of the step in the channel color; click = step, wheel = change that digit, click on the unit = input field), `Out` line, mode line with `IQ master (90°)` and the range hint, step chips `1M` … `1`, `−`/`+` with hold-to-repeat as on the device, frequency field.
 - **CH3 IQ:** switch, state, frequency, status line (`Off  |  follows CHx`, `Out …`, `Master CHx is off: click to switch on` as a button, `Waiting: CHx below 4.730 MHz`, …), master and phase chips, IQ range note, field for the master frequency.
@@ -91,6 +91,7 @@ How the UI reads it:
 | `POST /api/config` | subset of `drive`, `tuning`, `spread`, `offState`, `correction`, `step`, `backlight` | 200 state |
 | `POST /api/save`, `POST /api/identify` | `{}` | 200 state |
 | `POST /api/login` | `{"password":str}` | 204 + `Set-Cookie` (HttpOnly, SameSite=Strict, 12 h) |
+| `POST /api/logout` | `{}` | 204 + `Set-Cookie: cyd_sid=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict`; ends the session of the cookie; needs no session (token and JSON as every POST) |
 | `GET /api/wifi` | | `{"mode","networks":[{"ssid","key":"set\|open\|none"}×2],"ap":{"ssid","open","passwordSet"},"name","staticIp":{"enabled","ip","mask","gateway","dns"}}` |
 | `POST /api/wifi` | subset of `mode`, `networks:[{slot,ssid,password}]`, `delete:[slot]`, `name`, `staticIp:{…}`, `ap:{open,password}` | 202 `{"confirmWithin":120}`; mode `off` is final: `{"confirmWithin":0}` |
 | `POST /api/wifi/confirm` | `{}` | 204 |
@@ -110,10 +111,15 @@ Scan: the first GET starts a scan (`running`), the GET after it finished returns
 
 - `wifi.confirmWithin` (seconds left, 0 = nothing pending) is part of the state; a page opened at the new address shows `Confirm`.
 - Mode `off` over the web is final: applied after the answer and saved, `confirmWithin` 0, the UI says WiFi switches off.
-- `device.passwordSet` tells whether a web password is set; it is set at the device only (no REST call). Without one, a network change needs `Keep` at the touch screen as well: a web `Confirm` before that answers `-221,Confirm at the device as well` and counts once the touch confirms.
+- `device.passwordSet` tells whether a web password is set; it is set at the device only (no REST call, WIFI > Device > `Web pw.`). Setting, changing or removing it ends every session; the UI then hides `Log out` until the next login. Without one, a network change needs `Keep` at the touch screen as well: a web `Confirm` before that answers `-221,Confirm at the device as well` and counts once the touch confirms.
 - Stale token after a restart: 403 `-200,Invalid token: reload the page`.
 - Invalid JSON and duplicate keys `-102`; wrong type `-104`; unknown key and `frequency` with `frequencyText` `-108`; `{}` where a key is needed `-109`; out of range `-222` (also `frequencyText` outside 8 kHz–160 MHz; text that is no frequency `-224`); values outside a list (master, phase, drive, step, enums, slot) `-224`; backlight any integer 10–100.
 - `/api/state` and `/ws` are readable without login also when a password is set (they hold no secrets, MAC or commit).
 - Without connection `wifi.ssid`/`ip` are `""`, `rssi` 0; with the AP `ip` is the AP address.
 - No REST call for `Defaults` / `Factory`, touch calibration, screen lock, AP `Regenerate` and the web password; the UI says these are set at the device.
 - `PgUp`/`PgDn` are read as frequency × 10 / ÷ 10 (ARBEITSPLAN 3.6 "× 10 / ÷ 10"); `←`/`→` already step the step size by decades.
+
+## Settled in S56
+
+- `POST /api/logout` with `{}`: 204 and an expired cookie, also without a valid session (an expired one must not ask for the password first); other keys `-108`. The UI shows `Log out` once a request that needs the session succeeded (login, WiFi settings, a write) and hides it on 401, after the logout and when `device.passwordSet` changes; after the logout it clears the WiFi form (it came with the session).
+- The UI uses `S.ch3.master` only as 1 or 2 (CodeQL, G4).

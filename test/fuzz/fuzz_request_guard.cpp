@@ -450,7 +450,7 @@ uint16_t expected(const Config& c, const Model& m, const Req& q, uint64_t now, i
         }
         if (count != 1 || c.token.empty() || t != c.token) return 403;
     }
-    const bool login = post && q.path == "/api/login";
+    const bool login = post && (q.path == "/api/login" || q.path == "/api/logout");
     const bool wifi = q.path == "/api/wifi" || startsWith(q.path, "/api/wifi/");
     const bool needed = post || wifi || (c.loginForReads && (api || ws));
     if (c.password && needed && !login) {

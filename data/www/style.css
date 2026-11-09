@@ -1,7 +1,9 @@
 /* CYD HF Generator web UI. Colors from include/palette.h. */
-:root{--bg:#0b0f14;--hd:#111820;--card:#151a22;--prs:#222b38;--chip:#2a3340;--tx:#eceff1;--txd:#111820;--mu:#90a4ae;--ok:#66bb6a;--warn:#ffa726;--err:#ef5350;--ol:#78909c;--c1:#e53935;--c2:#43a047;--c3:#1e88e5;--cfg:#fdd835;--c:var(--ol);--barh:0px;color-scheme:dark}
+:root{--bg:#0b0f14;--hd:#111820;--card:#151a22;--prs:#222b38;--chip:#2a3340;--tx:#eceff1;--txd:#111820;--mu:#90a4ae;--ok:#66bb6a;--warn:#ffa726;--err:#ef5350;--ol:#78909c;--c1:#e53935;--c2:#43a047;--c3:#1e88e5;--cfg:#fdd835;--c:var(--ol);--barh:0px;--toph:110px;color-scheme:dark}
 *{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;scroll-padding-top:110px}
+/* Anchors and scrollIntoView stop below the fixed header and above the phone's output bar
+   (on the scroller only: a scroll-margin on the areas as well would add up) */
+html{-webkit-text-size-adjust:100%;scroll-padding:calc(var(--toph) + 8px) 0 calc(var(--barh) + 12px)}
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:var(--barh)}
 button,input,select{font:inherit;color:inherit;touch-action:manipulation;min-height:44px;border-radius:6px;border:1px solid var(--ol);background:var(--chip);padding:0 12px}
 button{cursor:pointer;min-width:44px;font-weight:600}
@@ -27,7 +29,7 @@ input.bad{border-color:var(--err)}
 @keyframes chg{from{box-shadow:0 0 0 3px var(--cfg)}to{box-shadow:0 0 0 3px transparent}}
 body.offline #ui{filter:grayscale(1)}
 
-/* Header */
+/* Header: fixed at the top on every width (app.js keeps --toph at its height for the anchors) */
 .top{position:sticky;top:0;z-index:5;background:var(--hd);display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:6px 12px 0;border-bottom:1px solid var(--chip)}
 .brand{flex:1 1 auto}
 .pills,.acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
@@ -69,7 +71,7 @@ nav a:hover{background:var(--prs)}
 .grid{display:grid;gap:12px;padding:12px;grid-template-columns:minmax(0,1fr)}
 @media (min-width:700px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wifi{grid-column:1/-1}}
 @media (min-width:1150px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.wifi{grid-column:span 2}}
-.area{background:var(--card);border-radius:8px;padding:12px;border:2px solid transparent;scroll-margin:110px 0 calc(var(--barh) + 12px)}
+.area{background:var(--card);border-radius:8px;padding:12px;border:2px solid transparent}
 .ah{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .freq{font:600 clamp(26px,8vw,36px)/1.25 ui-monospace,"Cascadia Mono",Consolas,monospace;white-space:nowrap;user-select:none;cursor:pointer}
 .dg{display:inline-block;border-radius:3px}
@@ -128,9 +130,7 @@ dialog h2{color:var(--tx);margin-bottom:8px}
 /* Phone: areas stacked, outputs fixed at the bottom */
 @media (max-width:699px){
   :root{--barh:104px}
-  html{scroll-padding-top:8px}
-  .top{position:static;padding:4px 8px 0}
-  .area{scroll-margin-top:8px}
+  .top{padding:4px 8px 0;gap:4px 8px}
   .brand{font-size:14px}
   .outs{position:fixed;left:0;right:0;bottom:0;margin:0;z-index:6;background:var(--hd);padding:4px;border-top:1px solid var(--ol)}
   .outs h2,.cd{display:none}

@@ -27,6 +27,9 @@ const NAMERE = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/;
 let S = null, NET = null, first = true, sel = 1, online = false, cstep = 1;
 let ws = null, wsLive = false, wsRetry = 2000, polling = false, fails = 0, lastWrite = 0;
 let pendEnd = 0, pendAt = 0, pendT = 0, toastT = 0, loginP = null, loginRes = null, loginRej = null;
+// This browser has a login session (the cookie is HttpOnly): set by a login or by a request that
+// needs one, cleared by 401 and the logout. Only shown while a web password is set.
+let authed = false, pwSet = false, pwKnown = false;
 const Q = {}, busy = {};
 const U = {ch: {}, card: {}, cardEl: {}, cfg: {}, wifi: {}};
 
@@ -107,7 +110,9 @@ const chOf = (n) => S.ch.find((c) => c.n === n) || S.ch[n - 1];
 const pend = (k, v) => (Q[k] && Q[k].t != null ? Q[k].t : v);
 const step = () => pend('step', S.config.step);
 const spreadOf = (n) => ((n === 1 || (n === 3 && S.ch3.master === 1)) && SSC[S.config.spread]) || '';
-const master = (n) => (n === 3 ? S.ch3.master : n);
+// The channel whose frequency n shows: CH3 follows its master. Only 1 or 2, whatever the state
+// holds (the result goes into a REST path).
+const master = (n) => ((n === 3 ? S.ch3.master : n) === 2 ? 2 : 1);
 
 // ---- REST
 function apiErr(status, j) {
@@ -136,12 +141,16 @@ async function api(path, body, retried) {
   }
   let r, j = null;
   try { r = await fetch(path, o); } catch (e) { throw apiErr(0); }
-  if (r.status === 401 && !retried && path !== '/api/login') {
+  if (r.status === 401) setAuthed(false);
+  if (r.status === 401 && !retried && path !== '/api/login' && path !== '/api/logout') {
     await login();
     return api(path, body, true);
   }
   try { j = await r.json(); } catch (e) { j = null; }
   if (!r.ok) throw apiErr(r.status, j);
+  // Writes and the WiFi settings need the session while a password is set (without one the flag
+  // means nothing and the button stays hidden).
+  if (path !== '/api/logout' && (post || path.startsWith('/api/wifi'))) setAuthed(true);
   if (j && j.ch && j.config) apply(j);
   return j;
 }
@@ -271,6 +280,7 @@ async function doLogin(e) {
       const res = loginRes;
       loginP = null;
       $('dlgLogin').close();
+      setAuthed(true);
       res();
       wsRetry = 2000;
       connectWs();
@@ -282,12 +292,30 @@ async function doLogin(e) {
       : r.status === 429 ? 'Locked: try again in ' + ((j && j.retryAfter) || 30) + ' s' : apiErr(r.status, j).msg;
   } catch (x) { err.textContent = 'No connection to the device'; }
 }
+function setAuthed(v) {
+  authed = v;
+  $('bLogout').hidden = !(pwSet && authed);
+}
+// Ends this browser's session; the state stays readable, the next write asks for the password.
+async function logout() {
+  try { await api('/api/logout', {}); } catch (e) { fail(e); return; }
+  setAuthed(false);
+  // The WiFi settings came with the session: not left on the page.
+  NET = null;
+  U.wifi.form.reset();
+  U.wifi.scanL.replaceChildren();
+  U.wifi.scanS.textContent = '';
+  U.wifi.apSsid.textContent = U.wifi.apKey.textContent = '-';
+  U.wifi.slots.forEach((s) => { s.key.textContent = ''; });
+  syncSip();
+  toast('Logged out', true);
+}
 
 // ---- Connection: WebSocket push, polling as fallback
 function setOnline(v) {
   online = v;
   $('ui').disabled = !v;
-  $('bIdent').disabled = $('bSave').disabled = !v;
+  $('bIdent').disabled = $('bSave').disabled = $('bLogout').disabled = !v;
   D.body.classList.toggle('offline', !v);
   const c = $('conn');
   c.textContent = wsLive ? 'Live' : v ? 'Polling' : 'Offline';
@@ -363,6 +391,12 @@ const approx = (a, f) => S.config.tuning === 'integer' && S.hw === 'CONN' && a >
 function render() {
   if (!S) return;
   const cf = S.config, c3 = S.ch3, wf = S.wifi || {}, st = step();
+  // A password set or removed at the device ends every session (S55b); the first state only
+  // tells whether one is set.
+  const ps = !!(S.device && S.device.passwordSet), changed = pwKnown && ps !== pwSet;
+  pwSet = ps;
+  pwKnown = true;
+  setAuthed(changed ? false : authed);
   set($('dev'), [wf.name, S.device && S.device.version && 'v' + S.device.version].filter(Boolean).join(' · '));
   line($('save'), SAVE[S.save] || S.save, S.save === 'failed' || S.save === 'unavailable' ? 'err' : '');
   const rem = $('remote'), hw = $('hw');
@@ -621,7 +655,7 @@ function buildWifi() {
       W.addr = h('p'),
       W.pendTouch = h('p', {class: 'mu sm', text: 'Without a web password, confirm at the device as well.'}),
       h('button', {type: 'button', class: 'pri', text: 'Confirm', onclick: confirmNet})),
-    h('form', {class: 'wf', autocomplete: 'off', onsubmit: applyNet},
+    W.form = h('form', {class: 'wf', autocomplete: 'off', onsubmit: applyNet},
       h('div', {class: 'grid2'},
         fld('Mode', W.mode = h('select', null, OPT.mode.map((o) => h('option', {value: o[0], text: o[1]})))),
         fld('Device name', W.name = inp({maxlength: 32, title: 'a-z, 0-9 and -, max. 32'}))),
@@ -839,10 +873,28 @@ function onKey(e) {
   e.preventDefault();
 }
 
+// The header stays at the top (CSS sticky); anchors and scrollIntoView keep a section heading
+// below it through --toph, which follows the header height (it wraps on narrow screens).
+function trackHeader() {
+  const top = D.querySelector('.top'), root = D.documentElement;
+  const upd = () => root.style.setProperty('--toph', top.offsetHeight + 'px');
+  upd();
+  if (window.ResizeObserver) new ResizeObserver(upd).observe(top);
+  else window.addEventListener('resize', upd);
+  // On a phone MAIN is the output bar at the bottom: its link scrolls to the top instead.
+  D.querySelector('nav a[href="#main"]').addEventListener('click', (e) => {
+    if (getComputedStyle($('main')).position !== 'fixed') return;
+    e.preventDefault();
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  });
+}
+
 function init() {
+  trackHeader();
   $('ui').append(buildMain(), h('div', {class: 'grid'}, buildCh(1), buildCh(2), buildCh(3), buildCfg(), buildWifi()));
   $('bIdent').addEventListener('click', () => act(api('/api/identify', {}).then(() => toast('Identify: display and LED blink for 5 s', true))));
   $('bSave').addEventListener('click', () => act(api('/api/save', {})));
+  $('bLogout').addEventListener('click', logout);
   $('bHelp').addEventListener('click', () => $('dlgHelp').showModal());
   $('helpX').addEventListener('click', () => $('dlgHelp').close());
   $('askOk').addEventListener('click', () => $('dlgAsk').close('ok'));

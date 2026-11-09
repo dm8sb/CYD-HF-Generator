@@ -6,7 +6,7 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 |---|---|
 | `scpi_example.py` | Minimal SCPI example: connect, `*IDN?`, CH1 to 7.1 MHz, on, `FREQ:ACT?`, read the error queue, off. |
 | `rest_example.py` | Minimal REST example (urllib only): token from the index page, `GET /api/state`, `POST /api/channel/1`. |
-| `web_check.py` | Contract check of the web server (S55) against the device or `web_mock.py`: page and headers, guard answers (token, origin, host, sizes), REST error codes, writes answered with the state, rate limit, WiFi settings without keys, scan semantics, WebSocket push and limits, login. Never switches an output on or changes WiFi. |
+| `web_check.py` | Contract check of the web server (S55, S56) against the device or `web_mock.py`: page and headers, guard answers (token, origin, host, sizes), REST error codes, writes answered with the state, rate limit, WiFi settings without keys, scan semantics, WebSocket push and limits, login and logout. Never switches an output on or changes WiFi. |
 | `device_check.py` | Automated SCPI check for the smoke test and the measurement plan (`MESSPLAN.md` 4.3, L6, L-S). |
 | `fake_scpi_device.py` | Fake device (local TCP server, subset of the manual) to try the scripts without hardware. |
 | `size_report.py` | Flash/RAM of the firmware envs from the ELF as `size.json` and a Markdown table with the difference to a baseline (CI job summary, G7). Local: `python tools/size_report.py measure -e esp32-2432S028R-core3` after `pio run`; `--self-test` runs its tests. |

@@ -480,6 +480,7 @@ struct WebHmiServer::Impl {
         else if (strcmp(path, "/api/save") == 0) rep = RestJson::parseAction(CommandType::SaveNow, bodyText, bodyLen, &cmds);
         else if (strcmp(path, "/api/identify") == 0) rep = RestJson::parseAction(CommandType::Identify, bodyText, bodyLen, &cmds);
         else if (strcmp(path, "/api/login") == 0) return startLogin(req, bodyText, bodyLen);
+        else if (strcmp(path, "/api/logout") == 0) return logout(req, g, bodyText, bodyLen);
         else if (strcmp(path, "/api/wifi") == 0) return wifiChange(req, g, bodyText, bodyLen);
         else if (strcmp(path, "/api/wifi/confirm") == 0) {
             rep = RestWifi::parseConfirm(bodyText, bodyLen);
@@ -689,6 +690,20 @@ struct WebHmiServer::Impl {
         }
         req->client()->onPoll([](void* arg, AsyncClient*) { static_cast<Impl*>(arg)->loginPoll(); }, this);
         xTaskNotifyGive(loginTask);
+    }
+
+    // POST /api/logout {}: ends the session of this cookie (if any) and expires the cookie.
+    void logout(AsyncWebServerRequest* req, const GuardRequest& g, const char* bodyText, size_t bodyLen) {
+        const RestJson::Reply rep = RestWifi::parseConfirm(bodyText, bodyLen); // {} only
+        if (!rep.ok()) return sendReply(req, rep);
+        {
+            Lock l(mutex);
+            guard.logout(g.cookie);
+        }
+        char cookie[RequestGuard::SET_COOKIE_SIZE];
+        RequestGuard::clearCookie(cookie, sizeof(cookie));
+        Logger::info("WEB", "Logout");
+        sendEmpty(req, 204, cookie);
     }
 
     void loginPoll() {

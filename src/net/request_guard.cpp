@@ -460,11 +460,12 @@ GuardDecision RequestGuard::check(const GuardRequest& r, uint64_t nowMs) {
     }
 
     // With a web password: a session for every write and the WiFi settings, with loginForReads
-    // also for the state and the WebSocket. The login itself never needs one.
-    const bool login = post && strcmp(r.path, "/api/login") == 0;
+    // also for the state and the WebSocket. The login and the logout never need one (a logout
+    // with an expired session must not ask for the password first).
+    const bool sessionFree = post && (strcmp(r.path, "/api/login") == 0 || strcmp(r.path, "/api/logout") == 0);
     const bool wifi = strcmp(r.path, "/api/wifi") == 0 || startsWith(r.path, "/api/wifi/");
     const bool needed = post || wifi || (config_.loginForReads && (api || ws));
-    if (config_.passwordSet && needed && !login) {
+    if (config_.passwordSet && needed && !sessionFree) {
         const int s = cookie == 1 ? findSession_(id, nowMs) : -1;
         if (s < 0) return refuse(Verdict::Unauthorized, "Login required");
         sessions_[s].lastUseMs = nowMs;

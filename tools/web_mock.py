@@ -568,6 +568,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             path = urllib.parse.urlsplit(self.path).path
             if path == "/api/login":
                 return self.login(body)
+            if path == "/api/logout":
+                return self.logout(body)
             if not self.session_ok():
                 raise ApiError(401, "-200,Login required")
             with m.lock:
@@ -631,6 +633,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             sid = secrets.token_hex(16)
             m.sessions[sid] = now + 12 * 3600
         self.send(204, headers={"Set-Cookie": "cyd_sid=%s; Path=/; Max-Age=43200; HttpOnly; SameSite=Strict" % sid})
+
+    def logout(self, body):
+        """POST /api/logout {}: ends this cookie's session (also without one) and expires the cookie."""
+        if body is None:
+            raise ApiError(400, E_SYNTAX)
+        check_obj(body, {})
+        m = re.search(r"(?:^|;\s*)cyd_sid=([0-9a-f]{32})(?:;|$)", self.headers.get("Cookie") or "")
+        with self.model.lock:
+            if m:
+                self.model.sessions.pop(m.group(1), None)
+        self.send(204, headers={"Set-Cookie": "cyd_sid=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict"})
 
     # ---- WebSocket (RFC 6455, push only)
     def websocket(self, url):

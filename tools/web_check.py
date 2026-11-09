@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contract check of the web server (S55): REST, guard answers, WebSocket push, scan, login.
+"""Contract check of the web server (S55, S56): REST, guard answers, WebSocket push, scan, login, logout.
 
 Python 3 standard library only. Runs against the device or tools/web_mock.py and prints one
 PASS/FAIL line per check, like device_check.py does for SCPI. It changes the step and the CH2
@@ -305,6 +305,23 @@ def main():
         check("inbound frame > 512 B -> close 1009", op == 0x8 and data[:2] == struct.pack(">H", 1009), "op %s %s" % (op, data[:2]))
         for x in socks:
             x.close()
+
+    # Logout (S56): {} only, token like every POST, no session needed; the cookie expires and
+    # the session ends.
+    st, _, j = api.call("POST", "/api/logout", {"x": 1})
+    check("POST /api/logout {\"x\":1} -> 400 -108", st == 400 and err(j).startswith("-108,"), "%d %s" % (st, j))
+    st, _, _ = api.call("POST", "/api/logout", {}, token=False)
+    check("logout without token -> 403", st == 403, "HTTP %d" % st)
+    st, hd, _ = api.raw("POST", "/api/logout", {})
+    cookie = hd.get("Set-Cookie", "")
+    check("logout -> 204 with expired cookie", st == 204 and cookie.startswith("cyd_sid=;") and "Max-Age=0" in cookie,
+          "%d %s" % (st, cookie))
+    if args.password:
+        st, _, j = api.call("POST", "/api/config", {"step": step0})
+        check("write with the old cookie after logout -> 401", st == 401, "%d %s" % (st, j))
+        api.cookie = ""
+        st, _, _ = api.raw("POST", "/api/logout", {})
+        check("logout without session -> 204", st == 204, "HTTP %d" % st)
 
     passed = sum(results)
     print("\n%d PASS, %d FAIL" % (passed, len(results) - passed))
