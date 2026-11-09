@@ -639,7 +639,7 @@ void secrets(const Body& b, bool rawSecret) {
     const bool got = carriesSecret(b.ptr, b.len);
     // Every key as written, at any depth (also under duplicate keys); what ArduinoJson keeps is
     // a part of it.
-    const bool want = b.len <= MAX_BODY && b.valid && rawSecret;
+    const bool want = b.len <= MAX_BODY && rawSecret;
     FUZZ_CHECK(got == want);
     FUZZ_CHECK(!(b.len <= MAX_BODY && b.valid && secretKept(b.top)) || got);
 }
@@ -970,8 +970,11 @@ int run(const uint8_t* data, size_t size) {
     const char* src = b.ptr ? b.ptr : "";
     const size_t srcLen = b.ptr ? b.len : 0;
     Ref p(src, srcLen);
-    b.valid = p.parse(&b.top) && !p.ajFails;
-    const bool raw = b.valid && secretRaw(b.top);
+    const bool grammar = p.parse(&b.top);
+    b.valid = grammar && !p.ajFails;
+    // carriesSecret() checks the own strict grammar only: a body ArduinoJson cannot read (a
+    // number over 63 characters) still counts as carrying a secret and is refused (CI 2026-11-09).
+    const bool raw = grammar && secretRaw(b.top);
 
     secrets(b, raw);
     if (op == 8) login(param, b);
