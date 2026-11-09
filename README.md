@@ -1,10 +1,18 @@
 # CYD HF Generator
 
+[![CI](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/ci.yml?query=branch%3Amain)
+[![Fuzz](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/fuzz.yml/badge.svg?branch=main)](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/fuzz.yml?query=branch%3Amain)
+[![Latest release](https://img.shields.io/github/v/release/dm8sb/CYD-HF-Generator?sort=semver)](https://github.com/dm8sb/CYD-HF-Generator/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/github/license/dm8sb/CYD-HF-Generator)](LICENSE)
+
 PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator with an SI5351 on the ESP32-2432S028R "Cheap Yellow Display" (original CYD and CYD2USB).
+
+**[Flash in the browser](https://dm8sb.github.io/CYD-HF-Generator/)** (Chrome or Edge; goes live with the first release after GitHub Pages is enabled) · **User manual** [English](USER_MANUAL_EN.md) / [Deutsch](USER_MANUAL_DE.md) · **[Hardware: wiring and parts](docs/hardware.md)**
 
 ## Documentation
 
 - [USER_MANUAL_DE.md](USER_MANUAL_DE.md): user manual, reference for all behavior (German); [USER_MANUAL_EN.md](USER_MANUAL_EN.md): English translation
+- [docs/hardware.md](docs/hardware.md): SI5351 wiring to CN1, supply, outputs, bill of materials, safety
 - [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md): requirements and decisions
 - [ARBEITSPLAN.md](ARBEITSPLAN.md): open findings, WEB-HMI concept and task list (German)
 - [MESSPLAN.md](MESSPLAN.md): hardware measurement plan by priority (German)
@@ -32,6 +40,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 - Fuzzing: 7 harnesses in `test/fuzz/` (libFuzzer with ASan/UBSan in the CI job `Fuzz`, standalone driver for gcc/MinGW), fixed-seed random test `test_fuzz_random` in the host tests
 - Request guard (host, origin, token, sessions, login lock, PBKDF2 web password) and REST JSON mapping with strict JSON check (ArduinoJson 7.4.3), host-tested, not yet wired to a server
 - Issue forms (bug report with board, firmware version and commit, log) and a pull request template with the gate checklist
+- Hardware page `docs/hardware.md` (bill of materials, CN1 wiring, supply, safety) and README badges
 - Web interface files in `data/www/` (not served by the firmware yet) with `tools/web_mock.py` to try them without the device
 - Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, env `esp32-2432S028R-core3`) and LVGL 8.4.0
 - WiFi (CONFIG `WiFi` and `Remote out.`, WIFI page with network scan and on-screen keyboard, access point page with QR code, device page with name and static IP, WiFi state and `REMOTE <source>` in the status bar, WiFi and heap lines on the info card; default Off): network settings in NVS `hfnet`, client with up to two networks, fallback access point after 60 s, AP off as soon as the client has an address, mDNS, captive DNS; the factory reset also erases the WiFi settings
