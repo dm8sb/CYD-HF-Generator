@@ -1,4 +1,4 @@
-# Host unit tests (Linux, gcc) and firmware build.
+# Host unit tests (Linux, gcc), firmware build and firmware size report (G7).
 # Actions are pinned by commit SHA (audit S-20, S-27); the token is read-only.
 name: CI
 
@@ -47,6 +47,9 @@ jobs:
     name: Firmware build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read # G7: size.json of an earlier run as the baseline
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -60,11 +63,17 @@ jobs:
           key: pio-esp32-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
       - name: Install PlatformIO
         run: pip install "platformio==${PLATFORMIO_VERSION}"
+      # The logs let the size report cross-check its numbers with PlatformIO's (G7).
       - name: Build firmware
-        run: pio run -e esp32-2432S028R
+        run: |
+          set -o pipefail
+          mkdir -p size-logs
+          pio run -e esp32-2432S028R 2>&1 | tee size-logs/esp32-2432S028R.log
       # Migration (phase 4): the same firmware on Arduino 3.3.12 until the acceptance (S41).
       - name: Build firmware on Arduino 3.x
-        run: pio run -e esp32-2432S028R-core3
+        run: |
+          set -o pipefail
+          pio run -e esp32-2432S028R-core3 2>&1 | tee size-logs/esp32-2432S028R-core3.log
       # The touch test build (hit map + touch log) must keep compiling.
       - name: Build touch test firmware
         run: pio run -e esp32-2432S028R-hitmap
@@ -76,3 +85,64 @@ jobs:
           grep -a -q -- "$commit" "$bin" || { echo "commit $commit not found in $bin"; exit 1; }
           if grep -a -q -- "$commit+" "$bin"; then echo "image is marked dirty"; exit 1; fi
           echo "build information OK: $commit"
+      # G7: Flash and static RAM of both envs as job summary and artifact (tools/size_report.py).
+      - name: Measure firmware size
+        env:
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          REF: ${{ github.head_ref || github.ref_name }}
+        run: >-
+          python tools/size_report.py measure --github
+          -e esp32-2432S028R -e esp32-2432S028R-core3
+          --log-dir size-logs --commit "$COMMIT" --ref "$REF" -o size.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: firmware-size
+          path: size.json
+          if-no-files-found: error
+          retention-days: 90
+      # Baseline without an extra build, only the size.json artifact of an earlier run:
+      # pull request = latest successful push run on the target branch; push = the successful
+      # run of the previous head (event "before", for a new branch the parent commit).
+      - name: Size report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          label=""
+          reason=""
+          run=""
+          query='.[0] | "\(.databaseId) \(.headSha)"'
+          if [ "$EVENT" = "pull_request" ]; then
+            what="\`$BASE_REF\`"
+            target="$what"
+            run="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch "$BASE_REF" \
+              --event push --status success --limit 1 --json databaseId,headSha --jq "$query" || true)"
+          elif [ "$EVENT" = "push" ]; then
+            commit="$BEFORE"
+            if [ -z "$commit" ] || [ "$commit" = "0000000000000000000000000000000000000000" ]; then
+              commit="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA" --jq '.parents[0].sha' || true)"
+            fi
+            what="previous commit"
+            target="$what \`${commit:0:7}\`"
+            if [ -n "$commit" ]; then
+              run="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$commit" \
+                --status success --limit 1 --json databaseId,headSha --jq "$query" || true)"
+            fi
+          else
+            reason="not compared for $EVENT runs"
+          fi
+          id="${run%% *}"
+          if [ -n "$id" ] && [ "$id" != "null" ]; then
+            sha="${run##* }"
+            if gh run download "$id" --repo "$GITHUB_REPOSITORY" -n firmware-size -D baseline; then
+              label="$what @ \`${sha:0:7}\` ([run $id]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$id))"
+            else
+              reason="run $id of $target has no firmware-size artifact (before G7 or expired)"
+            fi
+          elif [ -z "$reason" ]; then
+            reason="no successful CI run of $target"
+          fi
+          python tools/size_report.py report size.json --baseline baseline/size.json \
+            --baseline-label "$label" --no-baseline-reason "$reason" | tee -a "$GITHUB_STEP_SUMMARY"

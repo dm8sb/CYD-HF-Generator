@@ -8,6 +8,7 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | `rest_example.py` | Minimal REST example (urllib only): token from the index page, `GET /api/state`, `POST /api/channel/1`. The REST API is **not in the firmware yet**; the script follows `ARBEITSPLAN.md` section 3.6. |
 | `device_check.py` | Automated SCPI check for the smoke test and the measurement plan (`MESSPLAN.md` 4.3, L6, L-S). |
 | `fake_scpi_device.py` | Fake device (local TCP server, subset of the manual) to try the scripts without hardware. |
+| `size_report.py` | Flash/RAM of the firmware envs from the ELF as `size.json` and a Markdown table with the difference to a baseline (CI job summary, G7). Local: `python tools/size_report.py measure -e esp32-2432S028R-core3` after `pio run`; `--self-test` runs its tests. |
 | `build_info.py` | PlatformIO build script (not a host tool). |
 
 ## Install
