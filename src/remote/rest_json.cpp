@@ -164,6 +164,9 @@ private:
                         v = v * 16 + (unsigned)(h <= '9' ? h - '0' : (h | 0x20) - 'a' + 10);
                     }
                     i += 4;
+                    // ArduinoJson (Utf16::Codepoint) keeps a high surrogate back until a low one
+                    // follows; alone it vanishes, so "pas\ud800sword" becomes "password".
+                    if (v >= 0xD800 && v < 0xDC00) continue;
                     c = v;
                 } else {
                     c = (unsigned char)e;

@@ -411,7 +411,9 @@ static void test_login_body_and_password_fields() {
     // escapes or long keys.
     const char* const hidden[] = {"{\"a\":{\"password\":\"x\"},\"a\":1}",
                                   "{\"networks\":[{\"slot\":0,\"ssid\":\"a\",\"password\":\"b\"}],\"networks\":[]}",
-                                  "{\"ap\":{\"x\":{\"psk\":1},\"x\":2}}", "{\"\\u0050ASS\":1}"};
+                                  "{\"ap\":{\"x\":{\"psk\":1},\"x\":2}}", "{\"\\u0050ASS\":1}",
+                                  // A lone high surrogate vanishes in ArduinoJson: "password" (CI fuzz 2026-11-09).
+                                  "{\"pas\\ud800sword\":\"x\"}", "{\"pa\\uDBFF\\uD83Dss\":1}"};
     for (const char* b : hidden) TEST_ASSERT_TRUE_MESSAGE(carriesSecret(b, strlen(b)), b);
     const std::string longKey = "{\"" + std::string(70, 'x') + "Password\":1}";
     TEST_ASSERT_TRUE(carriesSecret(longKey.c_str(), longKey.size()));
