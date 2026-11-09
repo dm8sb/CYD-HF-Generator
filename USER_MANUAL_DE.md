@@ -21,6 +21,8 @@ Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_E
 - [12. Serielle Diagnose](#12-serielle-diagnose)
 - [13. Aktuelle Hardware-Pinbelegung](#13-aktuelle-hardware-pinbelegung)
 - [14. Sicherheitshinweis](#14-sicherheitshinweis)
+- [15. Fernsteuerung über USB und Netz (SCPI)](#15-fernsteuerung-über-usb-und-netz-scpi)
+- [16. Weboberfläche](#16-weboberfläche)
 - [Anhang A: Seitenbilder](#anhang-a-seitenbilder)
 - [Anhang B: Glossar](#anhang-b-glossar)
 - [Anhang C: Symptome und Abhilfe](#anhang-c-symptome-und-abhilfe)
@@ -100,6 +102,8 @@ Bedienung auf der Hauptseite:
 - **Schalter auf der Karte** (rechts, durch eine Linie abgetrennt) schaltet den Ausgang direkt ein oder aus, ohne die Seite zu wechseln. Ein Tipp auf die Frequenz oder `MHz` öffnet nur die Kanalseite.
 - Die Frequenzen stehen rechtsbündig, Dezimalpunkt und `MHz` aller Karten untereinander.
 - Die Statusleiste unten zeigt links den Speicherzustand (Abschnitt 8, `Saved`, `Saving...`, rot `Save failed` / `Not saved`) und hat rechts den Button `CONFIG` (gelb). Die Kanäle öffnen sich über ihre Karten. Bei gesperrtem Bildschirm steht dort zusätzlich `LOCKED` im orangen Feld (Abschnitt 8).
+- Rechts neben dem Speicherzustand steht der WLAN-Zustand (Abschnitt 8, `WiFi`): das WLAN-Symbol grün (verbunden) oder grau (sucht), `AP` grün, wenn der eigene Access Point läuft, `AP open` orange, wenn er ohne Passwort läuft; bei `Off` nichts.
+- Nach einem Befehl der Fernsteuerung steht 10 s lang `REMOTE USB` (später `REMOTE SCPI`, `REMOTE WEB`) im blauen Feld (Farbe von CH3); `LOCKED` hat Vorrang.
 - Auf farbigen Tasten und gewählten Chips ist die Schrift dunkel, ausgeschaltete Schalter haben eine hellgraue Spur, nicht gewählte Chips einen grauen Rand.
 - Tasten am Bildschirmrand (z. B. `MAIN` oben rechts, `CONFIG` unten rechts, die äußeren NUMPAD-Tasten) reagieren bis an den Rand, auch auf einen Tipp knapp daneben in Richtung Rand. Der Abstand zwischen zwei Tasten bleibt frei.
 
@@ -487,10 +491,12 @@ Die Titelzeile mit Speicheranzeige und `MAIN` bleibt stehen. Der Bereich darunte
 | `Spread CH1` | Auswahlliste `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
 | `Corr.` | Wert in ppm (antippen: Eingabe), Schritt-Taste, `−`, `+` |
 | `Backlight` | `−`, Wert, `+` |
+| `WiFi` | Auswahlliste `Off`, `Client`, `Access point`; Taste `Setup` (Seite WIFI) |
+| `Remote out.` | Auswahlliste `allowed`, `local only` |
 | `Touch` | Taste `Calibrate` (Touch-Abgleich) |
 | `Screen` | Taste `Lock` (Bildschirmsperre) |
 | `Reset` | Tasten `Defaults` und `Factory` (rot) |
-| Info-Karte | Firmware, Build, Display, SI5351 |
+| Info-Karte | Firmware, Build, Display, Touch, SI5351, WLAN, Speicher |
 
 - Oben stehen die Einstellungen, die das Signal verändern. Den Frequenzschritt stellen die Schritt-Tasten der Kanalseiten ein (Abschnitt 5).
 - Beim Öffnen sind drei Zeilen ganz und die obere Hälfte der vierten zu sehen. Die breite Scrollleiste rechts ist immer sichtbar und zeigt, dass die Liste weitergeht.
@@ -627,6 +633,69 @@ Gemessen: 10 000 097 Hz  ->  +97 Hz bei 10 MHz  ->  +9.70 ppm einstellen
 
 Der aktuelle Wert steht zwischen den Tasten. Gedrückt halten wiederholt nicht. Das Minimum von 10 % verhindert, dass das Display versehentlich ganz dunkel und damit unbedienbar wird. Gespeicherte Werte älterer Firmware werden auf die nächste 10-%-Stufe gerundet; Werte unter 5 % (z. B. 0 % aus Firmware 1.0.0) werden auf 80 % gesetzt.
 
+### WiFi
+
+Auswahlliste `Off` (Standard), `Client`, `Access point`. Die Einstellung wird sofort gespeichert und gilt sofort.
+
+- `Off`: Der Funk ist aus (für die sauberste HF).
+- `Client`: Das Gerät sucht die gespeicherten WLANs und verbindet sich mit dem stärksten. Findet es 60 s lang keines, öffnet es zusätzlich einen eigenen Access Point (Rückfall) und sucht weiter; sobald es verbunden ist, geht der Access Point aus.
+- `Access point`: Das Gerät öffnet ein eigenes WLAN `CYD-HF-<4 Stellen>` mit Passwort.
+
+Netze, Passwörter und die Daten des Access Points werden auf der Seite WIFI eingerichtet (Taste `Setup` rechts in der Zeile). Statusleiste und Info-Karte zeigen den Zustand.
+
+### Seite WIFI (Setup)
+
+Oben links führt `<` zurück zu CONFIG. Darunter stehen die beiden Netzplätze `1` und `2`:
+
+- Netzname und darunter `Password set`, orange `Open network (no password)` oder `Empty`.
+- `Change`: sucht die Netze in der Umgebung (`Scanning...`, etwa 3 s) und zeigt sie, das stärkste zuerst, je 4 pro Seite; `<` und `>` blättern, `Scan` sucht neu. Rechts stehen Signalstärke und bei offenen Netzen orange `open`. Versteckte Netze erscheinen nicht; für sie gibt es `Other...` (Name eingeben).
+- Ein Netz antippen: Bei einem Netz mit Passwort öffnet sich die Tastatur. Das Passwort (8–63 Zeichen) eingeben, `Show`/`Hide` zeigt bzw. verdeckt es, rechts unter dem Feld steht die Zahl der Zeichen. Der Haken (✓) speichert, das Kreuz bricht ab. Ein offenes Netz wird erst nach einer Warnung (`Use`) übernommen.
+- Papierkorb: löscht den Platz nach Rückfrage.
+
+Die Tastatur hat Buchstaben, Ziffern und Sonderzeichen, aber keine Umlaute, `ß` und `€`. Netznamen werden bereinigt angezeigt (Steuerzeichen und ungültige Zeichen als `?`). Ein gespeichertes Passwort wird nie wieder angezeigt.
+
+Unten zeigt eine Zeile, was das WLAN gerade tut: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, grün `Connected <Netz>` mit Adresse und `<Gerätename>.local`, rot `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <Name> active`, `Access point <Name> active`, `No network stored. Tap Change.`
+
+Nach einem Speichern startet das WLAN mit den neuen Daten neu. Sind beide Plätze belegt, verbindet sich das Gerät mit dem stärkeren Netz; scheitert es dort (z. B. falsches Passwort), versucht es beim nächsten Mal das andere.
+
+Die dritte Karte `AP  CYD-HF-<4 Stellen>` zeigt den eigenen Access Point (`WPA2` oder orange `open`, `active` oder `off`); `Show` öffnet seine Seite. `Device` oben rechts öffnet Gerätename und IP-Einstellungen.
+
+### Access Point (Seite)
+
+- Links ein QR-Code zum Verbinden: Handy-Kamera darauf richten, das Handy verbindet sich ohne Eintippen. Rechts Name, Passwort (im Klartext, damit es abgetippt werden kann) und die Adresse `192.168.4.1`.
+- Das Passwort (12 Zeichen ohne verwechselbare wie `0`/`O`, `1`/`l`/`I`) entsteht zufällig beim ersten Öffnen der Seite bzw. beim ersten Start des Access Points und wird gespeichert.
+- `Regenerate`: neues Zufallspasswort; `Set...`: eigenes Passwort (8–63 Zeichen) über die Tastatur. Ein laufender Access Point startet mit dem neuen Passwort neu, verbundene Geräte müssen sich neu verbinden.
+- `Open...`: Access Point ohne Passwort, erst nach einer Warnung. Das Passwort zeigt dann orange `none (open)`, die Taste heißt `Secure` und stellt WPA2 wieder her. Ein offener Access Point geht nach 15 min ohne verbundenes Gerät aus.
+- Unten der Zustand: `Active, 1 connected`, `Off; starts as fallback after 60 s without network` (Betriebsart `Client`), `Off. Choose Access point in CONFIG > WiFi.`
+- Ist der Access Point offen eingestellt und findet das Gerät im Betrieb `Client` kein Netz, startet der Rückfall-Access-Point erst nach der Frage `Open fallback AP` (`Start`).
+
+### Gerät (Seite)
+
+`Device` oben rechts auf der Seite WIFI öffnet die Geräteeinstellungen. Jede Änderung wird sofort gespeichert, das WLAN verbindet sich mit den neuen Daten neu.
+
+| Zeile | Bedeutung |
+|---|---|
+| `Name` | Gerätename, unter dem das Gerät als `<Name>.local` erreichbar ist (Standard `cyd-hf-<4 Stellen>`). Antippen öffnet die Tastatur; erlaubt sind 1–32 Zeichen `a`–`z`, `0`–`9` und `-`, nicht am Anfang oder Ende. Sonst steht unter dem Feld `a-z 0-9 - (1-32)`. |
+| `IP` | `DHCP` (Adresse vom Router) oder `Static` (feste Adresse) |
+| `Address`, `Mask`, `Gateway`, `DNS` | Bei `DHCP` grau die gespeicherten festen Werte, für leere Felder die Zuteilung des Routers (`-` ohne Verbindung). Bei `Static` schwarz die gespeicherten Werte; antippen öffnet ein Ziffernfeld (`192.168.1.50`). `DNS` leer heißt `= gateway`. |
+| `Web pw.` | Web-Passwort für die Weboberfläche (Abschnitt 16): `Set (login needed)` oder orange `None (no login)`, das Passwort selbst wird nie angezeigt. Antippen öffnet die Tastatur `Web password` (8–64 Zeichen, sonst `8-64 characters`); OK speichert, das Verschlüsseln dauert etwa 1,3 s (`Saving...`), die Bedienung läuft weiter. Ist ein Passwort gesetzt, entfernt ein leeres Feld mit OK es nach der Rückfrage `Remove web password`. Jede Änderung beendet alle Web-Anmeldungen; das WLAN startet dabei nicht neu. |
+
+Beim Umschalten auf `Static` werden leere Felder mit der aktuellen DHCP-Zuteilung gefüllt, meist muss also nur `Address` geändert werden. Eine unplausible Kombination wird abgelehnt, die Meldung `Static IP` nennt den Grund, und der alte Wert bleibt (beim Umschalten bleibt `DHCP`):
+
+| Meldung | Ursache |
+|---|---|
+| `The mask must be /1 to /30, e.g. 255.255.255.0.` | Maske nicht zusammenhängend oder /0, /31, /32 |
+| `Address and gateway must be set.` | Adresse oder Gateway fehlt |
+| `The address equals the gateway.` | Adresse = Gateway |
+| `The gateway is not in the subnet of the address.` | Gateway in einem anderen Netz |
+| `Address or gateway is the network address.` / `... broadcast address.` | Netz- bzw. Broadcast-Adresse des Subnetzes |
+
+Eine falsche, aber plausible statische Adresse (z. B. schon vergeben) macht das Gerät im Netz unerreichbar; dann am Gerät wieder `DHCP` wählen.
+
+### Remote out. (Fernschalten der Ausgänge)
+
+Auswahlliste `allowed` (Standard) und `local only`. Bei `local only` darf die Fernsteuerung (SCPI, später Web) alles einstellen und Ausgänge ausschalten, aber **nicht einschalten** (Abschnitt 15). Die Einstellung lässt sich nur hier am Gerät ändern, wird sofort gespeichert und bleibt bei `Defaults` und `*RST` erhalten; `Factory` setzt sie auf `allowed` zurück.
+
 ### Touch (Touch-Abgleich)
 
 Der Abgleich passt die Touch-Erkennung an das Board an: Mit fest eingestellten Werten lagen die Treffer je nach Board bis zu 19 px daneben, am rechten Rand war die Ecke nicht erreichbar.
@@ -658,7 +727,7 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 | Taste | Wirkung |
 |---|---|
 | `Defaults` | Nach Bestätigung (`Reset`) gelten alle Werkseinstellungen (Kurzanleitung), auch die Frequenzen, CH3-Master und -Phase und der Schritt; alle Ausgänge gehen aus. **Frequenzkorrektur und Touch-Abgleich bleiben.** Gespeichert wird nach 5 s wie bei jeder Änderung. |
-| `Factory` (rot) | Nach Bestätigung (`Erase`) löscht das Gerät alle gespeicherten Einstellungen einschließlich Frequenzkorrektur und Touch-Abgleich und startet neu. Danach erscheint der Touch-Abgleich wie beim ersten Start. |
+| `Factory` (rot) | Nach Bestätigung (`Erase`) löscht das Gerät alle gespeicherten Einstellungen einschließlich Frequenzkorrektur, Touch-Abgleich, `Remote outputs` und WLAN-Einstellungen (auch die des WLAN-Treibers) und startet neu. Danach erscheint der Touch-Abgleich wie beim ersten Start. |
 
 `Cancel` lässt alles unverändert.
 
@@ -672,6 +741,8 @@ Build 2026-11-05 15:00
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
+WiFi Labor 192.168.1.50 -60 dBm
+Heap 241/215 KB, block 108 KB, LVGL 30 KB
 ```
 
 | Zeile | Inhalt |
@@ -681,6 +752,9 @@ SI5351 SDA 22 SCL 27
 | `Display` | Display-Controller (`ILI9341` oder `ST7789`) und Herkunft: `detected` (erkannt), `default` (nichts erkannt, ILI9341 angenommen), `build flag` (beim Bauen festgelegt) |
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
+| `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke; `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
+| `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-TCP-Client. Darunter die Taste `Disconnect all`: schließt alle Browser-Verbindungen, beendet die Web-Anmeldungen und die SCPI-TCP-Verbindung. Ohne Web-Passwort verbindet sich ein Browser nach wenigen Sekunden wieder. |
+| `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB |
 
 ---
 
@@ -717,6 +791,8 @@ Fehlen die drei neuen Optionen im Speicher (Einstellungen aus Firmware 1.2.0), g
 Der Display-Controller wird nicht gespeichert, sondern bei jedem Start erkannt (Abschnitt 13).
 
 Der Touch-Abgleich wird je Board gespeichert; ein unplausibler gespeicherter Wert wird nicht verwendet (der Abgleich startet dann erneut).
+
+Über SCPI geänderte Einstellungen werden erst nach 30 s ohne weitere Änderung gespeichert, `SYST:SAVE` sofort; `*RST` speichert nichts (Abschnitt 15).
 
 Der ON/OFF-Zustand der Ausgänge wird nicht gespeichert; nach dem Einschalten sind alle Ausgänge aus. Ein- und Ausschalten löst deshalb kein Speichern aus, ebenso wenig eine Einstellung, die schon den gewählten Wert hat. Das schont den Flash-Speicher.
 
@@ -953,13 +1029,35 @@ Wichtige Meldungen:
 | `[SETTINGS] Saved to NVS` | Autosave |
 | `[APP] Restoring outputs` | Nach dem Wiederverbinden werden die Ausgänge wiederhergestellt |
 | `[APP] Output error cleared` | Ein Ausgangsfehler (`! ERR`) ist behoben |
+| `[SCPI] USB session started; log in SYSTem:LOG?` | Erste SCPI-Zeile über USB: weitere Logzeilen nur noch im Puffer (Abschnitt 15); steht selbst schon im Puffer |
+| `[SCPI] USB session ended (idle); log on serial again` | 10 min ohne SCPI-Zeile: das Log läuft wieder über USB |
+| `[SCPI] TCP server on port: 5025`, `[SCPI] TCP server stopped` | SCPI über TCP an (WLAN verbunden oder AP mit Passwort) bzw. aus |
+| `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP-Verbindung; beim Schließen mit Grund: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Befehle werden nie geloggt |
+| `[WEB] Server on port: 80` | Weboberfläche bereit (WLAN verbunden oder Access Point) |
+| `[WEB] Login`, `[WEB] Login failed` | Anmeldung mit Web-Passwort richtig bzw. falsch (das Passwort wird nie geloggt) (`[WEB] Logout`: abgemeldet) |
+| `[GUI] Web password set` / `removed`, `[GUI] Disconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web-Passwort auf der Seite Device; `Disconnect all` auf der Info-Karte |
+| `[WEB] Server stopped (WiFi off)` | WLAN `Off`: der Webserver nimmt nichts mehr an, offene Seiten werden getrennt |
+| `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Netzänderung aus dem Browser (Abschnitt 16) |
+| `[WEB] WebSocket closed: no pong`, `[WEB] No memory for the web server`, `[WEB] Saving the network settings failed` | Browser antwortet nicht mehr; zu wenig Speicher; Speichern fehlgeschlagen |
+| `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
+| `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
+| `[WIFI] Mode Off, name cyd-hf-1a2b` | WLAN-Betriebsart beim Start bzw. nach einer Änderung und Gerätename; Standard `Off` (Funk aus) |
+| `[WIFI] Seen <Netz>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Ergebnis der Netzsuche für die gespeicherten Netze |
+| `[WIFI] Connecting to <Netz>`, `[WIFI] Connected to <Netz>, 192.168.1.50, RSSI -60 dBm` | Verbindungsaufbau und Verbindung mit Adresse |
+| `[WIFI] Network not reached (reason 201)` | Nach 15 s keine Verbindung; Grund des WLAN-Treibers (201 = Netz nicht gefunden, 2/15/202 = Anmeldung bzw. Passwort abgelehnt) |
+| `[WIFI] Connection lost; searching` | Verbindung verloren, die Suche läuft weiter |
+| `[WIFI] Fallback AP CYD-HF-1A2B WPA2` | 60 s ohne Verbindung: eigener Access Point als Rückfall; die Suche läuft weiter |
+| `[WIFI] AP off (client has an address)` | Verbunden: der Access Point geht sofort aus |
+| `[WIFI] AP password created` | Erstes Einschalten des Access Points: Zufallspasswort erzeugt und gespeichert |
+| `[WIFI] Scan started`, `[WIFI] Scan: 12 networks` | Netzsuche der Seite WIFI |
+| `[GUI] WiFi network stored` | Netz auf der Seite WIFI gespeichert (ohne Passwort im Log) |
+| `[GUI] AP stored: WPA2` / `AP stored: open`, `[WIFI] AP off` | Access-Point-Passwort bzw. „offen“ gespeichert; ein laufender Access Point startet neu |
 
 Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 
 | Meldung | Bedeutung |
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Überwachung: SI5351 antwortet nicht oder hat seine Einstellung verloren |
-| `[E][Wire.cpp:499] requestFrom(): i2cWriteReadNonStop returned Error -1` | Meldung des Arduino-Cores zu einer fehlgeschlagenen I2C-Übertragung, meist direkt vor `Device lost or reset`; für sich allein harmlos |
 | `[E][esp32-hal-i2c-ng.c:372] i2cWriteReadNonStop(): i2c_master_transmit_receive failed: [259] ESP_ERR_INVALID_STATE`, danach `[E][Wire.cpp:532] requestFrom(): i2cWriteReadNonStop returned Error 259` | dieselbe Meldung bei Firmware mit Arduino-Core 3.x |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Ungewöhnliches Register 183, z. B. Nachbau; das Modul wird trotzdem verwendet |
 | `[ERROR][APP] I2C fails at 400 kHz; staying at 100 kHz` | Bus läuft nur mit 100 kHz (z. B. schwache Pull-ups) |
@@ -1016,10 +1114,152 @@ Die SI5351-Ausgänge liefern digitale Rechtecksignale. Vor Anschluss an empfindl
 
 Zum Betrieb:
 
-- **Physischer Zugriff ist Vollzugriff:** Wer das Gerät bedienen oder über USB neu flashen kann, kann alle Einstellungen und Ausgänge ändern; es gibt keine Sperre und kein Passwort.
+- **Physischer Zugriff ist Vollzugriff:** Wer das Gerät bedienen oder über USB neu flashen kann, kann alle Einstellungen und Ausgänge ändern; es gibt keine Sperre und kein Passwort. Das gilt auch für SCPI über USB (Abschnitt 15): Jedes Programm auf dem angeschlossenen PC kann Ausgänge einschalten.
 - **Fremdgerät an 0x60:** Antwortet auf der I2C-Adresse 0x60 ein anderes Gerät, liest die Firmware seine Kennung und schreibt höchstens ein Testbyte in dessen Register 3, bevor sie es als „kein SI5351“ erkennt (Abschnitt 11). Andere Geräte an CN1 mit dieser Adresse nicht anschließen.
 
 ---
+
+## 15. Fernsteuerung über USB und Netz (SCPI)
+
+Der Generator versteht SCPI-Befehle über dieselbe USB-Verbindung, die auch das Log ausgibt. Jede Änderung erscheint sofort auf dem Display; Touch und SCPI sind gleichberechtigt, die letzte Änderung gilt.
+
+### Verbindung
+
+- 115 200 Baud, 8N1; jede Zeile endet mit LF (`\n`), ein CR davor wird ignoriert. Antworten enden mit LF.
+- Den Port mit **DTR und RTS aus** öffnen. Sonst löst die Auto-Reset-Schaltung des Boards beim Öffnen einen Neustart aus.
+- Die erste empfangene Zeile startet eine **SCPI-Sitzung**: Ab dann schreibt das Gerät keine Logzeilen mehr auf USB, damit sie sich nicht mit Antworten mischen. Sie landen in einem Puffer (32 Zeilen, die ältesten fallen heraus) und lassen sich mit `SYST:LOG?` lesen. Nach 10 Minuten ohne Zeile endet die Sitzung, das Log läuft wieder über USB (`[SCPI] USB session ended (idle); log on serial again`).
+- Eine Zeile hat höchstens 256 Zeichen und höchstens 16 Befehle, getrennt durch `;`. Nur druckbare ASCII-Zeichen und TAB sind erlaubt. Eine Zeile, die dagegen verstößt, wird ganz verworfen: Fehler −363 (zu lang), −101 (ungültiges Zeichen) bzw. −223 (zu viele Befehle).
+- Höchstens 20 einstellende Befehle pro Sekunde; jeder weitere wird mit `-200,"Execution error;Too many commands"` abgelehnt.
+
+### Verbindung über das Netz (TCP)
+
+- Mit WLAN (Betriebsart `Client` verbunden, oder eigener Access Point mit Passwort) nimmt das Gerät SCPI auch über TCP an: Port **5025**, Adresse aus der Statuszeile der Seite WIFI oder `<Gerätename>.local`; per mDNS als `_scpi-raw._tcp` angekündigt. PyVISA: `TCPIP0::<Adresse>::5025::SOCKET` mit `read_termination` und `write_termination` `\n`.
+- Zeilen, Befehle, Grenzen und Fehler wie über USB; die TCP-Verbindung hat eine eigene Fehlerwarteschlange, die bei jeder neuen Verbindung leer beginnt (`*ESE` und `*SRE` ebenfalls 0). Die Statusleiste zeigt `REMOTE SCPI`.
+- **Eine Verbindung** zur Zeit; eine zweite wird sofort ohne Antwort geschlossen. Nach 10 min ohne Zeile schließt das Gerät die Verbindung; ein Gegenüber, das verschwindet, erkennt es nach etwa 90 s (Keepalive).
+- Beginnt eine Zeile wie eine HTTP-Anfrage (z. B. Browser auf `http://<Adresse>:5025/`), schließt das Gerät die Verbindung, ohne diese oder eine spätere Zeile auszuführen.
+- Liest das Gegenüber die Antworten nicht ab, liest auch das Gerät nichts mehr und schließt die Verbindung, wenn der Puffer voll ist.
+- Über einen offenen Access Point (ohne Passwort) ist SCPI über TCP gesperrt.
+
+### Befehle
+
+Kurzform groß geschrieben, Groß-/Kleinschreibung beliebig (`FREQ`, `freq`, `FREQuency`). `<n>` ist der Kanal 1–3, ohne Angabe 1. `[ ]` ist optional. Abfragen enden mit `?`.
+
+| Befehl | Abfrage-Antwort | Bedeutung |
+|---|---|---|
+| `*IDN?` | `CYD,HF-Generator,<MAC>,<Version>` | Kennung |
+| `*RST` | – | Alle Ausgänge aus, Grundzustand im RAM (Korrektur bleibt), **nicht gespeichert** bis `SYST:SAVE` oder zur nächsten Änderung (dann nur deren Wert) |
+| `*CLS`, `*ESE`, `*ESE?`, `*ESR?`, `*SRE`, `*SRE?`, `*STB?`, `*OPC`, `*OPC?`, `*WAI` | | Statusregister nach IEEE 488.2; Befehle laufen sofort, `*OPC?` antwortet `1` |
+| `*TST?` | `0` / `1` | `1`: kein SI5351 verbunden |
+| `OUTPut<n>[:STATe] ON\|OFF\|1\|0` | `1` / `0` | Ausgang ein/aus (CH3: Anforderung wie der Schalter) |
+| `OUTPut<n>:CONDition?` | `ON`, `OFF`, `ERR`, `WAIT`, `NOHW` | Tatsächlicher Zustand wie die Anzeige (`WAIT`: CH3 wartet, `NOHW`: kein SI5351) |
+| `[SOURce<n>:]FREQuency[:CW] <f>` | Hz | Frequenz CH1/CH2; CH3 nur Abfrage (Frequenz des Masters) |
+| `[SOURce<n>:]FREQuency:ACTual?` | Hz mit 0,1 Hz | Tatsächliche Frequenz wie die Zeile `Out` |
+| `SOURce3:IQ:MASTer 1\|2` | `1` / `2` | Master von CH3 |
+| `SOURce3:PHASe 0\|90\|180\|270` | Grad | Phase von CH3 |
+| `SOURce3:IQ:RANGe?` | `<min>,<max>` in Hz | IQ-Bereich des Masters (mit Spread Spectrum enger) |
+| `OUTPut:DRIVe 2\|4\|6\|8` | mA | `Drive all` |
+| `OUTPut:OFFState LOW\|HIGH\|HIZ` | | `Off state` |
+| `OUTPut:REMote?` | `ALLOWED` / `LOCAL` | `Remote outputs` (nur lesbar, siehe unten) |
+| `[SOURce1:]SSC OFF\|DOWN05\|DOWN15\|CENT05` | | `Spread CH1` |
+| `SYSTem:TUNing FRACtional\|LNOise\|INTeger` | `FRAC`, `LNO`, `INT` | `Tuning` |
+| `SYSTem:CORRection <ppm>` | ppm mit 2 Stellen | Frequenzkorrektur, ±50 ppm, auf 0,01 ppm gerundet |
+| `SYSTem:STEP <Hz>` | Hz | Frequenzschritt (1 Hz … 1 MHz, Zehnerpotenzen) |
+| `SYSTem:BACKlight <%>` | % | Helligkeit (10–100 %) |
+| `SYSTem:SI5351?` | `CONN`, `NFO`, `BLOC`, `UNKN` | Verbindung: verbunden, nicht gefunden, Leitung auf LOW, fremdes Gerät |
+| `SYSTem:HEAP?` | `<frei>,<Minimum>,<größter Block>` | Speicher in Byte |
+| `SYSTem:IDENtify` | – | Backlight und RGB-LED blinken 5 s |
+| `SYSTem:LOG?` | `"<Zeile>"` | Älteste gepufferte Logzeile, `""` wenn keine mehr da ist |
+| `SYSTem:SAVE` | – | Alle Einstellungen sofort speichern |
+| `SYSTem:ERRor[:NEXT]?`, `SYSTem:ERRor:COUNt?` | `<Code>,"<Text>"` | Fehlerwarteschlange (16 Einträge), `0,"No error"` wenn leer |
+| `SYSTem:VERSion?` | `1999.0` | SCPI-Version |
+
+Zahlen: ganze Hz (`7100000`), Dezimalzahl mit oder ohne Einheit `HZ`, `KHZ`, `MHZ` (`7.1 MHZ`, `455khz`) oder mit Exponent (`7.1E6`); gerundet auf 1 Hz. `MIN`, `MAX` und `DEF` setzen Grenze bzw. Standardwert. Nichts wird abgeschnitten: Werte außerhalb des Bereichs ergeben −222, `NAN`, `INF`, Hex-Zahlen, unbekannte Einheiten und nicht erlaubte Werte −224, Zeichenketten −104. Ungültige Zeichen, z. B. zwei Werte ohne Komma (`FREQ 7MHZ 8MHZ`) oder `0x10`, ergeben einmal −101 für diesen Befehl; Befehle nach dem nächsten `;` laufen weiter. Ein abgelehnter Befehl ändert nichts.
+
+Mehrere Befehle in einer Zeile: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` beginnt wieder an der Wurzel), Abfragen antworten in einer Zeile, getrennt durch `;`: `FREQ?;:OUTP1?` → `7100000;1`.
+
+### Speichern, Grundzustand und Fehler
+
+- Über SCPI geänderte Einstellungen werden nach 30 s ohne weitere Änderung gespeichert (am Touch nach 5 s). `SYST:SAVE` speichert sofort.
+- Fehler, die ein SCPI-Befehl auslöst (z. B. Ausgangsfehler), öffnen keinen Dialog auf dem Display; sie stehen in der Fehlerwarteschlange (`-240,"Hardware error;SI5351"`) und im Log.
+- `Remote outputs`: Steht die Option auf `local only`, lehnt das Gerät `OUTP<n> ON` mit `-221,"Settings conflict;Remote outputs: local only"` ab; Ausschalten bleibt erlaubt. Die Option lässt sich nur am Gerät ändern (CONFIG-Zeile `Remote out.`).
+
+### Beispiel (Python mit pyserial)
+
+```python
+import serial
+
+gen = serial.Serial()
+gen.port = "COM5"          # Linux: /dev/ttyUSB0
+gen.baudrate = 115200
+gen.timeout = 2
+gen.dtr = False            # vor open(): kein Neustart beim Öffnen
+gen.rts = False
+gen.open()
+
+def query(cmd):
+    gen.write((cmd + "\n").encode())
+    return gen.readline().decode().strip()
+
+print(query("*IDN?"))
+gen.write(b"FREQ 7.1 MHZ\n")
+gen.write(b"OUTP1 ON\n")
+print(query("FREQ:ACT?"))
+print(query("SYST:ERR?"))
+```
+
+Weitere Skripte liegen im Ordner `tools/` (Anleitung in `tools/README.md`):
+
+- `scpi_example.py`: dasselbe über USB (`--usb COM5`), TCP (`--tcp <Adresse>`, ab S54) oder PyVISA (`--visa <Ressource>`).
+- `device_check.py`: prüft den SCPI-Befehlssatz am Gerät (Rundläufe, Ablehnungen mit Fehlercode, Zeilenlänge, Ratenbegrenzung, Antwortzeit) und gibt je Prüfung `PASS`/`FAIL`/`SKIP` aus. Es stellt die geänderten Einstellungen am Ende wieder her, schaltet die Ausgänge aus und speichert nichts; Ausgänge schaltet es nur mit `--outputs` ein. `fake_scpi_device.py` ist ein Ersatzgerät für Versuche ohne Hardware.
+- `rest_example.py`: Beispiel für die REST-Schnittstelle (folgt mit der Weboberfläche).
+
+---
+
+## 16. Weboberfläche
+
+Mit WLAN (Abschnitt 8, Seite WIFI) lässt sich der Generator auch im Browser bedienen: `http://<Gerätename>.local/` oder die Adresse aus der Statuszeile der Seite WIFI; im eigenen Access Point `http://192.168.4.1/` (ein Handy öffnet die Seite beim Verbinden meist von selbst). Die Seite liegt im Gerät, es braucht keine Internetverbindung. Kein HTTPS: nur in einem vertrauenswürdigen Netz oder im eigenen Access Point mit Passwort benutzen.
+
+### Bedienen
+
+- Oben Name, Version und Verbindung (`Live`, `Polling`, `Offline`), Speicherzustand, `REMOTE <Quelle>`, `Identify`, `Save`, `?` (Hilfe) und die Links MAIN/CH1/CH2/CH3/CONFIG/WiFi; diese Kopfzeile bleibt beim Scrollen stehen, auch auf dem Handy. Darunter die Bereiche MAIN, CH1, CH2, CH3 IQ, CONFIG und WiFi wie am Gerät. Auf dem Handy liegen die Bereiche untereinander, die Ein/Aus-Schalter der Kanäle stehen fest am unteren Rand.
+- Frequenzen: Ziffer antippen bzw. anklicken wählt den Schritt, Mausrad über einer Ziffer ändert sie, die Einheit öffnet ein Eingabefeld (`10.7M`, `455k`, `7 100 000`, `10,7 MHz`; ein Fehler bleibt neben dem Feld stehen).
+- Tastatur: `↑`/`↓` (auch `+`/`−`) Frequenz im Schritt, `←`/`→` Schritt größer/kleiner, `Bild↑`/`Bild↓` Frequenz × 10 / ÷ 10, `1`/`2`/`3` Kanal, `F` oder `Enter` Eingabefeld, `O` Ausgang ein/aus, `?` Hilfe.
+- Änderungen am Gerät oder per SCPI erscheinen nach etwa 1 s und werden kurz hervorgehoben; ein Feld mit Fokus wird nicht überschrieben. Ohne Verbindung ist alles grau.
+- Die Statusleiste am Gerät zeigt nach einer Änderung aus dem Browser 10 s lang `REMOTE WEB`. `Remote out.` `local only` (Abschnitt 8) gilt auch hier: Einschalten wird abgelehnt.
+- Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`.
+- Nur am Gerät: Grundzustand und Werksreset, Touch-Abgleich, Bildschirmsperre, neues Access-Point-Passwort, Web-Passwort (WIFI → `Device`, Zeile `Web pw.`).
+
+### Web-Passwort
+
+Ist ein Web-Passwort gesetzt, fragt die Seite vor dem ersten Ändern danach (Lesen geht ohne). Die Anmeldung dauert etwa 1,5 s und gilt 12 h. Nach 5 falschen Versuchen ist die Anmeldung 30 s gesperrt, jede weitere Sperre dauert doppelt so lang (bis 16 min). `Log out` in der Kopfzeile (nur mit Web-Passwort und Anmeldung) beendet die Anmeldung; die nächste Änderung fragt wieder nach dem Passwort. Das Web-Passwort wird am Gerät auf der Seite Device festgelegt (Abschnitt 8); ohne Web-Passwort kann jeder im Netz das Gerät bedienen.
+
+### Netzeinstellungen aus dem Browser
+
+Betriebsart, Gerätename, Netze, statische IP und Access Point lassen sich auch im Browser ändern. Damit man sich nicht aussperrt, gilt eine Änderung erst nach einer Bestätigung:
+
+1. Nach `Apply` startet das WLAN mit den neuen Daten neu. Die Seite zeigt `Confirm within 120 s`.
+2. Die Seite unter der neuen Adresse öffnen und dort `Confirm` drücken.
+3. Ohne Web-Passwort fragt zusätzlich das Gerät `Network change` (`Revert`/`Keep`); erst `Keep` am Gerät und `Confirm` im Browser zusammen behalten die Änderung.
+4. Ohne Bestätigung innerhalb von 120 s oder mit `Revert` kehren die vorherigen Einstellungen zurück.
+
+`Off` aus dem Browser gilt sofort und ohne Bestätigung (über eine neue Verbindung ließe sie sich nicht bestätigen); einschalten lässt sich das WLAN danach nur am Gerät. Passwortfelder sind über einen offenen Access Point gesperrt.
+
+### Fernsteuerung über REST
+
+Programme können dieselben Funktionen über HTTP und JSON nutzen; Beispiel in `tools/rest_example.py`, die Beschreibung aller Aufrufe in `data/www/README.md`.
+
+| Aufruf | Inhalt |
+|---|---|
+| `GET /api/state` | Zustand als JSON (Kanäle, CH3, CONFIG, WLAN, Speichern, `REMOTE`) |
+| `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` oder `{"frequencyText":"7.1M"}` |
+| `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
+| `POST /api/config` | `drive`, `tuning`, `spread`, `offState`, `correction` (0,01 ppm), `step`, `backlight` |
+| `POST /api/save`, `/api/identify` | `{}` |
+| `POST /api/login`, `POST /api/logout` | `{"password":"…"}` bzw. `{}`, Antwort mit Sitzungs-Cookie bzw. abgelaufenem Cookie |
+| `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Netzeinstellungen (Passwörter nur schreibend), Bestätigung, Netzsuche (höchstens alle 10 s) |
+| WebSocket `/ws?t=<Token>` | Zustand bei jeder Änderung |
+
+Jeder `POST` braucht `Content-Type: application/json` und den Kopf `X-CYD-Token` mit dem Token aus der Seite (neu bei jedem Neustart, `GET /api/token`). Fehler kommen wie bei SCPI als `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` 403, zu viele Befehle 429, Gerät beschäftigt 503, nicht angemeldet 401. Grenzen: Anfrage höchstens 1 KB, Adresse 256 Zeichen, 20 Schreibbefehle pro Sekunde.
 
 ## Anhang A: Seitenbilder
 
@@ -1038,7 +1278,7 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | CH3              10.000 000 MHz |  [==o]   |
 | WAIT CH1 / 90° / master off     |          |
 +--------------------------------------------+
-| Saved                          [ CONFIG ]  |
+| Saved   WiFi  REMOTE USB       [ CONFIG ]  |
 +--------------------------------------------+
 ```
 
@@ -1083,7 +1323,7 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | Off state   [ Low         v]             # |
 | Tuning      [ Fractional  v]             | |
 | Spread CH1  [ Off         v]             | |   <- wischen
-| (Corr., Backlight, Touch, Info-Karte)      |
+| (Corr., Backlight, WiFi, Remote out., ...) |
 +--------------------------------------------+
 ```
 

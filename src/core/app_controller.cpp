@@ -14,6 +14,7 @@ AppController::AppController(SettingsService& settings, SI5351Manager& si5351, B
 
 void AppController::begin(const PersistentState& loaded) {
     state_ = loaded;
+    remoteOutputsAllowed_ = settings_.loadRemoteOutputs();
     // Before connectHardware(): begin() writes the off state and turns spread spectrum off;
     // the spread option follows with the first PLL A setup.
     si5351_.setTuningMode(state_.sys.tuning_mode);
@@ -32,6 +33,24 @@ void AppController::update() {
                 "Saving to flash (NVS) failed. Changes will be lost at power off.");
     }
     superviseHardware_();
+    updateIdentify_();
+}
+
+void AppController::identify() {
+    identifying_ = true;
+    identifyStartMs_ = millis();
+    Logger::info("APP", "Identify");
+}
+
+void AppController::updateIdentify_() {
+    if (!identifying_) return;
+    const uint32_t t = millis() - identifyStartMs_;
+    const bool lit = t >= IDENTIFY_MS || (t / IDENTIFY_BLINK_MS) % 2 == 1;
+    if (t >= IDENTIFY_MS) identifying_ = false;
+    if (lit != identifyLit_) {
+        identifyLit_ = lit;
+        backlight_.setPercent(lit ? state_.sys.backlight : 0);
+    }
 }
 
 void AppController::superviseHardware_() {
@@ -169,7 +188,9 @@ const Channel& AppController::channel(uint8_t ch) const {
 const Channel& AppController::channel_(uint8_t ch) const { return (ch == 1) ? state_.ch1 : state_.ch2; }
 
 void AppController::markChanged_(uint16_t keys) {
-    settings_.markDirty(keys, source_ == Source::Remote ? SETTINGS_REMOTE_AUTOSAVE_MS : SETTINGS_AUTOSAVE_MS);
+    // W-E17: touch and web after 5 s of quiet, SCPI (TCP and USB) after 30 s.
+    const bool scpi = source_ == Source::Scpi || source_ == Source::Usb;
+    settings_.markDirty(keys, scpi ? SETTINGS_REMOTE_AUTOSAVE_MS : SETTINGS_AUTOSAVE_MS);
     bump_();
 }
 
@@ -315,6 +336,8 @@ Result AppController::adjustChannelFrequency(uint8_t ch, int64_t delta) {
 
 Result AppController::setChannelEnabled(uint8_t ch, bool en) {
     if (ch < 1 || ch > 3) return Result::Invalid;
+    // W-E25: the network may set everything, but not switch on; switching off stays allowed.
+    if (en && isRemote(source_) && !remoteOutputsAllowed_) return Result::Denied;
     // Output states are not stored (A-4): no autosave, no flash write (audit C-5).
     if (ch == 3) {
         if (state_.ch3.enabled == en) return Result::NoChange;
@@ -428,6 +451,19 @@ void AppController::resetToDefaults() {
     reconfigureOutputs_();
     markChanged_(SettingKey::All & ~SettingKey::Corr);
     Logger::info("APP", "Settings reset to defaults; correction kept");
+}
+
+Result AppController::setRemoteOutputsAllowed(bool allowed) {
+    if (isRemote(source_)) return Result::Denied;
+    if (allowed == remoteOutputsAllowed_) return Result::NoChange;
+    remoteOutputsAllowed_ = allowed;
+    bump_();
+    Logger::info("APP", allowed ? "Remote outputs: allowed" : "Remote outputs: local only");
+    if (!settings_.saveRemoteOutputs(allowed)) {
+        report_(EventCode::SaveFailed, EventCategory::Settings, "Settings",
+                "Saving to flash (NVS) failed. Changes will be lost at power off.");
+    }
+    return Result::Ok;
 }
 
 void AppController::resetForRemote() {

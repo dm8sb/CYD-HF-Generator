@@ -3,6 +3,7 @@
 #include <drivers/status_led.h>
 #include <utils/frequency_utils.h>
 #include <utils/logger.h>
+#include <utils/sanitize.h>
 #include <cstring>
 #include <math.h>
 
@@ -318,6 +319,11 @@ void Gui::navigate(PageId page) {
         case PageId::Config: createConfig_(); break;
         case PageId::Numpad: createNumpad_(channel_); break;
         case PageId::TouchCal: createTouchCal_(); break;
+        case PageId::Wifi: createWifi_(); break;
+        case PageId::WifiScan: createWifiScan_(); break;
+        case PageId::TextEntry: createEntry_(); break;
+        case PageId::WifiAp: createWifiAp_(); break;
+        case PageId::WifiDevice: createWifiDevice_(); break;
     }
     // Dialogs wait while the calibration covers the screen.
     if (page != PageId::TouchCal) openMessage_();
@@ -353,10 +359,44 @@ void Gui::refresh_() {
         case PageId::Config: refreshConfig_(); break;
         case PageId::Numpad:
         case PageId::TouchCal: break;
+        case PageId::Wifi: refreshWifi_(); break;
+        case PageId::WifiScan: refreshWifiScan_(); break;
+        case PageId::TextEntry: refreshEntry_(); break;
+        case PageId::WifiAp: refreshWifiAp_(); break;
+        case PageId::WifiDevice: refreshWifiDevice_(); break;
     }
 }
 
 void Gui::update() {
+    // W-S2: an open fallback AP starts only after the question at the touch was answered.
+    if (wifi_ && wifi_->status().needsOpenConfirmation) {
+        if (!openFallbackAsked_ && currentPage_ != PageId::TouchCal) {
+            openFallbackAsked_ = true;
+            confirm_(Confirm::OpenFallback);
+        }
+    } else {
+        openFallbackAsked_ = false;
+    }
+    // W-S12: a network change from the web without web password is confirmed here as well.
+    if (netConfirmNeeded_ && netConfirmNeeded_()) {
+        if (!netConfirmAsked_ && currentPage_ != PageId::TouchCal) {
+            netConfirmAsked_ = true;
+            confirm_(Confirm::WebNetwork);
+        }
+    } else {
+        netConfirmAsked_ = false;
+    }
+    pollWebPassword_();
+    if (app_->identifying()) {
+        if (!ledIdentify_ || app_->identifyLit() != ledLit_) {
+            ledIdentify_ = true;
+            ledLit_ = app_->identifyLit();
+            StatusLed::showAll(ledLit_);
+        }
+    } else if (ledIdentify_) {
+        ledIdentify_ = false;
+        StatusLed::showPage(currentPage_);
+    }
     if (currentPage_ == PageId::TouchCal) {
         tickTouchCal_();
         return;
@@ -370,9 +410,12 @@ void Gui::update() {
         lastConnections_ = app_->connectionCount();
         if (app_->hardwareReady()) dismissLinkMessages_();
     }
-    // Any change in the controller (also from the supervision, later from remote commands): redraw (V-2).
-    if (app_->revision() != lastRevision_) {
+    // Any change in the controller (also from the supervision and remote commands), the WiFi
+    // state or the REMOTE indicator: redraw (V-2).
+    const uint32_t sig = statusSignature_();
+    if (app_->revision() != lastRevision_ || sig != lastStatusSig_) {
         lastRevision_ = app_->revision();
+        lastStatusSig_ = sig;
         refresh_();
     } else {
         refreshSaveState_(); // MAIN status bar and CONFIG header; no-op on the other pages
@@ -501,6 +544,42 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::NumpadKey:
             handleNumpadKey_(obj);
             return;
+        case Action::WifiMode: {
+            if (!wifi_) break;
+            NetSettings s = wifi_->settings();
+            const WifiMode mode = (WifiMode)lv_dropdown_get_selected(obj);
+            if (mode == s.mode) break;
+            s.mode = mode;
+            if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
+            wifi_->apply(s);
+            break;
+        }
+        case Action::RemoteOutputs:
+            app.setRemoteOutputsAllowed(lv_dropdown_get_selected(obj) == 0);
+            break;
+        case Action::RemoteDisconnect:
+            // Served by the next loop(); the info card shows the new counts then.
+            if (disconnectRemote_) disconnectRemote_();
+            Logger::info("GUI", "Disconnect all remote clients");
+            break;
+        case Action::WifiEdit:
+        case Action::WifiDelete:
+        case Action::WifiRescan:
+        case Action::WifiScanPage:
+        case Action::WifiPick:
+        case Action::WifiOther:
+        case Action::EntryShow:
+        case Action::EntryChanged:
+        case Action::EntryDone:
+        case Action::ApRegenerate:
+        case Action::ApSet:
+        case Action::ApOpenToggle:
+        case Action::DevName:
+        case Action::DevIpMode:
+        case Action::DevIpField:
+        case Action::DevWebPassword:
+            handleWifiAction_(action, arg, obj);
+            return;
     }
     refresh_();
 }
@@ -510,7 +589,7 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
 
 void Gui::onAppEvent(const Event& e, void* gui) {
     // A remote client gets its error itself; the device shows no dialog for it.
-    if (e.source == Source::Remote) return;
+    if (isRemote(e.source)) return;
     static_cast<Gui*>(gui)->showMessage(e.title, e.text, (uint8_t)e.category);
 }
 
@@ -591,6 +670,12 @@ void Gui::confirm_(Confirm what) {
     static const char* offButtons[] = {"Cancel", "High", ""};
     static const char* resetButtons[] = {"Cancel", "Reset", ""};
     static const char* eraseButtons[] = {"Cancel", "Erase", ""};
+    static const char* deleteButtons[] = {"Cancel", "Delete", ""};
+    static const char* useButtons[] = {"Cancel", "Use", ""};
+    static const char* openButtons[] = {"Cancel", "Open", ""};
+    static const char* startButtons[] = {"Cancel", "Start", ""};
+    static const char* keepButtons[] = {"Revert", "Keep", ""};
+    static const char* removeButtons[] = {"Cancel", "Remove", ""};
     const char* title = "Off state High";
     const char* text = "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
                        "Do not use with DC-coupled mixers or inputs.";
@@ -605,6 +690,35 @@ void Gui::confirm_(Confirm what) {
         text = "Erases all stored settings including frequency correction and touch calibration, "
                "then restarts. The touch calibration runs again.";
         buttons = eraseButtons;
+    } else if (what == Confirm::DeleteNetwork) {
+        title = "Delete network";
+        text = wifiSlot_ == 0 ? "Network 1 and its password are deleted." : "Network 2 and its password are deleted.";
+        buttons = deleteButtons;
+    } else if (what == Confirm::OpenNetwork) {
+        title = "Open network";
+        text = "This network has no password: everything sent over it, including the web and SCPI "
+               "traffic, can be read and changed by others nearby.";
+        buttons = useButtons;
+    } else if (what == Confirm::ApOpen) {
+        title = "Open access point";
+        text = "Without a password everyone nearby can connect, read everything and operate the "
+               "generator. It switches off after 15 min without a connected device.";
+        buttons = openButtons;
+    } else if (what == Confirm::OpenFallback) {
+        title = "Open fallback AP";
+        text = "No stored network found. Start the access point without a password? Everyone "
+               "nearby can then connect and operate the generator.";
+        buttons = startButtons;
+    } else if (what == Confirm::WebNetwork) {
+        title = "Network change";
+        text = "The network settings were changed from the web. Keep them? Without Keep here and "
+               "Confirm in the browser, the previous settings return after 120 s.";
+        buttons = keepButtons;
+    } else if (what == Confirm::RemoveWebPassword) {
+        title = "Remove web password";
+        text = "Everyone who can reach the device over the network can then operate it in the "
+               "browser without logging in. Open web sessions end.";
+        buttons = removeButtons;
     }
     pendingConfirm_ = what;
     lv_obj_t* box = lv_msgbox_create(nullptr, title, text, buttons, false);
@@ -624,6 +738,28 @@ void Gui::confirmEventCb_(lv_event_t* e) {
     if (yes && g->pendingConfirm_ == Confirm::ResetDefaults) {
         g->app_->resetToDefaults();
         g->corrStepIdx_ = 1;
+    }
+    if (yes && g->pendingConfirm_ == Confirm::DeleteNetwork && g->wifi_) {
+        NetSettings s = g->wifi_->settings();
+        NetConfig::clearNetwork(s, g->wifiSlot_);
+        if (g->saveNet_ && !g->saveNet_(s)) g->showMessage("WiFi", "Saving the WiFi settings failed.");
+        g->wifi_->apply(s);
+        memset(&s, 0, sizeof(s));
+    }
+    if (yes && g->pendingConfirm_ == Confirm::ApOpen && g->wifi_) {
+        g->storeAp_(g->wifi_->settings().apPassword, true);
+    }
+    if (yes && g->pendingConfirm_ == Confirm::OpenFallback && g->wifi_) g->wifi_->confirmOpenFallback();
+    if (yes && g->pendingConfirm_ == Confirm::RemoveWebPassword) {
+        g->storeWebPassword_("");
+        Logger::info("GUI", "Web password removed");
+        g->requestNavigate_(PageId::WifiDevice);
+    }
+    if (g->pendingConfirm_ == Confirm::WebNetwork && g->netConfirmAnswer_) {
+        g->netConfirmAnswer_(btn && strcmp(btn, "Keep") == 0);
+    }
+    if (yes && g->pendingConfirm_ == Confirm::OpenNetwork && g->storeNetwork_(g->entrySsid_, "")) {
+        g->requestNavigate_(PageId::Wifi);
     }
     if (yes && g->pendingConfirm_ == Confirm::FactoryReset && g->factoryReset_) {
         g->app_->resetToDefaults(); // outputs off before the restart

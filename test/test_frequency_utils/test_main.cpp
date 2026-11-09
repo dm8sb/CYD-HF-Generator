@@ -308,6 +308,24 @@ static void test_remote_parser_accepts() {
     assertRemote("1000000.4 Hz", 1000000ULL);
 }
 
+// S55: the REST API tells "out of range" (-222) from "no frequency" (-224).
+static void test_remote_parser_range_flag() {
+    uint64_t hz = 0;
+    bool oor = true;
+    TEST_ASSERT_TRUE(parseRemoteFrequency("10M", &hz, &oor));
+    TEST_ASSERT_FALSE(oor);
+    TEST_ASSERT_FALSE(parseRemoteFrequency("200 MHz", &hz, &oor));
+    TEST_ASSERT_TRUE(oor);
+    TEST_ASSERT_FALSE(parseRemoteFrequency("7999", &hz, &oor));
+    TEST_ASSERT_TRUE(oor);
+    TEST_ASSERT_FALSE(parseRemoteFrequency("1e7", &hz, &oor));
+    TEST_ASSERT_FALSE(oor);
+    TEST_ASSERT_FALSE(parseRemoteFrequency("abc", &hz, &oor));
+    TEST_ASSERT_FALSE(oor);
+    TEST_ASSERT_FALSE(parseRemoteFrequency(nullptr, &hz, &oor));
+    TEST_ASSERT_FALSE(oor);
+}
+
 static void test_remote_parser_rejects() {
     const char* bad[] = {"", " ", "MHz", "10.7", "1e7", "1E7 Hz", "0x989680", "-10 MHz", "+10 MHz", "nan", "inf",
                          "10..7 MHz", "10.7.1 MHz", "10,7,1 MHz", "10 7 MHz", "7 1000 000", "10.7 GHz", "10.7 MHz x",
@@ -340,6 +358,7 @@ int main() {
     RUN_TEST(test_digit_exponent_on_khz_text);
     RUN_TEST(test_remote_parser_accepts);
     RUN_TEST(test_remote_parser_rejects);
+    RUN_TEST(test_remote_parser_range_flag);
     RUN_TEST(test_digit_exponent_matches_step_digits);
     RUN_TEST(test_decimal_exponent_and_power_of_ten);
     return UNITY_END();

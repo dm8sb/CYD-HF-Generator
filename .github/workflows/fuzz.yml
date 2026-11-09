@@ -1,0 +1,110 @@
+# Fuzzing of the pure parsers (W-S25, test/fuzz/README.md): libFuzzer with ASan/UBSan.
+# Push and pull request: 60 s per target. Manual run (workflow_dispatch): the release run with
+# at least 10 million executions per target; findings and the grown corpus are uploaded.
+# Actions are pinned by commit SHA (W-S24, audit S-20, S-27); the token is read-only.
+name: Fuzz
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "Executions per target (release: at least 10000000, W-S25)"
+        required: true
+        default: "10000000"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}-${{ github.event_name }}
+  # A release run is never cancelled by a later push.
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  libfuzzer:
+    name: libFuzzer ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 360 || 15 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [line_framer, sanitize, scpi, scpi_number, remote_frequency, net_settings, scan_list, request_guard, rest_json]
+    env:
+      CC: clang-18
+      CXX: clang++-18
+      TARGET: ${{ matrix.target }}
+      RUNS: ${{ github.event.inputs.runs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the libFuzzer runtime
+        run: |
+          printf 'extern "C" int LLVMFuzzerTestOneInput(const unsigned char*, unsigned long) { return 0; }\n' > /tmp/probe.cpp
+          if ! "$CXX" -fsanitize=fuzzer,address,undefined /tmp/probe.cpp -o /tmp/probe; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends libclang-rt-18-dev
+          fi
+          "$CXX" --version
+      - name: Build
+        run: test/fuzz/build.sh "$TARGET"
+      - name: Fuzz
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            case "$RUNS" in ''|*[!0-9]*) echo "runs must be a number" >&2; exit 2 ;; esac
+            budget="-runs=$RUNS"
+          else
+            budget="-max_total_time=60"
+          fi
+          dict=""
+          case "$TARGET" in
+            scpi|scpi_number) dict="-dict=test/fuzz/scpi.dict" ;;
+            request_guard|rest_json) dict="-dict=test/fuzz/$TARGET.dict" ;;
+          esac
+          # A writable copy: new inputs go there, the seeds in the repository stay as they are.
+          mkdir -p findings corpus
+          cp -R "test/fuzz/corpus/$TARGET/." corpus/
+          # shellcheck disable=SC2086
+          ".pio/fuzz/fuzz_$TARGET" $budget $dict -max_len=1024 -timeout=10 -rss_limit_mb=2048 \
+            -artifact_prefix=findings/ -print_final_stats=1 corpus/ 2>&1 | tee fuzz.log
+          status=${PIPESTATUS[0]}
+          execs="$(grep -o 'stat::number_of_executed_units: *[0-9]*' fuzz.log | grep -o '[0-9]*$' || true)"
+          echo "$TARGET: ${execs:-?} executions, exit $status" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - name: Upload findings
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: findings-${{ matrix.target }}
+          path: |
+            findings/
+            fuzz.log
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Upload corpus
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: corpus-${{ matrix.target }}
+          path: corpus/
+          retention-days: 30
+
+  # The harnesses also build without libFuzzer in C++11 (MinGW on Windows is GCC 5.1): gcc,
+  # the standalone driver with ASan/UBSan, seed corpus plus 100 000 fixed-seed inputs each.
+  standalone:
+    name: Standalone driver (gcc, C++11)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        run: SANITIZE=1 test/fuzz/build.sh --standalone
+      - name: Run
+        run: |
+          for t in line_framer sanitize scpi scpi_number remote_frequency net_settings scan_list request_guard rest_json; do
+            ".pio/fuzz/fuzz_$t" -runs=100000 -seed=1 "test/fuzz/corpus/$t"
+          done

@@ -21,6 +21,8 @@ This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware
 - [12. Serial Diagnostics](#12-serial-diagnostics)
 - [13. Current Hardware Pinout](#13-current-hardware-pinout)
 - [14. Safety Note](#14-safety-note)
+- [15. Remote Control over USB and Network (SCPI)](#15-remote-control-over-usb-and-network-scpi)
+- [16. Web Interface](#16-web-interface)
 - [Appendix A: Page Sketches](#appendix-a-page-sketches)
 - [Appendix B: Glossary](#appendix-b-glossary)
 - [Appendix C: Symptoms and Remedies](#appendix-c-symptoms-and-remedies)
@@ -100,6 +102,8 @@ Operation on the main page:
 - **The switch on a card** (on the right, separated by a line) turns the output on or off directly, without leaving the page. A tap on the frequency or `MHz` only opens the channel page.
 - The frequencies are right-aligned; decimal point and `MHz` of all cards line up.
 - The status bar at the bottom shows the save state on the left (section 8, `Saved`, `Saving...`, red `Save failed` / `Not saved`) and has the `CONFIG` button (yellow) on the right. The channels open via their cards. With the screen locked it also shows `LOCKED` in an orange field (section 8).
+- Right of the save state is the WiFi state (section 8, `WiFi`): the WiFi symbol green (connected) or gray (searching), `AP` green while the own access point runs, `AP open` orange when it runs without a password; nothing with `Off`.
+- After a remote command `REMOTE USB` (later `REMOTE SCPI`, `REMOTE WEB`) shows for 10 s in a blue field (the CH3 color); `LOCKED` takes precedence.
 - Colored buttons and selected chips have dark text, switched-off switches a light gray track, unselected chips a gray border.
 - Buttons at the screen edge (e.g. `MAIN` top right, `CONFIG` bottom right, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.
 
@@ -487,10 +491,12 @@ The title bar with the save indicator and `MAIN` stays fixed. The area below it 
 | `Spread CH1` | drop-down list `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
 | `Corr.` | value in ppm (tap: entry), step button, `−`, `+` |
 | `Backlight` | `−`, value, `+` |
+| `WiFi` | drop-down `Off`, `Client`, `Access point`; button `Setup` (WIFI page) |
+| `Remote out.` | drop-down `allowed`, `local only` |
 | `Touch` | `Calibrate` button (touch calibration) |
 | `Screen` | `Lock` button (screen lock) |
 | `Reset` | `Defaults` and `Factory` (red) buttons |
-| Info card | Firmware, Build, Display, SI5351 |
+| Info card | Firmware, Build, Display, Touch, SI5351, WiFi, memory |
 
 - The settings that change the signal come first. The frequency step is set with the step buttons of the channel pages (section 5).
 - When the page opens, three rows and the upper half of the fourth are visible. The wide scroll bar on the right is always visible and shows that the list continues.
@@ -627,6 +633,69 @@ Measured: 10 000 097 Hz  ->  +97 Hz at 10 MHz  ->  set +9.70 ppm
 
 The current value is shown between the buttons. Holding a button does not repeat. The 10 % minimum prevents the display from accidentally going completely dark and thus becoming unusable. Values stored by older firmware are rounded to the nearest 10 % step; values below 5 % (e.g. 0 % from firmware 1.0.0) are set to 80 %.
 
+### WiFi
+
+Drop-down `Off` (default), `Client`, `Access point`. The setting is saved and applies at once.
+
+- `Off`: the radio is off (for the cleanest RF).
+- `Client`: the device looks for the stored networks and connects to the strongest. If it finds none for 60 s, it additionally opens its own access point (fallback) and keeps searching; as soon as it is connected, the access point goes off.
+- `Access point`: the device opens its own network `CYD-HF-<4 digits>` with a password.
+
+Networks, passwords and the access point data are set up on the WIFI page (button `Setup` on the right of the row). The status bar and the info card show the state.
+
+### WIFI Page (Setup)
+
+`<` at the top left returns to CONFIG. Below are the two network slots `1` and `2`:
+
+- Network name and below it `Password set`, orange `Open network (no password)` or `Empty`.
+- `Change`: scans the networks around (`Scanning...`, about 3 s) and lists them, strongest first, 4 per page; `<` and `>` turn the pages, `Scan` scans again. On the right are the signal strength and for open networks an orange `open`. Hidden networks do not appear; for them there is `Other...` (enter the name).
+- Tap a network: for a network with a password the keyboard opens. Enter the password (8–63 characters), `Show`/`Hide` shows or hides it, the number of characters is on the right below the field. The check mark (✓) saves, the cross cancels. An open network is taken only after a warning (`Use`).
+- Trash can: deletes the slot after a confirmation.
+
+The keyboard has letters, digits and special characters, but no umlauts, `ß` and `€`. Network names are shown cleaned (control and invalid characters as `?`). A stored password is never shown again.
+
+A line at the bottom shows what the WiFi does: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, green `Connected <network>` with address and `<device name>.local`, red `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <name> active`, `Access point <name> active`, `No network stored. Tap Change.`
+
+After saving, the WiFi restarts with the new data. With both slots used the device connects to the stronger network; if that fails (e.g. wrong password) it tries the other one next time.
+
+The third card `AP  CYD-HF-<4 digits>` shows the own access point (`WPA2` or orange `open`, `active` or `off`); `Show` opens its page. `Device` at the top right opens device name and IP settings.
+
+### Access Point (Page)
+
+- On the left a QR code to connect: point the phone camera at it, the phone connects without typing. On the right name, password (in clear, so it can be typed) and the address `192.168.4.1`.
+- The password (12 characters without look-alikes such as `0`/`O`, `1`/`l`/`I`) is created at random on the first visit of the page or the first start of the access point, and saved.
+- `Regenerate`: new random password; `Set...`: own password (8–63 characters) on the keyboard. A running access point restarts with the new password, connected devices must connect again.
+- `Open...`: access point without password, only after a warning. The password then shows orange `none (open)`, the button reads `Secure` and restores WPA2. An open access point goes off after 15 min without a connected device.
+- At the bottom the state: `Active, 1 connected`, `Off; starts as fallback after 60 s without network` (mode `Client`), `Off. Choose Access point in CONFIG > WiFi.`
+- If the access point is set to open and the device finds no network in `Client` mode, the fallback access point starts only after the question `Open fallback AP` (`Start`).
+
+### Device (Page)
+
+`Device` at the top right of the WIFI page opens the device settings. Every change is saved at once, the WiFi reconnects with the new data.
+
+| Row | Meaning |
+|---|---|
+| `Name` | Device name under which the device is reachable as `<name>.local` (default `cyd-hf-<4 digits>`). Tapping opens the keyboard; allowed are 1–32 characters `a`–`z`, `0`–`9` and `-`, not at the start or end. Otherwise `a-z 0-9 - (1-32)` appears below the field. |
+| `IP` | `DHCP` (address from the router) or `Static` (fixed address) |
+| `Address`, `Mask`, `Gateway`, `DNS` | With `DHCP` in gray the stored fixed values, for empty fields the router's lease (`-` without connection). With `Static` in black the stored values; tapping opens a numeric field (`192.168.1.50`). An empty `DNS` means `= gateway`. |
+| `Web pw.` | Web password for the web interface (section 16): `Set (login needed)` or orange `None (no login)`, the password itself is never shown. Tapping opens the `Web password` keyboard (8–64 characters, otherwise `8-64 characters`); OK saves it, hashing takes about 1.3 s (`Saving...`) while the device stays usable. With a password set, an empty field and OK removes it after the question `Remove web password`. Every change ends all web sessions; the WiFi does not restart. |
+
+When switching to `Static`, empty fields are filled from the current DHCP lease, so usually only `Address` needs changing. An implausible combination is refused, the message `Static IP` gives the reason and the old value stays (when switching, `DHCP` stays):
+
+| Message | Cause |
+|---|---|
+| `The mask must be /1 to /30, e.g. 255.255.255.0.` | Mask not contiguous or /0, /31, /32 |
+| `Address and gateway must be set.` | Address or gateway missing |
+| `The address equals the gateway.` | Address = gateway |
+| `The gateway is not in the subnet of the address.` | Gateway in another network |
+| `Address or gateway is the network address.` / `... broadcast address.` | Network or broadcast address of the subnet |
+
+A wrong but plausible static address (e.g. already in use) makes the device unreachable on the network; then choose `DHCP` again on the device.
+
+### Remote out. (Switching Outputs Remotely)
+
+Drop-down `allowed` (default) and `local only`. With `local only` remote control (SCPI, later web) may set everything and switch outputs off, but **not on** (section 15). The setting can only be changed here at the device, is saved at once and kept by `Defaults` and `*RST`; `Factory` resets it to `allowed`.
+
 ### Touch (Touch Calibration)
 
 The calibration adapts the touch detection to the board: with fixed values, hits were up to 19 px off depending on the board, and the corner at the right edge could not be reached.
@@ -658,7 +727,7 @@ It starts automatically as long as no calibration is stored (first start, after 
 | Button | Effect |
 |---|---|
 | `Defaults` | After confirmation (`Reset`) all factory settings apply (quick start), including the frequencies, CH3 master and phase and the step; all outputs switch off. **Frequency correction and touch calibration stay.** Saved after 5 s like any change. |
-| `Factory` (red) | After confirmation (`Erase`) the device erases all stored settings including frequency correction and touch calibration and restarts. Then the touch calibration appears as at the first start. |
+| `Factory` (red) | After confirmation (`Erase`) the device erases all stored settings including frequency correction, touch calibration, `Remote outputs` and the WiFi settings (also those of the WiFi driver) and restarts. Then the touch calibration appears as at the first start. |
 
 `Cancel` leaves everything unchanged.
 
@@ -672,6 +741,8 @@ Build 2026-11-05 15:00
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
+WiFi Lab 192.168.1.50 -60 dBm
+Heap 241/215 KB, block 108 KB, LVGL 30 KB
 ```
 
 | Line | Content |
@@ -681,6 +752,9 @@ SI5351 SDA 22 SCL 27
 | `Display` | Display controller (`ILI9341` or `ST7789`) and source: `detected` (detected automatically), `default` (nothing detected, ILI9341 assumed), `build flag` (set at build time) |
 | `Touch` | `Touch calibrated x … y …`: stored calibration with the raw values of the screen edges; `Touch not calibrated (default)`: fixed values |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
+| `WiFi` | `WiFi off`; connected: network, address, signal strength; `WiFi searching (<device name>)`; access point: `AP` or `Fallback AP`, name, address, number of connected devices (orange without password). Foreign network names are cleaned (control and invalid characters as `?`, at most 32 bytes) |
+| `Remote` | `web <n>` open browser pages, `SCPI <address>` or `-` the SCPI TCP client. Below it the button `Disconnect all`: closes all browser connections, ends the web sessions and the SCPI TCP connection. Without a web password a browser reconnects within seconds. |
+| `Heap` | free memory and its minimum since boot, largest contiguous block, free memory of the user interface (LVGL), each in KB |
 
 ---
 
@@ -717,6 +791,8 @@ If the three new options are missing from storage (settings from firmware 1.2.0)
 The display controller is not stored but detected at every startup (section 13).
 
 The touch calibration is stored per board; an implausible stored value is not used (the calibration then starts again).
+
+Settings changed over SCPI are saved only after 30 s without a further change, `SYST:SAVE` at once; `*RST` saves nothing (section 15).
 
 The ON/OFF state of the outputs is not saved; all outputs are off after power-up. Switching outputs on or off therefore does not trigger saving, nor does a setting that already has the selected value. This spares the flash memory.
 
@@ -953,13 +1029,35 @@ Important messages:
 | `[SETTINGS] Saved to NVS` | Autosave |
 | `[APP] Restoring outputs` | After reconnecting, the outputs are being restored |
 | `[APP] Output error cleared` | An output error (`! ERR`) has been cleared |
+| `[SCPI] USB session started; log in SYSTem:LOG?` | First SCPI line over USB: further log lines only go into the buffer (section 15); this line is already in the buffer |
+| `[SCPI] USB session ended (idle); log on serial again` | 10 min without an SCPI line: the log runs over USB again |
+| `[SCPI] TCP server on port: 5025`, `[SCPI] TCP server stopped` | SCPI over TCP on (WiFi connected or AP with password) or off |
+| `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP connection; when closed with the reason: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Commands are never logged |
+| `[WEB] Server on port: 80` | Web interface ready (WiFi connected or access point) |
+| `[WEB] Login`, `[WEB] Login failed` | Login with the web password right or wrong (the password is never logged) (`[WEB] Logout`: logged out) |
+| `[GUI] Web password set` / `removed`, `[GUI] Disconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web password on the Device page; `Disconnect all` on the info card |
+| `[WEB] Server stopped (WiFi off)` | WiFi `Off`: the web server accepts nothing more, open pages are disconnected |
+| `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Network change from the browser (section 16) |
+| `[WEB] WebSocket closed: no pong`, `[WEB] No memory for the web server`, `[WEB] Saving the network settings failed` | Browser no longer answers; too little memory; saving failed |
+| `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
+| `[APP] Identify` | `SYST:IDEN`: backlight and LED blink for 5 s |
+| `[WIFI] Mode Off, name cyd-hf-1a2b` | WiFi mode at boot or after a change and the device name; default `Off` (radio off) |
+| `[WIFI] Seen <network>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Scan result for the stored networks |
+| `[WIFI] Connecting to <network>`, `[WIFI] Connected to <network>, 192.168.1.50, RSSI -60 dBm` | Connecting and connected with an address |
+| `[WIFI] Network not reached (reason 201)` | No connection after 15 s; reason from the WiFi driver (201 = network not found, 2/15/202 = login or password refused) |
+| `[WIFI] Connection lost; searching` | Connection lost, the search goes on |
+| `[WIFI] Fallback AP CYD-HF-1A2B WPA2` | 60 s without connection: own access point as fallback; the search goes on |
+| `[WIFI] AP off (client has an address)` | Connected: the access point goes off at once |
+| `[WIFI] AP password created` | First start of the access point: random password created and saved |
+| `[WIFI] Scan started`, `[WIFI] Scan: 12 networks` | Scan of the WIFI page |
+| `[GUI] WiFi network stored` | Network stored on the WIFI page (no password in the log) |
+| `[GUI] AP stored: WPA2` / `AP stored: open`, `[WIFI] AP off` | Access point password or "open" saved; a running access point restarts |
 
 Error messages start with `[ERROR]`, e.g.:
 
 | Message | Meaning |
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Supervision: the SI5351 does not respond or has lost its configuration |
-| `[E][Wire.cpp:499] requestFrom(): i2cWriteReadNonStop returned Error -1` | Message of the Arduino core about a failed I2C transfer, usually right before `Device lost or reset`; harmless on its own |
 | `[E][esp32-hal-i2c-ng.c:372] i2cWriteReadNonStop(): i2c_master_transmit_receive failed: [259] ESP_ERR_INVALID_STATE`, then `[E][Wire.cpp:532] requestFrom(): i2cWriteReadNonStop returned Error 259` | The same message in firmware built with Arduino core 3.x |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Unusual register 183, e.g. a clone; the module is used anyway |
 | `[ERROR][APP] I2C fails at 400 kHz; staying at 100 kHz` | The bus only works at 100 kHz (e.g. weak pull-ups) |
@@ -1016,10 +1114,152 @@ The SI5351 outputs deliver digital square-wave signals. Before connecting them t
 
 For operation:
 
-- **Physical access is full access:** anyone who can operate the device or reflash it via USB can change all settings and outputs; there is no lock and no password.
+- **Physical access is full access:** anyone who can operate the device or reflash it via USB can change all settings and outputs; there is no lock and no password. This includes SCPI over USB (section 15): any program on the connected PC can switch outputs on.
 - **Foreign device at 0x60:** if another device answers at I2C address 0x60, the firmware reads its identification and writes at most one test byte into its register 3 before it recognizes it as "not an SI5351" (section 11). Do not connect other devices with this address to CN1.
 
 ---
+
+## 15. Remote Control over USB and Network (SCPI)
+
+The generator understands SCPI commands over the same USB connection that also carries the log. Every change appears on the display at once; touch and SCPI have equal rights, the last change wins.
+
+### Connection
+
+- 115 200 baud, 8N1; every line ends with LF (`\n`), a CR before it is ignored. Answers end with LF.
+- Open the port with **DTR and RTS off**. Otherwise the board's auto-reset circuit restarts it when the port is opened.
+- The first line received starts an **SCPI session**: from then on the device writes no log lines to USB, so they do not mix with answers. They go into a buffer (32 lines, the oldest drop out) and can be read with `SYST:LOG?`. After 10 minutes without a line the session ends and the log runs over USB again (`[SCPI] USB session ended (idle); log on serial again`).
+- A line has at most 256 characters and at most 16 commands separated by `;`. Only printable ASCII characters and TAB are allowed. A line that breaks these rules is discarded completely: error −363 (too long), −101 (invalid character) or −223 (too many commands).
+- At most 20 setting commands per second; every further one is refused with `-200,"Execution error;Too many commands"`.
+
+### Connection over the Network (TCP)
+
+- With WiFi (mode `Client` connected, or the own access point with password) the device also takes SCPI over TCP: port **5025**, address from the status line of the WIFI page or `<device name>.local`; announced by mDNS as `_scpi-raw._tcp`. PyVISA: `TCPIP0::<address>::5025::SOCKET` with `read_termination` and `write_termination` `\n`.
+- Lines, commands, limits and errors as over USB; the TCP connection has its own error queue, which starts empty with every new connection (`*ESE` and `*SRE` 0 as well). The status bar shows `REMOTE SCPI`.
+- **One connection** at a time; a second one is closed at once without an answer. After 10 min without a line the device closes the connection; a peer that disappears is noticed after about 90 s (keepalive).
+- If a line starts like an HTTP request (e.g. a browser on `http://<address>:5025/`), the device closes the connection without executing this or any later line.
+- If the peer does not read the answers, the device stops reading too and closes the connection when the buffer is full.
+- Over an open access point (without password) SCPI over TCP is blocked.
+
+### Commands
+
+Short form in capitals, any case (`FREQ`, `freq`, `FREQuency`). `<n>` is the channel 1–3, 1 if omitted. `[ ]` is optional. Queries end with `?`.
+
+| Command | Query answer | Meaning |
+|---|---|---|
+| `*IDN?` | `CYD,HF-Generator,<MAC>,<version>` | Identification |
+| `*RST` | – | All outputs off, defaults in RAM (correction kept), **not saved** until `SYST:SAVE` or the next change (then only its value) |
+| `*CLS`, `*ESE`, `*ESE?`, `*ESR?`, `*SRE`, `*SRE?`, `*STB?`, `*OPC`, `*OPC?`, `*WAI` | | Status registers per IEEE 488.2; commands run at once, `*OPC?` answers `1` |
+| `*TST?` | `0` / `1` | `1`: no SI5351 connected |
+| `OUTPut<n>[:STATe] ON\|OFF\|1\|0` | `1` / `0` | Output on/off (CH3: request like the switch) |
+| `OUTPut<n>:CONDition?` | `ON`, `OFF`, `ERR`, `WAIT`, `NOHW` | Actual state as shown (`WAIT`: CH3 waits, `NOHW`: no SI5351) |
+| `[SOURce<n>:]FREQuency[:CW] <f>` | Hz | Frequency CH1/CH2; CH3 query only (frequency of its master) |
+| `[SOURce<n>:]FREQuency:ACTual?` | Hz with 0.1 Hz | Actual frequency like the `Out` line |
+| `SOURce3:IQ:MASTer 1\|2` | `1` / `2` | Master of CH3 |
+| `SOURce3:PHASe 0\|90\|180\|270` | degrees | Phase of CH3 |
+| `SOURce3:IQ:RANGe?` | `<min>,<max>` in Hz | IQ range of the master (narrower with spread spectrum) |
+| `OUTPut:DRIVe 2\|4\|6\|8` | mA | `Drive all` |
+| `OUTPut:OFFState LOW\|HIGH\|HIZ` | | `Off state` |
+| `OUTPut:REMote?` | `ALLOWED` / `LOCAL` | `Remote outputs` (read only, see below) |
+| `[SOURce1:]SSC OFF\|DOWN05\|DOWN15\|CENT05` | | `Spread CH1` |
+| `SYSTem:TUNing FRACtional\|LNOise\|INTeger` | `FRAC`, `LNO`, `INT` | `Tuning` |
+| `SYSTem:CORRection <ppm>` | ppm with 2 places | Frequency correction, ±50 ppm, rounded to 0.01 ppm |
+| `SYSTem:STEP <Hz>` | Hz | Frequency step (1 Hz … 1 MHz, powers of ten) |
+| `SYSTem:BACKlight <%>` | % | Brightness (10–100 %) |
+| `SYSTem:SI5351?` | `CONN`, `NFO`, `BLOC`, `UNKN` | Connection: connected, not found, line held low, foreign device |
+| `SYSTem:HEAP?` | `<free>,<minimum>,<largest block>` | Memory in bytes |
+| `SYSTem:IDENtify` | – | Backlight and RGB LED blink for 5 s |
+| `SYSTem:LOG?` | `"<line>"` | Oldest buffered log line, `""` when none is left |
+| `SYSTem:SAVE` | – | Save all settings at once |
+| `SYSTem:ERRor[:NEXT]?`, `SYSTem:ERRor:COUNt?` | `<code>,"<text>"` | Error queue (16 entries), `0,"No error"` when empty |
+| `SYSTem:VERSion?` | `1999.0` | SCPI version |
+
+Numbers: whole Hz (`7100000`), a decimal number with or without the unit `HZ`, `KHZ`, `MHZ` (`7.1 MHZ`, `455khz`) or with an exponent (`7.1E6`); rounded to 1 Hz. `MIN`, `MAX` and `DEF` set the limit or the default. Nothing is clipped: values out of range give −222, `NAN`, `INF`, hex numbers, unknown units and values not allowed −224, strings −104. Invalid characters, e.g. two values without a comma (`FREQ 7MHZ 8MHZ`) or `0x10`, give −101 once for that command; commands after the next `;` still run. A refused command changes nothing.
+
+Several commands in one line: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` starts again at the root); queries answer in one line separated by `;`: `FREQ?;:OUTP1?` → `7100000;1`.
+
+### Saving, Defaults and Errors
+
+- Settings changed over SCPI are saved after 30 s without a further change (at the touch screen after 5 s). `SYST:SAVE` saves at once.
+- Errors caused by an SCPI command (e.g. output errors) open no dialog on the display; they are in the error queue (`-240,"Hardware error;SI5351"`) and in the log.
+- `Remote outputs`: with the option at `local only` the device refuses `OUTP<n> ON` with `-221,"Settings conflict;Remote outputs: local only"`; switching off stays allowed. The option can only be changed at the device (CONFIG row `Remote out.`).
+
+### Example (Python with pyserial)
+
+```python
+import serial
+
+gen = serial.Serial()
+gen.port = "COM5"          # Linux: /dev/ttyUSB0
+gen.baudrate = 115200
+gen.timeout = 2
+gen.dtr = False            # before open(): no restart when opening
+gen.rts = False
+gen.open()
+
+def query(cmd):
+    gen.write((cmd + "\n").encode())
+    return gen.readline().decode().strip()
+
+print(query("*IDN?"))
+gen.write(b"FREQ 7.1 MHZ\n")
+gen.write(b"OUTP1 ON\n")
+print(query("FREQ:ACT?"))
+print(query("SYST:ERR?"))
+```
+
+More scripts are in the `tools/` folder (instructions in `tools/README.md`):
+
+- `scpi_example.py`: the same over USB (`--usb COM5`), TCP (`--tcp <address>`, from S54 on) or PyVISA (`--visa <resource>`).
+- `device_check.py`: checks the SCPI command set on the device (round trips, refusals with error code, line length, rate limit, response time) and prints `PASS`/`FAIL`/`SKIP` per check. At the end it restores the changed settings, switches the outputs off and saves nothing; it switches outputs on only with `--outputs`. `fake_scpi_device.py` is a stand-in device for trials without hardware.
+- `rest_example.py`: example for the REST interface (follows with the web interface).
+
+---
+
+## 16. Web Interface
+
+With WiFi (section 8, WIFI page) the generator can also be operated in a browser: `http://<device name>.local/` or the address from the status line of the WIFI page; in the own access point `http://192.168.4.1/` (a phone usually opens the page by itself when connecting). The page is stored in the device, no internet connection is needed. No HTTPS: use it only in a trusted network or in the own access point with password.
+
+### Operation
+
+- At the top name, version and connection (`Live`, `Polling`, `Offline`), save state, `REMOTE <source>`, `Identify`, `Save`, `?` (help) and the links MAIN/CH1/CH2/CH3/CONFIG/WiFi; this header stays in place while scrolling, on phones as well. Below the areas MAIN, CH1, CH2, CH3 IQ, CONFIG and WiFi as on the device. On a phone the areas are stacked, the on/off switches of the channels stay at the bottom edge.
+- Frequencies: tapping or clicking a digit selects the step, the mouse wheel over a digit changes it, the unit opens an input field (`10.7M`, `455k`, `7 100 000`, `10,7 MHz`; an error stays next to the field).
+- Keyboard: `↑`/`↓` (also `+`/`−`) frequency by the step, `←`/`→` step larger/smaller, `PgUp`/`PgDn` frequency × 10 / ÷ 10, `1`/`2`/`3` channel, `F` or `Enter` input field, `O` output on/off, `?` help.
+- Changes at the device or over SCPI appear after about 1 s and are highlighted briefly; a field with focus is not overwritten. Without connection everything is gray.
+- After a change from the browser the device status bar shows `REMOTE WEB` for 10 s. `Remote out.` `local only` (section 8) applies here too: switching on is refused.
+- At most 3 browsers at a time; a fourth sees `Too many clients (max. 3)`.
+- Only at the device: defaults and factory reset, touch calibration, screen lock, new access point password, web password (WIFI → `Device`, row `Web pw.`).
+
+### Web Password
+
+If a web password is set, the page asks for it before the first change (reading works without). The login takes about 1.5 s and lasts 12 h. After 5 wrong attempts the login is locked for 30 s, every further lock lasts twice as long (up to 16 min). `Log out` in the header (only with a web password and a login) ends the login; the next change asks for the password again. The web password is set at the device on the Device page (section 8); without a web password everyone in the network can operate the device.
+
+### Network Settings from the Browser
+
+Mode, device name, networks, static IP and access point can also be changed in the browser. So that nobody locks themselves out, a change only stays after a confirmation:
+
+1. After `Apply` the WiFi restarts with the new data. The page shows `Confirm within 120 s`.
+2. Open the page at the new address and press `Confirm` there.
+3. Without a web password the device asks `Network change` (`Revert`/`Keep`) as well; only `Keep` at the device and `Confirm` in the browser together keep the change.
+4. Without confirmation within 120 s or with `Revert` the previous settings return.
+
+`Off` from the browser applies at once and without confirmation (it could not be confirmed over a new connection); the WiFi can then only be switched on at the device. Password fields are blocked over an open access point.
+
+### Remote Control over REST
+
+Programs can use the same functions over HTTP and JSON; example in `tools/rest_example.py`, the description of all calls in `data/www/README.md`.
+
+| Call | Content |
+|---|---|
+| `GET /api/state` | State as JSON (channels, CH3, CONFIG, WiFi, saving, `REMOTE`) |
+| `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` or `{"frequencyText":"7.1M"}` |
+| `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
+| `POST /api/config` | `drive`, `tuning`, `spread`, `offState`, `correction` (0.01 ppm), `step`, `backlight` |
+| `POST /api/save`, `/api/identify` | `{}` |
+| `POST /api/login`, `POST /api/logout` | `{"password":"…"}` or `{}`, answer with a session cookie or an expired cookie |
+| `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Network settings (passwords write-only), confirmation, network scan (at most every 10 s) |
+| WebSocket `/ws?t=<token>` | State on every change |
+
+Every `POST` needs `Content-Type: application/json` and the header `X-CYD-Token` with the token from the page (new with every restart, `GET /api/token`). Errors come as with SCPI as `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` 403, too many commands 429, device busy 503, not logged in 401. Limits: request at most 1 KB, address 256 characters, 20 setting commands per second.
 
 ## Appendix A: Page Sketches
 
@@ -1038,7 +1278,7 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | CH3              10.000 000 MHz |  [==o]   |
 | WAIT CH1 / 90° / master off     |          |
 +--------------------------------------------+
-| Saved                          [ CONFIG ]  |
+| Saved   WiFi  REMOTE USB       [ CONFIG ]  |
 +--------------------------------------------+
 ```
 
@@ -1083,7 +1323,7 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | Off state   [ Low         v]             # |
 | Tuning      [ Fractional  v]             | |
 | Spread CH1  [ Off         v]             | |   <- swipe
-| (Corr., Backlight, Touch, info card)       |
+| (Corr., Backlight, WiFi, Remote out., ...) |
 +--------------------------------------------+
 ```
 

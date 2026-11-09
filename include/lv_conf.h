@@ -5,6 +5,10 @@
 #define LV_COLOR_16_SWAP 0
 #define LV_MEM_CUSTOM 0
 #define LV_MEM_SIZE (48U * 1024U)
+// The pool is taken from the heap in lv_init() instead of a static array: with the WiFi stack
+// the static DRAM segment (dram0_0_seg) is full (S53b); the heap has about 245 KB free.
+#define LV_MEM_POOL_INCLUDE <stdlib.h>
+#define LV_MEM_POOL_ALLOC malloc
 #define LV_TICK_CUSTOM 1
 #define LV_TICK_CUSTOM_INCLUDE "Arduino.h"
 #define LV_TICK_CUSTOM_SYS_TIME_EXPR (millis())
@@ -48,11 +52,12 @@
 #define LV_USE_DROPDOWN 1
 #define LV_USE_MSGBOX 1
 #define LV_USE_TEXTAREA 1
+#define LV_USE_KEYBOARD 1 /* WIFI text entry (S53b) */
 #define LV_USE_BAR 0
 
 /* Unused widgets (LVGL enables them by default) */
 #define LV_USE_ARC 0
-#define LV_USE_CANVAS 0
+#define LV_USE_CANVAS 1 /* needed by the QR code */
 #define LV_USE_CHECKBOX 0
 #define LV_USE_ROLLER 0
 #define LV_USE_TABLE 0
@@ -61,7 +66,6 @@
 #define LV_USE_CHART 0
 #define LV_USE_COLORWHEEL 0
 #define LV_USE_IMGBTN 0
-#define LV_USE_KEYBOARD 0
 #define LV_USE_LED 0
 #define LV_USE_LIST 0
 #define LV_USE_MENU 0
@@ -72,5 +76,8 @@
 #define LV_USE_TABVIEW 0
 #define LV_USE_TILEVIEW 0
 #define LV_USE_WIN 0
+
+/* QR code of the access point page (S53c) */
+#define LV_USE_QRCODE 1
 
 #endif

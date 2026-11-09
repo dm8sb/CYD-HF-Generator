@@ -21,7 +21,8 @@ enum class CommandType : uint8_t {
     Spread,          // value Spread
     OffState,        // value OffState
     ResetRemote,     // *RST
-    SaveNow          // SYSTem:SAVE
+    SaveNow,         // SYSTem:SAVE
+    Identify         // SYSTem:IDENtify
 };
 
 struct Command {
@@ -34,32 +35,62 @@ struct Command {
 // Runs one command with its source set on the controller (events carry it), then back to Touch.
 Result execute(AppController& app, const Command& c);
 
+enum class PushResult : uint8_t {
+    Queued,
+    Full,       // CAPACITY commands waiting (the server answers "busy")
+    RateLimited // more than REMOTE_WRITES_PER_S from this source (W-S11)
+};
+
 // Bounded queue for network tasks; thread-safe on the ESP32 (mutex), never blocks the caller.
 class CommandQueue {
 public:
     static constexpr uint8_t CAPACITY = 16;
-    // false if full (the server answers "busy"); *ticket identifies the result.
-    bool push(const Command& c, uint32_t* ticket = nullptr);
+    // *ticket identifies the result when Queued.
+    PushResult push(const Command& c, uint32_t* ticket = nullptr);
+    // A REST body (S55): n commands of one source, queued together or not at all (capacity and
+    // n rate tokens); executed in order, and after the first refused one the rest is skipped
+    // with that result ("stops at the first error", RestJson). *firstTicket is the ticket of
+    // list[0], the others follow consecutively.
+    PushResult pushBatch(const Command* list, uint8_t n, uint32_t* firstTicket = nullptr);
     // In loop(): executes every queued command; returns how many.
     uint8_t drain(AppController& app);
     // Result of an executed command (the last CAPACITY results are kept).
     bool result(uint32_t ticket, Result* out) const;
+    // In loop() after the StateSnapshot was published (S55): every command executed so far is
+    // now visible in the snapshot. visible() lets a waiting network task answer with a state
+    // that already holds its command.
+    void markVisible();
+    bool visible(uint32_t ticket) const;
 
 private:
     struct Entry {
         Command cmd;
         uint32_t ticket;
+        bool chained; // not the first command of a batch: skipped if the one before failed
     };
     struct Done {
         uint32_t ticket;
         Result result;
     };
+    // Token bucket per source (index = Source): REMOTE_WRITES_PER_S tokens, one back every
+    // 1000 / REMOTE_WRITES_PER_S ms.
+    struct Bucket {
+        uint8_t tokens;
+        uint32_t lastMs;
+        bool started;
+    };
+    bool take_(Source s, uint8_t n);
+    Bucket buckets_[5] {};
     Entry queue_[CAPACITY] {};
     Done done_[CAPACITY] {};
     uint8_t head_ = 0;
     uint8_t count_ = 0;
     uint8_t doneNext_ = 0;
     uint32_t nextTicket_ = 1;
+    uint32_t lastDone_ = 0;  // ticket of the last executed command
+    uint32_t visible_ = 0;   // ... of the last one in the published snapshot
+    bool lastFailed_ = false;
+    Result lastResult_ = Result::Ok;
 };
 
 // What remote readers see: state, status and actual frequencies at one revision.
@@ -69,7 +100,16 @@ struct Snapshot {
     Ch3Status ch3Status;
     double actualHz[3];
     bool hardwareReady;
+    LinkState link;
+    uint64_t iqMinHz;
+    uint64_t iqMaxHz;
+    bool remoteOutputsAllowed;
     uint32_t revision;
+    // Save state and REMOTE indicator for the web state (S55a); not counted by the revision,
+    // so they are only as fresh as the last publish().
+    SaveState saveState;
+    Source lastRemote; // Source::Touch while no remote command came
+    uint32_t lastRemoteMs;
 };
 
 // Seqlock: the loop() task publishes (odd sequence while writing), readers retry on a change,

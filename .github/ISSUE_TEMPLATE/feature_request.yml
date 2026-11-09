@@ -1,0 +1,58 @@
+name: Feature request
+description: Suggest an improvement or a new function.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the [user manual](https://github.com/dm8sb/CYD-HF-Generator/blob/main/USER_MANUAL_EN.md) and the open issues first. The project is a square-wave generator for HF mixer experiments and amateur radio training: low spurs, phase noise and an accurate IQ output matter more than feature count.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What do you want to do, and what is missing or awkward today?
+      placeholder: "When tuning a receiver I need ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should it work on the device (page, control, message) or over SCPI?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds or other approaches you have thought about.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - User interface (display, touch)
+        - SI5351 outputs and tuning
+        - CH3 IQ follower
+        - WiFi or web interface
+        - SCPI remote control
+        - Hardware or documentation
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Measurements, references, sketches or photos.
+    validations:
+      required: false

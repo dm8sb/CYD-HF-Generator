@@ -12,7 +12,9 @@
 enum class EventCategory : uint8_t { Link = 1, Output = 2, Settings = 3 };
 enum class EventCode : uint8_t { LinkLost, LinkNotFound, LinkBlocked, LinkUnknownDevice, OutputSetupFailed, IqSetupFailed, SaveFailed };
 // Where the command came from that led to the event; Internal = supervision, autosave.
-enum class Source : uint8_t { Touch, Remote, Internal };
+// Web: browser and REST; Scpi: SCPI over TCP; Usb: SCPI over the USB serial port.
+enum class Source : uint8_t { Touch, Web, Scpi, Usb, Internal };
+inline bool isRemote(Source s) { return s == Source::Web || s == Source::Scpi || s == Source::Usb; }
 struct Event {
     EventCode code;
     EventCategory category;
@@ -42,13 +44,24 @@ public:
     // Up to MAX_LISTENERS receivers; false if full.
     static constexpr uint8_t MAX_LISTENERS = 3;
     bool addListener(EventListener fn, void* ctx);
-    // Source of the following commands (Touch by default; remote servers set Remote).
-    void setSource(Source s) { source_ = s; }
+    // Source of the following commands (Touch by default; remote servers set theirs).
+    void setSource(Source s) {
+        source_ = s;
+        if (isRemote(s)) {
+            lastRemote_ = s;
+            lastRemoteMs_ = millis();
+        }
+    }
+    // Last remote source and when it sent a command (status bar REMOTE <source>, W-E14);
+    // Source::Touch while none did.
+    Source lastRemote() const { return lastRemote_; }
+    uint32_t lastRemoteMs() const { return lastRemoteMs_; }
 
     // Setters return a Result (V-1): set* reject values outside their range or set, adjust* and
     // stepBacklight() clamp. ch: 1/2 for frequencies, 1..3 for outputs.
     Result setChannelFrequency(uint8_t ch, uint64_t freq);
     Result adjustChannelFrequency(uint8_t ch, int64_t delta);
+    // A remote source may not switch an output on while remote outputs are local only (Denied).
     Result setChannelEnabled(uint8_t ch, bool en);
     Result setCH3Master(uint8_t master);
     Result setCH3Phase(uint16_t phase);
@@ -67,6 +80,15 @@ public:
     // *RST (W-E19): outputs off, defaults in RAM (correction kept), pending changes dropped;
     // nothing is saved until saveNow(), a later change saves only its own key.
     void resetForRemote();
+    // CONFIG "Remote outputs" (W-E25): allowed (default) or local only. Only the touch source
+    // may change it (remote: Denied); saved at once, kept by resetToDefaults() and *RST.
+    bool remoteOutputsAllowed() const { return remoteOutputsAllowed_; }
+    Result setRemoteOutputsAllowed(bool allowed);
+    // SYSTem:IDENtify (W-E28): backlight and LED blink for IDENTIFY_MS; a new call restarts it.
+    void identify();
+    bool identifying() const { return identifying_; }
+    // Blink phase while identifying: true = lit.
+    bool identifyLit() const { return identifyLit_; }
     // SYSTem:SAVE: writes every key at once.
     bool saveNow() { return settings_.saveNow(state_); }
     // CONFIG options; each reconfigures the outputs as needed. Spread is ignored (stays Off)
@@ -145,6 +167,13 @@ private:
     };
     Listener listeners_[MAX_LISTENERS] {};
     Source source_ = Source::Touch;
+    Source lastRemote_ = Source::Touch;
+    uint32_t lastRemoteMs_ = 0;
+    bool remoteOutputsAllowed_ = true;
+    void updateIdentify_();
+    bool identifying_ = false;
+    bool identifyLit_ = true;
+    uint32_t identifyStartMs_ = 0;
     uint32_t lastHwCheckMs_ = 0;
     uint32_t revision_ = 0;
     LinkState link_ = LinkState::NotFound;

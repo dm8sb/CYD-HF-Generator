@@ -11,6 +11,20 @@
 #include <services/settings.h>
 #include <core/app_controller.h>
 #include <remote/command.h>
+#include <remote/scpi.h>
+#include <remote/scpi_usb.h>
+#include <remote/scpi_tcp_server.h>
+#include <new>
+#include <net/net_settings.h>
+#include <net/wifi_manager.h>
+#include <net/web_server.h>
+#include <net/web_password_worker.h>
+#include <esp_random.h>
+// Test build with WiFi credentials from a local file that is never committed (.gitignore):
+// build with -DTEST_WIFI=1 and include/test_wifi_local.h defining TEST_WIFI_SSID/TEST_WIFI_PASS.
+#if defined(TEST_WIFI) && TEST_WIFI && __has_include(<test_wifi_local.h>)
+#include <test_wifi_local.h>
+#endif
 #include <gui/gui.h>
 #include <utils/build_info.h>
 #include <utils/logger.h>
@@ -27,13 +41,82 @@ static PersistentState loadedState;
 // Remote commands and the state copy for network tasks (V-6); filled from S50 on.
 static CommandQueue commands;
 static StateSnapshot snapshot;
+// WiFi (S52b): settings in NVS "hfnet", the manager runs in loop().
+static Storage netStorage;
+static NetSettings netSettings;
+static WifiManager wifi;
+static bool saveNetSettings(const NetSettings& s) { return NetConfig::save(netStorage, s); }
 static uint32_t publishedRevision = 0xFFFFFFFF;
+// The snapshot is also published when only the save state or the REMOTE time changed (S55a):
+// neither counts in the revision, and the web state shows both.
+static SaveState publishedSave = SaveState::Saved;
+static uint32_t publishedRemoteMs = 0;
+// Web server (S55) on the heap (E-31); it starts when WiFi first comes up.
+static WebHmiServer* web = nullptr;
+static bool webConfirmNeeded() { return web && web->touchConfirmNeeded(); }
+static void webConfirmAnswer(bool keep) {
+    if (web) web->touchConfirm(keep);
+}
+
+// SCPI over USB (S51): runs in loop(), commands through the queue.
+static void heapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) {
+    *freeBytes = ESP.getFreeHeap();
+    *minFree = ESP.getMinFreeHeap();
+    *largest = ESP.getMaxAllocHeap();
+}
+static void coreDebugOutput(bool enabled) { Serial.setDebugOutput(enabled); }
+static void serialWrite(const char* data, size_t len, void*) { Serial.write((const uint8_t*)data, len); }
+// One backend for both links: it holds no session state, the source comes from the session.
+static LoopScpiBackend loopBackend(commands, app, snapshot, heapInfo);
+static ScpiSession usbSession(loopBackend, Source::Usb);
+static ScpiUsbLink usbLink(usbSession, coreDebugOutput);
+// SCPI over TCP 5025 (S54): also in loop(), own session and error queue; on the heap (E-31).
+static ScpiTcpServer* scpiTcp = nullptr;
+// Web password typed at the device (S55b): hashed by a worker task, salt from the true RNG.
+static WebPasswordWorker* webPassword = nullptr;
+static bool startWebPassword(const char* password, size_t len) {
+    if (!webPassword) return false;
+    uint8_t salt[WebPassword::SALT_LEN];
+    wifi.randomBytes(salt, sizeof(salt));
+    const bool started = webPassword->start(password, len, salt);
+    memset(salt, 0, sizeof(salt));
+    return started;
+}
+static WebPasswordJob::Poll pollWebPassword(char* record) {
+    return webPassword ? webPassword->poll(record) : WebPasswordJob::Poll::Idle;
+}
+// Remote clients on the info card (S55b).
+static uint8_t webClients() { return web ? web->webClients() : 0; }
+static uint32_t scpiClient() { return scpiTcp ? scpiTcp->link().clientIp() : 0; }
+static void disconnectRemote() {
+    if (web) web->disconnectAll();
+    if (scpiTcp) scpiTcp->link().disconnect(); // no-op without a connection
+}
+
+static void pollTcpScpi() {
+    if (!scpiTcp) return;
+    const WifiManager::Status& s = wifi.status();
+    scpiTcp->update(ScpiTcpLink::allowedFor(s.staConnected, s.apActive, s.apOpen));
+}
+
+static void pollUsbScpi() {
+    // At most 4 chunks per loop(): a flood cannot starve the GUI.
+    char buf[64];
+    for (uint8_t i = 0; i < 4; ++i) {
+        const int avail = Serial.available();
+        if (avail <= 0) break;
+        const size_t n = Serial.readBytes(buf, avail < (int)sizeof(buf) ? (size_t)avail : sizeof(buf));
+        usbLink.receive(buf, n);
+    }
+    usbLink.update();
+}
 
 static bool saveTouchCalibration(const TouchCalibration& cal) { return settings.saveTouchCalibration(cal); }
 
 // Factory reset (U-13): the outputs are already off; erase and start like a new device.
 static void factoryReset() {
     settings.eraseAll();
+    NetConfig::eraseAll(); // WiFi settings and the driver's namespace (W-S14)
     Logger::info("BOOT", "Factory reset; restarting");
     delay(100);
     ESP.restart();
@@ -57,6 +140,18 @@ void setup() {
     snprintf(line, sizeof(line), "%s %s (%s %s, %s)", APP_NAME, BuildInfo::version(), BuildInfo::branch(),
              BuildInfo::commit(), BuildInfo::time());
     Logger::info("BOOT", line);
+    // *IDN? serial number: the base MAC (W-E5 uses its last 4 digits for the device name).
+    char mac[13];
+    const uint64_t efuse = ESP.getEfuseMac();
+    snprintf(mac, sizeof(mac), "%02X%02X%02X%02X%02X%02X", (unsigned)(efuse & 0xFF), (unsigned)((efuse >> 8) & 0xFF),
+             (unsigned)((efuse >> 16) & 0xFF), (unsigned)((efuse >> 24) & 0xFF), (unsigned)((efuse >> 32) & 0xFF),
+             (unsigned)((efuse >> 40) & 0xFF));
+    usbSession.setSerial(mac);
+    uint8_t macBytes[6];
+    for (uint8_t i = 0; i < 6; ++i) macBytes[i] = (uint8_t)((efuse >> (8 * i)) & 0xFF);
+    usbSession.setWriter(serialWrite, nullptr);
+    scpiTcp = new (std::nothrow) ScpiTcpServer(loopBackend, mac);
+    if (!scpiTcp) Logger::error("BOOT", "No memory for SCPI over TCP");
 
     // 2. I2C on CN1; which pin is SDA is detected in step 5
     I2CBus::begin();
@@ -71,6 +166,34 @@ void setup() {
     }
     settings.load(loadedState);
     app.begin(loadedState);
+    netStorage.begin(NetConfig::NAMESPACE);
+    NetConfig::load(netStorage, netSettings, macBytes);
+    WifiManager::SaveFn saveNet = saveNetSettings;
+#ifdef TEST_WIFI_SSID
+    // Test credentials only in RAM; nothing of it is saved.
+    NetConfig::setNetwork(netSettings, 0, TEST_WIFI_SSID, TEST_WIFI_PASS);
+    netSettings.mode = WifiMode::Client;
+#ifdef TEST_WIFI_MODE
+    netSettings.mode = (WifiMode)TEST_WIFI_MODE;
+#endif
+#ifdef TEST_WIFI_AP_PASS
+    snprintf(netSettings.apPassword, sizeof(netSettings.apPassword), "%s", TEST_WIFI_AP_PASS);
+#endif
+    saveNet = nullptr;
+    Logger::info("TEST", "WiFi test settings applied (RAM only)");
+#endif
+#ifdef TEST_WEB_PASSWORD
+    // Test web password from include/test_wifi_local.h, RAM only (the device page gets the
+    // field later); hashing takes ~0.3 s once at boot.
+    if (NetConfig::setWebPassword(netSettings, TEST_WEB_PASSWORD, strlen(TEST_WEB_PASSWORD), esp_random)) {
+        saveNet = nullptr;
+        Logger::info("TEST", "Web password set (RAM only)");
+    }
+#endif
+    wifi.begin(netSettings, macBytes, saveNet);
+    web = new (std::nothrow) WebHmiServer(commands, snapshot, wifi, saveNet);
+    if (!web) Logger::error("BOOT", "No memory for the web server");
+    webPassword = new (std::nothrow) WebPasswordWorker();
 
     // 5. SI5351 init, SDA/SCL in either order
     const bool si5351Ok = app.connectHardware();
@@ -96,6 +219,10 @@ void setup() {
     gui.begin(app, touch, display);
     gui.setTouchCalibrationStore(saveTouchCalibration);
     gui.setFactoryReset(factoryReset);
+    gui.setWifi(wifi, saveNetSettings);
+    gui.setNetConfirm(webConfirmNeeded, webConfirmAnswer);
+    gui.setWebPassword(startWebPassword, pollWebPassword);
+    gui.setRemoteClients(webClients, scpiClient, disconnectRemote);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
     if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
     app.addListener(Gui::onAppEvent, &gui);
@@ -143,11 +270,19 @@ static void runRestartTests() {
 void loop() {
     lv_timer_handler();
     commands.drain(app);
+    pollUsbScpi();
+    wifi.update();
+    pollTcpScpi();
     app.update();
-    if (app.revision() != publishedRevision) {
+    if (app.revision() != publishedRevision || app.saveState() != publishedSave || app.lastRemoteMs() != publishedRemoteMs) {
         publishedRevision = app.revision();
+        publishedSave = app.saveState();
+        publishedRemoteMs = app.lastRemoteMs();
         snapshot.publish(app);
     }
+    // Every command executed so far is in the snapshot now: waiting web requests may answer.
+    commands.markVisible();
+    if (web) web->loop();
     gui.update();
     MemMonitor::update();
     runRestartTests();

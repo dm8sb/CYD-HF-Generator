@@ -1,0 +1,126 @@
+name: Bug report
+description: Something on the device or in the firmware does not work as described in the user manual.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. The expected behavior is described in the [user manual](https://github.com/dm8sb/CYD-HF-Generator/blob/main/USER_MANUAL_EN.md); [Appendix C](https://github.com/dm8sb/CYD-HF-Generator/blob/main/USER_MANUAL_EN.md#appendix-c-symptoms-and-remedies) lists common symptoms and remedies.
+
+        **Security vulnerabilities** (WiFi, web interface, SCPI over the network) do not belong here: please report them privately as described in the [security policy](https://github.com/dm8sb/CYD-HF-Generator/security/policy).
+
+  - type: dropdown
+    id: board
+    attributes:
+      label: Board
+      description: Both variants are sold as ESP32-2432S028R. The CONFIG info card shows the detected controller (`Display ILI9341` / `Display ST7789`).
+      options:
+        - Original CYD (micro-USB only, ILI9341)
+        - CYD2USB (additional USB-C port, ST7789)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version and commit
+      description: |
+        First two lines of the info card at the end of the CONFIG page, or the `[BOOT]` line of the serial log.
+      placeholder: "Firmware 1.3.3 | dev 47d9307, Build 2026-11-05 15:00"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: How was the firmware installed?
+      options:
+        - Release file or web flasher
+        - Own build (PlatformIO)
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: si5351
+    attributes:
+      label: SI5351 module
+      description: Module or seller, and the `SI5351` line of the info card (e.g. `SI5351 SDA 22 SCL 27`, `(swapped)`, `(clone?)`, `SI5351 not found`).
+      placeholder: "Adafruit 2045, SI5351 SDA 22 SCL 27"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Display or touch
+        - Outputs CH1 / CH2 (frequency, level, switching)
+        - CH3 IQ follower
+        - CONFIG settings or saving
+        - SI5351 connection (NO HW, ERR, reconnect)
+        - WiFi
+        - SCPI over USB
+        - SCPI over TCP
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe what you saw (page, message text, state shown in the header).
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: Ideally with a reference to the section of the user manual.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Start from power-up if possible. Mention non-default CONFIG settings (the mode line below a frequency shows them).
+      placeholder: |
+        1. Power on, CH1 = 10 MHz
+        2. Tuning = Low noise
+        3. Switch CH1 on
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Serial log
+      description: |
+        Output of `pio device monitor -b 115200` from power-up until the problem (manual section 12). While an SCPI session over USB is active, the log goes to `SYSTem:LOG?` instead. The text is formatted as code automatically.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: photos
+    attributes:
+      label: Photos or screenshots (optional)
+      description: Display, wiring to CN1, measurement setup. Drag and drop images here.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: The log, photos and screenshots contain no WiFi passwords, access point passwords, web passwords or tokens.
+          required: true

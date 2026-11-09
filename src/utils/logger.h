@@ -22,9 +22,9 @@ void value(const char* tag, const char* label, int64_t value);
 // A preformatted line (LVGL and ESP-IDF log hooks); a missing newline is added.
 void raw(const char* line);
 
-// Buffered lines, oldest first, each ending in '\n', as many whole lines as fit into out;
-// they are removed from the buffer. Returns the number of lines copied.
-uint16_t readBuffered(char* out, size_t outSize);
+// Buffered lines, oldest first, each ending in '\n', as many whole lines as fit into out (at
+// most maxLines); they are removed from the buffer. Returns the number of lines copied.
+uint16_t readBuffered(char* out, size_t outSize, uint16_t maxLines = 0xFFFF);
 uint16_t buffered();
 // Lines lost because the buffer was full (since boot).
 uint32_t dropped();

@@ -7,4 +7,6 @@
 namespace StatusLed {
 void begin();
 void showPage(PageId page);
+// Identify (W-E28): all colors on (white) or off.
+void showAll(bool on);
 }

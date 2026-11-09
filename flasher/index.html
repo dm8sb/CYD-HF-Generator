@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- Web flasher page (ARBEITSPLAN G2). Template: tools/flasher_site.py fills the double-brace fields;
+     ESP Web Tools comes from the CDN in the exact version of esp-web-tools.json, every module
+     with its hash (entry: integrity attribute, chunks: import map), CSP limits scripts to that path. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src {{EWT_BASE}} '{{IMPORTMAP_HASH}}'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>CYD HF Generator Flasher</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{{IMPORTMAP}}</script>
+<script type="module" src="{{EWT_BASE}}{{EWT_ENTRY}}" integrity="{{EWT_ENTRY_INTEGRITY}}" crossorigin="anonymous"></script>
+</head>
+<body>
+<main>
+<h1>CYD HF Generator</h1>
+<p class="sub">Firmware <strong>{{VERSION}}</strong> for the ESP32-2432S028R ("Cheap Yellow Display", CYD and CYD2USB) · commit <code>{{COMMIT}}</code></p>
+
+<esp-web-install-button manifest="manifest.json">
+  <span slot="unsupported" class="warn">This browser cannot flash: it has no Web Serial. Use Chrome or Edge on a desktop computer.</span>
+  <span slot="not-allowed" class="warn">Flashing works only over HTTPS.</span>
+</esp-web-install-button>
+
+<h2>How to flash</h2>
+<ol>
+  <li>Use <strong>Chrome or Edge on a desktop computer</strong> (Windows, macOS, Linux). Firefox, Safari and mobile browsers cannot flash.</li>
+  <li>Connect the board by USB. On Windows, the USB serial chip of the CYD (CH340) needs the <strong>CH340 driver</strong> from WCH if no COM port appears.</li>
+  <li>Click <strong>Connect</strong> and choose the board's serial port (Windows: <code>COMx</code>, "USB-SERIAL CH340"; Linux: <code>/dev/ttyUSB0</code>).</li>
+  <li><strong>First install:</strong> confirm <strong>Erase</strong>. This clears the settings memory: touch calibration, frequency correction, WiFi and all saved settings. The touch calibration wizard starts after the first boot.</li>
+  <li><strong>Update:</strong> do not erase. The bootloader, partition table and firmware are rewritten; touch calibration, correction, WiFi and settings are kept.</li>
+</ol>
+<p>If the connection fails, hold the <strong>BOOT</strong> button while clicking Connect, close any serial monitor that holds the port, and try another USB cable (some cables carry power only).</p>
+
+<h2>Files</h2>
+<p>The flasher writes these parts to the board's flash (no single merged image, so an update never touches the settings partition):</p>
+<table>
+<thead><tr><th>Offset</th><th>File</th><th>Bytes</th></tr></thead>
+<tbody>
+{{PARTS_ROWS}}
+</tbody>
+</table>
+<p>Checksums: <a href="{{SUMS_PATH}}">SHA256SUMS</a>. Release files, build provenance and source: <a href="{{REPO_URL}}">{{REPO_NAME}}</a>.</p>
+<p class="mu">Flashing is powered by <a href="https://esphome.github.io/esp-web-tools/">ESP Web Tools</a> {{EWT_VERSION}}.</p>
+</main>
+</body>
+</html>

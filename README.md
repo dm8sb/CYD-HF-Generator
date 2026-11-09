@@ -1,10 +1,18 @@
 # CYD HF Generator
 
+[![CI](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/ci.yml?query=branch%3Amain)
+[![Fuzz](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/fuzz.yml/badge.svg?branch=main)](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/fuzz.yml?query=branch%3Amain)
+[![Latest release](https://img.shields.io/github/v/release/dm8sb/CYD-HF-Generator?sort=semver)](https://github.com/dm8sb/CYD-HF-Generator/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/github/license/dm8sb/CYD-HF-Generator)](LICENSE)
+
 PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator with an SI5351 on the ESP32-2432S028R "Cheap Yellow Display" (original CYD and CYD2USB).
+
+**[Flash in the browser](https://dm8sb.github.io/CYD-HF-Generator/)** (Chrome or Edge; goes live with the first release after GitHub Pages is enabled) · **User manual** [English](USER_MANUAL_EN.md) / [Deutsch](USER_MANUAL_DE.md) · **[Hardware: wiring and parts](docs/hardware.md)**
 
 ## Documentation
 
 - [USER_MANUAL_DE.md](USER_MANUAL_DE.md): user manual, reference for all behavior (German); [USER_MANUAL_EN.md](USER_MANUAL_EN.md): English translation
+- [docs/hardware.md](docs/hardware.md): SI5351 wiring to CN1, supply, outputs, bill of materials, safety
 - [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md): requirements and decisions
 - [ARBEITSPLAN.md](ARBEITSPLAN.md): open findings, WEB-HMI concept and task list (German)
 - [MESSPLAN.md](MESSPLAN.md): hardware measurement plan by priority (German)
@@ -20,8 +28,26 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 - LVGL GUI: MAIN with a status bar and a mode line for settings that differ from the defaults; touch calibration at the first start
 - NVS persistence with 5 s autosave; all outputs start off
 - Serial log with version, branch, commit and build time; host tests and CI
+- Remote control with SCPI over USB (manual section 15)
 
 ## Changes
+
+### 1.4.0 (in development on `dev`)
+
+- SCPI over USB: IEEE 488.2 common commands, outputs, frequencies, CH3 and all settings; exact number parsing with units and MIN/MAX/DEF, error queue, log read-out (`SYST:LOG?`) while a session keeps the serial port free of log lines, `SYST:IDEN` blinks backlight and LED; one error per invalid command unit
+- SCPI over TCP on port 5025 (one connection, HTTP lines refused, keepalive, mDNS `_scpi-raw._tcp`; not over an open AP)
+- Host tools in `tools/`: SCPI example (USB/TCP/PyVISA), `device_check.py` (checks the SCPI command set on the device and restores it), fake SCPI device, REST example
+- Fuzzing: 9 harnesses in `test/fuzz/` incl. request guard and REST JSON against independent reference models (libFuzzer with ASan/UBSan in the CI job `Fuzz`, standalone driver for gcc/MinGW), fixed-seed random test `test_fuzz_random` in the host tests
+- Request guard (host, origin, token, sessions, login lock, PBKDF2 web password) and REST JSON mapping with strict JSON check (ArduinoJson 7.4.3), host-tested, not yet wired to a server
+- Issue forms (bug report with board, firmware version and commit, log) and a pull request template with the gate checklist
+- Hardware page `docs/hardware.md` (bill of materials, CN1 wiring, supply, safety) and README badges
+- Security policy (`SECURITY.md`, private vulnerability reporting) and CodeQL for C/C++, Python, JavaScript and workflows
+- Dependabot keeps the pinned GitHub Actions up to date (weekly, grouped, to `dev`)
+- CI: Flash and static RAM of both firmware envs as a job summary table and artifact `firmware-size` (`tools/size_report.py`), compared with the target branch in pull requests and with the previous commit on pushes
+- Release workflow with build provenance and checksums; web flasher site for GitHub Pages (ESP Web Tools, separate parts so an update keeps the settings), goes live with the first release
+- Web interface on port 80 (manual section 16): embedded page, REST API and WebSocket, request guard with session login (web password set at the device), two-stage network changes with confirmation, at most 3 browsers; web password on the Device page, remote clients and `Disconnect all` on the info card; fixed header with area links and logout; `tools/web_mock.py` to try it without the device, `tools/web_check.py` checks the contract
+- Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, built with `-Os`) and LVGL 8.4.0; the Arduino 2.0.x build is gone (E-32), the last firmware on it is 1.3.3
+- WiFi (CONFIG `WiFi` and `Remote out.`, WIFI page with network scan and on-screen keyboard, access point page with QR code, device page with name and static IP, WiFi state and `REMOTE <source>` in the status bar, WiFi and heap lines on the info card; default Off): network settings in NVS `hfnet`, client with up to two networks, fallback access point after 60 s, AP off as soon as the client has an address, mDNS, captive DNS; the factory reset also erases the WiFi settings
 
 ### 1.3.3
 
@@ -77,7 +103,7 @@ The firmware tries SDA=22 first, then the swapped assignment; the log shows the 
 
 ## Libraries
 
-Pinned in `platformio.ini`: Arduino-ESP32 via `espressif32@6.7.0`, `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it), `lvgl/lvgl@8.4.0`, XPT2046_Touchscreen at commit `d57f64c` (tag v1.4), `Preferences` from Arduino-ESP32.
+Pinned in `platformio.ini`: Arduino-ESP32 3.3.12 via `espressif32@8.0.0`, `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it), `lvgl/lvgl@8.4.0`, XPT2046_Touchscreen at commit `d57f64c` (tag v1.4), scpi-parser at commit `8866159` (v2.3 + build fixes), `Preferences` from Arduino-ESP32.
 
 ## Build and Flash
 
@@ -101,7 +127,7 @@ pio test -e native             # host tests on Linux/macOS/CI (gcc in PATH)
 pio test -e native-win-fault   # IQ error state (TEST_FAULT_IQ); native-fault on Linux
 ```
 
-Host tests cover the SI5351 driver and planner against a register model (`test/helpers/si5351_model.h`, decoded independently of the driver), the AppController with settings and supervision, display detection against a panel model, touch filter and calibration, GUI input logic, status texts and the color contrast. `test/fakes` replaces the Arduino core, `Wire` (with fault injection, swapped wiring, line held low, foreign device) and `Preferences`.
+Host tests cover the SI5351 driver and planner against a register model (`test/helpers/si5351_model.h`, decoded independently of the driver), the AppController with settings and supervision, display detection against a panel model, touch filter and calibration, GUI input logic, status texts, the color contrast, the remote command queue and the SCPI command tree with its line framer. `test/fakes` replaces the Arduino core, `Wire` (with fault injection, swapped wiring, line held low, foreign device) and `Preferences`.
 
 Touch test builds for the measurement plan (not built by a plain `pio run`, never released; CI builds the hit map env):
 
@@ -126,5 +152,7 @@ pio run -e esp32-2432S028R-hitmap -t upload     # 20 target crosses, [HITMAP] an
 - `drivers/touch*`, `drivers/backlight.*`, `drivers/status_led.*`: touch with filter, backlight PWM, RGB LED
 - `hal/i2c_bus.*`: owns `Wire`, opens either SDA/SCL assignment
 - `services/*`: Preferences storage and autosave
+- `remote/*`: command queue and state snapshot for remote access, line framer, SCPI command tree (`scpi.*`) and the USB link (`scpi_usb.*`)
+- `net/*`: network settings (`net_settings`), WiFi policy (pure) and manager, SHA-1/PBKDF2
 - `gui/gui.cpp`, `gui/gui_layout.h`, `gui/pages/*`: LVGL setup, navigation and dialogs, layout grid and colors, pages
 - `utils/*`: pure, host-tested logic (`frequency_utils`, `input_logic`, `message_queue`, `status_text`, `contrast`, `touch_cal`, `touch_test`), logger, build info

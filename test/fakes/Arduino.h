@@ -15,7 +15,7 @@
 
 #define constrain(amt, low, high) ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))
 
-// The fakes model the Arduino 3.x API (S38); -DESP_ARDUINO_VERSION_MAJOR=2 selects the 2.0.x one.
+// The fakes model the Arduino 3.x API (S38), the only core since E-32.
 #ifndef ESP_ARDUINO_VERSION_MAJOR
 #define ESP_ARDUINO_VERSION_MAJOR 3
 #endif
@@ -28,18 +28,17 @@ inline uint32_t& clockMs() {
 }
 inline void advanceMs(uint32_t ms) { clockMs() += ms; }
 
-// LEDC: Arduino 3.x addresses the PWM by pin (ledcAttach/ledcWrite(pin)), 2.0.x by channel.
+// LEDC: Arduino 3.x addresses the PWM by pin (ledcAttach/ledcWrite(pin)).
 struct Ledc {
-    uint8_t channel;
     uint32_t freq;
     uint8_t bits;
     int pin;
     uint32_t duty;
     int writes;       // ledcWrite calls on the attached pin
-    int strayWrites;  // ledcWrite calls on anything else (3.x: an unattached pin is an error)
+    int strayWrites;  // ledcWrite calls on anything else (an unattached pin is an error)
 };
 inline Ledc& ledc() {
-    static Ledc l {0xFF, 0, 0, -1, 0, 0, 0};
+    static Ledc l {0, 0, -1, 0, 0, 0};
     return l;
 }
 
@@ -115,7 +114,6 @@ inline FakeSerial& fakeSerial() {
 }
 #define Serial fakeSerial()
 
-#if ESP_ARDUINO_VERSION_MAJOR >= 3
 inline bool ledcAttach(uint8_t pin, uint32_t freq, uint8_t bits) {
     Fake::ledc().pin = pin;
     Fake::ledc().freq = freq;
@@ -131,20 +129,3 @@ inline bool ledcWrite(uint8_t pin, uint32_t duty) {
     Fake::ledc().duty = duty;
     return true;
 }
-#else
-inline bool ledcSetup(uint8_t channel, uint32_t freq, uint8_t bits) {
-    Fake::ledc().channel = channel;
-    Fake::ledc().freq = freq;
-    Fake::ledc().bits = bits;
-    return true;
-}
-inline void ledcAttachPin(int pin, uint8_t) { Fake::ledc().pin = pin; }
-inline void ledcWrite(uint8_t channel, uint32_t duty) {
-    if (channel != Fake::ledc().channel) {
-        ++Fake::ledc().strayWrites;
-        return;
-    }
-    ++Fake::ledc().writes;
-    Fake::ledc().duty = duty;
-}
-#endif

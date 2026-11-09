@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: User manual
+    url: https://github.com/dm8sb/CYD-HF-Generator/blob/main/USER_MANUAL_EN.md
+    about: Operation, messages, limits and a symptom table (English; German original in USER_MANUAL_DE.md).
+  - name: Report a security vulnerability
+    url: https://github.com/dm8sb/CYD-HF-Generator/security/policy
+    about: Please do not open a public issue for vulnerabilities; follow the security policy instead.

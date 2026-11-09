@@ -39,6 +39,22 @@ static constexpr uint32_t SETTINGS_AUTOSAVE_MS = 5000;
 static constexpr uint32_t SETTINGS_RETRY_MS = 30000;
 // Changes from remote commands are saved after this much quiet (W-E17: scripts change often).
 static constexpr uint32_t SETTINGS_REMOTE_AUTOSAVE_MS = 30000;
+// Write commands per second and remote source (W-S11); more are refused (HTTP 429, SCPI -200 busy).
+static constexpr uint8_t REMOTE_WRITES_PER_S = 20;
+// SYSTem:IDENtify / web Identify (W-E28): backlight and RGB LED blink for this long.
+static constexpr uint32_t IDENTIFY_MS = 5000;
+static constexpr uint32_t IDENTIFY_BLINK_MS = 250;
+// SCPI over USB: the session (log only into the ring buffer, W-E27) ends after this idle time;
+// SCPI over TCP closes the connection after it (W-E13).
+static constexpr uint32_t SCPI_IDLE_TIMEOUT_MS = 600000;
+// SCPI over TCP (W-E12, W-S20): port; keepalive of the client socket (first probe after IDLE s
+// without traffic, then every INTERVAL s, closed after COUNT unanswered probes).
+static constexpr uint16_t SCPI_TCP_PORT = 5025;
+static constexpr int SCPI_TCP_KEEPALIVE_IDLE_S = 60;
+static constexpr int SCPI_TCP_KEEPALIVE_INTERVAL_S = 10;
+static constexpr int SCPI_TCP_KEEPALIVE_COUNT = 3;
+// MAIN status bar: REMOTE <source> stays this long after the last remote command (W-E14).
+static constexpr uint32_t REMOTE_INDICATOR_MS = 10000;
 // SI5351 health check / reconnect interval.
 static constexpr uint32_t HW_CHECK_INTERVAL_MS = 2000;
 // Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).

@@ -16,4 +16,10 @@ void showPage(PageId page) {
     digitalWrite(PIN_LED_B, page == PageId::CH3 ? LOW : HIGH);
 }
 
+void showAll(bool on) {
+    digitalWrite(PIN_LED_R, on ? LOW : HIGH);
+    digitalWrite(PIN_LED_G, on ? LOW : HIGH);
+    digitalWrite(PIN_LED_B, on ? LOW : HIGH);
+}
+
 }

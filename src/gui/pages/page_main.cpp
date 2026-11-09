@@ -26,6 +26,15 @@ static constexpr int DIVIDER_X = 231;
 // a "~" (Integer raster) has room before two-digit MHz values. The label starts after the name.
 static constexpr int FREQ_RIGHT = DIVIDER_X - 6;
 static constexpr int NAME_W = 42;
+// Status bar from the left, widths measured from the font data: save state 14 px ("Save
+// failed" 76 px, ends at 86), WiFi 12 px ("AP open" 52 px, ends at 144), LOCKED 14 px or
+// REMOTE <source> 12 px ("REMOTE WEB" 87 px + 4 px padding, ends at 241), CONFIG from 250
+// (66 px, text 57 px): at least 6 px between neighbors, 9 px before CONFIG.
+static constexpr int WIFI_X = 92;
+static constexpr int STATE_X = 150;
+static constexpr int CONFIG_W = 66;
+static constexpr int CONFIG_X = SCREEN_WIDTH - 4 - CONFIG_W;
+static_assert(STATE_X + 92 + 8 <= CONFIG_X, "REMOTE WEB keeps 8 px before CONFIG");
 
 void Gui::createMain_() {
     // Main page intentionally has no project-title header to maximize status space.
@@ -64,8 +73,8 @@ void Gui::createMain_() {
         lv_obj_align(w_.cardSwitch[i], LV_ALIGN_RIGHT_MID, 0, 0);
     }
 
-    // Status bar like the header: save state on the left (later WLAN symbols, S53), CONFIG at the
-    // right edge.
+    // Status bar like the header: save state, WiFi and REMOTE/LOCKED on the left, CONFIG at
+    // the right edge (W-E26).
     lv_obj_t* bar = lv_obj_create(root_);
     lv_obj_set_pos(bar, 0, BAR_Y);
     lv_obj_set_size(bar, SCREEN_WIDTH, BAR_H);
@@ -83,8 +92,17 @@ void Gui::createMain_() {
     styleState_(w_.lockState);
     lv_obj_set_style_bg_color(w_.lockState, Colors::warn(), 0);
     lv_obj_set_style_bg_opa(w_.lockState, LV_OPA_COVER, 0);
-    lv_obj_align(w_.lockState, LV_ALIGN_LEFT_MID, 120, 0);
-    addButton_(bar, "CONFIG", SCREEN_WIDTH - 86, 1, 82, BAR_H - 2, Colors::config(), Action::Navigate,
+    lv_obj_align(w_.lockState, LV_ALIGN_LEFT_MID, STATE_X, 0);
+    // WiFi: symbol (green connected, gray searching) or AP (warning color when open).
+    w_.wifiState = addLabel_(bar, "", &lv_font_montserrat_12, Colors::muted(), 0, 0);
+    lv_obj_align(w_.wifiState, LV_ALIGN_LEFT_MID, WIFI_X, 0);
+    // REMOTE <source> after a remote command; LOCKED takes its place while locked.
+    w_.remoteState = addLabel_(bar, "", &lv_font_montserrat_12, Colors::textDark(), 0, 0);
+    styleState_(w_.remoteState);
+    lv_obj_set_style_bg_color(w_.remoteState, Colors::ch3(), 0);
+    lv_obj_set_style_bg_opa(w_.remoteState, LV_OPA_COVER, 0);
+    lv_obj_align(w_.remoteState, LV_ALIGN_LEFT_MID, STATE_X, 0);
+    addButton_(bar, "CONFIG", CONFIG_X, 1, CONFIG_W, BAR_H - 2, Colors::config(), Action::Navigate,
                (uint8_t)PageId::Config);
 }
 
@@ -155,6 +173,60 @@ void Gui::refreshMain_() {
     if (c3.enabled) lv_obj_add_state(w_.cardSwitch[2], LV_STATE_CHECKED);
     else lv_obj_clear_state(w_.cardSwitch[2], LV_STATE_CHECKED);
     refreshSaveState_();
-    if (lock_.locked()) lv_obj_clear_flag(w_.lockState, LV_OBJ_FLAG_HIDDEN);
+    refreshStatusBar_();
+}
+
+bool Gui::remoteShown_() const {
+    return app_->lastRemote() != Source::Touch && millis() - app_->lastRemoteMs() < REMOTE_INDICATOR_MS;
+}
+
+uint32_t Gui::statusSignature_() const {
+    uint32_t sig = remoteShown_() ? 0x80000000u | ((uint32_t)app_->lastRemote() << 28) : 0;
+    if (wifi_) {
+        const WifiManager::Status& w = wifi_->status();
+        sig ^= (uint32_t)w.mode | (uint32_t)w.staConnected << 2 | (uint32_t)w.apActive << 3 |
+               (uint32_t)w.apOpen << 4 | (uint32_t)w.apStations << 5 | (uint32_t)(uint8_t)(w.rssi / 5) << 9 |
+               (uint32_t)w.needsOpenConfirmation << 17;
+        sig ^= w.staIp * 2654435761u;
+        // WIFI pages: scan progress and connection feedback.
+        sig ^= ((uint32_t)wifi_->scanState() | (uint32_t)wifi_->scanList().count() << 2 | (uint32_t)w.connecting << 7 |
+                (uint32_t)w.lastFailure << 8) * 97u;
+    }
+    // The heap line of the info card in 1 KB steps, and its remote clients (S55b).
+    if (currentPage_ == PageId::Config) {
+        sig ^= (ESP.getFreeHeap() / 1024) * 40503u;
+        if (webClients_) sig ^= (uint32_t)webClients_() * 0x01000193u;
+        if (scpiClient_) sig ^= scpiClient_() * 0x9E3779B1u;
+    }
+    return sig;
+}
+
+void Gui::refreshStatusBar_() {
+    if (!w_.wifiState) return;
+    // WiFi
+    const char* text = "";
+    lv_color_t color = Colors::muted();
+    if (wifi_) {
+        const WifiManager::Status& w = wifi_->status();
+        if (w.apActive) {
+            text = w.apOpen ? "AP open" : "AP";
+            color = w.apOpen ? Colors::warn() : Colors::ok();
+        } else if (w.mode == WifiMode::Client) {
+            text = LV_SYMBOL_WIFI;
+            color = w.staConnected ? Colors::ok() : Colors::muted();
+        }
+    }
+    lv_label_set_text(w_.wifiState, text);
+    lv_obj_set_style_text_color(w_.wifiState, color, 0);
+    // LOCKED, else REMOTE <source> for a while after a remote command.
+    const bool locked = lock_.locked();
+    if (locked) lv_obj_clear_flag(w_.lockState, LV_OBJ_FLAG_HIDDEN);
     else lv_obj_add_flag(w_.lockState, LV_OBJ_FLAG_HIDDEN);
+    if (!locked && remoteShown_()) {
+        const Source s = app_->lastRemote();
+        lv_label_set_text(w_.remoteState, s == Source::Web ? "REMOTE WEB" : s == Source::Scpi ? "REMOTE SCPI" : "REMOTE USB");
+        lv_obj_clear_flag(w_.remoteState, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(w_.remoteState, LV_OBJ_FLAG_HIDDEN);
+    }
 }

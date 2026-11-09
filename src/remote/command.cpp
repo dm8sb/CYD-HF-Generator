@@ -73,6 +73,9 @@ Result run(AppController& app, const Command& c) {
             return Result::Ok;
         case CommandType::SaveNow:
             return app.saveNow() ? Result::Ok : Result::HwError;
+        case CommandType::Identify:
+            app.identify();
+            return Result::Ok;
     }
     return Result::Invalid;
 }
@@ -85,14 +88,41 @@ Result execute(AppController& app, const Command& c) {
     return r;
 }
 
-bool CommandQueue::push(const Command& c, uint32_t* ticket) {
-    Lock lock;
-    if (count_ == CAPACITY) return false;
-    const uint32_t t = nextTicket_++;
-    queue_[(head_ + count_) % CAPACITY] = Entry {c, t};
-    ++count_;
-    if (ticket) *ticket = t;
+bool CommandQueue::take_(Source s, uint8_t n) {
+    const uint8_t i = (uint8_t)s;
+    if (i >= sizeof(buckets_) / sizeof(buckets_[0])) return false;
+    Bucket& b = buckets_[i];
+    const uint32_t now = millis();
+    static constexpr uint32_t REFILL_MS = 1000 / REMOTE_WRITES_PER_S;
+    if (!b.started) {
+        b = Bucket {REMOTE_WRITES_PER_S, now, true};
+    } else {
+        const uint32_t refill = (now - b.lastMs) / REFILL_MS;
+        if (refill > 0) {
+            const uint32_t t = b.tokens + refill;
+            b.tokens = (uint8_t)(t > REMOTE_WRITES_PER_S ? REMOTE_WRITES_PER_S : t);
+            b.lastMs += refill * REFILL_MS;
+        }
+    }
+    if (b.tokens < n) return false;
+    if (b.tokens == REMOTE_WRITES_PER_S) b.lastMs = now; // full: the refill starts now
+    b.tokens = (uint8_t)(b.tokens - n);
     return true;
+}
+
+PushResult CommandQueue::push(const Command& c, uint32_t* ticket) { return pushBatch(&c, 1, ticket); }
+
+PushResult CommandQueue::pushBatch(const Command* list, uint8_t n, uint32_t* firstTicket) {
+    if (!list || n == 0) return PushResult::Full;
+    Lock lock;
+    if (n > CAPACITY - count_) return PushResult::Full;
+    if (!take_(list[0].source, n)) return PushResult::RateLimited;
+    if (firstTicket) *firstTicket = nextTicket_;
+    for (uint8_t i = 0; i < n; ++i) {
+        queue_[(head_ + count_) % CAPACITY] = Entry {list[i], nextTicket_++, i > 0};
+        ++count_;
+    }
+    return PushResult::Queued;
 }
 
 uint8_t CommandQueue::drain(AppController& app) {
@@ -107,13 +137,28 @@ uint8_t CommandQueue::drain(AppController& app) {
             --count_;
         }
         // Executed outside the lock: the controller may take a while (I2C), pushes go on.
-        const Result r = execute(app, e.cmd);
+        // A batch stops at its first refused command: the rest gets the same result.
+        const bool skip = e.chained && lastFailed_;
+        const Result r = skip ? lastResult_ : execute(app, e.cmd);
+        lastFailed_ = r != Result::Ok && r != Result::NoChange;
+        lastResult_ = r;
         Lock lock;
         done_[doneNext_] = Done {e.ticket, r};
         doneNext_ = (uint8_t)((doneNext_ + 1) % CAPACITY);
+        lastDone_ = e.ticket;
         ++n;
     }
     return n;
+}
+
+void CommandQueue::markVisible() {
+    Lock lock;
+    visible_ = lastDone_;
+}
+
+bool CommandQueue::visible(uint32_t ticket) const {
+    Lock lock;
+    return ticket != 0 && visible_ != 0 && (int32_t)(visible_ - ticket) >= 0;
 }
 
 bool CommandQueue::result(uint32_t ticket, Result* out) const {
@@ -140,7 +185,14 @@ void StateSnapshot::publish(const AppController& app) {
     s.ch3Status = app.ch3Status();
     for (uint8_t i = 0; i < 3; ++i) s.actualHz[i] = app.actualHz(i + 1);
     s.hardwareReady = app.hardwareReady();
+    s.link = app.linkState();
+    s.iqMinHz = app.iqMinHz();
+    s.iqMaxHz = app.iqMaxHz();
+    s.remoteOutputsAllowed = app.remoteOutputsAllowed();
     s.revision = app.revision();
+    s.saveState = app.saveState();
+    s.lastRemote = app.lastRemote();
+    s.lastRemoteMs = app.lastRemoteMs();
     published_ = true;
     barrier();
     seq_ = seq_ + 1; // even: stable

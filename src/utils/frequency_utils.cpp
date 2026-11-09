@@ -128,7 +128,8 @@ bool parseFrequency(const char* text, const char* unit, uint64_t* outHz) {
 
 static bool isDigit(char c) { return c >= '0' && c <= '9'; }
 
-bool parseRemoteFrequency(const char* text, uint64_t* outHz) {
+bool parseRemoteFrequency(const char* text, uint64_t* outHz, bool* outOfRange) {
+    if (outOfRange) *outOfRange = false;
     if (!text || !outHz) return false;
     const char* p = text;
     while (*p == ' ') ++p;
@@ -186,7 +187,10 @@ bool parseRemoteFrequency(const char* text, uint64_t* outHz) {
     if (u == 0 && fracDigits > 0) return false; // a decimal number needs its unit
     const uint64_t pow10 = powerOfTen((uint8_t)fracDigits);
     const uint64_t hz = whole * scale + (frac * scale * 2 + pow10) / (2 * pow10);
-    if (hz < FREQ_MIN_HZ || hz > FREQ_MAX_HZ) return false;
+    if (hz < FREQ_MIN_HZ || hz > FREQ_MAX_HZ) {
+        if (outOfRange) *outOfRange = true;
+        return false;
+    }
     *outHz = hz;
     return true;
 }
