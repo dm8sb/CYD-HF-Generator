@@ -22,6 +22,8 @@ an ASan or UBSan report. The harnesses are C++11 and build three ways:
 | `remote_frequency` | `FrequencyUtils::parseRemoteFrequency` | C string | true only in 8 kHz … 160 MHz, value = the number read independently rounded half up; no sign, exponent or hex; blanks around change nothing; false leaves `*out` alone |
 | `net_settings` | `NetConfig::parseIpv4`/`formatIpv4`, `checkStaticIp`, `setNetwork`, `wifiQrText`, name and passphrase checks | `[op]` + data | `parseIpv4` accepts exactly the canonical quads (round trip both ways); `checkStaticIp` Ok exactly per W-S12; `setNetwork` stores exactly what it accepted and nothing otherwise; `wifiQrText` never writes past `outSize` and its fields unescape to the input; validators agree with independent checks |
 | `scan_list` | `ScanList::add` | records `[len/flags][rssi][ssid]` | ≤ 15 entries sorted by RSSI, one per SSID with its strongest RSSI, exactly the strongest 15 of a model; `shown` = `Sanitize::text(ssid)` |
+| `request_guard` | `RequestGuard::check`, login lock, sessions, `scanAllowed`, `checkSecrets`, `captiveLocation`, `WebPassword::valid` | `[config ×6]` + script: HTTP requests (request line, headers, body) and `!` operations (login, wait, logout, scan) | every decision equals an independent reference of the documented order (503, 414 URL > 256 B, 431 headers > 2 KB, 421/302 Host allowlist without IPv6, captive 302 only for page GET/HEAD over the AP, 405, 415, 400/413 Content-Length > 1 KB, 400 broken Cookie/Authorization, 400 upgrade, 403 Origin/Sec-Fetch-Site/token, 411, 401) and does not change with the case of or blanks around values HTTP compares case-insensitively; a session only with the cookie of a live session the guard issued (≤ 4, LRU); Set-Cookie exact; the login lock follows a W-S11 model and never shortens or grows within its window; scan ≤ every 10 s; W-S1 403 exactly over an open AP |
+| `rest_json` | `parseChannel`, `parseCh3`, `parseConfig`, `parseAction`, `parseLogin`, `carriesSecret`, `buildState`, `errorJson`, `fromOutcome`, `channelFromPath` | `[function/flags]` + body, or snapshot bytes | against an independent RFC 8259 parser (strings decoded as ArduinoJson does): 413/-223, -102 invalid JSON and duplicate keys, -104 types, -108 unknown keys, -109 no key, -222, -224, 403/-221, 404/-114, first problem in key order; Ok gives exactly the expected commands (≤ 8, documented order, source Web, values inside their types); `carriesSecret` finds pass/psk/secret/key at any depth of what ArduinoJson keeps; `errorJson` fits; the state JSON fits `STATE_SIZE` with device values, parses again, strict UTF-8 without control characters, foreign strings = `Sanitize::text`, values as in the snapshot, never written past its buffer |
 
 The SCPI backend in `fuzz_scpi.cpp` is a fake (no `AppController`): it checks every command it
 gets and answers with outcomes drawn from the seed bytes (refused, rate limited, every `Result`,
@@ -30,13 +32,27 @@ no snapshot), so all answer paths and query handlers are reached (99 % of the li
 only, no framer) to test the session beyond the framer's guarantees.
 
 Seed corpora are in `corpus/<target>/` (`.gitattributes` keeps them byte-exact), the SCPI lines
-taken from `USER_MANUAL_EN.md` section 15. `scpi.dict` is the libFuzzer dictionary for `scpi` and
-`scpi_number`.
+taken from `USER_MANUAL_EN.md` section 15, the requests and bodies from `ARBEITSPLAN.md` 3.6,
+`test_http_guard`, `test_rest_json` and `tools/web_mock.py`. `scpi.dict` is the libFuzzer
+dictionary for `scpi` and `scpi_number`, `request_guard.dict` and `rest_json.dict` those of the
+web targets.
+
+`request_guard` reads a script: after six configuration bytes (password, loginForReads, own
+addresses, open AP, captive DNS, connection over the AP, start time, seed) each line starting
+with `!` is an operation (`!ok [x]`, `!bad`, `!try`, `!wait <ms>`, `!logout <cookie>`,
+`!endall`, `!scan`, `!pw <text>`), any other line starts a request whose headers end at an empty
+line; `$T` stands for the token, `$S<k>` for the id of the k-th session issued, `X-Heap`,
+`X-Pad`, `X-Peer` and `X-Local` set what the server would fill in. The clock advances at most
+2^31 ms per input (see the known findings). `rest_json` checks the state JSON in two modes: with
+values the device can produce it must fit `STATE_SIZE`; with arbitrary values (64-bit
+frequencies, huge numbers) `buildState` only has to give 0 when it does not fit.
 
 ## Running locally
 
 Linux with clang (libFuzzer, ASan, UBSan); `build.sh` fetches scpi-parser at the commit pinned in
-`platformio.ini` into `.pio/fuzz/scpi-parser` (or set `SCPI_DIR`):
+`platformio.ini` into `.pio/fuzz/scpi-parser` (or set `SCPI_DIR`) and ArduinoJson at the commit
+of tag v7.4.3 into `.pio/fuzz/ArduinoJson` (or set `AJSON_DIR`, e.g. to
+`.pio/libdeps/native-win/ArduinoJson`):
 
 ```bash
 test/fuzz/build.sh                      # all targets -> .pio/fuzz/fuzz_<target>
@@ -74,33 +90,20 @@ the host tests: `pio test -e native-win -f test_fuzz_random`.
   corpus always as `corpus-<target>`.
 - `ci.yml` runs `test_fuzz_random` with the other host tests (`native`, `native-cpp20`).
 
-## Adding a target (request guard, REST JSON)
-
-`net/request_guard.*` and `remote/rest_json.*` (W-S25) get their harnesses when they exist:
+## Adding a target
 
 1. Write `test/fuzz/fuzz_<target>.cpp` like the others: includes `fuzz_common.h`, everything in
    `namespace fuzz_<target>`, one `int run(const uint8_t*, size_t)` that checks the invariants
    with `FUZZ_CHECK`, and `FUZZ_TARGET(<target>, fuzz_<target>::run)` as the last line. Keep it
    C++11 and free of LVGL/Arduino-only code (the fakes in `test/fakes` are on the include path).
-   - `request_guard`: input = request line + headers (+ body), e.g. split at the first byte
-     into method/URL/headers. Invariants: never reads past the given lengths; every request is
-     classified (allowed, 4xx code of W-S4, W-S5, W-S10, W-S13); limits hold (URL > 256 B,
-     headers > 2 KB, body > 1 KB, chunked/multipart refused); a request accepted with a foreign
-     `Host`, `Origin`, `Sec-Fetch-Site: cross-site` or without a valid token is a failure;
-     the decision does not depend on header case where HTTP says it must not.
-   - `rest_json`: input = request body. Invariants: unknown keys and wrong types refused, no
-     command with a value outside its type (W-S19); for the JSON written out: parses again
-     (ArduinoJson), every string valid UTF-8 and passed through `sanitize`, no raw control
-     characters, output within its buffer.
 2. Add the target to `sources()` and `ALL_TARGETS` in `build.sh` (with the `src/` files it
-   needs; ArduinoJson as a further include directory, fetched at its pinned version like
-   scpi-parser).
-3. Add seeds in `corpus/<target>/` (and a dictionary if the format has keywords, e.g. JSON keys
-   and header names).
+   needs; further libraries fetched at their pinned commit like scpi-parser and ArduinoJson).
+3. Add seeds in `corpus/<target>/` (and a dictionary if the format has keywords).
 4. Add `#include "../fuzz/fuzz_<target>.cpp"` and a `RUN_TEST` to
    `test/test_fuzz_random/test_main.cpp`; the source must be in `build_src_filter` of
    `[native_test]` in `platformio.ini` (it is, as soon as the host tests use it).
-5. Add the target to both matrix lists in `.github/workflows/fuzz.yml`.
+5. Add the target to both matrix lists in `.github/workflows/fuzz.yml` (and its dictionary to
+   the `case` there).
 
 ## Known findings
 
@@ -108,3 +111,15 @@ the host tests: `pio test -e native-win -f test_fuzz_random`.
   leading zero of the fraction, so `0.` + 1216 zeros + `1E12345` gave `Ok` with 10^17. The
   exponent now saturates above the token length; `scpi_number` checks every length against
   the reference.
+- Open (S57c, not fixed here): `RestJson::carriesSecret` misses a secret key inside a value that
+  a later duplicate key replaces, because ArduinoJson keeps only the last value of a repeated
+  key: `{"a":{"password":"x"},"a":1}` gives false (`corpus/rest_json/secret_overwritten_duplicate`
+  reproduces it with `EXTRA_FLAGS=-DFUZZ_KNOWN_FINDINGS=1`). The request endpoints refuse
+  top-level duplicates with -102 anyway; nested objects (a future `/api/wifi`) would pass.
+- Open (S57c): `RequestGuard` compares times with unsigned 32-bit differences, so after
+  `millis()` wraps (49.7 days) an old, never replaced session and an old login lock count again
+  until the next 12 h / lock window passes. The harness keeps each input below 2^31 ms.
+- Noted (S57c): ArduinoJson refuses a top-level number with trailing blanks and numbers longer
+  than 63 characters, so such bodies give -102 instead of the documented -104 / -222; the
+  harness models this. The state JSON with every value at its device limit and 32-byte SSIDs
+  of quotes is 968 bytes (995 with a 32-byte version), 56 bytes below `STATE_SIZE`.

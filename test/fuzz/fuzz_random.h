@@ -46,6 +46,16 @@ inline const std::vector<std::string>& fuzzTokens() {
         "\x01", "\x1b", "\x7f", "\x80", "\xbf", "\xc0\x80", "\xc2\x85",
         "\xc3\xa4", "\xc3", "\xe2\x82\xac", "\xe2\x82", "\xed\xa0\x80", "\xef\xbf\xbd", "\xf0\x9f\x98\x80",
         "\xf0\x9f", "\xf4\x90\x80\x80", "\xf8\x88\x80\x80\x80", "\xff",
+        // JSON bodies (rest_json)
+        "{", "}", "[", "]", "true", "false", "null", "\\u0000", "\\ud800", "\\udc00", "\\\"", "\"password\"",
+        "\"enabled\"", "\"frequency\"", "\"frequencyText\"", "\"master\"", "\"phase\"", "\"drive\"", "\"tuning\"",
+        "\"spread\"", "\"offState\"", "\"remoteOutputs\"", "\"lownoise\"", "\"center05\"", "\"hiz\"", "\"psk\":",
+        "1e19", "-0", "4.0",
+        // HTTP requests and the guard script (request_guard)
+        "\r\n\r\n", "Host: 192.168.1.50", "Host: cyd-hf-1a2b.local", "Cookie: cyd_sid=$S0", "Origin: http://",
+        "Sec-Fetch-Site: cross-site", "Content-Type: application/json", "Content-Length: 2", "X-CYD-Token: $T",
+        "Upgrade: websocket", "Authorization: Basic ", "Transfer-Encoding: chunked", "!ok\n", "!bad\n",
+        "!wait 30000\n", "!logout cyd_sid=$S0\n", "/api/", "/ws?t=$T", "[::1]", ".local", "$S1",
     };
     static std::vector<std::string> tokens;
     if (tokens.empty()) {

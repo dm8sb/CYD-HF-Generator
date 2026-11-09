@@ -8,6 +8,8 @@
 #include "../fuzz/fuzz_line_framer.cpp"
 #include "../fuzz/fuzz_net_settings.cpp"
 #include "../fuzz/fuzz_remote_frequency.cpp"
+#include "../fuzz/fuzz_request_guard.cpp"
+#include "../fuzz/fuzz_rest_json.cpp"
 #include "../fuzz/fuzz_sanitize.cpp"
 #include "../fuzz/fuzz_scan_list.cpp"
 #include "../fuzz/fuzz_scpi.cpp"
@@ -66,6 +68,8 @@ static void test_scpi_number() { runTarget("scpi_number"); }
 static void test_remote_frequency() { runTarget("remote_frequency"); }
 static void test_net_settings() { runTarget("net_settings"); }
 static void test_scan_list() { runTarget("scan_list"); }
+static void test_request_guard() { runTarget("request_guard"); }
+static void test_rest_json() { runTarget("rest_json"); }
 
 int main() {
     UNITY_BEGIN();
@@ -76,5 +80,7 @@ int main() {
     RUN_TEST(test_remote_frequency);
     RUN_TEST(test_net_settings);
     RUN_TEST(test_scan_list);
+    RUN_TEST(test_request_guard);
+    RUN_TEST(test_rest_json);
     return UNITY_END();
 }

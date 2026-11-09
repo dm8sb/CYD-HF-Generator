@@ -9,7 +9,8 @@
 #
 # Environment: CC, CXX (default clang/clang++, standalone gcc/g++), OUT (default .pio/fuzz),
 # SCPI_DIR (scpi-parser checkout; default $OUT/scpi-parser, fetched with git at the pinned
-# commit if missing), EXTRA_FLAGS (appended to every compile).
+# commit if missing), AJSON_DIR (ArduinoJson checkout, likewise $OUT/ArduinoJson), EXTRA_FLAGS
+# (appended to every compile).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -18,15 +19,18 @@ cd "$ROOT"
 # The commit platformio.ini pins in [native_test] lib_deps (S-20).
 SCPI_COMMIT=886615902b2777b71860445305bfe5a3faef4f3e
 SCPI_URL=https://github.com/j123b567/scpi-parser.git
+# bblanchon/ArduinoJson@7.4.3 of platformio.ini: the commit of tag v7.4.3.
+AJSON_COMMIT=77771d3c07668e01d8f52acb03910c1110bb373f
+AJSON_URL=https://github.com/bblanchon/ArduinoJson.git
 
-ALL_TARGETS="line_framer sanitize scpi scpi_number remote_frequency net_settings scan_list"
+ALL_TARGETS="line_framer sanitize scpi scpi_number remote_frequency net_settings scan_list request_guard rest_json"
 
 MODE=libfuzzer
 TARGETS=""
 for arg in "$@"; do
     case "$arg" in
         --standalone) MODE=standalone ;;
-        -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
         -*) echo "unknown option $arg" >&2; exit 2 ;;
         *) TARGETS="$TARGETS $arg" ;;
     esac
@@ -35,6 +39,7 @@ TARGETS="${TARGETS:-$ALL_TARGETS}"
 
 OUT="${OUT:-$ROOT/.pio/fuzz}"
 SCPI_DIR="${SCPI_DIR:-$OUT/scpi-parser}"
+AJSON_DIR="${AJSON_DIR:-$OUT/ArduinoJson}"
 EXTRA_FLAGS="${EXTRA_FLAGS:-}"
 mkdir -p "$OUT/obj-$MODE"
 
@@ -48,31 +53,38 @@ sources() {
         remote_frequency) echo "src/utils/frequency_utils.cpp" ;;
         net_settings) echo "src/net/net_settings.cpp src/services/storage.cpp src/utils/logger.cpp" ;;
         scan_list) echo "src/net/scan_list.cpp src/utils/sanitize.cpp" ;;
+        request_guard) echo "src/net/request_guard.cpp src/net/pbkdf2.cpp src/utils/sanitize.cpp" ;;
+        rest_json) echo "src/remote/rest_json.cpp src/utils/frequency_utils.cpp src/utils/sanitize.cpp src/utils/status_text.cpp" ;;
         *) echo "unknown target $1" >&2; exit 2 ;;
     esac
 }
 needs_scpi() { [ "$1" = scpi ] || [ "$1" = scpi_number ]; }
+needs_ajson() { [ "$1" = rest_json ]; }
 
-fetch_scpi() {
-    if [ -f "$SCPI_DIR/libscpi/inc/scpi/scpi.h" ]; then
-        if [ -d "$SCPI_DIR/.git" ]; then
-            have="$(git -C "$SCPI_DIR" rev-parse HEAD)"
-            if [ "$have" != "$SCPI_COMMIT" ]; then
-                echo "scpi-parser in $SCPI_DIR is at $have, expected $SCPI_COMMIT" >&2
+# fetch_pinned <name> <dir> <url> <commit> <file that marks a checkout>
+fetch_pinned() {
+    local name="$1" dir="$2" url="$3" commit="$4" marker="$5"
+    if [ -f "$dir/$marker" ]; then
+        if [ -d "$dir/.git" ]; then
+            have="$(git -C "$dir" rev-parse HEAD)"
+            if [ "$have" != "$commit" ]; then
+                echo "$name in $dir is at $have, expected $commit" >&2
                 exit 1
             fi
         fi
         return
     fi
-    echo "fetching scpi-parser $SCPI_COMMIT into $SCPI_DIR"
-    rm -rf "$SCPI_DIR"
-    mkdir -p "$SCPI_DIR"
-    git -C "$SCPI_DIR" init -q
-    git -C "$SCPI_DIR" remote add origin "$SCPI_URL"
-    git -C "$SCPI_DIR" fetch -q --depth 1 origin "$SCPI_COMMIT"
-    git -C "$SCPI_DIR" checkout -q FETCH_HEAD
-    [ "$(git -C "$SCPI_DIR" rev-parse HEAD)" = "$SCPI_COMMIT" ] || { echo "scpi-parser commit mismatch" >&2; exit 1; }
+    echo "fetching $name $commit into $dir"
+    rm -rf "$dir"
+    mkdir -p "$dir"
+    git -C "$dir" init -q
+    git -C "$dir" remote add origin "$url"
+    git -C "$dir" fetch -q --depth 1 origin "$commit"
+    git -C "$dir" checkout -q FETCH_HEAD
+    [ "$(git -C "$dir" rev-parse HEAD)" = "$commit" ] || { echo "$name commit mismatch" >&2; exit 1; }
 }
+fetch_scpi() { fetch_pinned scpi-parser "$SCPI_DIR" "$SCPI_URL" "$SCPI_COMMIT" libscpi/inc/scpi/scpi.h; }
+fetch_ajson() { fetch_pinned ArduinoJson "$AJSON_DIR" "$AJSON_URL" "$AJSON_COMMIT" src/ArduinoJson.h; }
 
 COMMON="-g -Wall -DSCPI_USER_CONFIG=1 -I include -I src -I test/fakes -I $SCPI_DIR/libscpi/inc"
 case "$(uname -s)" in
@@ -119,6 +131,11 @@ build_scpi_lib() {
 for t in $TARGETS; do
     srcs="$(sources "$t")"
     libs=""
+    incs=""
+    if needs_ajson "$t"; then
+        fetch_ajson
+        incs="-I $AJSON_DIR/src"
+    fi
     if needs_scpi "$t"; then
         [ -n "$SCPI_OBJS" ] || build_scpi_lib
         libs="$SCPI_OBJS"
@@ -127,5 +144,5 @@ for t in $TARGETS; do
     [ "$WINDOWS" = 1 ] && exe="$exe.exe"
     echo "building $exe ($MODE)"
     # shellcheck disable=SC2086
-    "$CXX" $CXXFLAGS $EXTRA_FLAGS "test/fuzz/fuzz_$t.cpp" $srcs $MAIN $libs -o "$exe"
+    "$CXX" $CXXFLAGS $incs $EXTRA_FLAGS "test/fuzz/fuzz_$t.cpp" $srcs $MAIN $libs -o "$exe"
 done
