@@ -77,13 +77,13 @@ Host-Tests: 376 Fälle in `native-win` und 4 in `native-win-fault` (Stand S56).
 | D14 | Routing (S-16, Rückfrage 3): offizielle Plattform mit vorkompiliertem IDF bleibt, obwohl `CONFIG_LWIP_IP_FORWARD=y` fest eingebaut ist. Stattdessen W-S3 strikt: AP und STA nie gleichzeitig mit Adresse, der AP geht im Event der STA-IP aus, Prüfung ≤ 1 s (L-S6). Kein pioarduino mit `custom_sdkconfig` (eigener IDF-Build, längere Builds, zweite Plattform-Quelle) (2026-11-06) |
 | D15 | WLAN-Schlüssel als Passphrase statt PMK (W-S14 geändert, E-30): ESP-IDF 5.5 nimmt bei WPA2/WPA3-Übergangsnetzen immer SAE, das die Passphrase braucht; mit PMK scheiterte das Büro-WLAN (Grund 2/202), mit Passphrase verbunden in 3,4 s. Nie angezeigt, geloggt oder exportiert (2026-11-06, Nutzer) |
 | D16 | Nur noch Core 3 (`espressif32@8.0.0`), Core 2 vor der Abnahmemessung verworfen; Abnahmemessungen bleiben (S41c), Rückweg Tag `v1.3.3` (2026-11-09, Nutzer, E-32) |
+| D18 | Neue Funktionen nach 1.4.0: nur der gekoppelte Betrieb CH2 = CH1 ± Offset (N14); Speicherplätze, Wobbeln, Drive je Kanal, Info-Seite „Synthesizer“, freie Phase/Feinabgleich, Modulation, externe Referenz und Kalibrierassistent vorerst nicht geplant (2026-11-10, Nutzer) |
 
-**Nicht umsetzen:** RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); Kanalwahl im Header (Rest von U-16, 2026-11-05: kein Platz neben Zustand und `MAIN`, über MAIN und die Karten 2 Tipps); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
+**Nicht umsetzen:** neue Funktionen außer N14 vorerst (D18); RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); Kanalwahl im Header (Rest von U-16, 2026-11-05: kein Platz neben Zustand und `MAIN`, über MAIN und die Karten 2 Tipps); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
 
 **Offene Rückfragen:**
 
-1. **Neue Funktionen:** Welche sind gewünscht? a) Speicherplätze (z. B. 5 je Kanal), b) Wobbeln, c) Drive-Strength je Kanal, d) Info-Seite „Synthesizer“, e) freie Phase / Phasen-Feinabgleich, f) gekoppelter Betrieb CH2 = CH1 ± Offset. Entscheidung vor N14.
-2. **Standard-Tuning:** bleibt `Fractional`, oder wird `Low noise` Standard, wenn die Messungen (MESSPLAN Stufe 2) einen klaren Vorteil zeigen? (N1)
+1. **Standard-Tuning:** bleibt `Fractional`, oder wird `Low noise` Standard, wenn die Messungen (MESSPLAN Stufe 2) einen klaren Vorteil zeigen? (N1)
 
 ---
 
@@ -97,7 +97,6 @@ Host-Tests: 376 Fälle in `native-win` und 4 in `native-win-fault` (Stand S56).
 - [M] **Störquellen der Plattform** (F6, F9): Backlight-PWM 5 kHz (Seitenlinien ±5 kHz möglich; Abhilfe ≥ 20 kHz oder 100 % ohne PWM), I2C-Überwachung alle 2 s (Abhilfe: Ruhemodus), CONFIG schreibt den Speicherzustand alle 300 ms neu (C-15; nur bei Änderung schreiben). → N6
 - [M] **IQ-Abstimmen ohne Aussetzer** (D3, D5, K6, E9): Jede Frequenzänderung im IQ-Betrieb setzt die PLL zurück (1000 Schritte → 1000 Resets). Teiler mit Hysterese festhalten und nur die PLL ohne Reset schreiben (wie `Low noise` im Einzelbetrieb), dann bleibt die Phase erhalten; ebenso bei Korrekturänderungen. Host-Test „PLL-Änderung ohne Reset, Offset und Teiler unverändert“. → N2
 - [M] **180°/270° bei ungeraden Teilern** (E4): Invertierung ergibt nur bei exakt 50 % Tastverhältnis 180°; der IQ-Teiler `min(127, ⌊900 MHz / f⌋)` ist in 54 % der Fälle ungerade (14,2 MHz → 63, 99 MHz → 9). Abhilfe: zwischen 4,77 und 90 MHz gibt es immer einen geraden Teiler mit VCO 600–900 MHz, oder 180° über den Phasen-Offset (2 × Teiler ≤ 127). → N3
-- [ ] **Phasen-Feinabgleich und freie Phase:** Auflösung 90° / Teiler (10 MHz: 1°, 99 MHz: 10°); Skew- und Kabelausgleich (E3), Ausbildungsversuche zur Spiegelunterdrückung. Nach Rückfrage 1e. → N4
 - [ ] **Spannungseinbruch über Sticky-Bit erkennen:** `checkAlive()` erkennt einen SI5351-Neustart nur, solange ein Ausgang konfiguriert ist. Robuster: Register 1 (`SYS_INIT_STKY`) nach `begin()` löschen und zyklisch lesen; dasselbe Register meldet `LOL_A`/`LOL_B` → Zeile „PLL locked“ auf der Info-Karte. → N9
 - [ ] **Hinweise:** SI5351 läuft beim Flashen und nach ESP32-Reset mit der letzten Einstellung weiter (A10, Handbuch); Hardware-Hinweise (eigener LDO mit Ferrit, kurze Masse, Abschirmung, optional TCXO nach C7). VCO bei `Fractional` und +50 ppm 900,045 MHz (unkritisch, nur notieren). → S72, N7, N10
 
@@ -367,7 +366,6 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N1 · Standard-Tuning** ändern, wenn die Stufe-2-Messungen es tragen (Rückfrage 2, E-19).
 - [ ] **N2 · IQ-Abstimmen ohne Aussetzer** (Abschnitt 2.1).
 - [ ] **N3 · Ungerade IQ-Teiler bei 180°/270°**, wenn E4 einen Fehler > 1° zeigt.
-- [ ] **N4 · Phasen-Feinabgleich, freie Phase, Info-Seite „Synthesizer“** nach E1–E3 und Rückfrage 1.
 - [ ] **N5 · MultiSynth abgeschalteter Kanäle abschalten, PDN-Strategie** nach K2 und F7.
 - [ ] **N6 · Störquellen-Abhilfen** (Backlight-PWM ≥ 20 kHz, Ruhemodus der Überwachung, Neuzeichnen nur bei Änderung) nach F6, F9.
 - [ ] **N7 · TCXO-Option** nach C7, C8.
@@ -376,7 +374,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
 - [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release.
 - [ ] **N13 · DMA und Doppelpuffer** (Abschnitt 2.3, nach der Migration).
-- [ ] **N14 · Erweiterungen nach Rückfrage 1:** Speicherplätze, Wobbeln, Drive je Kanal, gekoppelter Betrieb CH2 = CH1 ± Offset (Überlagerungsempfänger mit fester ZF), Modulationsarten (AM/FM über den PLL-Bruchteil), externe Referenz (SI5351C mit `CLKIN`), Kalibrierassistent (falls nicht in S32).
+- [ ] **N14 · Gekoppelter Betrieb CH2 = CH1 ± Offset (D18).** CH2 folgt CH1 mit festem Offset (positiv oder negativ, z. B. Überlagerungsempfänger mit fester ZF): Einstellung und Anzeige auf der CH2-Seite, Grenzen 8 kHz–160 MHz für beide, CH3-IQ und Spread berücksichtigen, SCPI/REST und Weboberfläche; Planung vor der Umsetzung. *Commit:* `N14: Add CH2 coupled to CH1 with offset`
 
 ---
 
