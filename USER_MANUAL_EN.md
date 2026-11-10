@@ -759,7 +759,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Touch` | `Touch calibrated x … y …`: stored calibration with the raw values of the screen edges; `Touch not calibrated (default)`: fixed values |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
 | `WiFi` | `WiFi off`; connected: network, address, signal strength; `WiFi searching (<device name>)`; access point: `AP` or `Fallback AP`, name, address, number of connected devices (orange without password). Foreign network names are cleaned (control and invalid characters as `?`, at most 32 bytes) |
-| `Remote` | `web <n>` open browser pages, `SCPI <address>` or `-` the SCPI TCP client. Below it the button `Disconnect all`: closes all browser connections, ends the web sessions and the SCPI TCP connection. Without a web password a browser reconnects within seconds. |
+| `Remote` | `web <n>` open browser pages, `SCPI <address>` or `-` the SCPI TCP client. Below it the button `Reconnect all`: closes all browser connections, ends the web sessions and the SCPI TCP connection. The peers connect again by themselves afterwards (a browser without web password within seconds, an SCPI program at once). It does not lock anybody out; for that set a web password or set `Remote out.` to `local only`. |
 | `Heap` | free memory and its minimum since boot, largest contiguous block, free memory of the user interface (LVGL), each in KB |
 
 ---
@@ -1041,7 +1041,7 @@ Important messages:
 | `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP connection; when closed with the reason: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Commands are never logged |
 | `[WEB] Server on port: 80` | Web interface ready (WiFi connected or access point) |
 | `[WEB] Login`, `[WEB] Login failed` | Login with the web password right or wrong (the password is never logged) (`[WEB] Logout`: logged out) |
-| `[GUI] Web password set` / `removed`, `[GUI] Disconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web password on the Device page; `Disconnect all` on the info card |
+| `[GUI] Web password set` / `removed`, `[GUI] Reconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web password on the Device page; `Reconnect all` on the info card |
 | `[WEB] Server stopped (WiFi off)` | WiFi `Off`: the web server accepts nothing more, open pages are disconnected |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Network change from the browser (section 16) |
 | `[WEB] WebSocket closed: no pong`, `[WEB] No memory for the web server`, `[WEB] Saving the network settings failed` | Browser no longer answers; too little memory; saving failed |

@@ -759,7 +759,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
 | `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke; `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
-| `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-TCP-Client. Darunter die Taste `Disconnect all`: schließt alle Browser-Verbindungen, beendet die Web-Anmeldungen und die SCPI-TCP-Verbindung. Ohne Web-Passwort verbindet sich ein Browser nach wenigen Sekunden wieder. |
+| `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-TCP-Client. Darunter die Taste `Reconnect all`: trennt alle Browser-Verbindungen, beendet die Web-Anmeldungen und die SCPI-TCP-Verbindung. Die Gegenstellen verbinden sich danach von selbst neu (ein Browser ohne Web-Passwort nach wenigen Sekunden, ein SCPI-Programm sofort). Aussperren lässt sich niemand damit; dafür ein Web-Passwort setzen oder `Remote out.` auf `local only` stellen. |
 | `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB |
 
 ---
@@ -1041,7 +1041,7 @@ Wichtige Meldungen:
 | `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP-Verbindung; beim Schließen mit Grund: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Befehle werden nie geloggt |
 | `[WEB] Server on port: 80` | Weboberfläche bereit (WLAN verbunden oder Access Point) |
 | `[WEB] Login`, `[WEB] Login failed` | Anmeldung mit Web-Passwort richtig bzw. falsch (das Passwort wird nie geloggt) (`[WEB] Logout`: abgemeldet) |
-| `[GUI] Web password set` / `removed`, `[GUI] Disconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web-Passwort auf der Seite Device; `Disconnect all` auf der Info-Karte |
+| `[GUI] Web password set` / `removed`, `[GUI] Reconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web-Passwort auf der Seite Device; `Reconnect all` auf der Info-Karte |
 | `[WEB] Server stopped (WiFi off)` | WLAN `Off`: der Webserver nimmt nichts mehr an, offene Seiten werden getrennt |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Netzänderung aus dem Browser (Abschnitt 16) |
 | `[WEB] WebSocket closed: no pong`, `[WEB] No memory for the web server`, `[WEB] Saving the network settings failed` | Browser antwortet nicht mehr; zu wenig Speicher; Speichern fehlgeschlagen |

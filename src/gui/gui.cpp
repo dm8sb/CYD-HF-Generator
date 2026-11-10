@@ -560,7 +560,7 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::RemoteDisconnect:
             // Served by the next loop(); the info card shows the new counts then.
             if (disconnectRemote_) disconnectRemote_();
-            Logger::info("GUI", "Disconnect all remote clients");
+            Logger::info("GUI", "Reconnect all remote clients");
             break;
         case Action::WifiEdit:
         case Action::WifiDelete:

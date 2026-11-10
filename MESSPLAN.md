@@ -1294,7 +1294,7 @@ Was hier steht, ist großteils durch die Host-Suites der WEB-HMI abgedeckt oder 
 | L2 | Zwei WLANs speichern (A stärker); A ab, dann A ein und B ab; RSSI und gewähltes Netz | WiFiMulti | das stärkere Netz gewinnt; bei Misserfolg Wechsel | 30 min |
 | L4 | Statische IP: gültige Werte; ungültige (IP = Gateway, Broadcast, Netzadresse, außerhalb des Subnetzes) | W-S12, `test_net_settings` | gültige übernommen, ungültige mit Klartextmeldung abgelehnt | 20 min |
 | L5 | mDNS und Captive-DNS: `ping <name>.local` und `http://<name>.local` auf Windows, Android, iOS; im AP-Modus öffnet sich die Einrichtungsseite; im Client-Modus `nslookup example.com <Geräte-IP>` ohne Antwort | W-E6, W-S4 | Name löst auf; Captive-DNS nur im AP-Modus | 45 min |
-| L7 | Zweite SCPI-Verbindung (`nc <IP> 5025`) wird abgelehnt (Info-Karte `connected` / `rejected <IP>`); Leerlauf-Trennung nach 10 min; `Disconnect all` | W-S20 | wie angegeben | 30 min |
+| L7 | Zweite SCPI-Verbindung (`nc <IP> 5025`) wird abgelehnt (Info-Karte `connected` / `rejected <IP>`); Leerlauf-Trennung nach 10 min; `Reconnect all` | W-S20 | wie angegeben | 30 min |
 | L8 | Web auf drei Clients: Änderungen live; Feld mit Fokus wird nicht überschrieben; vierter Client „Too many clients (max. 3)“; Netz trennen → Seite grau | – | wie angegeben | 30 min |
 | L9 | Tastaturbedienung im Browser: `↑`/`↓`, `←`/`→`, `Bild↑`/`Bild↓`, Mausrad, `1`/`2`/`3`, `F`/`Enter`/`Esc`, `O`, `?`; `Space` | WEB-HMI-Konzept | Belegung wie im Konzept; `Space` schaltet nichts | 20 min |
 | L10 | Zweistufige Netzänderung: ohne Bestätigung Rückfall nach 120 s; mit Bestätigung übernommen; ohne Web-Passwort zusätzlich Touch-Bestätigung | W-E9, W-S12 | Rückfall nach 120 s (± 5 s) | 20 min |
