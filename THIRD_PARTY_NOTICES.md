@@ -31,7 +31,7 @@ Credit: the CYD dimensions of the case in `case/` were measured from the STEP mo
 | Component | Version | License (SPDX) | Copyright | Source | Used in |
 |---|---|---|---|---|---|
 | CYD HF Generator (this project, including the web UI in `data/www`, the flasher page and the OpenSCAD case in `case/`) | see tag | GPL-3.0-or-later | DM8SB | https://github.com/dm8sb/CYD-HF-Generator | Firmware, Flasher, Case |
-| TFT_eSPI | 2.5.43 | BSD-2-Clause-Views AND BSD-2-Clause AND MIT | Bodmer; Adafruit Industries; Limor Fried | https://github.com/Bodmer/TFT_eSPI | Firmware (incl. GLCD and fonts 2, 4, 6, 7, 8) |
+| TFT_eSPI | 2.5.43 | BSD-2-Clause-Views AND BSD-2-Clause AND MIT | Bodmer; Adafruit Industries; Limor Fried | https://github.com/Bodmer/TFT_eSPI | Firmware (display driver only; its fonts are not built since 2026-11-10) |
 | LVGL | 8.4.0 | MIT | LVGL Kft | https://github.com/lvgl/lvgl | Firmware |
 | ↳ QR Code generator (lv_qrcode) | in LVGL 8.4.0 | MIT | Project Nayuki | https://www.nayuki.io/page/qr-code-generator-library | Firmware |
 | ↳ TLSF allocator (lv_tlsf) | in LVGL 8.4.0 | BSD-3-Clause | Matthew Conte | http://tlsf.baisoku.org | Firmware |
