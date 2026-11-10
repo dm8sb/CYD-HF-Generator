@@ -13,6 +13,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 
 - [USER_MANUAL_DE.md](USER_MANUAL_DE.md): user manual, reference for all behavior (German); [USER_MANUAL_EN.md](USER_MANUAL_EN.md): English translation
 - [docs/hardware.md](docs/hardware.md): SI5351 wiring to CN1, supply, outputs, bill of materials, safety
+- [case/](case/README.md): parametric OpenSCAD case for the CYD2USB with the Si5351 module and three SMA sockets
 - [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md): requirements and decisions
 - [ARBEITSPLAN.md](ARBEITSPLAN.md): open findings, WEB-HMI concept and task list (German)
 - [MESSPLAN.md](MESSPLAN.md): hardware measurement plan by priority (German)
@@ -40,6 +41,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 - Fuzzing: 9 harnesses in `test/fuzz/` incl. request guard and REST JSON against independent reference models (libFuzzer with ASan/UBSan in the CI job `Fuzz`, standalone driver for gcc/MinGW), fixed-seed random test `test_fuzz_random` in the host tests
 - Request guard (host, origin, token, sessions, login lock, PBKDF2 web password) and REST JSON mapping with strict JSON check (ArduinoJson 7.4.3), host-tested, not yet wired to a server
 - Issue forms (bug report with board, firmware version and commit, log) and a pull request template with the gate checklist
+- OpenSCAD case in `case/` (two parts, snap hooks or screws, SMA holes, slide-in holder for the Si5351 module)
 - Hardware page `docs/hardware.md` (bill of materials, CN1 wiring, supply, safety) and README badges
 - Security policy (`SECURITY.md`, private vulnerability reporting) and CodeQL for C/C++, Python, JavaScript and workflows
 - Dependabot keeps the pinned GitHub Actions up to date (weekly, grouped, to `dev`)

@@ -14,6 +14,7 @@ What you need to build the CYD HF Generator and how to connect the SI5351 module
 - [Supply](#supply)
 - [Outputs](#outputs)
 - [Hints for a clean signal](#hints-for-a-clean-signal)
+- [Case](#case)
 - [Safety](#safety)
 - [Photos](#photos)
 
@@ -107,6 +108,10 @@ These hints are general practice for SI5351 builds; their effect on this device 
 - **Short I2C cable:** keep the CN1 cable short and away from the output lines.
 - **Shielding:** a metal enclosure or a shield over the module reduces coupling from the display, the backlight PWM and the WiFi radio.
 - **TCXO:** an optional 25 MHz TCXO instead of the crystal, only if the warm-up drift matters for your use (decision after measurement C7). The frequency correction (CONFIG `Corr.`) compensates the static crystal error.
+
+## Case
+
+[`case/CYD_Si5351_Gehaeuse.scad`](../case/CYD_Si5351_Gehaeuse.scad) is a parametric OpenSCAD case for the CYD2USB with a CJMCU-5351 module and three edge-mount SMA sockets (outside about 90.6 × 57 × 32.3 mm, two parts, printable without support, snap hooks or M2.5 screws). Measure your Si5351 module first; parameters, assembly and STL export: [case/README.md](../case/README.md).
 
 ## Safety
 
