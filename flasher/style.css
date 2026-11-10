@@ -15,3 +15,5 @@ table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow-
 th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--ol)}
 td:first-child,td:last-child{font-family:ui-monospace,Consolas,monospace}
 td:last-child,th:last-child{text-align:right}
+.files{padding-left:20px}
+.files li{margin:2px 0;overflow-wrap:anywhere}

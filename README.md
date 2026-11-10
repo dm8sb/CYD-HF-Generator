@@ -3,7 +3,7 @@
 [![CI](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/ci.yml?query=branch%3Amain)
 [![Fuzz](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/fuzz.yml/badge.svg?branch=main)](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/fuzz.yml?query=branch%3Amain)
 [![Latest release](https://img.shields.io/github/v/release/dm8sb/CYD-HF-Generator?sort=semver)](https://github.com/dm8sb/CYD-HF-Generator/releases/latest)
-[![License: GPL-3.0](https://img.shields.io/github/license/dm8sb/CYD-HF-Generator)](LICENSE)
+[![License: GPL-3.0-or-later](https://img.shields.io/github/license/dm8sb/CYD-HF-Generator)](#license)
 
 PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator with an SI5351 on the ESP32-2432S028R "Cheap Yellow Display" (original CYD and CYD2USB).
 
@@ -47,6 +47,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 - Dependabot keeps the pinned GitHub Actions up to date (weekly, grouped, to `dev`)
 - CI: Flash and static RAM of both firmware envs as a job summary table and artifact `firmware-size` (`tools/size_report.py`), compared with the target branch in pull requests and with the previous commit on pushes
 - Release workflow with build provenance and checksums; web flasher site for GitHub Pages (ESP Web Tools, separate parts so an update keeps the settings), goes live with the first release
+- License notices (G11): `THIRD_PARTY_NOTICES.md` and `LICENSES/`; releases carry the license texts (`…-licenses.tar.gz`) and the source of the LGPL libraries (`…-lgpl-sources.tar.gz`); the flasher site serves ESP Web Tools itself (no CDN) with its notices and the flasher stub sources, names the person behind it and has a privacy note; license line in the footer of the web interface; license stated as GPL-3.0-or-later
 - Web interface on port 80 (manual section 16): embedded page, REST API and WebSocket, request guard with session login (web password set at the device), two-stage network changes with confirmation, at most 3 browsers; web password on the Device page, remote clients and `Disconnect all` on the info card; fixed header with area links and logout; `tools/web_mock.py` to try it without the device, `tools/web_check.py` checks the contract
 - Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, built with `-Os`) and LVGL 8.4.0; the Arduino 2.0.x build is gone (E-32), the last firmware on it is 1.3.3
 - WiFi (CONFIG `WiFi` and `Remote out.`, WIFI page with network scan and on-screen keyboard, access point page with QR code, device page with name and static IP, WiFi state and `REMOTE <source>` in the status bar, WiFi and heap lines on the info card; default Off): network settings in NVS `hfnet`, client with up to two networks, fallback access point after 60 s, AP off as soon as the client has an address, mDNS, captive DNS; the factory reset also erases the WiFi settings
@@ -105,7 +106,20 @@ The firmware tries SDA=22 first, then the swapped assignment; the log shows the 
 
 ## Libraries
 
-Pinned in `platformio.ini`: Arduino-ESP32 3.3.12 via `espressif32@8.0.0`, `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it), `lvgl/lvgl@8.4.0`, XPT2046_Touchscreen at commit `d57f64c` (tag v1.4), scpi-parser at commit `8866159` (v2.3 + build fixes), `Preferences` from Arduino-ESP32.
+Pinned in `platformio.ini`:
+
+| Library | Version | License |
+|---|---|---|
+| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, SPIFFS, Hash) with ESP-IDF 5.5.5 | 3.3.12 via `espressif32@8.0.0` | LGPL-2.1-or-later, Apache-2.0 |
+| `bodmer/TFT_eSPI` (exact: the ST7789 init sequence is derived from it) | 2.5.43 | FreeBSD (BSD-2-Clause-Views), MIT |
+| `lvgl/lvgl` | 8.4.0 | MIT |
+| XPT2046_Touchscreen | commit `d57f64c` (tag v1.4) | MIT |
+| scpi-parser | commit `8866159` (v2.3 + build fixes) | BSD-2-Clause |
+| `bblanchon/ArduinoJson` | 7.4.3 | MIT |
+| `esp32async/AsyncTCP` | 3.5.0 | LGPL-3.0-or-later |
+| `esp32async/ESPAsyncWebServer` | 3.12.1 | LGPL-3.0-or-later |
+
+The web flasher serves ESP Web Tools 10.4.0 (Apache-2.0) itself. Every component with its copyright holders: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Build and Flash
 
@@ -158,3 +172,11 @@ pio run -e esp32-2432S028R-hitmap -t upload     # 20 target crosses, [HITMAP] an
 - `net/*`: network settings (`net_settings`), WiFi policy (pure) and manager, SHA-1/PBKDF2
 - `gui/gui.cpp`, `gui/gui_layout.h`, `gui/pages/*`: LVGL setup, navigation and dialogs, layout grid and colors, pages
 - `utils/*`: pure, host-tested logic (`frequency_utils`, `input_logic`, `message_queue`, `status_text`, `contrast`, `touch_cal`, `touch_test`), logger, build info
+
+## License
+
+CYD HF Generator, Copyright (C) 2026 DM8SB.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version (GPL-3.0-or-later, text in [LICENSE](LICENSE)). It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. This applies to the whole repository, including the web interface, the flasher page and the case in `case/`. Private, non-commercial hobby project.
+
+Third-party components and their licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), license texts in [LICENSES/](LICENSES/). Every release includes the license texts and notices (`…-licenses.tar.gz`) and the complete source of the LGPL libraries in the firmware (`…-lgpl-sources.tar.gz`). The case dimensions of the CYD were measured from the STEP model "Cheap Yellow Display" by mbrembati (measurements only, no files copied).

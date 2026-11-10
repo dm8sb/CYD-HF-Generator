@@ -68,6 +68,12 @@ CH3 always follows the frequency of its master and can be operated with a phase 
 
 The CONFIG page also lets you select the SI5351 divider scheme (`Tuning`), spread spectrum for CH1 and the state of switched-off outputs (section 8).
 
+### Licenses
+
+The firmware, the web interface and the web flasher page are free software under the GNU General Public License version 3 or (at your option) any later version (GPL-3.0-or-later), Copyright (C) 2026 DM8SB. They are provided **without any warranty**, without even the implied warranty of merchantability or fitness for a particular purpose; you use them at your own risk. The CYD HF Generator is a private, non-commercial hobby project.
+
+The firmware contains third-party components under their own licenses (among them Arduino-ESP32 with ESP-IDF, TFT_eSPI, LVGL, ArduinoJson, AsyncTCP and ESPAsyncWebServer). All components with license and copyright holders are listed in `THIRD_PARTY_NOTICES.md`; every release contains the license texts (`cyd-hf-generator-<version>-licenses.tar.gz`) and the source of the LGPL libraries (`cyd-hf-generator-<version>-lgpl-sources.tar.gz`). The complete source is on GitHub: https://github.com/dm8sb/CYD-HF-Generator. The license line is in the footer of the web interface (section 16), not on the display.
+
 ---
 
 ## 2. Basic Operation
@@ -1117,6 +1123,13 @@ For operation:
 - **Physical access is full access:** anyone who can operate the device or reflash it via USB can change all settings and outputs; there is no lock and no password. This includes SCPI over USB (section 15): any program on the connected PC can switch outputs on.
 - **Foreign device at 0x60:** if another device answers at I2C address 0x60, the firmware reads its identification and writes at most one test byte into its register 3 before it recognizes it as "not an SI5351" (section 11). Do not connect other devices with this address to CN1.
 
+Radio and conformity:
+
+- **Not a transmitter:** the generator delivers test signals. Never connect an output to an antenna without a suitable low-pass filter; the square wave contains strong harmonics.
+- **Radiate** only with an amateur radio licence, only in the permitted bands and within the spurious-emission limits.
+- The operator is responsible for complying with the EMC and radio regulations.
+- **Self-built for your own use**, the device carries no CE marking. Whoever passes on or sells pre-flashed devices becomes the manufacturer and needs CE conformity under the EMC and Radio Equipment Directive (RED), including the RED delegated act on cybersecurity (the device has WiFi).
+
 ---
 
 ## 15. Remote Control over USB and Network (SCPI)
@@ -1228,6 +1241,7 @@ With WiFi (section 8, WIFI page) the generator can also be operated in a browser
 - After a change from the browser the device status bar shows `REMOTE WEB` for 10 s. `Remote out.` `local only` (section 8) applies here too: switching on is refused.
 - At most 3 browsers at a time; a fourth sees `Too many clients (max. 3)`.
 - Only at the device: defaults and factory reset, touch calibration, screen lock, new access point password, web password (WIFI → `Device`, row `Web pw.`).
+- The footer at the end of the page shows `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` and `licenses` open the repository and `THIRD_PARTY_NOTICES.md` on GitHub in a new tab (this needs internet access in the browser, section 1, "Licenses").
 
 ### Web Password
 

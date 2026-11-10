@@ -1,23 +1,36 @@
 #!/usr/bin/env python3
-"""Web flasher site (ARBEITSPLAN G1/G2): collect the flash parts, assemble and check the site.
+"""Web flasher site (ARBEITSPLAN G1/G2, G11): collect the flash parts and notices, assemble and check the site.
 
 Python 3 standard library only. Used by .github/workflows/release.yml and locally:
 
   pio project metadata -e esp32-2432S028R --json-output > meta.json
   python tools/flasher_site.py collect --metadata meta.json --env esp32-2432S028R --out parts
-  python tools/flasher_site.py assemble --parts parts --version 1.4.0 --commit abc1234 --out site
-  python tools/flasher_site.py check site [--verify-cdn]
+  python tools/flasher_site.py notices --metadata meta.json --env esp32-2432S028R --out parts/notices
+  python tools/flasher_site.py vendor --out ewt
+  python tools/flasher_site.py assemble --parts parts --ewt ewt --version 1.4.0 --commit abc1234 --out site
+  python tools/flasher_site.py check site
   python tools/flasher_site.py lock 10.4.0      # rewrite flasher/esp-web-tools.json (version bump)
 
 collect: the offsets come from PlatformIO itself (FLASH_EXTRA_IMAGES of the framework build
 script and the application offset of the board), not from this script. The parts stay separate:
 a merged image from 0 would pad the gaps with 0xFF and erase NVS on every update.
 
+notices (G11, THIRD_PARTY_NOTICES.md): LICENSE, LICENSES/ and THIRD_PARTY_NOTICES.md, the license
+files as shipped in the pinned packages (upstream/), and the source of the LGPL parts linked into
+the image (lgpl-sources.tar.gz: Arduino-ESP32 core and libraries, AsyncTCP, ESPAsyncWebServer).
+A missing file fails, so a dependency change cannot drop a notice unnoticed.
+
+vendor: ESP Web Tools is served by the flasher site itself (no CDN at runtime, E-36). Downloads
+the modules pinned in flasher/esp-web-tools.json (SHA-384) and the license files and flasher stub
+sources listed under "notices" there (SHA-256); a file that differs from its pin fails. Files
+already in --out with the right hash are not downloaded again.
+
 check: manifest and files, every part an ESP32 image or the partition table where expected,
 offsets sector-aligned, ascending and non-overlapping (erase granularity 4 KiB), every part inside
 the bootloader area, the partition table sector or an app/otadata partition of the flashed
 partition table (so an update never erases NVS), checksums, page template fully filled, the
-CSP hash of the import map, and with --verify-cdn the pinned ESP Web Tools modules against the CDN.
+self-hosted ESP Web Tools modules and notices against their pins, a CSP that allows scripts only
+from the site itself, no resource from another origin, and every local link present.
 """
 import argparse
 import base64
@@ -29,6 +42,7 @@ import re
 import shutil
 import struct
 import sys
+import tarfile
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,6 +55,9 @@ BOOTLOADER_OFFSET = 0x1000        # ESP32 (not S3/C3: those start at 0)
 FLASH_SIZES = {0: 1 << 20, 1: 2 << 20, 2: 4 << 20, 3: 8 << 20, 4: 16 << 20}
 VERSION_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$")
 JSDELIVR = "https://cdn.jsdelivr.net/npm/esp-web-tools@{v}/dist/web/"
+EWT_SITE_DIR = "esp-web-tools/{v}/"   # the modules in the site (relative imports keep working)
+EWT_NOTICES_DIR = "notices/esp-web-tools/"
+NOTICE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
 JSDELIVR_LIST = "https://data.jsdelivr.com/v1/packages/npm/esp-web-tools@{v}?structure=flat"
 
 
@@ -110,13 +127,140 @@ def cmd_collect(args):
 
 
 # ---------------------------------------------------------------------------------------------
+# notices
+
+
+def _package_dirs(meta, env):
+    """Arduino-ESP32 framework and toolchain directories of this build, from the PlatformIO metadata."""
+    extra = meta.get("extra") or {}
+    framework = None
+    for i in extra.get("flash_images", []):
+        parts = os.path.normpath(i["path"]).split(os.sep)
+        if parts[-3:] == ["tools", "partitions", "boot_app0.bin"]:
+            framework = os.sep.join(parts[:-3])
+    if not framework or not os.path.isfile(os.path.join(framework, "package.json")):
+        fail("metadata of %s names no Arduino-ESP32 framework (boot_app0.bin)" % env)
+    toolchain = os.path.dirname(os.path.dirname(meta.get("cc_path", "")))
+    if not os.path.isdir(os.path.join(toolchain, "share", "licenses")):
+        fail("metadata of %s: no toolchain licenses next to %s" % (env, meta.get("cc_path")))
+    return framework, toolchain
+
+
+def _head(path, lines):
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        text = "".join(f.readline() for _ in range(lines))
+    if not text.strip():
+        fail("%s: empty header" % path)
+    return text
+
+
+def _need(path):
+    if not os.path.exists(path):
+        fail("missing %s" % path)
+    return path
+
+
+def cmd_notices(args):
+    meta = read_json(args.metadata)
+    if args.env not in meta:
+        fail("env %s not in %s" % (args.env, args.metadata))
+    framework, toolchain = _package_dirs(meta[args.env], args.env)
+    lib = args.libdeps or os.path.join(ROOT, ".pio", "libdeps", args.env)
+    out = args.out
+    up = os.path.join(out, "upstream")
+    os.makedirs(up, exist_ok=True)
+
+    shutil.copyfile(_need(os.path.join(ROOT, "THIRD_PARTY_NOTICES.md")), os.path.join(out, "THIRD_PARTY_NOTICES.txt"))
+    shutil.copyfile(_need(os.path.join(ROOT, "LICENSE")), os.path.join(out, "LICENSE.txt"))
+    shutil.copytree(_need(os.path.join(ROOT, "LICENSES")), os.path.join(out, "LICENSES"), dirs_exist_ok=True)
+    # License files exactly as shipped (the file header where a package has no license file).
+    lic = os.path.join(toolchain, "share", "licenses")
+    copies = [
+        ("TFT_eSPI-license.txt", os.path.join(lib, "TFT_eSPI", "license.txt")),
+        ("lvgl-LICENCE.txt", os.path.join(lib, "lvgl", "LICENCE.txt")),
+        ("scpi-parser-LICENSE.txt", os.path.join(lib, "scpi-parser", "LICENSE")),
+        ("ArduinoJson-LICENSE.txt", os.path.join(lib, "ArduinoJson", "LICENSE.txt")),
+        ("AsyncTCP-LICENSE.txt", os.path.join(lib, "AsyncTCP", "LICENSE")),
+        ("ESPAsyncWebServer-LICENSE.txt", os.path.join(lib, "ESPAsyncWebServer", "LICENSE")),
+        ("newlib-COPYING.NEWLIB.txt", os.path.join(lic, "newlib", "COPYING.NEWLIB")),
+        ("gcc-COPYING.RUNTIME.txt", os.path.join(lic, "gcc", "COPYING.RUNTIME")),
+    ]
+    for name, src in copies:
+        shutil.copyfile(_need(src), os.path.join(up, name))
+    lvgl = os.path.join(lib, "lvgl", "src")
+    headers = [
+        ("lvgl-qrcodegen-header.txt", os.path.join(lvgl, "extra", "libs", "qrcode", "qrcodegen.c"), 25),
+        ("lvgl-tlsf-header.txt", os.path.join(lvgl, "misc", "lv_tlsf.h"), 45),
+        ("lvgl-printf-header.txt", os.path.join(lvgl, "misc", "lv_printf.c"), 30),
+        ("XPT2046_Touchscreen-header.txt", os.path.join(lib, "XPT2046_Touchscreen", "XPT2046_Touchscreen.cpp"), 21),
+    ]
+    for name, src, lines in headers:
+        write_text(os.path.join(up, name), _head(_need(src), lines))
+
+    # Complete source of the LGPL parts linked into the image (LGPL-2.1 section 6, LGPL-3.0
+    # section 4): the Arduino-ESP32 core and libraries, AsyncTCP, ESPAsyncWebServer.
+    def skip(info):
+        return None if info.name.rsplit("/", 1)[-1] in (".git", ".piopm") else info
+
+    tar_path = os.path.join(out, "lgpl-sources.tar.gz")
+    with tarfile.open(tar_path, "w:gz") as t:
+        for rel in ("package.json", "cores", "libraries", "tools/partitions"):
+            t.add(_need(os.path.join(framework, *rel.split("/"))),
+                  arcname="framework-arduinoespressif32/" + rel, filter=skip)
+        for name in ("AsyncTCP", "ESPAsyncWebServer"):
+            t.add(_need(os.path.join(lib, name)), arcname=name, filter=skip)
+    print("notices in %s: %d upstream files, lgpl-sources.tar.gz %d B (framework %s)"
+          % (out, len(copies) + len(headers), os.path.getsize(tar_path), framework))
+
+
+# ---------------------------------------------------------------------------------------------
+# vendor (self-hosted ESP Web Tools)
+
+
+def _lock_entries(lock):
+    """(kind, name, url, pin) of every pinned file: the modules (SHA-384) and the notices (SHA-256)."""
+    for name, h in sorted(lock["integrity"].items()):
+        yield "web", name, lock["base"] + name, h
+    for name, n in sorted(lock.get("notices", {}).items()):
+        if not NOTICE_NAME_RE.match(name):
+            fail("esp-web-tools.json: bad notice name %r" % name)
+        yield "notices", name, n["url"], n["sha256"]
+
+
+def _matches(data, pin):
+    if pin.startswith("sha384-"):
+        return sri(data) == pin
+    return hashlib.sha256(data).hexdigest() == pin
+
+
+def _read(path):
+    with open(path, "rb") as f:
+        return f.read()
+
+
+def cmd_vendor(args):
+    lock = read_json(LOCK_FILE)
+    fetched = cached = 0
+    for kind, name, url, pin in _lock_entries(lock):
+        if not url.startswith("https://"):
+            fail("%s: only https downloads" % name)
+        path = os.path.join(args.out, kind, name)
+        if os.path.isfile(path) and _matches(_read(path), pin):
+            cached += 1
+            continue
+        data = fetch(url)
+        if not _matches(data, pin):
+            fail("%s: download from %s does not match its pin in esp-web-tools.json" % (name, url))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+        fetched += 1
+    print("ESP Web Tools %s in %s: %d files downloaded, %d cached, all match their pins"
+          % (lock["version"], args.out, fetched, cached))
+
+
+# ---------------------------------------------------------------------------------------------
 # assemble
-
-
-def import_map(lock):
-    base = lock["base"]
-    integrity = {base + name: h for name, h in sorted(lock["integrity"].items()) if name != lock["entry"]}
-    return json.dumps({"imports": {}, "integrity": integrity}, indent=1)
 
 
 def cmd_assemble(args):
@@ -124,6 +268,9 @@ def cmd_assemble(args):
         fail("version %r: only letters, digits and . + - allowed" % args.version)
     lock = read_json(LOCK_FILE)
     info = read_json(os.path.join(args.parts, "parts.json"))
+    notices = os.path.join(args.parts, "notices")
+    if not os.path.isfile(os.path.join(notices, "THIRD_PARTY_NOTICES.txt")):
+        fail("%s: no notices/ (run the notices command first)" % args.parts)
     os.makedirs(args.out, exist_ok=True)
     fw_rel = "firmware/%s" % args.version   # versioned: a cached manifest never mixes releases
     fw_dir = os.path.join(args.out, *fw_rel.split("/"))
@@ -140,16 +287,30 @@ def cmd_assemble(args):
     write_text(os.path.join(fw_dir, "SHA256SUMS"), "".join(sums))
     write_text(os.path.join(args.out, "manifest.json"), json.dumps(manifest, indent=2) + "\n")
 
-    imap = import_map(lock)
+    # Notices and LGPL sources of the same build; ESP Web Tools and its notices from the vendor
+    # directory, checked against their pins once more.
+    shutil.copytree(notices, os.path.join(args.out, "notices"), dirs_exist_ok=True)
+    ewt_rel = EWT_SITE_DIR.format(v=lock["version"])
+    ewt_links = []
+    for kind, name, url, pin in _lock_entries(lock):
+        src = os.path.join(args.ewt, kind, name)
+        if not os.path.isfile(src) or not _matches(_read(src), pin):
+            fail("%s: missing in %s or not matching its pin (run vendor)" % (name, args.ewt))
+        rel = (ewt_rel if kind == "web" else EWT_NOTICES_DIR) + name
+        dst = os.path.join(args.out, *rel.split("/"))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copyfile(src, dst)
+        if kind == "notices":
+            ewt_links.append('<li><a href="%s">%s</a></li>' % (html.escape(rel), html.escape(name)))
+
     with open(os.path.join(TEMPLATE_DIR, "index.html"), "r", encoding="utf-8") as f:
         page = f.read()
     fields = {
-        "EWT_BASE": lock["base"],
-        "EWT_ENTRY": lock["entry"],
+        "EWT_PATH": html.escape(ewt_rel),
+        "EWT_ENTRY": html.escape(lock["entry"]),
         "EWT_ENTRY_INTEGRITY": lock["integrity"][lock["entry"]],
         "EWT_VERSION": html.escape(lock["version"]),
-        "IMPORTMAP": imap,
-        "IMPORTMAP_HASH": sri(imap.encode("utf-8")),
+        "EWT_NOTICES": "\n".join(ewt_links),
         "VERSION": html.escape(args.version),
         "COMMIT": html.escape(args.commit),
         "PARTS_ROWS": "\n".join(rows),
@@ -160,7 +321,8 @@ def cmd_assemble(args):
     page = re.sub(r"\{\{([A-Z_]+)\}\}", lambda m: fields[m.group(1)], page)
     write_text(os.path.join(args.out, "index.html"), page)
     shutil.copyfile(os.path.join(TEMPLATE_DIR, "style.css"), os.path.join(args.out, "style.css"))
-    print("site assembled in %s (version %s, %d parts)" % (args.out, args.version, len(rows)))
+    print("site assembled in %s (version %s, %d parts, ESP Web Tools %s self-hosted)"
+          % (args.out, args.version, len(rows), lock["version"]))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -195,7 +357,7 @@ def esp_image_header(data, what):
     return FLASH_SIZES.get(data[3] >> 4)
 
 
-def check_site(site, verify_cdn=False, partitions_csv=None):
+def check_site(site, partitions_csv=None):
     def path_in_site(rel):
         if not rel or rel.startswith(("/", "\\")) or ".." in rel.split("/") or "\\" in rel or ":" in rel:
             fail("path %r must be relative inside the site" % rel)
@@ -330,43 +492,52 @@ def check_site(site, verify_cdn=False, partitions_csv=None):
         fail("index.html: unfilled template field")
     if '<esp-web-install-button manifest="manifest.json">' not in page:
         fail("index.html: no install button for manifest.json")
-    m = re.search(r'<script type="importmap">(.*?)</script>', page, re.S)
-    if not m:
-        fail("index.html: no import map")
-    imap = json.loads(m.group(1))
     csp = re.search(r'http-equiv="Content-Security-Policy" content="([^"]*)"', page)
     if not csp:
         fail("index.html: no CSP")
-    if "'%s'" % sri(m.group(1).encode("utf-8")) not in csp.group(1):
-        fail("index.html: CSP does not carry the hash of the import map")
-    if page.index("Content-Security-Policy") > page.index('type="importmap"'):
-        fail("index.html: CSP must come before the import map")
-    entry = re.search(r'<script type="module" src="([^"]+)" integrity="(sha384-[A-Za-z0-9+/=]+)" crossorigin="anonymous">', page)
-    if not entry:
-        fail("index.html: module script without integrity")
+    directives = {d.split()[0]: d.split()[1:] for d in csp.group(1).split(";") if d.strip()}
+    if directives.get("script-src") != ["'self'"]:
+        fail("index.html: CSP script-src must be 'self' only (ESP Web Tools is self-hosted)")
+    if directives.get("default-src") != ["'none'"]:
+        fail("index.html: CSP default-src must be 'none'")
+    if re.search(r"https?:|\*", csp.group(1)):
+        fail("index.html: CSP allows another origin")
+    if page.index("Content-Security-Policy") > page.index("<script"):
+        fail("index.html: CSP must come before the first script")
+    # Scripts: only the pinned entry module, no inline code.
+    scripts = re.findall(r"<script\b([^>]*)>(.*?)</script>", page, re.S)
     lock = read_json(LOCK_FILE)
-    if not re.match(r"^https://cdn\.jsdelivr\.net/npm/esp-web-tools@\d+\.\d+\.\d+/dist/web/$", lock["base"]):
-        fail("esp-web-tools.json: base must be an exact jsdelivr version path")
-    pinned = {lock["base"] + n: h for n, h in lock["integrity"].items()}
-    if pinned.get(entry.group(1)) != entry.group(2):
-        fail("index.html: entry script %s not pinned in esp-web-tools.json" % entry.group(1))
-    if imap.get("integrity") != {u: h for u, h in pinned.items() if u != entry.group(1)}:
-        fail("index.html: import map integrity differs from esp-web-tools.json")
-    if lock["base"] not in csp.group(1):
-        fail("index.html: CSP script-src is not limited to the pinned path")
-    for ref in re.findall(r'(?:href|src)="([^"]+)"', page):
-        if not re.match(r"^(https://|#|data:)", ref):
-            path_in_site(ref)
-    if verify_cdn:
-        for url, h in sorted(pinned.items()):
-            if sri(fetch(url)) != h:
-                fail("CDN: %s does not match its pinned hash" % url)
-        print("  CDN: %d ESP Web Tools modules match their pinned hashes" % len(pinned))
+    ewt_rel = EWT_SITE_DIR.format(v=lock["version"])
+    entry_src = ewt_rel + lock["entry"]
+    want = ' type="module" src="%s" integrity="%s"' % (entry_src, lock["integrity"][lock["entry"]])
+    if [s for s in scripts] != [(want, "")]:
+        fail("index.html: expected exactly <script%s></script>, got %s" % (want, scripts))
+    # Resources (src, link href) only from the site; links to other sites are plain <a>.
+    for tag, attr, ref in re.findall(r'<(\w+)\b[^>]*?\b(href|src)="([^"]*)"', page):
+        if tag.lower() == "a" and re.match(r"^(https://|#)", ref):
+            continue
+        if ref.startswith("data:") and tag.lower() == "link":
+            continue
+        path_in_site(ref)
+    # ESP Web Tools and its notices as pinned (the page links each notice).
+    for kind, name, url, pin in _lock_entries(lock):
+        rel = (ewt_rel if kind == "web" else EWT_NOTICES_DIR) + name
+        if not _matches(_read(path_in_site(rel)), pin):
+            fail("%s does not match its pin in esp-web-tools.json" % rel)
+        if kind == "notices" and 'href="%s"' % rel not in page:
+            fail("index.html: no link to %s" % rel)
+    # Firmware notices (G11): the license texts and the LGPL sources must be linked and present.
+    for rel in ("notices/LICENSE.txt", "notices/THIRD_PARTY_NOTICES.txt", "notices/lgpl-sources.tar.gz"):
+        path_in_site(rel)
+        if 'href="%s"' % rel not in page:
+            fail("index.html: no link to %s" % rel)
+    print("  ESP Web Tools %s self-hosted: %d modules and %d notices match their pins"
+          % (lock["version"], len(lock["integrity"]), len(lock.get("notices", {}))))
     print("site %s OK: version %s, %d parts" % (site, manifest["version"], len(loaded)))
 
 
 def cmd_check(args):
-    check_site(args.site, args.verify_cdn, args.partitions_csv)
+    check_site(args.site, args.partitions_csv)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -388,9 +559,14 @@ def cmd_lock(args):
             integrity[name] = sri(data)
     if "install-button.js" not in integrity:
         fail("no dist/web/install-button.js in esp-web-tools %s" % args.version)
-    lock = {"version": args.version, "base": base, "entry": "install-button.js", "integrity": integrity}
+    old = read_json(LOCK_FILE) if os.path.isfile(LOCK_FILE) else {}
+    lock = {"version": args.version, "base": base, "entry": "install-button.js", "integrity": integrity,
+            "notices": old.get("notices", {})}
     write_text(LOCK_FILE, json.dumps(lock, indent=2, sort_keys=True) + "\n")
     print("wrote %s: %d modules" % (LOCK_FILE, len(integrity)))
+    if old.get("version") != args.version:
+        print("note: \"notices\" kept from %s; check the bundled packages and flasher stubs of %s "
+              "and update them and THIRD_PARTY_NOTICES.md" % (old.get("version"), args.version))
 
 
 def main():
@@ -401,8 +577,18 @@ def main():
     p.add_argument("--env", required=True)
     p.add_argument("--out", required=True)
     p.set_defaults(func=cmd_collect)
+    p = sub.add_parser("notices", help="collect the license notices and LGPL sources of a build")
+    p.add_argument("--metadata", required=True, help="output of pio project metadata --json-output")
+    p.add_argument("--env", required=True)
+    p.add_argument("--libdeps", help="library directory (default .pio/libdeps/<env>)")
+    p.add_argument("--out", required=True)
+    p.set_defaults(func=cmd_notices)
+    p = sub.add_parser("vendor", help="download the pinned ESP Web Tools files and notices")
+    p.add_argument("--out", required=True)
+    p.set_defaults(func=cmd_vendor)
     p = sub.add_parser("assemble", help="build the static flasher site")
-    p.add_argument("--parts", required=True)
+    p.add_argument("--parts", required=True, help="output of collect, with notices/ from the notices command")
+    p.add_argument("--ewt", required=True, help="output of vendor")
     p.add_argument("--version", required=True)
     p.add_argument("--commit", required=True)
     p.add_argument("--repo", default="dm8sb/CYD-HF-Generator")
@@ -410,7 +596,6 @@ def main():
     p.set_defaults(func=cmd_assemble)
     p = sub.add_parser("check", help="validate an assembled site")
     p.add_argument("site")
-    p.add_argument("--verify-cdn", action="store_true", help="download the pinned modules and compare")
     p.add_argument("--partitions-csv", help="also compare the partition table with this CSV")
     p.set_defaults(func=cmd_check)
     p = sub.add_parser("lock", help="pin an ESP Web Tools version (writes flasher/esp-web-tools.json)")

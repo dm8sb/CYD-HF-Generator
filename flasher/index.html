@@ -1,18 +1,18 @@
 <!doctype html>
-<!-- Web flasher page (ARBEITSPLAN G2). Template: tools/flasher_site.py fills the double-brace fields;
-     ESP Web Tools comes from the CDN in the exact version of esp-web-tools.json, every module
-     with its hash (entry: integrity attribute, chunks: import map), CSP limits scripts to that path. -->
+<!-- Web flasher page (ARBEITSPLAN G2, G11). Template: tools/flasher_site.py fills the double-brace
+     fields. ESP Web Tools is served by this site in the exact version of esp-web-tools.json
+     (downloaded and checked against its pins when the site is built, E-36), so the CSP allows
+     scripts only from the site itself and the page makes no request to another origin. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src {{EWT_BASE}} '{{IMPORTMAP_HASH}}'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>CYD HF Generator Flasher</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
-<script type="importmap">{{IMPORTMAP}}</script>
-<script type="module" src="{{EWT_BASE}}{{EWT_ENTRY}}" integrity="{{EWT_ENTRY_INTEGRITY}}" crossorigin="anonymous"></script>
+<script type="module" src="{{EWT_PATH}}{{EWT_ENTRY}}" integrity="{{EWT_ENTRY_INTEGRITY}}"></script>
 </head>
 <body>
 <main>
@@ -33,6 +33,7 @@
   <li><strong>Update:</strong> do not erase. The bootloader, partition table and firmware are rewritten; touch calibration, correction, WiFi and settings are kept.</li>
 </ol>
 <p>If the connection fails, hold the <strong>BOOT</strong> button while clicking Connect, close any serial monitor that holds the port, and try another USB cable (some cables carry power only).</p>
+<p class="warn">The generator is not a transmitter. Never connect an output to an antenna without a suitable low-pass filter; radiating a signal needs an amateur radio licence and must stay within the permitted bands and spurious-emission limits.</p>
 
 <h2>Files</h2>
 <p>The flasher writes these parts to the board's flash (no single merged image, so an update never touches the settings partition):</p>
@@ -43,7 +44,21 @@
 </tbody>
 </table>
 <p>Checksums: <a href="{{SUMS_PATH}}">SHA256SUMS</a>. Release files, build provenance and source: <a href="{{REPO_URL}}">{{REPO_NAME}}</a>.</p>
-<p class="mu">Flashing is powered by <a href="https://esphome.github.io/esp-web-tools/">ESP Web Tools</a> {{EWT_VERSION}}.</p>
+
+<h2>Licenses</h2>
+<p>CYD HF Generator, Copyright (C) 2026 DM8SB. The firmware is free software under the <a href="notices/LICENSE.txt">GNU General Public License version 3</a> or (at your option) any later version (GPL-3.0-or-later). Its source is in the repository <a href="{{REPO_URL}}">{{REPO_NAME}}</a>.</p>
+<p>The firmware contains third-party components under their own licenses: <a href="notices/THIRD_PARTY_NOTICES.txt">third-party notices</a> (license texts in <code>notices/LICENSES/</code> and <code>notices/upstream/</code>); source of the LGPL libraries in the firmware: <a href="notices/lgpl-sources.tar.gz">lgpl-sources.tar.gz</a>.</p>
+<p>Flashing is powered by <a href="https://esphome.github.io/esp-web-tools/">ESP Web Tools</a> {{EWT_VERSION}} (Apache-2.0), served from this site together with its bundled components. Their license files, and the source of the flasher stubs (GPL-2.0-or-later) that ESP Web Tools loads into the board's RAM while flashing:</p>
+<ul class="files">
+{{EWT_NOTICES}}
+</ul>
+
+<h2>About this page</h2>
+<p>This page and the firmware are provided by Sebastian Brandes (DM8SB) as a purely private, non-commercial hobby project, free of charge and "as is", without warranty or guarantee of any kind, either expressed or implied, including the implied warranties of merchantability and fitness for a particular purpose. You use the firmware and this flasher at your own risk: the entire risk as to their quality and performance, including damage to the board, connected equipment or data, is with you. Unless required by applicable law, the author is not liable for any damages arising from their use or the inability to use them.</p>
+<p lang="de" class="mu">Rein privates, nicht kommerzielles Hobbyprojekt; ohne Gewähr, Nutzung auf eigene Gefahr. Jegliche Haftung ist ausgeschlossen, soweit gesetzlich zulässig.</p>
+
+<h2>Privacy</h2>
+<p>This page is hosted on GitHub Pages. To deliver it, GitHub processes technically necessary data such as your IP address; see the <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub General Privacy Statement</a>. The page sets no cookies, uses no tracking or analytics and makes no requests to third parties: ESP Web Tools and the firmware come from this site. Flashing happens locally in your browser over Web Serial; nothing from your board is sent anywhere.</p>
 </main>
 </body>
 </html>

@@ -4,10 +4,10 @@ Static files the firmware embeds and serves (S55: `tools/embed_www.py` gzips `ap
 
 | File | Bytes | gzip -9 | Content |
 |---|---:|---:|---|
-| `index.html` | 3 323 | 1 313 | Skeleton: header, dialogs (help, login, confirm), `<meta name="cyd-token" content="{{TOKEN}}">` |
+| `index.html` | 3 693 | 1 475 | Skeleton: header, license footer, dialogs (help, login, confirm), `<meta name="cyd-token" content="{{TOKEN}}">` |
 | `app.js` | 40 197 | 13 675 | Everything else: areas, rendering, REST, WebSocket/polling, keyboard |
-| `style.css` | 8 823 | 2 989 | Dark theme in the colors of `include/palette.h`, responsive layout |
-| total | 52 343 | 17 977 | |
+| `style.css` | 9 140 | 3 069 | Dark theme in the colors of `include/palette.h`, responsive layout |
+| total | 53 030 | 18 219 | |
 
 This README is not embedded and not served.
 
@@ -17,6 +17,7 @@ This README is not embedded and not served.
 - W-S8: text from the device (SSIDs, names, errors) goes into the page only through `textContent` and DOM methods, never `innerHTML`.
 - Every POST sends `Content-Type: application/json` and `X-CYD-Token: <token from the meta tag>`. Writes are spaced by at least 60 ms (≤ 20/s, W-S11); steps that come faster than the device answers (held `+`, key repeat, mouse wheel) are merged into one request with the latest target.
 - Buttons and fields are at least 44 CSS px; `touch-action: manipulation`.
+- The footer (G11) is static text in `index.html`: `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`, the two links (44 px high) open the repository and `THIRD_PARTY_NOTICES.md` on GitHub in a new tab (`rel="noopener noreferrer"`). The device display shows no license line.
 
 ## Areas
 
