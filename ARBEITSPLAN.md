@@ -376,6 +376,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release.
 - [ ] **N13 · DMA und Doppelpuffer** (Abschnitt 2.3, nach der Migration).
 - [ ] **N14 · Gekoppelter Betrieb CH2 = CH1 ± Offset (D18).** CH2 folgt CH1 mit festem Offset (positiv oder negativ, z. B. Überlagerungsempfänger mit fester ZF): Einstellung und Anzeige auf der CH2-Seite, Grenzen 8 kHz–160 MHz für beide, CH3-IQ und Spread berücksichtigen, SCPI/REST und Weboberfläche; Planung vor der Umsetzung. *Commit:* `N14: Add CH2 coupled to CH1 with offset`
+- [ ] **N15 · Flash sparen (bei Bedarf, Prüfung 2026-11-10).** Teilschriften mit `lv_font_conv` aus denselben Quellen (Montserrat, Font Awesome, OFL): Montserrat 28 (37 KB, nur die Frequenz auf CH1/CH2/CH3: Ziffern, `.`, Leerzeichen, `~`, `kHz`/`MHz`) auf ≈ 5 KB → ≈ 30 KB; Montserrat 20 (22 KB) ohne ungenutzte Symbole (genutzt: BACKSPACE, LEFT, RIGHT, MINUS, PLUS, TRASH, WIFI) → einige KB. Vorher alle Texte dieser Schriften prüfen, danach Bedientest. Nur mit eigenem IDF-Build (D14 ausgeschlossen): Bluetooth-Reste ≈ 6 KB, Core-Dump ≈ 13 KB, IPv6 ≈ 11 KB, Fehlertexte ≈ 8 KB. Schon erledigt: TFT_eSPI-Schriften −27,6 KB, Build-Pfade −0,9 KB (Stand 1 507 650 B, 47,9 %). *Commit:* `N15: Subset the large LVGL fonts`
 
 ---
 
