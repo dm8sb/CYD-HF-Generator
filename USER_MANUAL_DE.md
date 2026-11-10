@@ -1,6 +1,6 @@
 # Benutzeranleitung – CYD HF Generator
 
-Firmware-Version: 1.3.3
+Firmware-Version: 1.4.0
 
 Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_EN.md](USER_MANUAL_EN.md) ist ihre Übersetzung.
 
@@ -742,7 +742,7 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 Am Ende der Seite zeigt eine Karte Angaben für die Fehlersuche ohne seriellen Monitor, zum Beispiel:
 
 ```text
-Firmware 1.3.3 | dev 47d9307
+Firmware 1.4.0 | main 1a2b3c4
 Build 2026-11-05 15:00
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
@@ -1014,7 +1014,7 @@ Wichtige Meldungen:
 
 | Meldung | Bedeutung |
 |---|---|
-| `[BOOT] CYD HF Generator 1.3.3 (dev 47d9307, 2026-11-05 15:00)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
+| `[BOOT] CYD HF Generator 1.4.0 (main 1a2b3c4, 2026-11-10 12:00)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
 | `[I2C] Line held low; releasing bus` | Eine I2C-Leitung lag beim Start auf LOW und wurde freigegeben |
 | `[SETTINGS] Loaded from NVS` | Einstellungen geladen |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Einmalig nach dem Update von 1.3.0/1.3.1: die Wahl der früheren Boot-Geste wurde gelöscht (Abschnitt 13) |
@@ -1222,9 +1222,9 @@ print(query("SYST:ERR?"))
 
 Weitere Skripte liegen im Ordner `tools/` (Anleitung in `tools/README.md`):
 
-- `scpi_example.py`: dasselbe über USB (`--usb COM5`), TCP (`--tcp <Adresse>`, ab S54) oder PyVISA (`--visa <Ressource>`).
+- `scpi_example.py`: dasselbe über USB (`--usb COM5`), TCP (`--tcp <Adresse>`) oder PyVISA (`--visa <Ressource>`).
 - `device_check.py`: prüft den SCPI-Befehlssatz am Gerät (Rundläufe, Ablehnungen mit Fehlercode, Zeilenlänge, Ratenbegrenzung, Antwortzeit) und gibt je Prüfung `PASS`/`FAIL`/`SKIP` aus. Es stellt die geänderten Einstellungen am Ende wieder her, schaltet die Ausgänge aus und speichert nichts; Ausgänge schaltet es nur mit `--outputs` ein. `fake_scpi_device.py` ist ein Ersatzgerät für Versuche ohne Hardware.
-- `rest_example.py`: Beispiel für die REST-Schnittstelle (folgt mit der Weboberfläche).
+- `rest_example.py`: Beispiel für die REST-Schnittstelle (Abschnitt 16), mit Anmeldung, wenn ein Web-Passwort gesetzt ist.
 
 ---
 

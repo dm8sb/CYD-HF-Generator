@@ -32,7 +32,9 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 - LVGL GUI: MAIN with a status bar and a mode line for settings that differ from the defaults; touch calibration at the first start
 - NVS persistence with 5 s autosave; all outputs start off
 - Serial log with version, branch, commit and build time; host tests and CI
-- Remote control with SCPI over USB (manual section 15)
+- WiFi client or own access point (default off), web interface in the browser with REST API and WebSocket, optional web password, two-stage network changes (manual sections 8 and 16)
+- Remote control with SCPI over USB and TCP port 5025 (manual section 15)
+- Web flasher on GitHub Pages, releases with checksums, build provenance, license texts and LGPL sources
 
 ## Screenshots
 
@@ -48,7 +50,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 
 ## Changes
 
-### 1.4.0 (in development on `dev`)
+### 1.4.0 (release candidate `v1.4.0-rc1`, 2026-11-10)
 
 - SCPI over USB: IEEE 488.2 common commands, outputs, frequencies, CH3 and all settings; exact number parsing with units and MIN/MAX/DEF, error queue, log read-out (`SYST:LOG?`) while a session keeps the serial port free of log lines, `SYST:IDEN` blinks backlight and LED; one error per invalid command unit
 - SCPI over TCP on port 5025 (one connection, HTTP lines refused, keepalive, mDNS `_scpi-raw._tcp`; not over an open AP)

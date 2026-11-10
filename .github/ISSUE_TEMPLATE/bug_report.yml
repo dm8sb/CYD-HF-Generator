@@ -28,7 +28,7 @@ body:
       label: Firmware version and commit
       description: |
         First two lines of the info card at the end of the CONFIG page, or the `[BOOT]` line of the serial log.
-      placeholder: "Firmware 1.3.3 | dev 47d9307, Build 2026-11-05 15:00"
+      placeholder: "Firmware 1.3.3 | dev 1a2b3c4, Build 2026-11-05 15:00"
     validations:
       required: true
 

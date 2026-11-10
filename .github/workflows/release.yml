@@ -1,7 +1,8 @@
 # Release (ARBEITSPLAN G1) and web flasher on GitHub Pages (G2, G11).
-# Tag v*: build both envs, GitHub release with the firmware of both envs, the flash parts of the
+# Tag v*: build, GitHub release with the firmware, the flash parts of the
 # flasher env, license notices and LGPL sources (THIRD_PARTY_NOTICES.md) and SHA256SUMS,
-# build provenance (W-S24); final tags (without "-") also deploy the flasher site, which serves
+# build provenance (W-S24); every pushed tag (also a release candidate, user 2026-11-10) deploys
+# the flasher site, which serves
 # ESP Web Tools itself (E-36). Manual run: build and assemble, deploy only with the input "deploy".
 # The flasher writes the parts separately (no merged image from 0: it would erase NVS on every
 # update); the offsets come from PlatformIO (tools/flasher_site.py collect).
@@ -66,8 +67,9 @@ jobs:
               "$app"-*) prerelease=true ;;
               *) echo "tag $REF_NAME does not match APP_VERSION $app" >&2; exit 1 ;;
             esac
-            # A pushed final tag replaces the public flasher; a release candidate does not.
-            [ "$EVENT" = push ] && [ "$prerelease" = false ] && deploy=true
+            # Every pushed tag deploys the public flasher, a release candidate too (user decision
+            # 2026-11-10: go live with v1.4.0-rc1 and test); the release is marked as a prerelease.
+            [ "$EVENT" = push ] && deploy=true
           else
             version="$app-dev.$commit"
           fi
