@@ -47,6 +47,26 @@ TOKEN = "render-images-sample-token"
 # ---------------------------------------------------------------------------------------------
 # PNG
 
+def same_png(path, ihdr, raw):
+    """True if the PNG at path has this header and these filtered rows (other chunks ignored)."""
+    try:
+        data = open(path, "rb").read()
+    except OSError:
+        return False
+    pos, head, idat = 8, b"", b""
+    while pos + 8 <= len(data):
+        n, tag = struct.unpack(">I4s", data[pos:pos + 8])
+        if tag == b"IHDR":
+            head = data[pos + 8:pos + 8 + n]
+        elif tag == b"IDAT":
+            idat += data[pos + 8:pos + 8 + n]
+        pos += 12 + n
+    try:
+        return head == ihdr and zlib.decompress(idat) == raw
+    except zlib.error:
+        return False
+
+
 def write_png(path, width, height, rows, alpha):
     """rows: list of bytes, RGB or RGBA per pixel. Per row the filter (None/Sub/Up) with the
     smallest sum is chosen, which keeps the flat GUI colors small."""
@@ -66,6 +86,8 @@ def write_png(path, width, height, rows, alpha):
         return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
 
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 6 if alpha else 2, 0, 0, 0)
+    if same_png(path, ihdr, bytes(raw)):
+        return  # same picture: keep the file, so a new render does not churn the repository
     with open(path, "wb") as f:
         f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
                 + chunk(b"IEND", b""))
@@ -214,9 +236,10 @@ def render_screens(skip_build):
     exe = build_renderer(skip_build)
     tmp = tempfile.mkdtemp(prefix="screens-")
     try:
-        # Build line of the CONFIG info card: the commit the images were made from.
-        commit = git("rev-parse", "--short", "HEAD")
-        when = git("show", "-s", "--format=%cd", "--date=format:%Y-%m-%d %H:%M", "HEAD")
+        # Build line of the CONFIG info card: fixed sample values, so the picture only changes
+        # when the GUI does (a real commit would change it with every commit).
+        commit = "1a2b3c4"
+        when = "2026-11-10 12:00"
         subprocess.run([exe, "--out", tmp, "--branch", "main", "--commit", commit, "--time", when],
                        check=True, stdout=subprocess.DEVNULL)
         for name in SCREENS:

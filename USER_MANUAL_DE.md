@@ -1335,7 +1335,7 @@ Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt v
 
 ### CONFIG
 
-![CONFIG oben: Drive all, Off state, Tuning, Spread CH1](docs/img/screen-config.png) ![CONFIG ans Ende gescrollt: Info-Karte mit Disconnect all](docs/img/screen-config-info.png)
+![CONFIG oben: Drive all, Off state, Tuning, Spread CH1](docs/img/screen-config.png) ![CONFIG ans Ende gescrollt: Info-Karte mit Reconnect all](docs/img/screen-config-info.png)
 
 ```text
 +--------------------------------------------+

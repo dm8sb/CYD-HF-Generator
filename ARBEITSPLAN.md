@@ -107,7 +107,6 @@ Host-Tests: 376 Fälle in `native-win` und 4 in `native-win-fault` (Stand S56).
 
 - [ ] **Netzwahl nach falschem Passwort am Gerät** (S53b, Prüfpunkt h): zwei Netze gespeichert, das stärkere mit falschem Passwort → nach dem Fehlschlag verbindet sich das Gerät mit dem anderen. Host-getestet (`WifiPolicy::chooseSlot`). → S61
 
-- [ ] **Titel „CH3 IQ“ unter dem Schalter** (beim Rendern gefunden, G13, `docs/img/screen-ch3.png`): Montserrat 20 „CH3 IQ“ reicht ab `HEADER_TITLE_X` = 14 bis etwa x = 84, der Kopfzeilen-Schalter beginnt bei `HEADER_SWITCH_X` = 66 und verdeckt das „Q“ (CH1/CH2 passen). Abhilfe: auf der CH3-Seite Schalter und Status weiter rechts oder Titel „CH3“; am Gerät bestätigen.
 
 ### 2.3 Code und Tests
 

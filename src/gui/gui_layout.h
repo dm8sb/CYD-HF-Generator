@@ -18,6 +18,9 @@ static constexpr int CARD_BORDER = 2;
 static constexpr int HEADER_SWITCH_X = 66;
 static constexpr int HEADER_STATE_X = 126;
 static constexpr int HEADER_TITLE_X = 14;
+// A wider title ("CH3 IQ") moves switch and state text right: gap after the title. The widest
+// case (title to about x 84, state at about 156, "NO HW" about 55 px) still ends before MAIN.
+static constexpr int HEADER_TITLE_GAP = 6;
 // Header MAIN button: 36 px high, up to the top and right edge (U-5).
 static constexpr int HEADER_MAIN_W = 62;
 static constexpr int HEADER_MAIN_X = 320 - HEADER_MAIN_W - 4;

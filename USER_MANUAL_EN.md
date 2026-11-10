@@ -1335,7 +1335,7 @@ The images are rendered on the PC from the GUI code of the firmware and scaled u
 
 ### CONFIG
 
-![CONFIG at the top: Drive all, Off state, Tuning, Spread CH1](docs/img/screen-config.png) ![CONFIG scrolled to the end: info card with Disconnect all](docs/img/screen-config-info.png)
+![CONFIG at the top: Drive all, Off state, Tuning, Spread CH1](docs/img/screen-config.png) ![CONFIG scrolled to the end: info card with Reconnect all](docs/img/screen-config-info.png)
 
 ```text
 +--------------------------------------------+
