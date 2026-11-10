@@ -18,7 +18,7 @@ static constexpr int ROW_CONTENT_H = ROW_H - 2 * ROW_PAD - 2;
 static constexpr uint8_t ROW_COUNT = 11;                           // setting rows above the info card
 static constexpr uint8_t INFO_LINES = 8;
 static constexpr int INFO_LINE_H = 15;                             // montserrat 12
-// "Disconnect all" below the lines (S55b), 40 px high like the row buttons (U-18).
+// "Reconnect all" below the lines (S55b), 40 px high like the row buttons (U-18).
 static constexpr int INFO_BTN_Y = INFO_LINES * INFO_LINE_H + 4;
 static constexpr int INFO_BTN_H = ROW_CONTENT_H;
 static constexpr int INFO_BTN_W = 140;
@@ -175,7 +175,7 @@ void Gui::createConfig_() {
     addButton_(row, "Factory", VALUE_X + 100, 0, 96, ROW_CONTENT_H, Colors::error(), Action::FactoryReset);
 
     // Info card: firmware, build, display controller, touch, SI5351 link, WiFi, remote clients,
-    // heap (refreshConfig_), and Disconnect all for the web and SCPI clients (S55b).
+    // heap (refreshConfig_), and Reconnect all for the web and SCPI clients (S55b; they connect again by themselves).
     row = addConfigRow_(list, ROW_COUNT, INFO_H, nullptr);
     lv_obj_t* info[INFO_LINES];
     for (uint8_t i = 0; i < INFO_LINES; ++i) {
@@ -197,7 +197,7 @@ void Gui::createConfig_() {
     w_.wifiInfo = info[5];
     w_.remoteInfo = info[6];
     w_.heapInfo = info[7];
-    addButton_(row, "Disconnect all", 0, INFO_BTN_Y, INFO_BTN_W, INFO_BTN_H, btnColor, Action::RemoteDisconnect);
+    addButton_(row, "Reconnect all", 0, INFO_BTN_Y, INFO_BTN_W, INFO_BTN_H, btnColor, Action::RemoteDisconnect);
 
     // Snap point for the end of the list: the rows below SCROLL_MAX are not snappable, this
     // invisible stop shows the info card completely.

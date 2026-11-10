@@ -3,16 +3,20 @@
 [![CI](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/ci.yml?query=branch%3Amain)
 [![Fuzz](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/fuzz.yml/badge.svg?branch=main)](https://github.com/dm8sb/CYD-HF-Generator/actions/workflows/fuzz.yml?query=branch%3Amain)
 [![Latest release](https://img.shields.io/github/v/release/dm8sb/CYD-HF-Generator?sort=semver)](https://github.com/dm8sb/CYD-HF-Generator/releases/latest)
-[![License: GPL-3.0](https://img.shields.io/github/license/dm8sb/CYD-HF-Generator)](LICENSE)
+[![License: GPL-3.0-or-later](https://img.shields.io/github/license/dm8sb/CYD-HF-Generator)](#license)
 
 PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator with an SI5351 on the ESP32-2432S028R "Cheap Yellow Display" (original CYD and CYD2USB).
 
 **[Flash in the browser](https://dm8sb.github.io/CYD-HF-Generator/)** (Chrome or Edge; goes live with the first release after GitHub Pages is enabled) · **User manual** [English](USER_MANUAL_EN.md) / [Deutsch](USER_MANUAL_DE.md) · **[Hardware: wiring and parts](docs/hardware.md)**
 
+<p align="center"><img src="docs/img/case-assembly.png" width="720" alt="CYD HF Generator in the 3D-printed case with the MAIN page: CH1 7.1 MHz, CH2 14 MHz, CH3 IQ 90 degrees"></p>
+<p align="center"><sub>Rendered from the OpenSCAD case and the firmware's GUI code (sample values); photos follow.</sub></p>
+
 ## Documentation
 
 - [USER_MANUAL_DE.md](USER_MANUAL_DE.md): user manual, reference for all behavior (German); [USER_MANUAL_EN.md](USER_MANUAL_EN.md): English translation
 - [docs/hardware.md](docs/hardware.md): SI5351 wiring to CN1, supply, outputs, bill of materials, safety
+- [case/](case/README.md): parametric OpenSCAD case for the CYD2USB with the Si5351 module and three SMA sockets
 - [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md): requirements and decisions
 - [ARBEITSPLAN.md](ARBEITSPLAN.md): open findings, WEB-HMI concept and task list (German)
 - [MESSPLAN.md](MESSPLAN.md): hardware measurement plan by priority (German)
@@ -28,11 +32,25 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 - LVGL GUI: MAIN with a status bar and a mode line for settings that differ from the defaults; touch calibration at the first start
 - NVS persistence with 5 s autosave; all outputs start off
 - Serial log with version, branch, commit and build time; host tests and CI
-- Remote control with SCPI over USB (manual section 15)
+- WiFi client or own access point (default off), web interface in the browser with REST API and WebSocket, optional web password, two-stage network changes (manual sections 8 and 16)
+- Remote control with SCPI over USB and TCP port 5025 (manual section 15)
+- Web flasher on GitHub Pages, releases with checksums, build provenance, license texts and LGPL sources
+
+## Screenshots
+
+Rendered on the PC from the firmware's GUI code and the web UI with sample values (invented networks, sample passwords); more in [Appendix A of the manual](USER_MANUAL_EN.md#appendix-a-page-images).
+
+| MAIN | CH1 | CH3 IQ |
+|---|---|---|
+| <img src="docs/img/screen-main.png" width="260" alt="MAIN page"> | <img src="docs/img/screen-ch1.png" width="260" alt="CH1 page"> | <img src="docs/img/screen-ch3.png" width="260" alt="CH3 IQ page"> |
+| **NUMPAD** | **CONFIG** | **Access point** |
+| <img src="docs/img/screen-numpad.png" width="260" alt="Numpad"> | <img src="docs/img/screen-config.png" width="260" alt="CONFIG page"> | <img src="docs/img/screen-wifi-ap.png" width="260" alt="Access point page with QR code of a sample password"> |
+
+<img src="docs/img/web-desktop.png" width="600" alt="Web interface on the desktop"> <img src="docs/img/web-phone.png" width="180" alt="Web interface on a phone">
 
 ## Changes
 
-### 1.4.0 (in development on `dev`)
+### 1.4.0 (release candidate `v1.4.0-rc1`, 2026-11-10)
 
 - SCPI over USB: IEEE 488.2 common commands, outputs, frequencies, CH3 and all settings; exact number parsing with units and MIN/MAX/DEF, error queue, log read-out (`SYST:LOG?`) while a session keeps the serial port free of log lines, `SYST:IDEN` blinks backlight and LED; one error per invalid command unit
 - SCPI over TCP on port 5025 (one connection, HTTP lines refused, keepalive, mDNS `_scpi-raw._tcp`; not over an open AP)
@@ -40,14 +58,19 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 - Fuzzing: 9 harnesses in `test/fuzz/` incl. request guard and REST JSON against independent reference models (libFuzzer with ASan/UBSan in the CI job `Fuzz`, standalone driver for gcc/MinGW), fixed-seed random test `test_fuzz_random` in the host tests
 - Request guard (host, origin, token, sessions, login lock, PBKDF2 web password) and REST JSON mapping with strict JSON check (ArduinoJson 7.4.3), host-tested, not yet wired to a server
 - Issue forms (bug report with board, firmware version and commit, log) and a pull request template with the gate checklist
+- OpenSCAD case in `case/` (two parts, snap hooks or screws, SMA holes, slide-in holder for the Si5351 module)
 - Hardware page `docs/hardware.md` (bill of materials, CN1 wiring, supply, safety) and README badges
 - Security policy (`SECURITY.md`, private vulnerability reporting) and CodeQL for C/C++, Python, JavaScript and workflows
 - Dependabot keeps the pinned GitHub Actions up to date (weekly, grouped, to `dev`)
 - CI: Flash and static RAM of both firmware envs as a job summary table and artifact `firmware-size` (`tools/size_report.py`), compared with the target branch in pull requests and with the previous commit on pushes
 - Release workflow with build provenance and checksums; web flasher site for GitHub Pages (ESP Web Tools, separate parts so an update keeps the settings), goes live with the first release
-- Web interface on port 80 (manual section 16): embedded page, REST API and WebSocket, request guard with session login (web password set at the device), two-stage network changes with confirmation, at most 3 browsers; web password on the Device page, remote clients and `Disconnect all` on the info card; fixed header with area links and logout; `tools/web_mock.py` to try it without the device, `tools/web_check.py` checks the contract
+- License notices (G11): `THIRD_PARTY_NOTICES.md` and `LICENSES/`; releases carry the license texts (`…-licenses.tar.gz`) and the source of the LGPL libraries (`…-lgpl-sources.tar.gz`); the flasher site serves ESP Web Tools itself (no CDN) with its notices and the flasher stub sources, names the person behind it and has a privacy note; license line in the footer of the web interface; license stated as GPL-3.0-or-later
+- Web interface on port 80 (manual section 16): embedded page, REST API and WebSocket, request guard with session login (web password set at the device), two-stage network changes with confirmation, at most 3 browsers; web password on the Device page, remote clients and `Reconnect all` on the info card; fixed header with area links and logout; `tools/web_mock.py` to try it without the device, `tools/web_check.py` checks the contract
+- TFT_eSPI fonts no longer built (all text comes from LVGL): Flash −27.6 KB
+- Build paths stripped from `__FILE__` (`tools/prefix_map.py`): no local home directory in the image, builds independent of the build machine
 - Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, built with `-Os`) and LVGL 8.4.0; the Arduino 2.0.x build is gone (E-32), the last firmware on it is 1.3.3
 - WiFi (CONFIG `WiFi` and `Remote out.`, WIFI page with network scan and on-screen keyboard, access point page with QR code, device page with name and static IP, WiFi state and `REMOTE <source>` in the status bar, WiFi and heap lines on the info card; default Off): network settings in NVS `hfnet`, client with up to two networks, fallback access point after 60 s, AP off as soon as the client has an address, mDNS, captive DNS; the factory reset also erases the WiFi settings
+- Documentation images in `docs/img/` (interim until photos exist): device screens rendered from the real GUI code on the host (`pio run -e screens-win`, LVGL 8.4 on the test fakes), web UI screenshots on `tools/web_mock.py`, OpenSCAD views of the case with the MAIN page on the display, social preview; `tools/render_images.py` regenerates them
 
 ### 1.3.3
 
@@ -103,7 +126,20 @@ The firmware tries SDA=22 first, then the swapped assignment; the log shows the 
 
 ## Libraries
 
-Pinned in `platformio.ini`: Arduino-ESP32 3.3.12 via `espressif32@8.0.0`, `bodmer/TFT_eSPI@2.5.43` (exact: the ST7789 init sequence is copied from it), `lvgl/lvgl@8.4.0`, XPT2046_Touchscreen at commit `d57f64c` (tag v1.4), scpi-parser at commit `8866159` (v2.3 + build fixes), `Preferences` from Arduino-ESP32.
+Pinned in `platformio.ini`:
+
+| Library | Version | License |
+|---|---|---|
+| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, SPIFFS, Hash) with ESP-IDF 5.5.5 | 3.3.12 via `espressif32@8.0.0` | LGPL-2.1-or-later, Apache-2.0 |
+| `bodmer/TFT_eSPI` (exact: the ST7789 init sequence is derived from it) | 2.5.43 | FreeBSD (BSD-2-Clause-Views), MIT |
+| `lvgl/lvgl` | 8.4.0 | MIT |
+| XPT2046_Touchscreen | commit `d57f64c` (tag v1.4) | MIT |
+| scpi-parser | commit `8866159` (v2.3 + build fixes) | BSD-2-Clause |
+| `bblanchon/ArduinoJson` | 7.4.3 | MIT |
+| `esp32async/AsyncTCP` | 3.5.0 | LGPL-3.0-or-later |
+| `esp32async/ESPAsyncWebServer` | 3.12.1 | LGPL-3.0-or-later |
+
+The web flasher serves ESP Web Tools 10.4.0 (Apache-2.0) itself. Every component with its copyright holders: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Build and Flash
 
@@ -136,6 +172,20 @@ pio run -e esp32-2432S028R-touchlog -t upload   # normal GUI, one [TOUCH] log li
 pio run -e esp32-2432S028R-hitmap -t upload     # 20 target crosses, [HITMAP] and [TOUCH] lines
 ```
 
+## Documentation images
+
+`docs/img/` holds rendered images: device screens, web UI, case views and the social preview (`social-preview.png`, 1280 × 640, uploaded by hand under Settings → General → Social preview). Regenerate them after GUI, web UI or case changes:
+
+```bash
+python tools/render_images.py              # all (about 2 min)
+python tools/render_images.py screens      # device screens only; also: case, web, social
+```
+
+- **screens:** `pio run -e screens-win` (`screens` on Linux/macOS) builds a host program from `src/gui` and the hardware-independent sources with LVGL 8.4 and the fakes of `test/fakes`; `tools/screens/` replaces the display, touch, WiFi, LED and build info and sets the sample state (`lv_conf_host.h` is the firmware's `include/lv_conf.h` with a host tick). It writes RGB565 frames that are scaled 2× into a bezel. Not part of the firmware or the host tests.
+- **case:** OpenSCAD 2025 (`--backend=Manifold`) renders the modules of `case/CYD_Si5351_Gehaeuse.scad` with the MAIN screen on the display; headless Chrome or Edge scales them down.
+- **web:** `tools/web_mock.py` on a free port of 127.0.0.1, set to the same state over REST; `tools/cdp_shot.mjs` (Node 22+, DevTools protocol) shoots desktop and phone.
+- Needs Python 3, PlatformIO, OpenSCAD, Chrome or Edge and Node; paths can be set with `PIO`, `OPENSCAD`, `CHROME`, `NODE`. Only sample values go into the images: invented networks (`Lab`, `Workshop`), sample passwords, a locally administered MAC.
+
 ## Notes and Limitations
 
 - CH3 shares the PLL of its master (CH1 = PLL A, CH2 = PLL B); IQ pairs use an integer MultiSynth divider and a PLL reset to align the phases. Below 4.730 MHz CH3 waits and starts automatically.
@@ -156,3 +206,11 @@ pio run -e esp32-2432S028R-hitmap -t upload     # 20 target crosses, [HITMAP] an
 - `net/*`: network settings (`net_settings`), WiFi policy (pure) and manager, SHA-1/PBKDF2
 - `gui/gui.cpp`, `gui/gui_layout.h`, `gui/pages/*`: LVGL setup, navigation and dialogs, layout grid and colors, pages
 - `utils/*`: pure, host-tested logic (`frequency_utils`, `input_logic`, `message_queue`, `status_text`, `contrast`, `touch_cal`, `touch_test`), logger, build info
+
+## License
+
+CYD HF Generator, Copyright (C) 2026 DM8SB.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version (GPL-3.0-or-later, text in [LICENSE](LICENSE)). It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. This applies to the whole repository, including the web interface, the flasher page and the case in `case/`. Private, non-commercial hobby project.
+
+Third-party components and their licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), license texts in [LICENSES/](LICENSES/). Every release includes the license texts and notices (`…-licenses.tar.gz`) and the complete source of the LGPL libraries in the firmware (`…-lgpl-sources.tar.gz`). The case dimensions of the CYD were measured from the STEP model "Cheap Yellow Display" by mbrembati (measurements only, no files copied).

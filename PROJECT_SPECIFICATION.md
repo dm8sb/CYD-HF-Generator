@@ -1,6 +1,6 @@
 # CYD HF Generator – Project Specification
 
-Firmware 1.3.3 · Status 2026-11-06
+Firmware 1.4.0 · Status 2026-11-10
 
 This document contains only **requirements** (A-n, numbered and testable) and **decisions** (E-n, dated, with rationale and measured values where they exist). Behavior as seen by the user (pages, controls, messages, log lines, examples) is described only in [USER_MANUAL_DE.md](USER_MANUAL_DE.md); [USER_MANUAL_EN.md](USER_MANUAL_EN.md) is its translation. Build instructions and the change history are in [README.md](README.md), architecture and development rules in [CLAUDE.md](CLAUDE.md).
 
@@ -201,6 +201,7 @@ This table is authoritative; README and manual repeat parts of it.
 - **A-48** The host tests compile the hardware-independent sources (controller, SI5351 driver and planner, I2C bus, display detection, services, frequency utilities, logger) against fakes (E-15), and the remote layer (command queue, line framer, SCPI with the parser library). These sources stay free of LVGL and TFT_eSPI; `constants.h`, `types.h` and `frequency_utils.h` do not include `Arduino.h`.
 - **A-49** The version is `APP_VERSION` in `config.h`. Branch, commit (with `+` for uncommitted changes) and build time are taken at build time; without git they read `unknown` (E-24).
 - **A-50** The own sources (`src/`) compile with `-Wall -Wextra` (`build_src_flags`) without warnings; libraries keep their default flags.
+- **A-77** Licensing of distributed binaries (G11): the project is GPL-3.0-or-later, "Copyright (C) 2026 DM8SB". Every release carries the license and third-party notices with the license texts (`…-licenses.tar.gz`) and the complete source of the LGPL libraries linked into the firmware (`…-lgpl-sources.tar.gz`); `THIRD_PARTY_NOTICES.md` lists every component of the firmware, the flasher site, tests and tools with version, SPDX license, copyright holder and source and is updated with every dependency change in `platformio.ini` or `flasher/esp-web-tools.json`; the release build fails if a notice file is missing. The flasher page links the GPL text, the notices, the LGPL sources, the license files of ESP Web Tools and its bundled packages and the source of the GPL-2.0-or-later flasher stubs it serves; it names the person behind it, states the hobby character and the absence of warranty, and has a privacy note. The web UI shows the license line in its footer; the device display does not.
 
 ---
 
@@ -338,3 +339,6 @@ Whether `CLKx_PDN` leaves a pin high-impedance or pulls it low is unmeasured (ha
 
 ### E-35 Request guard on 64-bit time; raw-byte pre-filter
 *2026-11-09 (ARBEITSPLAN S55, S57c).* Fuzzing showed that sessions and login locks compared with 32-bit `millis()` differences came back after the wrap (49.7 days); the guard now takes 64-bit monotonic milliseconds (`esp_timer`). ESPAsyncWebServer stores header lines without a limit, so the W-S10 limits are checked on the raw bytes (`onPacket`) before the library parses them; this relies on AsyncTCP internals, so the libraries stay pinned exactly (ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0).
+
+### E-36 ESP Web Tools self-hosted; no imprint, hobby statement
+*2026-11-10 (ARBEITSPLAN G11, user decision).* The flasher site serves ESP Web Tools 10.4.0 itself instead of loading it from jsDelivr: the release workflow downloads the 26 modules pinned with SHA-384 in `flasher/esp-web-tools.json`, checks every hash and publishes them under `esp-web-tools/<version>/`, so a visitor's browser contacts no third party (privacy) and the CSP allows scripts only from `'self'` (no import map needed any more; styles keep `'unsafe-inline'` because ESP Web Tools sets style attributes). Self-hosting makes the site a distributor: the license files of the bundled packages and, for the GPL-2.0-or-later flasher stubs (identified as esptool-legacy-flasher-stub v1.3.0, v1.6.0, v1.10.0, v1.11.1 by comparing their code), the complete source archives are served next to them (pinned with SHA-256). Measured: site 5.6 MB, of which LGPL sources 2.2 MB and stub sources 1.1 MB. No full imprint: the page is a purely private, non-commercial hobby project; it names Sebastian Brandes (DM8SB), disclaims warranty and liability along GPL sections 15/16 and says that GitHub Pages processes technically necessary data (IP address) while the page itself sets no cookies, tracks nothing and requests nothing from third parties.

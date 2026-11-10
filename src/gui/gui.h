@@ -58,7 +58,7 @@ public:
         webPwPoll_ = poll;
     }
     // Remote clients on the info card (S55b): open WebSockets, address of the SCPI TCP client
-    // (0 = none), and Disconnect all (served by the next loop()).
+    // (0 = none), and Reconnect all (served by the next loop()).
     void setRemoteClients(uint8_t (*webClients)(), uint32_t (*scpiClient)(), void (*disconnectAll)()) {
         webClients_ = webClients;
         scpiClient_ = scpiClient;

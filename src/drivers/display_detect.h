@@ -58,8 +58,9 @@ struct InitCmd {
     uint8_t data[14];
     uint16_t delayMs; // after the command
 };
-// TFT_eSPI 2.5.43 ST7789_Init.h, as built for the CYD2USB before (TFT_RGB_ORDER=TFT_BGR,
-// TFT_INVERSION_OFF): without fillScreen(), INVOFF instead of INVON + INVOFF.
+// From TFT_eSPI 2.5.43 TFT_Drivers/ST7789_Init.h (Bodmer, FreeBSD license, THIRD_PARTY_NOTICES.md),
+// as built for the CYD2USB before (TFT_RGB_ORDER=TFT_BGR, TFT_INVERSION_OFF): without
+// fillScreen(), INVOFF instead of INVON + INVOFF.
 extern const InitCmd ST7789_INIT[];
 extern const uint8_t ST7789_INIT_LEN;
 // MADCTL per rotation 0..3 (BGR); TFT_eSPI writes the ILI9341 values.

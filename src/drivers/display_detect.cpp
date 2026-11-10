@@ -8,6 +8,8 @@ static constexpr uint8_t CMD_RDDID = 0x04;
 static constexpr uint8_t CMD_RDDMADCTL = 0x0B;
 static constexpr uint8_t CMD_MADCTL = 0x36;
 
+// Derived from TFT_eSPI 2.5.43 TFT_Drivers/ST7789_Init.h, Copyright (c) 2023 Bodmer,
+// FreeBSD license (BSD-2-Clause-Views); notice and license text: THIRD_PARTY_NOTICES.md.
 const InitCmd ST7789_INIT[] = {
     {0x11, 0, {}, 120},                                    // SLPOUT
     {0x13, 0, {}, 0},                                      // NORON

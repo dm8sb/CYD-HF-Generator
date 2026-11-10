@@ -1,6 +1,6 @@
 # Benutzeranleitung – CYD HF Generator
 
-Firmware-Version: 1.3.3
+Firmware-Version: 1.4.0
 
 Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_EN.md](USER_MANUAL_EN.md) ist ihre Übersetzung.
 
@@ -67,6 +67,12 @@ Die drei Ausgänge sind:
 CH3 folgt immer der Frequenz seines Masters und kann mit einer Phasenlage von 0°, 90°, 180° oder 270° betrieben werden. Der IQ-Betrieb ist im Bereich **4,730 MHz bis 100 MHz** möglich; dort sind alle vier Phasen verfügbar.
 
 Auf der CONFIG-Seite lassen sich außerdem das Teilerverfahren des SI5351 (`Tuning`), Spread Spectrum für CH1 und der Zustand abgeschalteter Ausgänge wählen (Abschnitt 8).
+
+### Lizenzen
+
+Firmware, Weboberfläche und Webflasher-Seite sind freie Software unter der GNU General Public License Version 3 oder (nach Wahl) jeder späteren Version (GPL-3.0-or-later), Copyright (C) 2026 DM8SB. Sie werden **ohne jede Gewährleistung** bereitgestellt, auch ohne die stillschweigende Gewährleistung der Marktreife oder der Eignung für einen bestimmten Zweck; die Nutzung geschieht auf eigene Gefahr. Der CYD HF Generator ist ein privates, nicht kommerzielles Hobbyprojekt.
+
+Die Firmware enthält Komponenten Dritter unter eigenen Lizenzen (u. a. Arduino-ESP32 mit ESP-IDF, TFT_eSPI, LVGL, ArduinoJson, AsyncTCP und ESPAsyncWebServer). Alle Komponenten mit Lizenz und Rechteinhabern stehen in `THIRD_PARTY_NOTICES.md`; jedes Release enthält die Lizenztexte (`cyd-hf-generator-<Version>-licenses.tar.gz`) und den Quellcode der LGPL-Bibliotheken (`cyd-hf-generator-<Version>-lgpl-sources.tar.gz`). Der vollständige Quellcode liegt auf GitHub: https://github.com/dm8sb/CYD-HF-Generator. Die Lizenzzeile steht in der Fußzeile der Weboberfläche (Abschnitt 16), nicht auf dem Display.
 
 ---
 
@@ -736,7 +742,7 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 Am Ende der Seite zeigt eine Karte Angaben für die Fehlersuche ohne seriellen Monitor, zum Beispiel:
 
 ```text
-Firmware 1.3.3 | dev 47d9307
+Firmware 1.4.0 | main 1a2b3c4
 Build 2026-11-05 15:00
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
@@ -753,7 +759,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
 | `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke; `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
-| `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-TCP-Client. Darunter die Taste `Disconnect all`: schließt alle Browser-Verbindungen, beendet die Web-Anmeldungen und die SCPI-TCP-Verbindung. Ohne Web-Passwort verbindet sich ein Browser nach wenigen Sekunden wieder. |
+| `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-TCP-Client. Darunter die Taste `Reconnect all`: trennt alle Browser-Verbindungen, beendet die Web-Anmeldungen und die SCPI-TCP-Verbindung. Die Gegenstellen verbinden sich danach von selbst neu (ein Browser ohne Web-Passwort nach wenigen Sekunden, ein SCPI-Programm sofort). Aussperren lässt sich niemand damit; dafür ein Web-Passwort setzen oder `Remote out.` auf `local only` stellen. |
 | `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB |
 
 ---
@@ -1008,7 +1014,7 @@ Wichtige Meldungen:
 
 | Meldung | Bedeutung |
 |---|---|
-| `[BOOT] CYD HF Generator 1.3.3 (dev 47d9307, 2026-11-05 15:00)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
+| `[BOOT] CYD HF Generator 1.4.0 (main 1a2b3c4, 2026-11-10 12:00)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
 | `[I2C] Line held low; releasing bus` | Eine I2C-Leitung lag beim Start auf LOW und wurde freigegeben |
 | `[SETTINGS] Loaded from NVS` | Einstellungen geladen |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Einmalig nach dem Update von 1.3.0/1.3.1: die Wahl der früheren Boot-Geste wurde gelöscht (Abschnitt 13) |
@@ -1035,7 +1041,7 @@ Wichtige Meldungen:
 | `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP-Verbindung; beim Schließen mit Grund: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Befehle werden nie geloggt |
 | `[WEB] Server on port: 80` | Weboberfläche bereit (WLAN verbunden oder Access Point) |
 | `[WEB] Login`, `[WEB] Login failed` | Anmeldung mit Web-Passwort richtig bzw. falsch (das Passwort wird nie geloggt) (`[WEB] Logout`: abgemeldet) |
-| `[GUI] Web password set` / `removed`, `[GUI] Disconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web-Passwort auf der Seite Device; `Disconnect all` auf der Info-Karte |
+| `[GUI] Web password set` / `removed`, `[GUI] Reconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web-Passwort auf der Seite Device; `Reconnect all` auf der Info-Karte |
 | `[WEB] Server stopped (WiFi off)` | WLAN `Off`: der Webserver nimmt nichts mehr an, offene Seiten werden getrennt |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Netzänderung aus dem Browser (Abschnitt 16) |
 | `[WEB] WebSocket closed: no pong`, `[WEB] No memory for the web server`, `[WEB] Saving the network settings failed` | Browser antwortet nicht mehr; zu wenig Speicher; Speichern fehlgeschlagen |
@@ -1116,6 +1122,13 @@ Zum Betrieb:
 
 - **Physischer Zugriff ist Vollzugriff:** Wer das Gerät bedienen oder über USB neu flashen kann, kann alle Einstellungen und Ausgänge ändern; es gibt keine Sperre und kein Passwort. Das gilt auch für SCPI über USB (Abschnitt 15): Jedes Programm auf dem angeschlossenen PC kann Ausgänge einschalten.
 - **Fremdgerät an 0x60:** Antwortet auf der I2C-Adresse 0x60 ein anderes Gerät, liest die Firmware seine Kennung und schreibt höchstens ein Testbyte in dessen Register 3, bevor sie es als „kein SI5351“ erkennt (Abschnitt 11). Andere Geräte an CN1 mit dieser Adresse nicht anschließen.
+
+Funk und Konformität:
+
+- **Kein Sender:** Der Generator liefert Messsignale. Einen Ausgang nie ohne geeigneten Tiefpass an eine Antenne anschließen; das Rechtecksignal enthält starke Oberwellen.
+- **Abstrahlen** nur mit einer Amateurfunkzulassung, nur in den zugelassenen Bändern und innerhalb der Grenzwerte für Nebenaussendungen.
+- Für die Einhaltung der EMV- und Funkvorschriften ist der Betreiber verantwortlich.
+- **Selbstbau für den eigenen Gebrauch** trägt keine CE-Kennzeichnung. Wer vorgeflashte Geräte weitergibt oder verkauft, wird zum Hersteller und braucht die CE-Konformität nach EMV- und Funkanlagenrichtlinie (RED), einschließlich des delegierten Rechtsakts der RED zur Cybersicherheit (das Gerät hat WLAN).
 
 ---
 
@@ -1209,9 +1222,9 @@ print(query("SYST:ERR?"))
 
 Weitere Skripte liegen im Ordner `tools/` (Anleitung in `tools/README.md`):
 
-- `scpi_example.py`: dasselbe über USB (`--usb COM5`), TCP (`--tcp <Adresse>`, ab S54) oder PyVISA (`--visa <Ressource>`).
+- `scpi_example.py`: dasselbe über USB (`--usb COM5`), TCP (`--tcp <Adresse>`) oder PyVISA (`--visa <Ressource>`).
 - `device_check.py`: prüft den SCPI-Befehlssatz am Gerät (Rundläufe, Ablehnungen mit Fehlercode, Zeilenlänge, Ratenbegrenzung, Antwortzeit) und gibt je Prüfung `PASS`/`FAIL`/`SKIP` aus. Es stellt die geänderten Einstellungen am Ende wieder her, schaltet die Ausgänge aus und speichert nichts; Ausgänge schaltet es nur mit `--outputs` ein. `fake_scpi_device.py` ist ein Ersatzgerät für Versuche ohne Hardware.
-- `rest_example.py`: Beispiel für die REST-Schnittstelle (folgt mit der Weboberfläche).
+- `rest_example.py`: Beispiel für die REST-Schnittstelle (Abschnitt 16), mit Anmeldung, wenn ein Web-Passwort gesetzt ist.
 
 ---
 
@@ -1228,6 +1241,7 @@ Mit WLAN (Abschnitt 8, Seite WIFI) lässt sich der Generator auch im Browser bed
 - Die Statusleiste am Gerät zeigt nach einer Änderung aus dem Browser 10 s lang `REMOTE WEB`. `Remote out.` `local only` (Abschnitt 8) gilt auch hier: Einschalten wird abgelehnt.
 - Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`.
 - Nur am Gerät: Grundzustand und Werksreset, Touch-Abgleich, Bildschirmsperre, neues Access-Point-Passwort, Web-Passwort (WIFI → `Device`, Zeile `Web pw.`).
+- Die Fußzeile am Ende der Seite zeigt `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` und `licenses` öffnen das Repository bzw. `THIRD_PARTY_NOTICES.md` auf GitHub in einem neuen Tab (dafür braucht der Browser Internet, Abschnitt 1, „Lizenzen“).
 
 ### Web-Passwort
 
@@ -1263,9 +1277,11 @@ Jeder `POST` braucht `Content-Type: application/json` und den Kopf `X-CYD-Token`
 
 ## Anhang A: Seitenbilder
 
-Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = Scrollleiste.
+Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt vergrößert (`python tools/render_images.py`, README „Dokumentationsbilder“). Alle Werte sind Beispiele: CH1 7,1 MHz, CH2 14 MHz, CH3 IQ 90° zu CH1, erfundene Netze `Lab` und `Workshop`, Beispielpasswort, keine echte MAC. Die Skizzen darunter sind schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = Scrollleiste.
 
 ### MAIN
+
+![MAIN: drei Kanäle ein, Statusleiste mit Saved und WLAN-Symbol](docs/img/screen-main.png)
 
 ```text
 +--------------------------------------------+
@@ -1284,6 +1300,8 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 
 ### CH1 / CH2
 
+![CH1: 7,100 000 MHz, Schritt 1k, IQ-Master](docs/img/screen-ch1.png)
+
 ```text
 +--------------------------------------------+
 | CH1  [==o]  ON                    [ MAIN ] |
@@ -1298,6 +1316,8 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 ```
 
 ### CH3 IQ
+
+![CH3 IQ: Master CH1, Phase 90°](docs/img/screen-ch3.png)
 
 ```text
 +--------------------------------------------+
@@ -1315,6 +1335,8 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 
 ### CONFIG
 
+![CONFIG oben: Drive all, Off state, Tuning, Spread CH1](docs/img/screen-config.png) ![CONFIG ans Ende gescrollt: Info-Karte mit Reconnect all](docs/img/screen-config-info.png)
+
 ```text
 +--------------------------------------------+
 | CONFIG   Saved                    [ MAIN ] |
@@ -1329,6 +1351,8 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 
 ### NUMPAD
 
+![NUMPAD von CH1 mit der Eingabe 10.125](docs/img/screen-numpad.png)
+
 ```text
 +--------------------------------------------+
 | [<]  CH1  [                     10.7 ]     |
@@ -1339,6 +1363,32 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | [ . ][ 0 ][ ⌫ ][  C  ]                     |
 +--------------------------------------------+
 ```
+
+### WIFI
+
+![WIFI: Netze Lab und Workshop, AP-Karte, verbunden mit Lab](docs/img/screen-wifi.png) ![Netzwahl nach dem Scan](docs/img/screen-wifi-scan.png)
+
+### Gerät
+
+![Gerät: Name, DHCP mit den Adressen der Verbindung, kein Web-Passwort](docs/img/screen-wifi-device.png)
+
+### Access Point
+
+![Access Point: QR-Code, Name, Beispielpasswort und Adresse](docs/img/screen-wifi-ap.png)
+
+### Dialog `Network change`
+
+Netzänderung aus dem Browser ohne Web-Passwort (Abschnitt 16):
+
+![Dialog Network change mit Revert und Keep über MAIN](docs/img/screen-dialog-network-change.png)
+
+### Weboberfläche
+
+Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mit 1280 px, WiFi-Bereich und Telefon mit der Ausgangsleiste unten.
+
+![Weboberfläche am Desktop: Kopfzeile, MAIN und die Kanalbereiche](docs/img/web-desktop.png)
+
+![WiFi-Bereich der Weboberfläche](docs/img/web-wifi.png) <img src="docs/img/web-phone.png" width="300" alt="Weboberfläche am Telefon mit der Ausgangsleiste unten">
 
 ---
 

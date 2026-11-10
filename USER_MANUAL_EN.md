@@ -1,8 +1,8 @@
 # User Manual – CYD HF Generator
 
-Firmware version: 1.3.3
+Firmware version: 1.4.0
 
-This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 1.3.3); the German manual is the reference for the firmware's behavior.
+This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 1.4.0); the German manual is the reference for the firmware's behavior.
 
 ## Contents
 
@@ -23,13 +23,13 @@ This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware
 - [14. Safety Note](#14-safety-note)
 - [15. Remote Control over USB and Network (SCPI)](#15-remote-control-over-usb-and-network-scpi)
 - [16. Web Interface](#16-web-interface)
-- [Appendix A: Page Sketches](#appendix-a-page-sketches)
+- [Appendix A: Page Images](#appendix-a-page-images)
 - [Appendix B: Glossary](#appendix-b-glossary)
 - [Appendix C: Symptoms and Remedies](#appendix-c-symptoms-and-remedies)
 
 ## Quick Start
 
-For the lab bench; details in the sections named, sketches of the pages in Appendix A.
+For the lab bench; details in the sections named, images of the pages in Appendix A.
 
 1. **Connect:** SI5351 module to CN1 (3.3 V, GND, GPIO22, GPIO27; SDA and SCL in either order), supply via USB. CH1 = CLK0, CH2 = CLK1, CH3 = CLK2 (section 13).
 2. **Switch on:** All outputs are off. At the very first start the touch calibration appears: hold four crosses and a check cross one after another until they turn green (section 8).
@@ -67,6 +67,12 @@ The three outputs are:
 CH3 always follows the frequency of its master and can be operated with a phase of 0°, 90°, 180° or 270°. IQ operation is possible from **4.730 MHz to 100 MHz**; all four phases are available in this range.
 
 The CONFIG page also lets you select the SI5351 divider scheme (`Tuning`), spread spectrum for CH1 and the state of switched-off outputs (section 8).
+
+### Licenses
+
+The firmware, the web interface and the web flasher page are free software under the GNU General Public License version 3 or (at your option) any later version (GPL-3.0-or-later), Copyright (C) 2026 DM8SB. They are provided **without any warranty**, without even the implied warranty of merchantability or fitness for a particular purpose; you use them at your own risk. The CYD HF Generator is a private, non-commercial hobby project.
+
+The firmware contains third-party components under their own licenses (among them Arduino-ESP32 with ESP-IDF, TFT_eSPI, LVGL, ArduinoJson, AsyncTCP and ESPAsyncWebServer). All components with license and copyright holders are listed in `THIRD_PARTY_NOTICES.md`; every release contains the license texts (`cyd-hf-generator-<version>-licenses.tar.gz`) and the source of the LGPL libraries (`cyd-hf-generator-<version>-lgpl-sources.tar.gz`). The complete source is on GitHub: https://github.com/dm8sb/CYD-HF-Generator. The license line is in the footer of the web interface (section 16), not on the display.
 
 ---
 
@@ -736,7 +742,7 @@ It starts automatically as long as no calibration is stored (first start, after 
 At the end of the page, a card shows information for troubleshooting without a serial monitor, for example:
 
 ```text
-Firmware 1.3.3 | dev 47d9307
+Firmware 1.4.0 | main 1a2b3c4
 Build 2026-11-05 15:00
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
@@ -753,7 +759,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Touch` | `Touch calibrated x … y …`: stored calibration with the raw values of the screen edges; `Touch not calibrated (default)`: fixed values |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
 | `WiFi` | `WiFi off`; connected: network, address, signal strength; `WiFi searching (<device name>)`; access point: `AP` or `Fallback AP`, name, address, number of connected devices (orange without password). Foreign network names are cleaned (control and invalid characters as `?`, at most 32 bytes) |
-| `Remote` | `web <n>` open browser pages, `SCPI <address>` or `-` the SCPI TCP client. Below it the button `Disconnect all`: closes all browser connections, ends the web sessions and the SCPI TCP connection. Without a web password a browser reconnects within seconds. |
+| `Remote` | `web <n>` open browser pages, `SCPI <address>` or `-` the SCPI TCP client. Below it the button `Reconnect all`: closes all browser connections, ends the web sessions and the SCPI TCP connection. The peers connect again by themselves afterwards (a browser without web password within seconds, an SCPI program at once). It does not lock anybody out; for that set a web password or set `Remote out.` to `local only`. |
 | `Heap` | free memory and its minimum since boot, largest contiguous block, free memory of the user interface (LVGL), each in KB |
 
 ---
@@ -1008,7 +1014,7 @@ Important messages:
 
 | Message | Meaning |
 |---|---|
-| `[BOOT] CYD HF Generator 1.3.3 (dev 47d9307, 2026-11-05 15:00)` | Startup: version, branch, commit and build time as on the info card |
+| `[BOOT] CYD HF Generator 1.4.0 (main 1a2b3c4, 2026-11-10 12:00)` | Startup: version, branch, commit and build time as on the info card |
 | `[I2C] Line held low; releasing bus` | An I2C line was LOW at startup and was released |
 | `[SETTINGS] Loaded from NVS` | Settings loaded |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Once after updating from 1.3.0/1.3.1: the choice of the former boot gesture was deleted (section 13) |
@@ -1035,7 +1041,7 @@ Important messages:
 | `[SCPI] TCP client 10.0.0.5 connected` / `refused (busy)` / `closed` | TCP connection; when closed with the reason: `(idle)`, `(HTTP request)`, `(disconnect)`, `(WiFi)`, `(send failed)`, `(not reading)`. Commands are never logged |
 | `[WEB] Server on port: 80` | Web interface ready (WiFi connected or access point) |
 | `[WEB] Login`, `[WEB] Login failed` | Login with the web password right or wrong (the password is never logged) (`[WEB] Logout`: logged out) |
-| `[GUI] Web password set` / `removed`, `[GUI] Disconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web password on the Device page; `Disconnect all` on the info card |
+| `[GUI] Web password set` / `removed`, `[GUI] Reconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web password on the Device page; `Reconnect all` on the info card |
 | `[WEB] Server stopped (WiFi off)` | WiFi `Off`: the web server accepts nothing more, open pages are disconnected |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Network change from the browser (section 16) |
 | `[WEB] WebSocket closed: no pong`, `[WEB] No memory for the web server`, `[WEB] Saving the network settings failed` | Browser no longer answers; too little memory; saving failed |
@@ -1116,6 +1122,13 @@ For operation:
 
 - **Physical access is full access:** anyone who can operate the device or reflash it via USB can change all settings and outputs; there is no lock and no password. This includes SCPI over USB (section 15): any program on the connected PC can switch outputs on.
 - **Foreign device at 0x60:** if another device answers at I2C address 0x60, the firmware reads its identification and writes at most one test byte into its register 3 before it recognizes it as "not an SI5351" (section 11). Do not connect other devices with this address to CN1.
+
+Radio and conformity:
+
+- **Not a transmitter:** the generator delivers test signals. Never connect an output to an antenna without a suitable low-pass filter; the square wave contains strong harmonics.
+- **Radiate** only with an amateur radio licence, only in the permitted bands and within the spurious-emission limits.
+- The operator is responsible for complying with the EMC and radio regulations.
+- **Self-built for your own use**, the device carries no CE marking. Whoever passes on or sells pre-flashed devices becomes the manufacturer and needs CE conformity under the EMC and Radio Equipment Directive (RED), including the RED delegated act on cybersecurity (the device has WiFi).
 
 ---
 
@@ -1209,9 +1222,9 @@ print(query("SYST:ERR?"))
 
 More scripts are in the `tools/` folder (instructions in `tools/README.md`):
 
-- `scpi_example.py`: the same over USB (`--usb COM5`), TCP (`--tcp <address>`, from S54 on) or PyVISA (`--visa <resource>`).
+- `scpi_example.py`: the same over USB (`--usb COM5`), TCP (`--tcp <address>`) or PyVISA (`--visa <resource>`).
 - `device_check.py`: checks the SCPI command set on the device (round trips, refusals with error code, line length, rate limit, response time) and prints `PASS`/`FAIL`/`SKIP` per check. At the end it restores the changed settings, switches the outputs off and saves nothing; it switches outputs on only with `--outputs`. `fake_scpi_device.py` is a stand-in device for trials without hardware.
-- `rest_example.py`: example for the REST interface (follows with the web interface).
+- `rest_example.py`: example for the REST interface (section 16), with login when a web password is set.
 
 ---
 
@@ -1228,6 +1241,7 @@ With WiFi (section 8, WIFI page) the generator can also be operated in a browser
 - After a change from the browser the device status bar shows `REMOTE WEB` for 10 s. `Remote out.` `local only` (section 8) applies here too: switching on is refused.
 - At most 3 browsers at a time; a fourth sees `Too many clients (max. 3)`.
 - Only at the device: defaults and factory reset, touch calibration, screen lock, new access point password, web password (WIFI → `Device`, row `Web pw.`).
+- The footer at the end of the page shows `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` and `licenses` open the repository and `THIRD_PARTY_NOTICES.md` on GitHub in a new tab (this needs internet access in the browser, section 1, "Licenses").
 
 ### Web Password
 
@@ -1261,11 +1275,13 @@ Programs can use the same functions over HTTP and JSON; example in `tools/rest_e
 
 Every `POST` needs `Content-Type: application/json` and the header `X-CYD-Token` with the token from the page (new with every restart, `GET /api/token`). Errors come as with SCPI as `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` 403, too many commands 429, device busy 503, not logged in 401. Limits: request at most 1 KB, address 256 characters, 20 setting commands per second.
 
-## Appendix A: Page Sketches
+## Appendix A: Page Images
 
-Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
+The images are rendered on the PC from the GUI code of the firmware and scaled up twice (`python tools/render_images.py`, README "Documentation images"). All values are examples: CH1 7.1 MHz, CH2 14 MHz, CH3 IQ 90° to CH1, invented networks `Lab` and `Workshop`, a sample password, no real MAC. The sketches below them are schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 
 ### MAIN
+
+![MAIN: three channels on, status bar with Saved and the WiFi symbol](docs/img/screen-main.png)
 
 ```text
 +--------------------------------------------+
@@ -1284,6 +1300,8 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 
 ### CH1 / CH2
 
+![CH1: 7.100 000 MHz, step 1k, IQ master](docs/img/screen-ch1.png)
+
 ```text
 +--------------------------------------------+
 | CH1  [==o]  ON                    [ MAIN ] |
@@ -1298,6 +1316,8 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 ```
 
 ### CH3 IQ
+
+![CH3 IQ: master CH1, phase 90°](docs/img/screen-ch3.png)
 
 ```text
 +--------------------------------------------+
@@ -1315,6 +1335,8 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 
 ### CONFIG
 
+![CONFIG at the top: Drive all, Off state, Tuning, Spread CH1](docs/img/screen-config.png) ![CONFIG scrolled to the end: info card with Reconnect all](docs/img/screen-config-info.png)
+
 ```text
 +--------------------------------------------+
 | CONFIG   Saved                    [ MAIN ] |
@@ -1329,6 +1351,8 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 
 ### NUMPAD
 
+![NUMPAD from CH1 with the entry 10.125](docs/img/screen-numpad.png)
+
 ```text
 +--------------------------------------------+
 | [<]  CH1  [                     10.7 ]     |
@@ -1339,6 +1363,32 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | [ . ][ 0 ][ ⌫ ][  C  ]                     |
 +--------------------------------------------+
 ```
+
+### WIFI
+
+![WIFI: networks Lab and Workshop, AP card, connected to Lab](docs/img/screen-wifi.png) ![Choosing a network after the scan](docs/img/screen-wifi-scan.png)
+
+### Device
+
+![Device: name, DHCP with the addresses of the connection, no web password](docs/img/screen-wifi-device.png)
+
+### Access Point
+
+![Access point: QR code, name, sample password and address](docs/img/screen-wifi-ap.png)
+
+### Dialog `Network change`
+
+Network change from the browser without a web password (section 16):
+
+![Dialog Network change with Revert and Keep over MAIN](docs/img/screen-dialog-network-change.png)
+
+### Web Interface
+
+Rendered with `tools/web_mock.py` in the same state (section 16): desktop at 1280 px, the WiFi area and a phone with the output bar at the bottom.
+
+![Web interface on the desktop: header, MAIN and the channel areas](docs/img/web-desktop.png)
+
+![WiFi area of the web interface](docs/img/web-wifi.png) <img src="docs/img/web-phone.png" width="300" alt="Web interface on a phone with the output bar at the bottom">
 
 ---
 

@@ -240,11 +240,15 @@ lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switch
     lv_obj_align(t, LV_ALIGN_LEFT_MID, Layout::HEADER_TITLE_X, 0);
 
     if (switchChannel) {
+        // Right after the title: "CH3 IQ" is wider than "CH1" and would end under the switch.
+        lv_obj_update_layout(t);
+        int switchX = Layout::HEADER_TITLE_X + lv_obj_get_width(t) + Layout::HEADER_TITLE_GAP;
+        if (switchX < Layout::HEADER_SWITCH_X) switchX = Layout::HEADER_SWITCH_X;
         w_.hdrSwitch = addSwitch_(bar, switchChannel, color);
-        lv_obj_align(w_.hdrSwitch, LV_ALIGN_LEFT_MID, Layout::HEADER_SWITCH_X, 0);
+        lv_obj_align(w_.hdrSwitch, LV_ALIGN_LEFT_MID, switchX, 0);
         w_.hdrState = addLabel_(bar, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
         styleState_(w_.hdrState);
-        lv_obj_align(w_.hdrState, LV_ALIGN_LEFT_MID, Layout::HEADER_STATE_X, 0);
+        lv_obj_align(w_.hdrState, LV_ALIGN_LEFT_MID, switchX + (Layout::HEADER_STATE_X - Layout::HEADER_SWITCH_X), 0);
     }
 
     // 36 px high and up to the top and right edge (audit U-5).
@@ -560,7 +564,7 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::RemoteDisconnect:
             // Served by the next loop(); the info card shows the new counts then.
             if (disconnectRemote_) disconnectRemote_();
-            Logger::info("GUI", "Disconnect all remote clients");
+            Logger::info("GUI", "Reconnect all remote clients");
             break;
         case Action::WifiEdit:
         case Action::WifiDelete:

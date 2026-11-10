@@ -14,6 +14,7 @@ What you need to build the CYD HF Generator and how to connect the SI5351 module
 - [Supply](#supply)
 - [Outputs](#outputs)
 - [Hints for a clean signal](#hints-for-a-clean-signal)
+- [Case](#case)
 - [Safety](#safety)
 - [Photos](#photos)
 
@@ -108,6 +109,16 @@ These hints are general practice for SI5351 builds; their effect on this device 
 - **Shielding:** a metal enclosure or a shield over the module reduces coupling from the display, the backlight PWM and the WiFi radio.
 - **TCXO:** an optional 25 MHz TCXO instead of the crystal, only if the warm-up drift matters for your use (decision after measurement C7). The frequency correction (CONFIG `Corr.`) compensates the static crystal error.
 
+## Case
+
+[`case/CYD_Si5351_Gehaeuse.scad`](../case/CYD_Si5351_Gehaeuse.scad) is a parametric OpenSCAD case for the CYD2USB with a CJMCU-5351 module and three edge-mount SMA sockets (outside about 90.6 × 57 × 32.3 mm, two parts, printable without support, snap hooks or M2.5 screws). Measure your Si5351 module first; parameters, assembly and STL export: [case/README.md](../case/README.md).
+
+| Assembled | Exploded |
+|---|---|
+| <img src="img/case-assembly.png" width="400" alt="Assembled case with the CYD2USB and the MAIN page"> | <img src="img/case-explode.png" width="330" alt="Exploded view: top, CYD2USB, bottom with the Si5351 module and the SMA sockets"> |
+
+Rendered from the OpenSCAD file with dummies for the boards (`python tools/render_images.py case`); more views in [case/README.md](../case/README.md).
+
 ## Safety
 
 - **Never connect an output to an antenna without a filter.** The outputs are square waves rich in harmonics up to several hundred MHz. Transmitting requires a license and a low-pass filter that meets the spurious emission limits; for receiver and mixer experiments use cables, attenuators and terminations, not an antenna.
@@ -117,7 +128,7 @@ These hints are general practice for SI5351 builds; their effect on this device 
 
 ## Photos
 
-The images below are still to be taken. Save them under `docs/img/` with these names, then remove the comment markers around the image links in this file.
+The rendered screens and case views in `docs/img/` (see the README, "Documentation images") stand in until then. The images below are still to be taken. Save them under `docs/img/` with these names, then remove the comment markers around the image links in this file.
 
 | File | Content | Used in |
 |---|---|---|
@@ -126,6 +137,6 @@ The images below are still to be taken. Save them under `docs/img/` with these n
 | `docs/img/si5351-wiring.jpg` | Close-up of the SI5351 module with the four wires to CN1 and the CLK0–CLK2 outputs, labels readable | [Wiring](#wiring-the-si5351-to-cn1) |
 | `docs/img/cn1-connector.jpg` | Back of the board, CN1 connector with its silkscreen labels readable | [Wiring](#wiring-the-si5351-to-cn1) |
 | `docs/img/setup-bench.jpg` | Complete setup on the bench: board, module, coax to an oscilloscope or spectrum analyzer | top of this page, README |
-| `docs/img/social-preview.png` | Social preview for the repository, 1280×640 px (at least 640×320, under 1 MB), for example the bench photo with the project name; uploaded in the repository settings, not linked here | GitHub settings |
+| `docs/img/social-preview.png` | Social preview for the repository, 1280×640 px (at least 640×320, under 1 MB); a rendered version is in place (`python tools/render_images.py social`), replace it by one with the bench photo if you like; uploaded in the repository settings, not linked here | GitHub settings |
 
 Keep the photos under about 500 KB each (JPEG, about 1600 px wide) so the repository stays small, and make sure no WiFi names or passwords are visible on the display.

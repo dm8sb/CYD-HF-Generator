@@ -1,7 +1,9 @@
-# Release (ARBEITSPLAN G1) and web flasher on GitHub Pages (G2).
-# Tag v*: build both envs, GitHub release with the firmware of both envs, the flash parts of the
-# flasher env and SHA256SUMS, build provenance (W-S24); final tags (without "-") also deploy the
-# flasher site. Manual run: build and assemble, deploy only with the input "deploy".
+# Release (ARBEITSPLAN G1) and web flasher on GitHub Pages (G2, G11).
+# Tag v*: build, GitHub release with the firmware, the flash parts of the
+# flasher env, license notices and LGPL sources (THIRD_PARTY_NOTICES.md) and SHA256SUMS,
+# build provenance (W-S24); every pushed tag (also a release candidate, user 2026-11-10) deploys
+# the flasher site, which serves
+# ESP Web Tools itself (E-36). Manual run: build and assemble, deploy only with the input "deploy".
 # The flasher writes the parts separately (no merged image from 0: it would erase NVS on every
 # update); the offsets come from PlatformIO (tools/flasher_site.py collect).
 # Actions are pinned by commit SHA (audit S-20, S-27); the token is read-only except in the
@@ -65,8 +67,9 @@ jobs:
               "$app"-*) prerelease=true ;;
               *) echo "tag $REF_NAME does not match APP_VERSION $app" >&2; exit 1 ;;
             esac
-            # A pushed final tag replaces the public flasher; a release candidate does not.
-            [ "$EVENT" = push ] && [ "$prerelease" = false ] && deploy=true
+            # Every pushed tag deploys the public flasher, a release candidate too (user decision
+            # 2026-11-10: go live with v1.4.0-rc1 and test); the release is marked as a prerelease.
+            [ "$EVENT" = push ] && deploy=true
           else
             version="$app-dev.$commit"
           fi
@@ -122,6 +125,14 @@ jobs:
         run: |
           pio project metadata -e "$ENV_NAME" --json-output > metadata.json
           python tools/flasher_site.py collect --metadata metadata.json --env "$ENV_NAME" --out "parts/$ENV_NAME"
+      # G11 (THIRD_PARTY_NOTICES.md): notices and license texts next to the binaries, the license
+      # files as shipped in the pinned packages, and the source of the LGPL parts linked into the
+      # image (LGPL-2.1 section 6, LGPL-3.0 section 4). A missing file fails the build, so a
+      # dependency change cannot drop a notice unnoticed.
+      - name: Collect notices and LGPL sources
+        run: |
+          python tools/flasher_site.py notices --metadata metadata.json --env "$ENV_NAME" --out "parts/$ENV_NAME/notices"
+          ls -l "parts/$ENV_NAME/notices" "parts/$ENV_NAME/notices/upstream"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: build-${{ matrix.env }}
@@ -142,14 +153,18 @@ jobs:
         with:
           name: build-${{ env.FLASHER_ENV }}
           path: parts/
+      # ESP Web Tools is served by the site itself (E-36): the pinned modules, license files and
+      # flasher stub sources of flasher/esp-web-tools.json, each checked against its hash.
+      - name: Download ESP Web Tools
+        run: python3 tools/flasher_site.py vendor --out ewt
       - name: Assemble and check the site
         env:
           VERSION: ${{ needs.meta.outputs.version }}
           COMMIT: ${{ needs.meta.outputs.commit }}
           REPO: ${{ github.repository }}
         run: |
-          python3 tools/flasher_site.py assemble --parts parts --version "$VERSION" --commit "$COMMIT" --repo "$REPO" --out site
-          python3 tools/flasher_site.py check site --verify-cdn | tee check.log
+          python3 tools/flasher_site.py assemble --parts parts --ewt ewt --version "$VERSION" --commit "$COMMIT" --repo "$REPO" --out site
+          python3 tools/flasher_site.py check site | tee check.log
           { echo '### Flasher site'; echo '```'; cat check.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -199,6 +214,9 @@ jobs:
           for part in bootloader partitions boot_app0; do
             cp "builds/build-$FLASHER_ENV/$part.bin" "release/$prefix-$FLASHER_ENV-$part.bin"
           done
+          # Notices and license texts, and the LGPL sources (see the build job).
+          tar --exclude=lgpl-sources.tar.gz -czf "release/$prefix-licenses.tar.gz" -C "builds/build-$FLASHER_ENV" notices
+          cp "builds/build-$FLASHER_ENV/notices/lgpl-sources.tar.gz" "release/$prefix-lgpl-sources.tar.gz"
           (cd release && sha256sum -- * > SHA256SUMS)
           cat release/SHA256SUMS
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -226,6 +244,10 @@ jobs:
           | \`$prefix-firmware.bin\` | Application at 0x10000 (the build behind the web flasher) |
           | \`$prefix-bootloader.bin\`, \`-partitions.bin\`, \`-boot_app0.bin\` | Flash parts of the same build |
           | \`SHA256SUMS\` | Checksums; provenance: \`gh attestation verify <file> --repo $GH_REPO\` |
+          | \`cyd-hf-generator-$VERSION-licenses.tar.gz\` | License (GPL-3.0-or-later), third-party notices and license texts |
+          | \`cyd-hf-generator-$VERSION-lgpl-sources.tar.gz\` | Source of the LGPL libraries in the firmware (Arduino-ESP32, AsyncTCP, ESPAsyncWebServer) |
+
+          Copyright (C) 2026 DM8SB. Licensed under the GNU GPL version 3 or later (GPL-3.0-or-later), WITHOUT ANY WARRANTY. Source of this release: the source archives below (tag \`$TAG\`); all libraries are pinned in \`platformio.ini\`. Third-party components: \`THIRD_PARTY_NOTICES.md\` and the licenses archive.
 
           Offsets (PlatformIO upload):
           \`\`\`
