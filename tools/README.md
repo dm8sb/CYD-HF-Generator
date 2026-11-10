@@ -10,6 +10,9 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | `device_check.py` | Automated SCPI check for the smoke test and the measurement plan (`MESSPLAN.md` 4.3, L6, L-S). |
 | `fake_scpi_device.py` | Fake device (local TCP server, subset of the manual) to try the scripts without hardware. |
 | `size_report.py` | Flash/RAM of the firmware envs from the ELF as `size.json` and a Markdown table with the difference to a baseline (CI job summary, G7). Local: `python tools/size_report.py measure -e esp32-2432S028R-core3` after `pio run`; `--self-test` runs its tests. |
+| `render_images.py` | Renders the images in `docs/img/`: device screens from the real GUI code (host renderer `screens/`, env `screens-win`/`screens`), the case (OpenSCAD), the web UI on `web_mock.py` and the social preview; sample values only. See the README, "Documentation images". |
+| `cdp_shot.mjs` | Node 22+ helper of `render_images.py`: screenshots over the Chrome DevTools protocol (viewport and phone emulation, clip to an element). |
+| `screens/` | Host screen renderer (not a host tool): stand-ins for display, touch, WiFi, LED and build info, the sample state and `lv_conf_host.h`; built by `pio run -e screens-win`. |
 | `build_info.py` | PlatformIO build script (not a host tool). |
 | `embed_www.py` | PlatformIO build script: embeds `data/www` into the firmware (`app.js`, `style.css` gzip with ETag, `index.html` for the per-boot token) as `$BUILD_DIR/www/www_assets.h`. |
 

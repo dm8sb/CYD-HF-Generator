@@ -1277,9 +1277,11 @@ Jeder `POST` braucht `Content-Type: application/json` und den Kopf `X-CYD-Token`
 
 ## Anhang A: Seitenbilder
 
-Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = Scrollleiste.
+Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt vergrößert (`python tools/render_images.py`, README „Dokumentationsbilder“). Alle Werte sind Beispiele: CH1 7,1 MHz, CH2 14 MHz, CH3 IQ 90° zu CH1, erfundene Netze `Lab` und `Workshop`, Beispielpasswort, keine echte MAC. Die Skizzen darunter sind schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = Scrollleiste.
 
 ### MAIN
+
+![MAIN: drei Kanäle ein, Statusleiste mit Saved und WLAN-Symbol](docs/img/screen-main.png)
 
 ```text
 +--------------------------------------------+
@@ -1298,6 +1300,8 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 
 ### CH1 / CH2
 
+![CH1: 7,100 000 MHz, Schritt 1k, IQ-Master](docs/img/screen-ch1.png)
+
 ```text
 +--------------------------------------------+
 | CH1  [==o]  ON                    [ MAIN ] |
@@ -1312,6 +1316,8 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 ```
 
 ### CH3 IQ
+
+![CH3 IQ: Master CH1, Phase 90°](docs/img/screen-ch3.png)
 
 ```text
 +--------------------------------------------+
@@ -1329,6 +1335,8 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 
 ### CONFIG
 
+![CONFIG oben: Drive all, Off state, Tuning, Spread CH1](docs/img/screen-config.png) ![CONFIG ans Ende gescrollt: Info-Karte mit Disconnect all](docs/img/screen-config-info.png)
+
 ```text
 +--------------------------------------------+
 | CONFIG   Saved                    [ MAIN ] |
@@ -1343,6 +1351,8 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 
 ### NUMPAD
 
+![NUMPAD von CH1 mit der Eingabe 10.125](docs/img/screen-numpad.png)
+
 ```text
 +--------------------------------------------+
 | [<]  CH1  [                     10.7 ]     |
@@ -1353,6 +1363,32 @@ Schematisch, nicht maßstäblich; `[==o]` = Schalter ein, `[o==]` = aus, `#` = S
 | [ . ][ 0 ][ ⌫ ][  C  ]                     |
 +--------------------------------------------+
 ```
+
+### WIFI
+
+![WIFI: Netze Lab und Workshop, AP-Karte, verbunden mit Lab](docs/img/screen-wifi.png) ![Netzwahl nach dem Scan](docs/img/screen-wifi-scan.png)
+
+### Gerät
+
+![Gerät: Name, DHCP mit den Adressen der Verbindung, kein Web-Passwort](docs/img/screen-wifi-device.png)
+
+### Access Point
+
+![Access Point: QR-Code, Name, Beispielpasswort und Adresse](docs/img/screen-wifi-ap.png)
+
+### Dialog `Network change`
+
+Netzänderung aus dem Browser ohne Web-Passwort (Abschnitt 16):
+
+![Dialog Network change mit Revert und Keep über MAIN](docs/img/screen-dialog-network-change.png)
+
+### Weboberfläche
+
+Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mit 1280 px, WiFi-Bereich und Telefon mit der Ausgangsleiste unten.
+
+![Weboberfläche am Desktop: Kopfzeile, MAIN und die Kanalbereiche](docs/img/web-desktop.png)
+
+![WiFi-Bereich der Weboberfläche](docs/img/web-wifi.png) <img src="docs/img/web-phone.png" width="300" alt="Weboberfläche am Telefon mit der Ausgangsleiste unten">
 
 ---
 

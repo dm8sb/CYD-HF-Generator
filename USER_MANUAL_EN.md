@@ -23,13 +23,13 @@ This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware
 - [14. Safety Note](#14-safety-note)
 - [15. Remote Control over USB and Network (SCPI)](#15-remote-control-over-usb-and-network-scpi)
 - [16. Web Interface](#16-web-interface)
-- [Appendix A: Page Sketches](#appendix-a-page-sketches)
+- [Appendix A: Page Images](#appendix-a-page-images)
 - [Appendix B: Glossary](#appendix-b-glossary)
 - [Appendix C: Symptoms and Remedies](#appendix-c-symptoms-and-remedies)
 
 ## Quick Start
 
-For the lab bench; details in the sections named, sketches of the pages in Appendix A.
+For the lab bench; details in the sections named, images of the pages in Appendix A.
 
 1. **Connect:** SI5351 module to CN1 (3.3 V, GND, GPIO22, GPIO27; SDA and SCL in either order), supply via USB. CH1 = CLK0, CH2 = CLK1, CH3 = CLK2 (section 13).
 2. **Switch on:** All outputs are off. At the very first start the touch calibration appears: hold four crosses and a check cross one after another until they turn green (section 8).
@@ -1275,11 +1275,13 @@ Programs can use the same functions over HTTP and JSON; example in `tools/rest_e
 
 Every `POST` needs `Content-Type: application/json` and the header `X-CYD-Token` with the token from the page (new with every restart, `GET /api/token`). Errors come as with SCPI as `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` 403, too many commands 429, device busy 503, not logged in 401. Limits: request at most 1 KB, address 256 characters, 20 setting commands per second.
 
-## Appendix A: Page Sketches
+## Appendix A: Page Images
 
-Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
+The images are rendered on the PC from the GUI code of the firmware and scaled up twice (`python tools/render_images.py`, README "Documentation images"). All values are examples: CH1 7.1 MHz, CH2 14 MHz, CH3 IQ 90° to CH1, invented networks `Lab` and `Workshop`, a sample password, no real MAC. The sketches below them are schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 
 ### MAIN
+
+![MAIN: three channels on, status bar with Saved and the WiFi symbol](docs/img/screen-main.png)
 
 ```text
 +--------------------------------------------+
@@ -1298,6 +1300,8 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 
 ### CH1 / CH2
 
+![CH1: 7.100 000 MHz, step 1k, IQ master](docs/img/screen-ch1.png)
+
 ```text
 +--------------------------------------------+
 | CH1  [==o]  ON                    [ MAIN ] |
@@ -1312,6 +1316,8 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 ```
 
 ### CH3 IQ
+
+![CH3 IQ: master CH1, phase 90°](docs/img/screen-ch3.png)
 
 ```text
 +--------------------------------------------+
@@ -1329,6 +1335,8 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 
 ### CONFIG
 
+![CONFIG at the top: Drive all, Off state, Tuning, Spread CH1](docs/img/screen-config.png) ![CONFIG scrolled to the end: info card with Disconnect all](docs/img/screen-config-info.png)
+
 ```text
 +--------------------------------------------+
 | CONFIG   Saved                    [ MAIN ] |
@@ -1343,6 +1351,8 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 
 ### NUMPAD
 
+![NUMPAD from CH1 with the entry 10.125](docs/img/screen-numpad.png)
+
 ```text
 +--------------------------------------------+
 | [<]  CH1  [                     10.7 ]     |
@@ -1353,6 +1363,32 @@ Schematic, not to scale; `[==o]` = switch on, `[o==]` = off, `#` = scroll bar.
 | [ . ][ 0 ][ ⌫ ][  C  ]                     |
 +--------------------------------------------+
 ```
+
+### WIFI
+
+![WIFI: networks Lab and Workshop, AP card, connected to Lab](docs/img/screen-wifi.png) ![Choosing a network after the scan](docs/img/screen-wifi-scan.png)
+
+### Device
+
+![Device: name, DHCP with the addresses of the connection, no web password](docs/img/screen-wifi-device.png)
+
+### Access Point
+
+![Access point: QR code, name, sample password and address](docs/img/screen-wifi-ap.png)
+
+### Dialog `Network change`
+
+Network change from the browser without a web password (section 16):
+
+![Dialog Network change with Revert and Keep over MAIN](docs/img/screen-dialog-network-change.png)
+
+### Web Interface
+
+Rendered with `tools/web_mock.py` in the same state (section 16): desktop at 1280 px, the WiFi area and a phone with the output bar at the bottom.
+
+![Web interface on the desktop: header, MAIN and the channel areas](docs/img/web-desktop.png)
+
+![WiFi area of the web interface](docs/img/web-wifi.png) <img src="docs/img/web-phone.png" width="300" alt="Web interface on a phone with the output bar at the bottom">
 
 ---
 
