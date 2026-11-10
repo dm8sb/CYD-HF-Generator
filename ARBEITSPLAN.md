@@ -111,6 +111,7 @@ Host-Tests: 376 Fälle in `native-win` und 4 in `native-win-fault` (Stand S56).
 ### 2.3 Code und Tests
 
 - [ ] **DMA und Doppelpuffer** (nach der Migration): zwei Puffer 320 × 40 px (`DMA_ATTR`, je 25,6 KB), `LV_COLOR_16_SWAP` = 1, `setSwapBytes(false)`; in `DisplayPanel::begin()` erst Erkennung und Init mit rohem Buszugriff, dann `initDMA()` und einmal `startWrite()` (CS bleibt LOW, `endWrite()` nie); `flush()` = `dmaWait()`, `setAddrWindow()`, `pushPixelsDMA()`, `lv_disp_flush_ready()` sofort. Erwartung bis ≈ 30 Bilder/s, +36 KB RAM; Messung mit `LV_USE_PERF_MONITOR`. → N13
+- [ ] **Offene CodeQL-Funde (PR #2, 2026-11-10):** `tools/cdp_shot.mjs` (3 Warnungen: Dateidaten in Netzanfragen, Code-Aufbau), `tools/screens/main.cpp:55` (Datei ohne eingeschränkte Rechte), `data/www/app.js:143/145` (`js/request-forgery`, `js/user-controlled-bypass`, wie in G4 bewertet: Fehlalarm, Pfad nur `/api/channel/1|2`). Nur Werkzeuge bzw. Fehlalarm; in GitHub begründet schließen oder die Werkzeuge anpassen. `tools/flasher_site.py` (Tag-Regex ohne Großschreibung) behoben.
 - [ ] **Fakes:** Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln (mehrere Namespaces und Strings im Preferences-Fake seit S52a).
 
 ### 2.4 Plattform und Lieferkette

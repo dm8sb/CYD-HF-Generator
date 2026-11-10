@@ -502,10 +502,11 @@ def check_site(site, partitions_csv=None):
         fail("index.html: CSP default-src must be 'none'")
     if re.search(r"https?:|\*", csp.group(1)):
         fail("index.html: CSP allows another origin")
-    if page.index("Content-Security-Policy") > page.index("<script"):
+    if page.index("Content-Security-Policy") > page.lower().index("<script"):
         fail("index.html: CSP must come before the first script")
-    # Scripts: only the pinned entry module, no inline code.
-    scripts = re.findall(r"<script\b([^>]*)>(.*?)</script>", page, re.S)
+    # Scripts: only the pinned entry module, no inline code. Case-insensitive and also
+    # "</script >" (HTML allows both), so no script slips past the check (CodeQL py/bad-tag-filter).
+    scripts = re.findall(r"<script\b([^>]*)>(.*?)</script\s*>", page, re.S | re.I)
     lock = read_json(LOCK_FILE)
     ewt_rel = EWT_SITE_DIR.format(v=lock["version"])
     entry_src = ewt_rel + lock["entry"]
