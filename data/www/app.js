@@ -116,6 +116,9 @@ const spreadOf = (n) => ((n === 1 || (n === 3 && S.ch3.master === 1)) && SSC[S.c
 // The channel whose frequency n shows: CH3 follows its master. Only 1 or 2, whatever the state
 // holds (the result goes into a REST path).
 const master = (n) => ((n === 3 ? S.ch3.master : n) === 2 ? 2 : 1);
+// Request paths are fixed strings, never built from state or page input (CodeQL js/request-forgery).
+const CH_PATH = {1: '/api/channel/1', 2: '/api/channel/2', 3: '/api/ch3'};
+const chPath = (n) => CH_PATH[n === 3 ? 3 : n === 2 ? 2 : 1];
 
 // ---- REST
 function apiErr(status, j) {
@@ -184,7 +187,7 @@ async function pump(q, send) {
 function tune(n, fn) {
   if (!S) return;
   const m = master(n);
-  queue('f' + m, chOf(m).frequency, fn, (v) => api('/api/channel/' + m, {frequency: v}));
+  queue('f' + m, chOf(m).frequency, fn, (v) => api(chPath(m), {frequency: v}));
 }
 const stepF = (n, k) => tune(n, (b) => clampF(b + k * step()));
 function decade(up) {
@@ -200,7 +203,7 @@ function moveStep(d) {
   queue('step', S.config.step, (b) => STEPS[Math.max(0, Math.min(6, STEPS.indexOf(snap(b)) + d))],
     (v) => api('/api/config', {step: v}));
 }
-const setEnabled = (n, on) => act(api(n === 3 ? '/api/ch3' : '/api/channel/' + n, {enabled: on}));
+const setEnabled = (n, on) => act(api(chPath(n), {enabled: on}));
 const toggle = (n) => S && setEnabled(n, !(n === 3 ? S.ch3.enabled : chOf(n).enabled));
 const post3 = (b) => act(api('/api/ch3', b));
 const tuneC = (k) => S && queue('corr', S.config.correction,
@@ -213,7 +216,7 @@ async function applyText(n) {
   if (!S) return;
   if (!v) { line(w.err, 'Enter a number', 'err'); return; }
   try {
-    await api('/api/channel/' + master(n), {frequencyText: v});
+    await api(chPath(master(n)), {frequencyText: v});
     discard(n);
     w.in.blur();
   } catch (e) {

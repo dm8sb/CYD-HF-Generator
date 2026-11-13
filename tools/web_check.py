@@ -157,7 +157,11 @@ def main():
     check("CSP script-src 'self', frame-ancestors 'none'", "script-src 'self'" in csp and "frame-ancestors 'none'" in csp, csp)
     check("nosniff, no-referrer", hd.get("X-Content-Type-Options") == "nosniff" and hd.get("Referrer-Policy") == "no-referrer")
     check("page not stored", hd.get("Cache-Control") in ("no-store", "no-cache"), hd.get("Cache-Control", ""))
-    check("no inline script or handler", not re.search(r"<script>|\son\w+=|style=", page))
+    # Every <script> must load a file (src=), no handler attributes or inline styles; case-insensitive
+    # (CodeQL py/bad-tag-filter).
+    scripts = re.findall(r"<script\b[^>]*>", page, re.I)
+    check("no inline script or handler", all(re.search(r"\ssrc=", s, re.I) for s in scripts)
+          and not re.search(r"\son\w+\s*=|\sstyle\s*=", page, re.I))
     st, hd, raw = api.raw("GET", "/app.js", headers={"Accept-Encoding": "gzip"})
     check("GET /app.js 200", st == 200 and len(raw) > 1000, "HTTP %d" % st)
     if hd.get("ETag"):

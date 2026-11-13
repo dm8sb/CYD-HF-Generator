@@ -619,8 +619,11 @@ def check_site(site, partitions_csv=None):
     if page.index("Content-Security-Policy") > page.lower().index("<script"):
         fail("index.html: CSP must come before the first script")
     # Scripts: only the pinned entry module, no inline code. Case-insensitive and also
-    # "</script >" (HTML allows both), so no script slips past the check (CodeQL py/bad-tag-filter).
-    scripts = re.findall(r"<script\b([^>]*)>(.*?)</script\s*>", page, re.S | re.I)
+    # "</script >" or "</script x>" (browsers accept both), so no script slips past the check
+    # (CodeQL py/bad-tag-filter).
+    scripts = re.findall(r"<script\b([^>]*)>(.*?)</script\b[^>]*>", page, re.S | re.I)
+    if len(re.findall(r"<script\b", page, re.I)) != len(scripts):
+        fail("index.html: a <script> tag without a matching end tag")
     lock = read_json(LOCK_FILE)
     ewt_rel = EWT_SITE_DIR.format(v=lock["version"])
     entry_src = ewt_rel + lock["entry"]

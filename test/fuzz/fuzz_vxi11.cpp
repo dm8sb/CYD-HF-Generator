@@ -135,6 +135,9 @@ struct Harness {
     uint32_t now = 0;
     uint32_t xid = XID_BASE;
     uint32_t lastReplied = 0;
+    // Raw bytes (op 0) can carry any xid, also one with the XID_BASE prefix; the device must
+    // answer it as given, so from then on the order and read checks no longer apply.
+    bool raw = false;
     // device_read calls by xid: requestSize, so the reply can be checked.
     std::vector<std::pair<uint32_t, uint32_t> > reads;
 
@@ -230,7 +233,7 @@ struct Harness {
             const uint8_t* r = &s[at + 4];
             const uint32_t x = get32(r);
             FUZZ_CHECK(get32(r + 4) == 1); // REPLY
-            if ((x & 0xFF000000u) == XID_BASE) {
+            if ((x & 0xFF000000u) == XID_BASE && !raw) {
                 FUZZ_CHECK(x > lastReplied && x <= xid);
                 lastReplied = x;
                 checkRead(x, r, len);
@@ -311,6 +314,7 @@ int run(const uint8_t* data, size_t size) {
             case 0: { // raw bytes
                 size_t n = arg;
                 const uint8_t* p = in.take(&n);
+                if (n) h.raw = true;
                 h.feed(p, n, m);
                 break;
             }
