@@ -524,26 +524,32 @@ In der Titelzeile zwischen `CONFIG` und `MAIN` steht der Speicherzustand, in jed
 
 ### Drive all
 
-Die Drive-Strength gilt global für alle Kanäle (CH1, CH2 und CH3); CH3 hat keine eigene Einstellung.
+Die Drive-Strength gilt global für alle Kanäle (CH1, CH2 und CH3); CH3 hat keine eigene Einstellung. Auswahl: `2 mA`, `4 mA` (Standard), `6 mA`, `8 mA`.
 
-Auswahl:
+Die Ausgänge des SI5351 sind CMOS-Rechtecktreiber. Die Drive-Strength legt fest, wie viel Strom ein Treiber in die Last liefern kann:
 
-```text
-2 mA
-4 mA
-6 mA
-8 mA
-```
+| Wirkung | kleiner Wert (2 mA) | großer Wert (8 mA) |
+|---|---|---|
+| Pegel an 50 Ω | niedriger | höher |
+| Flanken | flacher, weniger Oberwellen | steiler, mehr Oberwellen |
+| Übersprechen zwischen den Ausgängen, Störungen auf der Versorgung | geringer | stärker |
+| Stromaufnahme | geringer | höher |
+
+- An einem hochohmigen Eingang (Logik, Zähler, Oszilloskop mit 1 MΩ) ändert sich der Pegel kaum; dort reichen 2 oder 4 mA.
+- An einer 50-Ω-Last oder einem langen Koaxkabel bringen 6 oder 8 mA mehr Pegel und sauberere Flanken.
+- Ein Rechteck enthält immer ungerade Oberwellen (3., 5., … Vielfaches). Wer ein sauberes Sinussignal braucht, filtert mit einem Tiefpass; eine kleinere Drive-Strength mildert die Oberwellen nur.
+- Die Änderung wirkt sofort und ohne Aussetzer, auch bei einem laufenden IQ-Paar.
+- Die gemessenen Pegel je Stufe stehen nach der Messung F2 in `MESSPLAN.md`.
 
 ### Off state (Zustand abgeschalteter Ausgänge)
 
 Legt fest, welchen Pegel ein ausgeschalteter Ausgang führt (SI5351-Register 24). Die Einstellung gilt für CLK0, CLK1 und CLK2.
 
-| Option | Ausgang im Zustand OFF |
-|---|---|
-| `Low` (Standard) | LOW (0 V), wie bis Firmware 1.2.0 |
-| `High` | HIGH (Versorgungsspannung der Ausgänge, meist 3,3 V) |
-| `High-Z` | hochohmig |
+| Option | Ausgang im Zustand OFF | Typischer Einsatz |
+|---|---|---|
+| `Low` (Standard) | LOW (0 V) | DC-gekoppelte Mischer (Diodenring, Schalter wie FST3253), Logik mit aktiv-high-Eingang: aus = kein Takt, kein Strom in eine 50-Ω-Last |
+| `High` | HIGH (Versorgungsspannung der Ausgänge, meist 3,3 V) | Logik mit aktiv-low-Eingang, die im Ruhezustand HIGH sehen muss |
+| `High-Z` | hochohmig | Die externe Schaltung bestimmt den Ruhepegel (Pull-up/-down, Vorspannung über einen Widerstand), oder ein anderer Treiber nutzt dieselbe Leitung |
 
 - `High` muss bestätigt werden: Der Dialog `Off state High` erklärt die Gleichspannung am ausgeschalteten Ausgang. `High` (orange) übernimmt die Einstellung, `Cancel` lässt die bisherige stehen. `Low` und `High-Z` wirken ohne Rückfrage.
 - Aus der Ferne (SCPI über USB, TCP oder VXI-11, REST, Weboberfläche) gilt `High` nur bei `Remote out.` = `allowed`, dann ohne Rückfrage am Gerät (die Weboberfläche fragt selbst nach). Bei `local only` lehnt das Gerät `High` ab, so wie das Einschalten eines Ausgangs (SCPI `-221`, REST 403); `Low` und `High-Z` bleiben erlaubt.
@@ -556,34 +562,94 @@ Legt fest, welchen Pegel ein ausgeschalteter Ausgang führt (SI5351-Register 24)
 
 ### Tuning (Teilerverfahren)
 
-Der SI5351 erzeugt jede Frequenz in zwei Stufen: Eine PLL vervielfacht den 25-MHz-Quarz auf 600–900 MHz (VCO), ein Teiler (MultiSynth) teilt das auf die Ausgangsfrequenz herunter. Beide Stufen können ganzzahlig oder fraktional (mit Bruchteil) arbeiten. Fraktionale Teiler erlauben feine Schritte, erzeugen aber Nebenlinien nahe am Träger. `Tuning` legt fest, welche Stufe fraktional arbeitet; die Einstellung gilt für alle Kanäle.
+`Tuning` legt fest, wie der SI5351 eine Frequenz zusammensetzt. Davon hängen drei Dinge ab: wie sauber das Spektrum ist (Nebenlinien), wie genau die Frequenz getroffen wird und ob der Ausgang beim Abstimmen kurz aussetzt. Die Einstellung gilt für alle Kanäle.
 
-| Option | PLL | Teiler (MultiSynth) | Eigenschaften |
-|---|---|---|---|
-| `Fractional` (Standard) | fest 900 bzw. 887,5 MHz | fraktional | feinste Schritte, Abstimmen ohne Aussetzer, Abweichung ≤ 0,5 Hz; Nebenlinien durch den fraktionalen Teiler möglich |
-| `Low noise` | fraktional | gerade, ganzzahlig | weniger Nebenlinien; kurzer Aussetzer, wenn der Teiler wechselt; Abweichung bis 1,5 Hz |
-| `Integer` | ganzzahlig | gerade, ganzzahlig | geringste Nebenlinien; Frequenz auf einem Raster, Abweichung bis in den kHz-Bereich |
-
-Ein Wechsel des Modus stellt alle Ausgänge neu ein; laufende Ausgänge setzen dabei einmal kurz aus.
-
-**Fractional:** Verhalten wie Firmware 1.2.0. Die PLL bleibt fest, nur der Teiler ändert sich. Trifft 900 MHz eine Frequenz nicht genau genug, wechselt die PLL auf 887,5 MHz; nur dann setzt der Ausgang kurz aus.
-
-**Low noise:** Der Teiler ist eine gerade ganze Zahl, die PLL übernimmt Feinabstimmung und Frequenzkorrektur (Verfahren der VFOs von QRP Labs und Etherkit). Beim Abstimmen bleibt der Teiler, solange die PLL im Bereich 600–900 MHz bleibt; dann ändert sich nur die PLL, ohne Aussetzer. Erst wenn der Teiler wechseln muss, setzt der Ausgang kurz aus. Beispiel: Teiler 90 deckt 6,67–10 MHz ab.
-
-**Integer:** PLL und Teiler sind ganzzahlig. Die Frequenz kann deshalb nur Rasterwerte annehmen:
+**So entsteht die Frequenz:** Der SI5351 arbeitet in zwei Stufen. Eine PLL vervielfacht den 25-MHz-Quarz auf 600–900 MHz (VCO). Ein Teiler (MultiSynth) teilt diese Frequenz auf die Ausgangsfrequenz herunter; unter 1 MHz teilt ein zusätzlicher Teiler (R) noch einmal durch 2 bis 128.
 
 ```text
-Ausgang = Quarz × a / Teiler    (a = 24 … 36, Teiler gerade)
+Ausgang = 25 MHz × PLL-Faktor / Teiler
 ```
 
-Die Firmware wählt den Rasterpunkt, der der Sollfrequenz am nächsten liegt. Beispiel: Soll 7,1 MHz ergibt 25 MHz × 25 / 88 = 7,102 273 MHz.
+Beide Stufen können **ganzzahlig** (z. B. Faktor 36, Teiler 90) oder **fraktional** arbeiten (mit Bruchteil, z. B. Teiler 126,7605). Ein fraktionaler Teiler kann nicht wirklich durch 126,7605 teilen: Er wechselt in einem festen Muster zwischen 126 und 127, sodass der Mittelwert stimmt. Dieses Muster erzeugt einen kleinen, periodischen Phasenfehler, der im Spektrum als **Nebenlinien** (Spurs) neben dem Träger erscheint. Wo sie liegen und wie stark sie sind, hängt vom Bruchteil ab, also von der genauen Frequenz. Eine ganzzahlig arbeitende Stufe erzeugt diese Nebenlinien nicht. Ein fraktionaler Teiler in der PLL stört weniger als einer im MultiSynth, weil die Regelschleife der PLL einen Teil des Fehlers herausfiltert.
 
-- Die Frequenzkorrektur kann im Raster nicht ausgeglichen werden; sie verschiebt nur die angezeigte tatsächliche Frequenz.
-- `+`/`−` ändern die Sollfrequenz. Die tatsächliche Frequenz ändert sich erst, wenn ein anderer Rasterpunkt näher liegt; die Zeile `Out` zeigt das.
-- Die Hauptseite zeigt die Sollfrequenz mit vorangestelltem `~`, wenn die Abweichung 1 Hz oder mehr beträgt.
-- Spread Spectrum ist gesperrt.
+**Überblick:**
 
-Der Modus ist für Ausbildungsversuche zum Vergleich ganzzahliger und fraktionaler Teiler gedacht, nicht für genaue Frequenzen.
+| | `Fractional` (Standard) | `Low noise` | `Integer` |
+|---|---|---|---|
+| PLL (VCO) | fest: 900 MHz oder 887,5 MHz | fraktional, folgt der Frequenz | ganzzahlig: 25 MHz × 24 … 36 |
+| Teiler (MultiSynth) | fraktional | gerade, ganzzahlig | gerade, ganzzahlig |
+| Nebenlinien | am ehesten, je nach Frequenz | weniger | am wenigsten |
+| Abweichung von der Sollfrequenz | ≤ 0,5 Hz (bis 100 MHz) | ≤ 1,5 Hz (bis 100 MHz) | Raster, Hz bis MHz (Tabelle unten) |
+| Abstimmen mit `+`/`−` | ohne Aussetzer, selten ein kurzer | ohne Aussetzer, kurzer Aussetzer beim Teilerwechsel | kurzer Aussetzer, wenn sich beim Rasterwechsel die PLL ändert |
+| Frequenzkorrektur (`Corr.`) | voll ausgeglichen | voll ausgeglichen | nicht ausgleichbar |
+| `Spread CH1` | möglich | möglich | gesperrt |
+| CH3 IQ | ja, Abweichung ≤ 1,4 Hz | ja, Abweichung ≤ 1,4 Hz | ja, auf dem Raster |
+
+Über 100 MHz arbeiten `Fractional` und `Low noise` weitgehend gleich (siehe unten); die Abweichung steigt dort auf bis 1,5 Hz (bis 112,5 MHz), 2 Hz (bis 150 MHz) und 3 Hz (bis 160 MHz).
+
+Ob eine Einstellung im Einzelfall messbar weniger Nebenlinien bringt, hängt von Frequenz, Last und Messaufbau ab. Die Vergleichsmessungen stehen in `MESSPLAN.md` (K5, K6, F3); danach wird auch entschieden, ob `Low noise` Standard wird.
+
+#### Fractional
+
+Die PLL bleibt fest auf einem von zwei Werten (900 oder 887,5 MHz); nur der MultiSynth-Teiler ändert sich, und zwar fraktional mit einem Nenner bis 1 048 575. So lässt sich jede Frequenz bis 100 MHz auf 0,5 Hz genau treffen, auch mit Frequenzkorrektur.
+
+- **Abstimmen:** Ein neuer Teiler wird ohne Neustart der PLL übernommen; der Ausgang läuft durch. Nur wenn die aktuelle PLL-Frequenz eine Frequenz nicht genau genug trifft, wechselt sie auf den anderen Wert und startet neu: Der Ausgang setzt einmal kurz aus. Die Firmware bleibt bei der bisherigen PLL, solange sie auf 0,25 Hz genau ist; Wechsel sind deshalb selten.
+- **Nebenlinien:** Der Teiler ist fast immer fraktional. Selbst 10 MHz (900 MHz / 90) wird fraktional, sobald eine Frequenzkorrektur eingestellt ist. Die Nebenlinien können deshalb bei jeder Frequenz auftreten und beim Abstimmen wandern.
+- **Über 100 MHz:** Trifft keine der beiden festen PLL-Frequenzen auf 0,25 Hz, nimmt die Firmware wie bei `Low noise` einen geraden Teiler (8, 6 oder 4) mit fraktionaler PLL, wenn das genauer ist. Ab 112,5 MHz ist das immer so; dann ändert jeder Schritt die PLL und der Ausgang setzt bei jedem Schritt kurz aus.
+- **Geeignet für:** allgemeinen Gebrauch, Durchstimmen ohne Unterbrechung (z. B. als VFO, Wobbeln von Hand), Kalibrieren.
+
+#### Low noise
+
+Der MultiSynth-Teiler ist eine gerade ganze Zahl; die PLL übernimmt die Feinabstimmung und die Frequenzkorrektur. Das ist das Verfahren der VFOs von QRP Labs und Etherkit.
+
+- **Teilerwahl:** Die Firmware nimmt den größten geraden Teiler, bei dem der VCO höchstens 900 MHz erreicht. Beispiel: Teiler 90 deckt 6,67–10 MHz ab (VCO 600–900 MHz).
+- **Abstimmen:** Solange die Frequenz im Bereich des aktuellen Teilers bleibt, ändert sich nur die PLL, ohne Neustart und ohne Aussetzer. Erst wenn der Bereich verlassen wird (im Beispiel unter 6,67 oder über 10 MHz), wechselt der Teiler; die PLL startet neu und der Ausgang setzt kurz aus. Wer zurückstimmt, bleibt beim neuen Teiler, solange es geht; der Wechsel passiert also nicht ständig an derselben Stelle hin und her.
+- **Nebenlinien:** Der Teiler am Ausgang erzeugt keine Nebenlinien; die fraktionale PLL erzeugt weniger, weil ihre Regelschleife filtert.
+- **Genauigkeit:** bis 1,5 Hz (bei 100 MHz mit Teiler 8), bei den meisten Frequenzen deutlich darunter.
+- **Geeignet für:** Empfänger- und Mischerversuche, Lokaloszillator, alles, wo ein sauberes Spektrum wichtiger ist als Abstimmen ohne jeden Aussetzer.
+
+#### Integer
+
+PLL und Teiler sind beide ganzzahlig. Die Frequenz kann deshalb nur Rasterwerte annehmen:
+
+```text
+Ausgang = 25 MHz × a / Teiler    (a = 24 … 36, Teiler gerade; unter 1 MHz zusätzlich / 2 … 128)
+```
+
+Die Firmware wählt den Rasterpunkt, der der Sollfrequenz am nächsten liegt. Je höher die Frequenz, desto gröber das Raster (Werte ohne Frequenzkorrektur):
+
+| Soll | Rasterpunkt | Abweichung | Abstand der Rasterpunkte dort |
+|---|---|---:|---:|
+| 3,5 MHz | 25 × 28 / 200 = 3,500 000 MHz | 0 Hz | ≈ 4 kHz |
+| 7,1 MHz | 25 × 25 / 88 = 7,102 273 MHz | +2,3 kHz | ≈ 19 kHz |
+| 10 MHz | 25 × 24 / 60 = 10,000 000 MHz | 0 Hz | ≈ 57 kHz |
+| 14,2 MHz | 25 × 25 / 44 = 14,204 545 MHz | +4,5 kHz | ≈ 38 kHz |
+| 28,5 MHz | 25 × 32 / 28 = 28,571 429 MHz | +71 kHz | ≈ 160 kHz |
+| 50,1 MHz | 25 × 24 / 12 = 50,000 000 MHz | −100 kHz | ≈ 1,6 MHz |
+| 144,3 MHz | 25 × 35 / 6 = 145,833 333 MHz | +1,5 MHz | ≈ 4 MHz |
+
+- **Abstimmen:** `+`/`−` ändern die Sollfrequenz. Die tatsächliche Frequenz springt erst, wenn ein anderer Rasterpunkt näher liegt. Ändert sich dabei der PLL-Faktor, startet die PLL neu und der Ausgang setzt kurz aus. Die Zeile `Out` der Kanalseite zeigt immer die tatsächliche Frequenz und die Abweichung.
+- **Anzeige:** Die Hauptseite zeigt die Sollfrequenz mit vorangestelltem `~`, wenn die Abweichung 1 Hz oder mehr beträgt (ab 100 MHz ohne `~`, dann steht `Integer` in der Moduszeile).
+- **Frequenzkorrektur:** Das Raster wird aus dem korrigierten Quarz berechnet. Die Korrektur verschiebt deshalb die tatsächliche Frequenz, statt sie auszugleichen; die Zeile `Out` zeigt das.
+- **Nebenlinien:** Keine Stufe arbeitet fraktional; das Spektrum ist hier am saubersten.
+- **Spread Spectrum:** gesperrt, weil es eine fraktionale PLL braucht. Der Wechsel auf `Integer` schaltet es aus.
+- **Geeignet für:** Ausbildungsversuche zum Vergleich ganzzahliger und fraktionaler Teiler (Abschnitt 10, Beispiel E), Messungen, bei denen genau ein Rasterpunkt gebraucht wird (z. B. 10 MHz, 25 MHz, 50 MHz); nicht für beliebige genaue Frequenzen.
+
+#### Modus wechseln
+
+- Ein Wechsel stellt alle Ausgänge neu ein; laufende Ausgänge setzen dabei einmal kurz aus, ein IQ-Paar wird danach neu ausgerichtet.
+- Weicht der Modus von `Fractional` ab, steht er in der Moduszeile von Hauptseite und Kanalseiten (Abschnitt 2).
+- Über SCPI: `SYST:TUN FRAC|LNO|INT` (Abschnitt 15).
+
+**Welcher Modus wofür?**
+
+| Anwendung | Empfehlung |
+|---|---|
+| Allgemein, Durchstimmen ohne Unterbrechung | `Fractional` |
+| Lokaloszillator für Empfänger oder Mischer, sauberes Spektrum | `Low noise` |
+| Genaue Frequenz mit Kalibrierung (`Corr.`) | `Fractional` oder `Low noise` |
+| Spread Spectrum auf CH1 | `Fractional` oder `Low noise` |
+| Vergleich fraktional/ganzzahlig, Rasterfrequenzen | `Integer` |
 
 ### Spread CH1 (Spread Spectrum)
 
@@ -601,7 +667,8 @@ Beispiel: CH1 = 10 MHz mit `-0.5 %` belegt das Band 9,95–10,00 MHz; die Kanals
 - Beim Umschalten startet PLL A neu: CH1 setzt kurz aus. Läuft CH3 im IQ-Betrieb mit Master CH1, wird die Phasenlage danach neu ausgerichtet.
 - Im Modus `Integer` ist die Option gesperrt und zeigt ausgegraut `Off (Integer)`. Ein Wechsel auf `Integer` schaltet Spread Spectrum aus; nach dem Zurückwechseln muss es neu gewählt werden.
 - Auch mit Spread muss der SI5351-Oszillator (VCO) im Bereich 600–900 MHz bleiben. Mit Master CH1 wird der IQ-Bereich von CH3 deshalb etwas schmaler: `-0.5 %` ab 4,749 MHz, `-1.5 %` ab 4,797 MHz, `+/-0.5 %` von 4,749 bis 99,502 MHz. Außerhalb wartet CH3 (`WAIT`) wie unter 4,730 MHz. Die CH3-Seite zeigt den gültigen Bereich an.
-- Für Mischer- und Empfängerversuche mit sauberem Träger `Off` lassen.
+- **Wozu:** Spread Spectrum verteilt die Leistung von Träger und Oberwellen auf ein breiteres Band und senkt so deren Spitzenpegel. Das hilft bei EMV-Versuchen (Störabstrahlung eines Takts) und zeigt, wie ein Empfänger auf ein verbreitertes Signal reagiert.
+- Für Mischer- und Empfängerversuche mit sauberem Träger `Off` lassen: Der Träger ist mit Spread kein einzelner Strich mehr, sondern ein Band.
 
 ### Frequenzkorrektur (`Corr.`)
 

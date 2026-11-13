@@ -524,26 +524,32 @@ The save state is shown in the title bar between `CONFIG` and `MAIN`, at every s
 
 ### Drive all
 
-The drive strength applies globally to all channels (CH1, CH2 and CH3); CH3 has no setting of its own.
+The drive strength applies globally to all channels (CH1, CH2 and CH3); CH3 has no setting of its own. Options: `2 mA`, `4 mA` (default), `6 mA`, `8 mA`.
 
-Options:
+The SI5351 outputs are CMOS square-wave drivers. The drive strength sets how much current a driver can deliver into the load:
 
-```text
-2 mA
-4 mA
-6 mA
-8 mA
-```
+| Effect | small value (2 mA) | large value (8 mA) |
+|---|---|---|
+| Level into 50 Ω | lower | higher |
+| Edges | slower, fewer harmonics | steeper, more harmonics |
+| Crosstalk between the outputs, noise on the supply | lower | stronger |
+| Current consumption | lower | higher |
+
+- Into a high-impedance input (logic, counter, oscilloscope with 1 MΩ) the level hardly changes; 2 or 4 mA are enough there.
+- Into a 50 Ω load or a long coax cable, 6 or 8 mA give more level and cleaner edges.
+- A square wave always contains odd harmonics (3rd, 5th, … multiple). If you need a clean sine wave, filter with a low-pass; a smaller drive strength only softens the harmonics.
+- The change takes effect immediately and without a dropout, also on a running IQ pair.
+- The measured levels per step will be in `MESSPLAN.md` after measurement F2.
 
 ### Off state (State of Switched-Off Outputs)
 
 Determines the level that a switched-off output carries (SI5351 register 24). The setting applies to CLK0, CLK1 and CLK2.
 
-| Option | Output in the OFF state |
-|---|---|
-| `Low` (default) | LOW (0 V), as up to firmware 1.2.0 |
-| `High` | HIGH (supply voltage of the outputs, usually 3.3 V) |
-| `High-Z` | high impedance |
+| Option | Output in the OFF state | Typical use |
+|---|---|---|
+| `Low` (default) | LOW (0 V) | DC-coupled mixers (diode ring, switches such as the FST3253), logic with an active-high input: off = no clock, no current into a 50 Ω load |
+| `High` | HIGH (supply voltage of the outputs, usually 3.3 V) | Logic with an active-low input that must see HIGH when idle |
+| `High-Z` | high impedance | The external circuit sets the idle level (pull-up/-down, bias through a resistor), or another driver uses the same line |
 
 - `High` needs a confirmation: the dialog `Off state High` explains the DC voltage on a switched-off output. `High` (orange) applies the setting, `Cancel` keeps the previous one. `Low` and `High-Z` apply without a question.
 - Remotely (SCPI over USB, TCP or VXI-11, REST, web UI) `High` applies only with `Remote out.` = `allowed`, then without a question at the device (the web UI asks itself). With `local only` the device refuses `High`, like switching an output on (SCPI `-221`, REST 403); `Low` and `High-Z` stay allowed.
@@ -556,34 +562,94 @@ Determines the level that a switched-off output carries (SI5351 register 24). Th
 
 ### Tuning (Divider Scheme)
 
-The SI5351 generates every frequency in two stages: a PLL multiplies the 25 MHz crystal up to 600–900 MHz (VCO), and a divider (MultiSynth) divides this down to the output frequency. Both stages can work as integer or fractional (with a fractional part). Fractional dividers allow fine steps but produce spurs close to the carrier. `Tuning` determines which stage works fractionally; the setting applies to all channels.
+`Tuning` determines how the SI5351 composes a frequency. Three things depend on it: how clean the spectrum is (spurs), how accurately the frequency is hit, and whether the output drops out briefly while tuning. The setting applies to all channels.
 
-| Option | PLL | Divider (MultiSynth) | Properties |
-|---|---|---|---|
-| `Fractional` (default) | fixed 900 or 887.5 MHz | fractional | finest steps, tuning without dropouts, deviation ≤ 0.5 Hz; spurs from the fractional divider possible |
-| `Low noise` | fractional | even, integer | fewer spurs; short dropout when the divider changes; deviation up to 1.5 Hz |
-| `Integer` | integer | even, integer | lowest spurs; frequency on a grid, deviation up to the kHz range |
-
-Changing the mode reconfigures all outputs; running outputs drop out briefly once.
-
-**Fractional:** Behavior as in firmware 1.2.0. The PLL stays fixed; only the divider changes. If 900 MHz cannot hit a frequency accurately enough, the PLL switches to 887.5 MHz; only then does the output drop out briefly.
-
-**Low noise:** The divider is an even integer; the PLL handles fine tuning and frequency correction (the method used in the VFOs from QRP Labs and Etherkit). While tuning, the divider is kept as long as the PLL stays within 600–900 MHz; then only the PLL changes, without a dropout. Only when the divider has to change does the output drop out briefly. Example: divider 90 covers 6.67–10 MHz.
-
-**Integer:** PLL and divider are both integers. The frequency can therefore only take grid values:
+**How the frequency is made:** The SI5351 works in two stages. A PLL multiplies the 25 MHz crystal up to 600–900 MHz (VCO). A divider (MultiSynth) divides this down to the output frequency; below 1 MHz an additional divider (R) divides once more by 2 to 128.
 
 ```text
-Output = crystal × a / divider    (a = 24 … 36, divider even)
+Output = 25 MHz × PLL factor / divider
 ```
 
-The firmware selects the grid point closest to the requested frequency. Example: a requested 7.1 MHz gives 25 MHz × 25 / 88 = 7.102 273 MHz.
+Both stages can work as **integer** (e.g. factor 36, divider 90) or **fractional** (with a fractional part, e.g. divider 126.7605). A fractional divider cannot really divide by 126.7605: it switches between 126 and 127 in a fixed pattern so that the average is right. This pattern causes a small periodic phase error that shows up in the spectrum as **spurs** next to the carrier. Where they lie and how strong they are depends on the fractional part, that is on the exact frequency. A stage that works as integer does not produce these spurs. A fractional divider in the PLL disturbs less than one in the MultiSynth, because the PLL control loop filters out part of the error.
 
-- The frequency correction cannot be applied within the grid; it only shifts the displayed actual frequency.
-- `+`/`−` change the requested frequency. The actual frequency only changes when a different grid point is closer; the `Out` line shows this.
-- The main page shows the requested frequency preceded by `~` when the deviation is 1 Hz or more.
-- Spread spectrum is locked.
+**Overview:**
 
-This mode is intended for educational experiments comparing integer and fractional dividers, not for accurate frequencies.
+| | `Fractional` (default) | `Low noise` | `Integer` |
+|---|---|---|---|
+| PLL (VCO) | fixed: 900 MHz or 887.5 MHz | fractional, follows the frequency | integer: 25 MHz × 24 … 36 |
+| Divider (MultiSynth) | fractional | even, integer | even, integer |
+| Spurs | most likely, depending on the frequency | fewer | fewest |
+| Deviation from the requested frequency | ≤ 0.5 Hz (up to 100 MHz) | ≤ 1.5 Hz (up to 100 MHz) | grid, Hz to MHz (table below) |
+| Tuning with `+`/`−` | without dropouts, rarely a short one | without dropouts, short dropout when the divider changes | short dropout when the PLL changes at a grid step |
+| Frequency correction (`Corr.`) | fully compensated | fully compensated | cannot be compensated |
+| `Spread CH1` | possible | possible | locked |
+| CH3 IQ | yes, deviation ≤ 1.4 Hz | yes, deviation ≤ 1.4 Hz | yes, on the grid |
+
+Above 100 MHz `Fractional` and `Low noise` work largely the same (see below); the deviation there rises to up to 1.5 Hz (up to 112.5 MHz), 2 Hz (up to 150 MHz) and 3 Hz (up to 160 MHz).
+
+Whether a setting gives measurably fewer spurs in a given case depends on frequency, load and measurement setup. The comparison measurements are in `MESSPLAN.md` (K5, K6, F3); they also decide whether `Low noise` becomes the default.
+
+#### Fractional
+
+The PLL stays fixed at one of two values (900 or 887.5 MHz); only the MultiSynth divider changes, fractionally with a denominator of up to 1 048 575. This hits every frequency up to 100 MHz to within 0.5 Hz, also with frequency correction.
+
+- **Tuning:** A new divider is taken over without restarting the PLL; the output keeps running. Only when the current PLL frequency cannot hit a frequency accurately enough does it switch to the other value and restart: the output drops out briefly once. The firmware keeps the current PLL as long as it is accurate to 0.25 Hz; switches are therefore rare.
+- **Spurs:** The divider is almost always fractional. Even 10 MHz (900 MHz / 90) becomes fractional as soon as a frequency correction is set. Spurs can therefore occur at any frequency and move while tuning.
+- **Above 100 MHz:** If neither of the two fixed PLL frequencies hits to within 0.25 Hz, the firmware takes an even divider (8, 6 or 4) with a fractional PLL as in `Low noise`, if that is more accurate. From 112.5 MHz on this is always the case; then every step changes the PLL and the output drops out briefly at every step.
+- **Suited for:** general use, tuning through without interruption (e.g. as a VFO, sweeping by hand), calibration.
+
+#### Low noise
+
+The MultiSynth divider is an even integer; the PLL handles fine tuning and frequency correction. This is the method used in the VFOs from QRP Labs and Etherkit.
+
+- **Divider choice:** The firmware takes the largest even divider at which the VCO reaches at most 900 MHz. Example: divider 90 covers 6.67–10 MHz (VCO 600–900 MHz).
+- **Tuning:** As long as the frequency stays within the range of the current divider, only the PLL changes, without a restart and without a dropout. Only when the range is left (in the example below 6.67 or above 10 MHz) does the divider change; the PLL restarts and the output drops out briefly. Tuning back keeps the new divider as long as possible, so the switch does not toggle back and forth at the same point.
+- **Spurs:** The divider at the output produces no spurs; the fractional PLL produces fewer because its control loop filters.
+- **Accuracy:** up to 1.5 Hz (at 100 MHz with divider 8), well below that for most frequencies.
+- **Suited for:** receiver and mixer experiments, local oscillator, anything where a clean spectrum matters more than tuning without any dropout.
+
+#### Integer
+
+PLL and divider are both integers. The frequency can therefore only take grid values:
+
+```text
+Output = 25 MHz × a / divider    (a = 24 … 36, divider even; below 1 MHz additionally / 2 … 128)
+```
+
+The firmware selects the grid point closest to the requested frequency. The higher the frequency, the coarser the grid (values without frequency correction):
+
+| Requested | Grid point | Deviation | Spacing of the grid points there |
+|---|---|---:|---:|
+| 3.5 MHz | 25 × 28 / 200 = 3.500 000 MHz | 0 Hz | ≈ 4 kHz |
+| 7.1 MHz | 25 × 25 / 88 = 7.102 273 MHz | +2.3 kHz | ≈ 19 kHz |
+| 10 MHz | 25 × 24 / 60 = 10.000 000 MHz | 0 Hz | ≈ 57 kHz |
+| 14.2 MHz | 25 × 25 / 44 = 14.204 545 MHz | +4.5 kHz | ≈ 38 kHz |
+| 28.5 MHz | 25 × 32 / 28 = 28.571 429 MHz | +71 kHz | ≈ 160 kHz |
+| 50.1 MHz | 25 × 24 / 12 = 50.000 000 MHz | −100 kHz | ≈ 1.6 MHz |
+| 144.3 MHz | 25 × 35 / 6 = 145.833 333 MHz | +1.5 MHz | ≈ 4 MHz |
+
+- **Tuning:** `+`/`−` change the requested frequency. The actual frequency only jumps when a different grid point is closer. If the PLL factor changes with it, the PLL restarts and the output drops out briefly. The `Out` line on the channel page always shows the actual frequency and the deviation.
+- **Display:** The main page shows the requested frequency preceded by `~` when the deviation is 1 Hz or more (from 100 MHz without `~`; the mode line then shows `Integer`).
+- **Frequency correction:** The grid is computed from the corrected crystal. The correction therefore shifts the actual frequency instead of compensating it; the `Out` line shows this.
+- **Spurs:** No stage works fractionally; the spectrum is cleanest here.
+- **Spread spectrum:** locked, because it needs a fractional PLL. Switching to `Integer` turns it off.
+- **Suited for:** educational experiments comparing integer and fractional dividers (section 10, example E), measurements that need exactly one grid point (e.g. 10 MHz, 25 MHz, 50 MHz); not for arbitrary accurate frequencies.
+
+#### Changing the mode
+
+- A change reconfigures all outputs; running outputs drop out briefly once, an IQ pair is realigned afterwards.
+- If the mode differs from `Fractional`, it appears in the mode line of the main page and the channel pages (section 2).
+- Over SCPI: `SYST:TUN FRAC|LNO|INT` (section 15).
+
+**Which mode for what?**
+
+| Application | Recommendation |
+|---|---|
+| General use, tuning through without interruption | `Fractional` |
+| Local oscillator for a receiver or mixer, clean spectrum | `Low noise` |
+| Accurate frequency with calibration (`Corr.`) | `Fractional` or `Low noise` |
+| Spread spectrum on CH1 | `Fractional` or `Low noise` |
+| Comparing fractional/integer, grid frequencies | `Integer` |
 
 ### Spread CH1 (Spread Spectrum)
 
@@ -601,7 +667,8 @@ Example: CH1 = 10 MHz with `-0.5 %` occupies the band 9.95–10.00 MHz; the chan
 - Switching resets PLL A: CH1 drops out briefly. If CH3 is running in IQ operation with master CH1, its phase is realigned afterwards.
 - In `Integer` mode, the option is locked and shows a grayed-out `Off (Integer)`. Switching to `Integer` turns spread spectrum off; after switching back, it has to be selected again.
 - With spread, too, the SI5351 oscillator (VCO) must stay within 600–900 MHz. With master CH1 the IQ range of CH3 therefore becomes slightly narrower: `-0.5 %` from 4.749 MHz, `-1.5 %` from 4.797 MHz, `+/-0.5 %` from 4.749 to 99.502 MHz. Outside it, CH3 waits (`WAIT`) as below 4.730 MHz. The CH3 page shows the valid range.
-- For mixer and receiver experiments with a clean carrier, leave it `Off`.
+- **What for:** Spread spectrum spreads the power of the carrier and its harmonics over a wider band and so lowers their peak level. This helps in EMC experiments (radiated emission of a clock) and shows how a receiver reacts to a widened signal.
+- For mixer and receiver experiments with a clean carrier, leave it `Off`: with spread the carrier is no longer a single line but a band.
 
 ### Frequency Correction (`Corr.`)
 
