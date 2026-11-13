@@ -1,6 +1,6 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: Version **2.0.0** auf `main` und `dev`; die Git-Historie beginnt mit 2.0.0 neu (D44), alte Tags und Releases sind gelöscht. LX1 (VXI-11/LXI), die Lizenzarbeiten AF29–AF31 und Priorität 1 (AF1–AF10) sind enthalten; alle Rückfragen zum Audit sind entschieden (D22–D43) · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · nächste Ziele: `v2.0.0-rc1` (Pre-Release mit Webflasher), Test durch den Nutzer, `v2.0.0`; dann AF11, AF12 und AF55; die Messungen (S41c, S49, S59–S61) kommen zuletzt (D38)
+Stand: Release **2.0.0** (`v2.0.0-rc1` vom Nutzer getestet, D45); die Git-Historie beginnt mit 2.0.0 neu (D44). Enthalten sind LX1 (VXI-11/LXI), die Lizenzarbeiten AF29–AF31 und Priorität 1 (AF1–AF10); alle Rückfragen zum Audit sind entschieden (D22–D43) · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · nächste Ziele: AF11, AF12 und AF55 in 2.0.x; die Messungen (S41c, S49, S59–S61) kommen zuletzt (D38), danach S64
 
 Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufgabenliste. Sie ersetzt `todo.md`, `AUDIT_2026-11.md` und `KONZEPT_WEB_HMI.md`. Die Befund-IDs aus dem Audit (C-n Code, S-n Security, U-n Bedienung, P-n Plattform, T-n Tests) und dem Konzept (W-E, W-S, V-n) bleiben als Namen gültig. Messungen am Gerät: [MESSPLAN.md](MESSPLAN.md). Verhalten: [USER_MANUAL_DE.md](USER_MANUAL_DE.md); Anforderungen und Entscheidungen: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md).
 
@@ -107,6 +107,7 @@ Host-Tests: 406 Fälle in `native-win` und 4 in `native-win-fault`.
 | D42 | mDNS kündigt `_scpi-raw._tcp`, `_vxi-11._tcp` und `_lxi._tcp` auch während der Sperre bei offenem AP an; keine Rücknahme (am offenen AP hängt meist nur ein Gerät zur Einrichtung) (LX1; Nutzer) |
 | D43 | `/lxi/identification` bleibt ohne `MACAddress` und `LXIVersion` (W-S16, keine Konformitätsbehauptung) und ist damit nicht streng schemagültig; lxi-tools, PyVISA und python-vxi11 brauchen es nicht (LX1; Nutzer) |
 | D44 | Nächstes Release heißt **2.0.0** (Core 3, Weboberfläche, Netzsteuerung, LXI). Die Git-Historie wird vor `v2.0.0-rc1` durch einen neuen Wurzel-Commit ersetzt; alte Tags und Releases (`v1.3.3`, Release-Kandidaten 1.4.0) werden gelöscht, Rulesets kurz ab- und wieder eingeschaltet. Ablauf: `v2.0.0-rc1` als Pre-Release, Test durch den Nutzer, dann `v2.0.0`; Messungen danach (Nutzer) |
+| D45 | `v2.0.0-rc1` vom Nutzer getestet und für gut befunden; **2.0.0** erscheint ohne AF11, AF12 und AF55 und vor den Messungen. Diese folgen in 2.0.x; S64 bleibt die Freigabe nach den Messungen (Nutzer) |
 
 **Nicht umsetzen:** neue Funktionen außer N14 vorerst (D18); RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); Kanalwahl im Header (Rest von U-16: kein Platz neben Zustand und `MAIN`, über MAIN und die Karten 2 Tipps); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
 
