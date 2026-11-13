@@ -5,9 +5,9 @@ Static files the firmware embeds and serves (S55: `tools/embed_www.py` gzips `ap
 | File | Bytes | gzip -9 | Content |
 |---|---:|---:|---|
 | `index.html` | 3 812 | 1 541 | Skeleton: header, license footer, dialogs (help, login, confirm), `<meta name="cyd-token" content="{{TOKEN}}">` |
-| `app.js` | 40 281 | 13 739 | Everything else: areas, rendering, REST, WebSocket/polling, keyboard |
+| `app.js` | 41 247 | 14 128 | Everything else: areas, rendering, REST, WebSocket/polling, keyboard |
 | `style.css` | 9 230 | 3 134 | Dark theme in the colors of `include/palette.h`, responsive layout |
-| total | 53 323 | 18 414 | |
+| total | 54 289 | 18 803 | |
 
 This README is not embedded and not served.
 

@@ -23,6 +23,10 @@ const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--hide-scrollbar
   '--user-data-dir=' + profile, 'about:blank'], {stdio: 'ignore'});
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// A string as a JS literal inside an evaluated expression: JSON plus escaped <, >, / and the line
+// separators, so a selector cannot end the literal (CodeQL js/bad-code-sanitization).
+const jsLit = v => JSON.stringify(String(v)).replace(/[<>\/\u2028\u2029]/g,
+  c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
 
 async function browserUrl() {
   const file = join(profile, 'DevToolsActivePort');
@@ -64,12 +68,12 @@ async function shoot(s) {
     await sleep(100);
   }
   if (s.scrollTo) {
-    await evaluate(sessionId, `document.querySelector(${JSON.stringify(s.scrollTo)}).scrollIntoView({block: 'start'})`);
+    await evaluate(sessionId, `document.querySelector(${jsLit(s.scrollTo)}).scrollIntoView({block: 'start'})`);
   }
   await sleep(s.settleMs || 600);
   const params = {format: 'png'};
   if (s.clip) {
-    const r = await evaluate(sessionId, `(() => { const b = document.querySelector(${JSON.stringify(s.clip)})
+    const r = await evaluate(sessionId, `(() => { const b = document.querySelector(${jsLit(s.clip)})
       .getBoundingClientRect(); return {x: b.left + scrollX, y: b.top + scrollY, w: b.width, h: b.height}; })()`);
     const pad = s.clipPad || 0;
     const h = Math.min(r.h + 2 * pad, s.maxHeight || 1e9);

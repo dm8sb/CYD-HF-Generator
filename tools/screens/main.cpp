@@ -20,6 +20,10 @@
 #include <services/settings.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef _WIN32
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 static AppController* gApp = nullptr;
 static Gui* gGui = nullptr;
@@ -55,7 +59,13 @@ static void shot(const char* name) {
     lv_refr_now(nullptr);
     char path[512];
     snprintf(path, sizeof(path), "%s/%s.rgb565", gOut, name);
+    // 0644 on POSIX: the frame dumps are never world-writable (CodeQL cpp/world-writable-file-creation).
+#ifdef _WIN32
     FILE* f = fopen(path, "wb");
+#else
+    const int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    FILE* f = fd >= 0 ? fdopen(fd, "wb") : nullptr;
+#endif
     if (!f) {
         fprintf(stderr, "cannot write %s\n", path);
         exit(2);
