@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<!-- SPDX-FileCopyrightText: 2026 DM8SB -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="cyd-token" content="{{TOKEN}}">
+<meta name="color-scheme" content="dark">
+<title>CYD HF Generator</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<header class="top">
+<div class="brand"><b>CYD HF Generator</b> <span id="dev" class="mu"></span></div>
+<div class="pills">
+<span id="conn" class="pill" data-t="err" role="status">Connecting...</span>
+<span id="save" class="pill"></span>
+<span id="remote" class="pill" data-t="warn" hidden></span>
+<span id="hw" class="pill" data-t="err" hidden></span>
+</div>
+<div class="acts">
+<button id="bIdent" type="button" disabled title="Display backlight and LED blink for 5 s">Identify</button>
+<button id="bSave" type="button" disabled title="Save the settings now">Save</button>
+<button id="bLogout" type="button" hidden title="End the login of this browser">Log out</button>
+<button id="bHelp" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
+</div>
+<nav aria-label="Areas"><a href="#main">MAIN</a><a href="#ch1" data-ch="1">CH1</a><a href="#ch2" data-ch="2">CH2</a><a href="#ch3" data-ch="3">CH3</a><a href="#config">CONFIG</a><a href="#wifi">WiFi</a></nav>
+</header>
+<fieldset id="ui" disabled></fieldset>
+<footer class="foot"><span>CYD HF Generator &middot; GPL-3.0-or-later, no warranty &middot;</span> <a href="https://github.com/dm8sb/CYD-HF-Generator/tree/{{SRC_REF}}" target="_blank" rel="noopener noreferrer">Source</a> <span>and</span> <a href="https://github.com/dm8sb/CYD-HF-Generator/blob/{{SRC_REF}}/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener noreferrer">licenses</a></footer>
+<div id="msg" role="status" aria-live="polite" hidden></div>
+<dialog id="dlgHelp" aria-labelledby="helpT">
+<h2 id="helpT">Keyboard</h2>
+<table class="keys">
+<tr><td><kbd>&uarr;</kbd> <kbd>&darr;</kbd> or <kbd>+</kbd> <kbd>&minus;</kbd></td><td>Frequency up / down by the step</td></tr>
+<tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Larger / smaller step</td></tr>
+<tr><td><kbd>PgUp</kbd> <kbd>PgDn</kbd></td><td>Frequency &times; 10 / &divide; 10</td></tr>
+<tr><td>Wheel over a digit</td><td>Change that digit</td></tr>
+<tr><td>Click a digit</td><td>Use it as the step</td></tr>
+<tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Select CH1 / CH2 / CH3 (no field focused)</td></tr>
+<tr><td><kbd>F</kbd> or <kbd>Enter</kbd></td><td>Focus the frequency field</td></tr>
+<tr><td><kbd>Enter</kbd></td><td>Apply the entry, e.g. 10.7M, 455k, 7 100 000, 10,7 MHz</td></tr>
+<tr><td><kbd>Esc</kbd></td><td>Discard the entry</td></tr>
+<tr><td><kbd>O</kbd></td><td>Output of the selected channel on / off</td></tr>
+<tr><td><kbd>?</kbd></td><td>This help</td></tr>
+</table>
+<p class="mu">On CH3 the frequency keys change its master.</p>
+<div class="row end"><button id="helpX" type="button">Close</button></div>
+</dialog>
+<dialog id="dlgLogin" aria-labelledby="loginT">
+<form id="fLogin">
+<h2 id="loginT">Login</h2>
+<p class="mu">The generator is protected by a web password.</p>
+<label for="pw">Password</label>
+<input id="pw" type="password" autocomplete="current-password" required>
+<p id="loginErr" class="err"></p>
+<div class="row end"><button type="submit" class="pri">Log in</button></div>
+</form>
+</dialog>
+<dialog id="dlgAsk" aria-labelledby="askT">
+<h2 id="askT"></h2>
+<p id="askX"></p>
+<div class="row end"><button id="askNo" type="button">Cancel</button><button id="askOk" type="button" class="pri"></button></div>
+</dialog>
+<noscript><p>This page needs JavaScript.</p></noscript>
+</body>
+</html>

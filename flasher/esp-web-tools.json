@@ -1,0 +1,95 @@
+{
+  "base": "https://cdn.jsdelivr.net/npm/esp-web-tools@10.4.0/dist/web/",
+  "entry": "install-button.js",
+  "integrity": {
+    "esp32-DNPRK0Ay.js": "sha384-1mT/sUZ9QQrZft8TM1YK7RfyIUggyewqL0w7GrOvQ0aHk1JPIsMsmZeUKcWGWX3G",
+    "esp32c2-CQ3ns5Nm.js": "sha384-AcOQBXWICST0TTlwGYbYA8cElKuXwrwW0L10NSF0YBe1PkndGs5RhsuDzTR/OZhi",
+    "esp32c3-2tchr35W.js": "sha384-JF+4Kgy21HYqVI0DI+S5SAUyxRrWHKN/yvQ2TzxFzvi3V4IzoyW0WXPscyrzIjwE",
+    "esp32c5-CeCSizBL.js": "sha384-LWYGviHcz1q8xMq+rBhgcOPSu9V6bB8VO5BMCIeTNIsIUtdzs2FCsTip6Tk37b1f",
+    "esp32c6-DolpfL0e.js": "sha384-IGupIjC1Vbm+EvBSu+rNvcYGQxssjhOw2APdj4cIGAdevBe86rTUYaO21v8RNywO",
+    "esp32c61-C8HktcOt.js": "sha384-ufZuP5/DSChHLVHLQ7MYes8HllWFxgbwL5y4C5gi9OXhaYHvdF6KEMOpv+iY/JeE",
+    "esp32h2-L0n5WuSo.js": "sha384-RU6vJZEaAJLviiv0938vlTobFJZHLEXoIG++VEHufT8z4evp3AeasaMzTemz2DMr",
+    "esp32p4-MR0ikcda.js": "sha384-xBu/wvVzwGAyBFMKgxeER3FJpFRbEy9ibHOmTdVa/k2B4khQPRq3pfmGZQYRCGpX",
+    "esp32s2-w9SUkb7o.js": "sha384-NNkQOYG+wsZHOXo+Yam3d6ks8/Bai0cN9MKjMU6U1PaxHjdOJC5ZqhDZcnQ2nL/N",
+    "esp32s3-DQt_R3ZE.js": "sha384-IcqNvrgnrdlIMX/N8Fb2+T/TGyZHbVAqp8iyoP9cH/E+VSlV6h3Uug3ykbyr1We6",
+    "index-Dt9w-IG1.js": "sha384-qDnmUz4Vrcy5l9ZV4nrPjsyYSeFTtX4OJNYJEEeZixp894cbdDwh+jeO/d//X/6I",
+    "install-button.js": "sha384-9XfyvAabgkISlB/Xb3OpshGKpZx0TOt5Mmu78SeiNU3so/p4o2s9m66vy6Utdnom",
+    "install-dialog-im156JnI.js": "sha384-wMJi9BXikLp2SPdWr7OYNwSRpoiEgrPRT3APdi1KY6iYiMRoYO8vD5vBrBScG5j+",
+    "stub_flasher_32-BLbsWvxO.js": "sha384-NwVOvN4wk0BwWgOx1vGDv+MQEVpiXoaexYjJg/MDYH4rXwzOFpTiPC4Ga+GHl1Z+",
+    "stub_flasher_32c2-wLQhZItC.js": "sha384-kWdvhLR37pGIIpanPvPbGanK2DxuRVrb0Dx4tOYWcL2SpD3OGuC04mKxDgKLF9nT",
+    "stub_flasher_32c3-DmSvHQKL.js": "sha384-CXQHSBDY3+uIPzPcDoj56lAdidofn2R9+kcq6RkXjgVSM/6ZizTnZY4/AJ0tUODp",
+    "stub_flasher_32c5-D1WK4DyB.js": "sha384-3RLmDq3JDolM+Vvwua7Kb5r99y3mw9ptmdAuGKoiXuiQWuSLfAqTtSDO0zryPZm2",
+    "stub_flasher_32c6-ZuxjUVr4.js": "sha384-195M9duTV1A72oX1BdPqPyF0KufvSvbkTOXlVLYg0eZSdx6DCcGwL38RSMxvsU3j",
+    "stub_flasher_32c61-DeKkw9vN.js": "sha384-ocwIY7vRGNYbB3pDHtXRXo9e1wPmTmJKEkN+xGCwIDSxrAcMxnqTeyzcfqYmC99I",
+    "stub_flasher_32h2-CZ4EIL3w.js": "sha384-Whdgv4c66UKEmSqtqwBnxgw56V2kaJd4NQ8gpghwzEuXDotvVxaDzcKQNyacCgNZ",
+    "stub_flasher_32p4-CpHBYEwI.js": "sha384-Ugb2U81Kg2CAS1mQ6avdnzyJ0c7ux8Qmyivx2E7RXmu1bFVZxk8JUENABFAX/YYU",
+    "stub_flasher_32p4rc1-DyGqUAeZ.js": "sha384-obLWbHzQko//5KcdaalAr28oxQcTdbFPIxFr56WrxPPhkCJiDF6mlwnYCtiYHNtz",
+    "stub_flasher_32s2-CrsP1231.js": "sha384-QKrtaJgMb+aG+s5+Kp6hO/mnIOYkYniXOuViJGg5flhCGHb4EEaeASBikr5hnhLp",
+    "stub_flasher_32s3-CiJyd6Fk.js": "sha384-RW8irjkoLiZ6a4u+YbIjMSDqrFlM01oByNK52WD4te9CvRiEh9+631+aOtT9w8uh",
+    "stub_flasher_8266-CQFcqJ_a.js": "sha384-xPe4ucyto336SN2lbHdv4M0V1RV8+oLpWoYiht75/O/r6N8sOYvIPbGne54oKxla",
+    "styles-sT2V1cOw.js": "sha384-77x+BOw+Zw9kRRNMOF4W5I/luoc5EGHclPXlMwdlEpdWjh2qItAMrOMlzLJzVO9y"
+  },
+  "notices": {
+    "LICENSE-atob-lite.txt": {
+      "sha256": "435a6722c786b0a56fbe7387028f1d9d3f3a2d0fb615bb8fee118727c3f59b7b",
+      "url": "https://cdn.jsdelivr.net/npm/atob-lite@2.0.0/LICENSE.md"
+    },
+    "LICENSE-esp-web-tools.txt": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "url": "https://cdn.jsdelivr.net/npm/esp-web-tools@10.4.0/LICENSE"
+    },
+    "LICENSE-esptool-js.txt": {
+      "sha256": "1c25f29242785d63e9adb0be7fdc137551dfbbc0756b622fcd26d9cd7de3a4f3",
+      "url": "https://cdn.jsdelivr.net/npm/esptool-js@0.6.0/LICENSE"
+    },
+    "LICENSE-improv-wifi-serial-sdk.txt": {
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "url": "https://cdn.jsdelivr.net/npm/improv-wifi-serial-sdk@2.8.0/LICENSE"
+    },
+    "LICENSE-lit-element.txt": {
+      "sha256": "45d31799d0db956cc3eb5469346abbd9b7025babc5ff29fab10d7095da992ef1",
+      "url": "https://cdn.jsdelivr.net/npm/lit-element@4.2.0/LICENSE"
+    },
+    "LICENSE-lit-html.txt": {
+      "sha256": "2b66f9390afde29edfe4314daff93f01fb182e1178053e228120178987e5db75",
+      "url": "https://cdn.jsdelivr.net/npm/lit-html@3.3.0/LICENSE"
+    },
+    "LICENSE-lit-reactive-element.txt": {
+      "sha256": "45d31799d0db956cc3eb5469346abbd9b7025babc5ff29fab10d7095da992ef1",
+      "url": "https://cdn.jsdelivr.net/npm/@lit/reactive-element@2.1.0/LICENSE"
+    },
+    "LICENSE-lit.txt": {
+      "sha256": "45d31799d0db956cc3eb5469346abbd9b7025babc5ff29fab10d7095da992ef1",
+      "url": "https://cdn.jsdelivr.net/npm/lit@3.3.3/LICENSE"
+    },
+    "LICENSE-material-web.txt": {
+      "sha256": "295cdb4364b782931c914f5ca8c47fac87c732fa7e448b788a47aa5b25728212",
+      "url": "https://cdn.jsdelivr.net/npm/@material/web@2.4.1/LICENSE"
+    },
+    "LICENSE-pako.txt": {
+      "sha256": "a04665b3b2de56c66730c1f720f528175739e4104f79073614aa611da1e85539",
+      "url": "https://cdn.jsdelivr.net/npm/pako@2.2.0/LICENSE"
+    },
+    "LICENSE-tslib.txt": {
+      "sha256": "210b19e543130388c68654b7497e967119ce17145f66ab7d85688fbd70f08751",
+      "url": "https://cdn.jsdelivr.net/npm/tslib@2.8.1/LICENSE.txt"
+    },
+    "esptool-legacy-flasher-stub-v1.10.0.tar.gz": {
+      "sha256": "2c551d3e50fe71408cef2d0d4e31bde2bcdeaadeb0a91e68dffd95c9013c28b9",
+      "url": "https://codeload.github.com/espressif/esptool-legacy-flasher-stub/tar.gz/refs/tags/v1.10.0"
+    },
+    "esptool-legacy-flasher-stub-v1.11.1.tar.gz": {
+      "sha256": "f056a3f717178c6ec6f66a4560e32b23d180c67119dbb9d1da774845b49c2bfc",
+      "url": "https://codeload.github.com/espressif/esptool-legacy-flasher-stub/tar.gz/refs/tags/v1.11.1"
+    },
+    "esptool-legacy-flasher-stub-v1.3.0.tar.gz": {
+      "sha256": "d5f1adbf2a3ebc36424101e13d87d6fbdaba09bd5af9b68746f0deac93669c09",
+      "url": "https://codeload.github.com/espressif/esptool-legacy-flasher-stub/tar.gz/refs/tags/v1.3.0"
+    },
+    "esptool-legacy-flasher-stub-v1.6.0.tar.gz": {
+      "sha256": "72d151fde9806a69e50bf37c7e703520dce1ce861cf160c49213aa34b90c4af3",
+      "url": "https://codeload.github.com/espressif/esptool-legacy-flasher-stub/tar.gz/refs/tags/v1.6.0"
+    }
+  },
+  "version": "10.4.0"
+}

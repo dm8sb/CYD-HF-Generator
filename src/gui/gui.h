@@ -1,0 +1,362 @@
+// SPDX-FileCopyrightText: 2026 DM8SB
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#pragma once
+
+#include <Arduino.h>
+#include <lvgl.h>
+#include <config.h>
+#include <constants.h>
+#include <core/app_controller.h>
+#include <drivers/display_panel.h>
+#include <drivers/touch.h>
+#include <net/wifi_manager.h>
+#include <net/web_state.h>
+#include <utils/input_logic.h>
+#include <utils/message_queue.h>
+#include <utils/status_text.h>
+
+// Part and state of a style: LVGL 8 keeps them in two unnamed enums, and C++20 deprecates `|`
+// between those (GCC 14 on Arduino 3.x warns).
+inline lv_style_selector_t partState(uint32_t part, uint32_t state) { return part | state; }
+#include <utils/touch_cal.h>
+
+// Pages are built once per navigation. Actions change the AppController state and then
+// refresh_() updates the existing widgets, so no widget is deleted inside its own event.
+class Gui {
+public:
+    // The display must already be initialized (DisplayPanel::begin()).
+    void begin(AppController& app, TouchDriver& touch, DisplayPanel& display);
+    void update();
+    // Redraws the current page from the controller state (e.g. after the boot programming).
+    void refresh() { refresh_(); }
+    // One dialog at a time; further messages are queued, identical ones dropped.
+    void showMessage(const char* title, const char* text, uint8_t tag = 0);
+    // Controller events (V-3): a dialog, except for events of remote commands.
+    static void onAppEvent(const Event& e, void* gui);
+    void navigate(PageId page);
+    // Touch calibration wizard (U-26). firstStart: no calibration stored; a timeout continues
+    // with the default calibration on MAIN (otherwise back to CONFIG, unchanged).
+    void calibrateTouch(bool firstStart);
+    // Saves a successful calibration (SettingsService, set by main).
+    void setTouchCalibrationStore(bool (*store)(const TouchCalibration&)) { storeTouchCal_ = store; }
+    // Factory reset (U-13): erases the NVS and restarts (set by main).
+    void setFactoryReset(void (*reset)()) { factoryReset_ = reset; }
+    // WiFi (S53): status for the status bar and the info card, mode from CONFIG; save writes
+    // the network settings (set by main). Without it the WiFi rows show Off.
+    // Web network change without web password (W-S12, S55): needed() asks whether the touch
+    // must confirm now, answer(true) keeps the new settings, answer(false) restores the old ones.
+    void setNetConfirm(bool (*needed)(), void (*answer)(bool keep)) {
+        netConfirmNeeded_ = needed;
+        netConfirmAnswer_ = answer;
+    }
+    void setWifi(WifiManager& wifi, bool (*save)(const NetSettings&)) {
+        wifi_ = &wifi;
+        saveNet_ = save;
+    }
+    // Web password on the device page (S55b): start() hands the typed password to the hashing
+    // worker (false: busy or invalid), poll() fetches the record once it is ready.
+    void setWebPassword(bool (*start)(const char* password, size_t len), WebPasswordJob::Poll (*poll)(char* record)) {
+        webPwStart_ = start;
+        webPwPoll_ = poll;
+    }
+    // Remote clients on the info card (S55b): open WebSockets, address of the SCPI TCP client
+    // (0 = none), and Reconnect all (served by the next loop()).
+    void setRemoteClients(uint8_t (*webClients)(), uint32_t (*scpiClient)(), void (*disconnectAll)()) {
+        webClients_ = webClients;
+        scpiClient_ = scpiClient;
+        disconnectRemote_ = disconnectAll;
+    }
+
+private:
+    enum class Action : uint8_t {
+        Navigate,       // arg: PageId
+        ChannelSwitch,  // arg: channel 1..3
+        FreqUp,
+        FreqDown,
+        FreqTap,        // tap on the frequency: digit selects the step, unit opens the numpad
+        SetStep,        // arg: DELTA_STEPS index
+        Ch3Master,      // arg: 1/2
+        Ch3Phase,       // arg: phase / 90
+        CorrUp,
+        CorrDown,
+        CorrStepCycle,
+        BacklightDown,
+        BacklightUp,
+        Drive,          // dropdowns: the selected index is the value
+        Tuning,
+        Spread,
+        OffState,
+        NumpadKey,
+        TouchCal,       // CONFIG: start the touch calibration
+        LockScreen,     // CONFIG: lock and go to MAIN (U-13)
+        ResetDefaults,  // CONFIG: confirm, then defaults (correction kept)
+        FactoryReset,   // CONFIG: confirm, then erase the NVS and restart
+        Ch3MasterFreq,  // CH3 page: tap on the frequency opens the master's numpad (U-16)
+        Ch3InfoTap,     // CH3 page: status line; switches the master on while CH3 waits for it
+        WifiMode,       // CONFIG: Off / Client / Access point
+        RemoteOutputs,  // CONFIG: allowed / local only (W-E25)
+        WifiEdit,       // WIFI: arg slot 0/1, scan and choose a network
+        WifiDelete,     // WIFI: arg slot, confirm and delete
+        WifiRescan,
+        WifiScanPage,   // arg 0 back, 1 forward
+        WifiPick,       // arg row on the page
+        WifiOther,      // hidden network: enter the name
+        EntryShow,      // text entry: show / hide the password
+        EntryChanged,
+        EntryDone,      // keyboard OK
+        ApRegenerate,   // AP page: new random password
+        ApSet,          // AP page: type a password
+        ApOpenToggle,   // AP page: open (with confirmation) or secure again
+        DevName,        // device page: edit the name
+        DevIpMode,      // device page: DHCP / Static (dropdown)
+        DevIpField,     // device page: arg 0..3 address, mask, gateway, DNS
+        DevWebPassword, // device page: set, change or remove the web password
+        RemoteDisconnect // CONFIG info card: disconnect all web and SCPI clients
+    };
+
+    struct Widgets {
+        lv_obj_t* hdrSwitch;
+        lv_obj_t* hdrState;
+        lv_obj_t* freq;
+        lv_obj_t* info;
+        lv_obj_t* modes;       // special modes of the channel (U-2)
+        lv_obj_t* chips[DELTA_STEP_COUNT];
+        lv_obj_t* masterChips[2];
+        lv_obj_t* cardFreq[3];
+        lv_obj_t* cardState[3];
+        lv_obj_t* cardDetail[3];
+        lv_obj_t* cardSwitch[3];
+        lv_obj_t* cfgList;      // scroll container of the CONFIG rows
+        lv_obj_t* blValue;
+        lv_obj_t* corrValue;
+        lv_obj_t* corrStep;
+        lv_obj_t* driveDd;
+        lv_obj_t* tuningDd;
+        lv_obj_t* spreadDd;
+        lv_obj_t* offStateDd;
+        lv_obj_t* si5351Info;
+        lv_obj_t* saveState;   // CONFIG header, MAIN status bar
+        lv_obj_t* ta;
+        lv_obj_t* calCross[2]; // touch calibration: horizontal and vertical line
+        lv_obj_t* calText;
+        lv_obj_t* calStatus;
+        lv_obj_t* touchInfo;   // CONFIG info card
+        lv_obj_t* lockState;   // MAIN status bar: LOCKED
+        lv_obj_t* npError;     // numpad: why the last key was rejected (U-9)
+        lv_obj_t* wifiDd;      // CONFIG
+        lv_obj_t* remoteDd;
+        lv_obj_t* wifiInfo;    // CONFIG info card
+        lv_obj_t* heapInfo;
+        lv_obj_t* wifiState;   // MAIN status bar: WiFi symbol or AP
+        lv_obj_t* remoteState; // MAIN status bar: REMOTE <source>
+        lv_obj_t* netText[2];  // WIFI overview
+        lv_obj_t* netSub[2];
+        lv_obj_t* wifiStatus;
+        lv_obj_t* scanRow[5];  // WIFI scan list
+        lv_obj_t* scanName[5];
+        lv_obj_t* scanInfo[5];
+        lv_obj_t* scanPage;
+        lv_obj_t* scanState;
+        lv_obj_t* entryShow;   // text entry
+        lv_obj_t* entryInfo;
+        lv_obj_t* apText;      // WIFI overview: AP card
+        lv_obj_t* apSub;
+        lv_obj_t* apQr;        // AP page
+        lv_obj_t* apName;
+        lv_obj_t* apPass;
+        lv_obj_t* apOpenBtn;
+        lv_obj_t* apState;
+        lv_obj_t* devName;     // device page
+        lv_obj_t* devIpMode;
+        lv_obj_t* devField[4];
+        lv_obj_t* devWebPw;
+        lv_obj_t* remoteInfo;  // CONFIG info card: web and SCPI clients
+    };
+
+    void createMain_();
+    void createChannelPage_(uint8_t ch);
+    void createCH3_();
+    void createConfig_();
+    void createNumpad_(uint8_t ch);
+    lv_color_t numpadColor_() const;
+    void createTouchCal_();
+    void createWifi_();
+    void createWifiScan_();
+    void createEntry_();
+    void createWifiDevice_();
+    void refreshWifiDevice_();
+    // Web password (S55b): stores a record ("" = none) without restarting the WiFi.
+    void storeWebPassword_(const char* record);
+    // In update(): collects a finished hash.
+    void pollWebPassword_();
+    // Saves and applies network settings (restarts the WiFi).
+    void storeNet_(NetSettings& s);
+    void createWifiAp_();
+    void refreshWifiAp_();
+    // Stores AP password / open flag (saved, running AP restarts).
+    void storeAp_(const char* password, bool open);
+    void refreshWifi_();
+    void refreshWifiScan_();
+    void refreshEntry_();
+    void addBackTitle_(PageId back, const char* title, lv_color_t color);
+    void handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj);
+    bool storeNetwork_(const char* ssid, const char* key);
+    // Feeds raw touch samples to the wizard and moves the cross (every loop on that page).
+    void tickTouchCal_();
+    void showCalTarget_();
+#if TEST_HIT_MAP
+    // Test build only (MESSPLAN B8): target crosses instead of the GUI.
+    void createHitMap_();
+    static void hitMapCb_(lv_event_t* e);
+#endif
+
+    void refresh_();
+    void refreshMain_();
+    void refreshChannel_();
+    void refreshCH3_();
+    void refreshConfig_();
+    void refreshSaveState_();
+    // MAIN status bar: WiFi and REMOTE (W-E26).
+    void refreshStatusBar_();
+    // Changes when the status bar or the WiFi/heap lines of the info card need a redraw.
+    uint32_t statusSignature_() const;
+    bool remoteShown_() const;
+
+    // Returns the header bar for page-specific additions.
+    lv_obj_t* createHeader_(const char* title, lv_color_t color, uint8_t switchChannel);
+    // Switch = requested state; the label shows ERR in red when the output failed.
+    // Switch = request, text = actual state (as on MAIN).
+    void setHeaderState_(bool on, const StatusText::Text& state);
+    // w_.info = actual output frequency of ch 1..3; deviations from 1 Hz on in the warning color.
+    // Out line of a channel page; prefix (e.g. "Off | ") goes before it (U-17).
+    void showOutput_(uint8_t ch, uint64_t requested, const char* prefix = "");
+    // CONFIG: a row card at position `index` of the list (title optional), and a row with a dropdown.
+    lv_obj_t* addConfigRow_(lv_obj_t* list, uint8_t index, int h, const char* title);
+    lv_obj_t* addOptionRow_(lv_obj_t* list, uint8_t index, const char* title, const char* options, Action action);
+    lv_obj_t* addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w, int h, lv_color_t color,
+                         Action action, uint8_t arg = 0, bool repeat = false);
+    lv_obj_t* addChip_(lv_obj_t* parent, const char* txt, int x, int y, int w, int h, lv_color_t color,
+                       Action action, uint8_t arg);
+    lv_obj_t* addCard_(lv_obj_t* parent, int x, int y, int w, int h, lv_color_t borderColor);
+    lv_obj_t* addLabel_(lv_obj_t* parent, const char* txt, const lv_font_t* font, lv_color_t color, int x, int y);
+    lv_obj_t* addSwitch_(lv_obj_t* parent, uint8_t ch, lv_color_t color);
+    void on_(lv_obj_t* obj, lv_event_code_t code, Action action, uint8_t arg);
+
+    void handleAction_(Action action, uint8_t arg, lv_obj_t* obj);
+    void handleNumpadKey_(lv_obj_t* matrix);
+    void handleFreqTap_(lv_obj_t* label);
+    // Creates the dialog for the open message of messages_.
+    void openMessage_();
+    // Closes the open dialog and drops queued ones about the SI5351 connection.
+    void dismissLinkMessages_();
+    void requestNavigate_(PageId page);
+
+    static Gui* from_(lv_obj_t* obj);
+    static void eventCb_(lv_event_t* e);
+    static void msgboxEventCb_(lv_event_t* e);
+    static void asyncNavigateCb_(void* gui);
+    static void nextMessageCb_(void* gui);
+    // Special modes of channel ch (1..3) into a label, colored by tone (U-2).
+    // extra and note are appended with " | "; alone replaces extra when there are no modes.
+    // The line is built in a buffer and set once: a LONG_DOT label shortens its own text to "..."
+    // while its width is not laid out yet, so it must never be read back and extended.
+    void showModes_(lv_obj_t* label, uint8_t ch, const char* extra = "", const char* alone = nullptr,
+                    const char* note = "");
+    // State label (MAIN cards, header): padding and corners once, text and fill per refresh.
+    static void styleState_(lv_obj_t* label);
+    static void showState_(lv_obj_t* label, const StatusText::Text& state);
+    // Off state High needs a confirmation: a switched-off output then carries DC.
+    // Confirmation dialogs with Cancel and one action button in the warning color.
+    enum class Confirm : uint8_t {
+        OffStateHigh,
+        ResetDefaults,
+        FactoryReset,
+        DeleteNetwork,
+        OpenNetwork,
+        ApOpen,
+        OpenFallback,
+        WebNetwork,
+        RemoveWebPassword
+    };
+    // Queues the question (ConfirmQueue: one open, the rest waits) and shows it when it is its
+    // turn; payload: the network slot for DeleteNetwork.
+    void confirm_(Confirm what, uint8_t payload = 0);
+    // Creates the box of the open confirmation unless it exists or the calibration is shown.
+    void showConfirm_();
+    // The question is no longer needed (fallback AP, web change): closed without an action.
+    void dropConfirm_(Confirm what);
+    static void confirmEventCb_(lv_event_t* e);
+    static void nextConfirmCb_(void* gui);
+    // Screen lock events from the touch callback (hint while pressed, LOCKED in the status bar).
+    void handleLockEvent_(InputLogic::ScreenLock::Event e);
+    static void flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p);
+    static void touchCb_(lv_indev_drv_t* drv, lv_indev_data_t* data);
+
+    DisplayPanel* display_ = nullptr;
+    TouchDriver* touch_ = nullptr;
+    AppController* app_ = nullptr;
+    PageId currentPage_ = PageId::Main;
+    PageId pendingPage_ = PageId::Main;
+    bool navPending_ = false;
+    uint8_t channel_ = 1;       // channel shown on the CH1/CH2 page and edited by the numpad
+    uint8_t corrStepIdx_ = 1;   // index into CORRECTION_STEPS
+    lv_coord_t configScrollY_ = 0; // CONFIG is rebuilt on every visit; RAM only
+    uint32_t lastUpdateMs_ = 0;
+    uint32_t lastRevision_ = 0;   // AppController::revision() of the last redraw
+    uint16_t lastConnections_ = 0;
+    uint32_t lastStatusSig_ = 0;
+    WifiManager* wifi_ = nullptr;
+    bool (*saveNet_)(const NetSettings&) = nullptr;
+    // WIFI pages (RAM only)
+    enum class EntryPurpose : uint8_t { Ssid, Password, ApPassword, DeviceName, IpField, WebPassword };
+    uint8_t entryField_ = 0; // IpField: 0 address, 1 mask, 2 gateway, 3 DNS
+    PageId entryBack_ = PageId::WifiScan;
+    bool openFallbackAsked_ = false; // W-S2 question shown for the current need
+    bool (*netConfirmNeeded_)() = nullptr;
+    void (*netConfirmAnswer_)(bool keep) = nullptr;
+    bool netConfirmAsked_ = false;   // W-S12 question shown for the current web change
+    bool (*webPwStart_)(const char*, size_t) = nullptr;
+    WebPasswordJob::Poll (*webPwPoll_)(char*) = nullptr;
+    bool webPwHashing_ = false;      // the device page shows "Saving..."
+    uint8_t (*webClients_)() = nullptr;
+    uint32_t (*scpiClient_)() = nullptr;
+    void (*disconnectRemote_)() = nullptr;
+    uint8_t wifiSlot_ = 0;
+    uint8_t scanPage_ = 0;
+    EntryPurpose entryPurpose_ = EntryPurpose::Password;
+    char entrySsid_[33] {};
+    char entryError_[24] {};
+    // Identify (W-E28): the LED blinks with the backlight, then shows the page again.
+    bool ledIdentify_ = false;
+    bool ledLit_ = false;
+    char freqText_[24] {};      // plain frequency text on the channel page, for hit testing
+    InputLogic::Numpad numpad_; // numpad input (InputLogic, host-tested)
+    Widgets w_ {};
+    lv_obj_t* root_ = nullptr;
+    lv_obj_t* msgbox_ = nullptr;   // dialog that can still be tapped or closed
+    lv_obj_t* shownBox_ = nullptr; // box of the open message, also while it closes
+
+    MessageQueue messages_;     // open dialog and waiting ones (host-tested)
+    TouchCal::Wizard calWizard_; // touch calibration (host-tested)
+    bool calFirstStart_ = false;
+    bool numpadPpm_ = false;     // numpad opened from CONFIG: correction entry (U-11)
+    PageId numpadReturn_ = PageId::CH1; // page the frequency numpad returns to
+    uint32_t pressStartMs_ = 0;  // start of the current press of a repeat button (U-20)
+    uint32_t lastStepMs_ = 0;    // last step of the current hold (slow phase, U-20)
+    lv_event_code_t lastCode_ = LV_EVENT_ALL;
+    uint8_t calShownTarget_ = 0xFF;
+    TouchCal::Phase calShownPhase_ = TouchCal::Phase::Touch;
+    bool (*storeTouchCal_)(const TouchCalibration&) = nullptr;
+    void (*factoryReset_)() = nullptr;
+    InputLogic::ScreenLock lock_; // RAM only: a restart unlocks
+    lv_obj_t* lockHint_ = nullptr; // on the top layer, shown while a locked screen is touched
+    ConfirmQueue confirms_;          // open confirmation and waiting ones (host-tested)
+    lv_obj_t* confirmBox_ = nullptr; // box of the open confirmation; user data = its generation
+
+    lv_disp_draw_buf_t drawBuf_;
+    static lv_color_t buf1_[SCREEN_WIDTH * 24];
+    lv_disp_drv_t dispDrv_;
+    lv_indev_drv_t indevDrv_;
+};
+

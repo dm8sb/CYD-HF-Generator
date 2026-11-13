@@ -1,0 +1,10 @@
+.pio
+.vscode
+
+# Claude Code agent worktrees
+.claude/worktrees/
+
+# Measurement artifacts (firmware images, screenshots, logs); protocols messungen/*.md stay tracked
+messungen/*/
+# Local WiFi credentials for test builds (main.cpp, -DTEST_WIFI=1); never commit.
+include/test_wifi_local.h

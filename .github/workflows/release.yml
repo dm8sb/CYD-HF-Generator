@@ -1,0 +1,319 @@
+# Release (ARBEITSPLAN G1) and web flasher on GitHub Pages (G2, G11).
+# Tag v*: the tagged commit must be on main and pass the host tests (AF7, OPS-4/5, TEST-3); then
+# build, GitHub release with the firmware, the flash parts of the flasher env, license notices
+# and LGPL sources (THIRD_PARTY_NOTICES.md) and SHA256SUMS, build provenance over all assets
+# (SHA256SUMS, W-S24, OPS-14). An existing release is never changed (no --clobber; the tag
+# ruleset and immutable releases protect it on GitHub, D29). Every pushed tag (also a release
+# candidate, D21) deploys the flasher site after its release, which serves ESP Web Tools itself
+# (E-36). Manual run: tests, build and the assembled site as an artifact for testing; it never
+# deploys (D30, LIC-6).
+# The flasher writes the parts separately (no merged image from 0: it would erase NVS on every
+# update); the offsets come from PlatformIO (tools/flasher_site.py collect).
+# Actions are pinned by commit SHA (audit S-20, S-27); the token is read-only except in the
+# release and deploy jobs.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PLATFORMIO_VERSION: "6.2.0"
+  # The env behind the web flasher and the flash parts of the release (Arduino core 3, E-32).
+  FLASHER_ENV: esp32-2432S028R
+
+jobs:
+  meta:
+    name: Version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      commit: ${{ steps.v.outputs.commit }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+      deploy: ${{ steps.v.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # All branches: the tagged commit is checked against main.
+          fetch-depth: 0
+      - name: Version from the tag or APP_VERSION
+        id: v
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          app="$(sed -n 's/^#define APP_VERSION "\([^"]*\)".*/\1/p' include/config.h)"
+          [ -n "$app" ] || { echo "APP_VERSION not found in include/config.h" >&2; exit 1; }
+          commit="$(git rev-parse --short HEAD)"
+          prerelease=false
+          deploy=false
+          if [ "$REF_TYPE" = tag ]; then
+            version="${REF_NAME#v}"
+            # v2.0.0 or v2.0.0-rc1 for APP_VERSION 2.0.0, nothing else.
+            case "$version" in
+              "$app") ;;
+              "$app"-*) prerelease=true ;;
+              *) echo "tag $REF_NAME does not match APP_VERSION $app" >&2; exit 1 ;;
+            esac
+            # Only what was merged to main is released (OPS-4): main reaches the tag only through
+            # a pull request with green checks.
+            git rev-parse --verify -q refs/remotes/origin/main > /dev/null || { echo "origin/main not fetched" >&2; exit 1; }
+            git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main || { echo "tag $REF_NAME ($GITHUB_SHA) is not on main" >&2; exit 1; }
+            # Every pushed tag deploys the public flasher, a release candidate too (D21); the
+            # release is marked as a prerelease.
+            [ "$EVENT" = push ] && deploy=true
+          else
+            version="$app-dev.$commit"
+          fi
+          case "$version" in *[!0-9A-Za-z.+-]*) echo "bad version $version" >&2; exit 1 ;; esac
+          {
+            echo "version=$version"
+            echo "commit=$commit"
+            echo "prerelease=$prerelease"
+            echo "deploy=$deploy"
+          } >> "$GITHUB_OUTPUT"
+          echo "version $version, commit $commit, prerelease $prerelease, deploy $deploy" >> "$GITHUB_STEP_SUMMARY"
+
+  # The host tests on the tagged commit itself (TEST-3), as in ci.yml; without a cache.
+  tests:
+    name: Host tests
+    needs: [meta]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install PlatformIO
+        run: pip install "platformio==${PLATFORMIO_VERSION}"
+      - name: Host unit tests
+        run: pio test -e native
+      - name: Host tests of the IQ error state
+        run: pio test -e native-fault
+      - name: Host tests in C++20
+        run: pio test -e native-cpp20
+
+  build:
+    name: Build ${{ matrix.env }}
+    needs: [meta, tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        env: [esp32-2432S028R]
+    env:
+      ENV_NAME: ${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-release-${{ matrix.env }}-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-release-${{ matrix.env }}-${{ env.PLATFORMIO_VERSION }}-
+            pio-esp32-${{ env.PLATFORMIO_VERSION }}-
+      - name: Install PlatformIO
+        run: pip install "platformio==${PLATFORMIO_VERSION}"
+      - name: Build firmware
+        run: pio run -e "$ENV_NAME"
+      # Audit T-16: the image carries the checked-out commit without the dirty mark.
+      - name: Check build information
+        run: |
+          commit="$(git rev-parse --short HEAD)"
+          bin=".pio/build/$ENV_NAME/firmware.bin"
+          grep -a -q -- "$commit" "$bin" || { echo "commit $commit not found in $bin"; exit 1; }
+          if grep -a -q -- "$commit+" "$bin"; then echo "image is marked dirty"; exit 1; fi
+          echo "build information OK: $commit"
+      # Offsets and paths (bootloader, partition table, boot_app0 from the framework package,
+      # application) as PlatformIO's upload command uses them.
+      - name: Collect flash parts
+        run: |
+          pio project metadata -e "$ENV_NAME" --json-output > metadata.json
+          python tools/flasher_site.py collect --metadata metadata.json --env "$ENV_NAME" --out "parts/$ENV_NAME"
+      # G11 (THIRD_PARTY_NOTICES.md): notices and license texts next to the binaries, the license
+      # files as shipped in the pinned packages, and the source of the LGPL parts linked into the
+      # image (LGPL-2.1 section 6, LGPL-3.0 section 4). A missing file fails the build, so a
+      # dependency change cannot drop a notice unnoticed.
+      - name: Collect notices and LGPL sources
+        run: |
+          python tools/flasher_site.py notices --metadata metadata.json --env "$ENV_NAME" --out "parts/$ENV_NAME/notices"
+          ls -l "parts/$ENV_NAME/notices" "parts/$ENV_NAME/notices/upstream"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-${{ matrix.env }}
+          path: parts/${{ matrix.env }}/
+          if-no-files-found: error
+          retention-days: 30
+
+  site:
+    name: Flasher site
+    needs: [meta, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: build-${{ env.FLASHER_ENV }}
+          path: parts/
+      # ESP Web Tools is served by the site itself (E-36): the pinned modules, license files and
+      # flasher stub sources of flasher/esp-web-tools.json, each checked against its hash.
+      - name: Download ESP Web Tools
+        run: python3 tools/flasher_site.py vendor --out ewt
+      - name: Assemble and check the site
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+          COMMIT: ${{ needs.meta.outputs.commit }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 tools/flasher_site.py assemble --parts parts --ewt ewt --version "$VERSION" --commit "$COMMIT" --repo "$REPO" --out site
+          python3 tools/flasher_site.py check site | tee check.log
+          { echo '### Flasher site'; echo '```'; cat check.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site/
+
+  # Only after the release exists (rc1 went live without one) and only for a pushed tag (D30).
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: [meta, site, release]
+    if: github.event_name == 'push' && github.ref_type == 'tag' && needs.meta.outputs.deploy == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  release:
+    name: GitHub release
+    needs: [meta, build]
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      # A release is never replaced or extended (OPS-15): a second run for the same tag stops
+      # here instead of overwriting assets.
+      - name: Stop if the release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "release $TAG exists already; it is not changed" >&2
+            exit 1
+          fi
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          # By name into its own folder: with a pattern and a single match (one env since S41d)
+          # the files would land directly in builds/ (an early release candidate failed on that).
+          name: build-${{ env.FLASHER_ENV }}
+          path: builds/build-${{ env.FLASHER_ENV }}/
+      - name: Name the release files
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          mkdir release
+          prefix="cyd-hf-generator-$VERSION"
+          for dir in builds/build-*; do
+            env_name="${dir#builds/build-}"
+            cp "$dir/firmware.bin" "release/$prefix-$env_name-firmware.bin"
+          done
+          for part in bootloader partitions boot_app0; do
+            cp "builds/build-$FLASHER_ENV/$part.bin" "release/$prefix-$FLASHER_ENV-$part.bin"
+          done
+          # Notices and license texts, and the LGPL sources (see the build job).
+          tar --exclude=lgpl-sources.tar.gz -czf "release/$prefix-licenses.tar.gz" -C "builds/build-$FLASHER_ENV" notices
+          cp "builds/build-$FLASHER_ENV/notices/lgpl-sources.tar.gz" "release/$prefix-lgpl-sources.tar.gz"
+          (cd release && sha256sum -- * > SHA256SUMS)
+          cat release/SHA256SUMS
+      # Provenance for every asset, not only the .bin files (OPS-14).
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: release/SHA256SUMS
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.meta.outputs.version }}
+          COMMIT: ${{ needs.meta.outputs.commit }}
+          PRERELEASE: ${{ needs.meta.outputs.prerelease }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: |
+          prefix="cyd-hf-generator-$VERSION-$FLASHER_ENV"
+          offsets="$(python3 -c 'import json,sys; [print("0x%X %s" % (p["offset"], p["file"])) for p in json.load(open(sys.argv[1]))["parts"]]' "builds/build-$FLASHER_ENV/parts.json")"
+          # The esptool command from the same offsets and the release file names (OPS-14); every
+          # part must be a release asset.
+          flash="$(python3 -c 'import json,os,sys
+          parts = json.load(open(sys.argv[1]))["parts"]
+          args = []
+          for p in parts:
+              name = "%s-%s" % (sys.argv[2], p["file"])
+              if not os.path.isfile(os.path.join("release", name)):
+                  sys.exit("part %s is not a release asset" % name)
+              args.append("0x%X %s" % (p["offset"], name))
+          print(" ".join(args))' "builds/build-$FLASHER_ENV/parts.json" "$prefix")"
+          cat > notes.md <<EOF
+          Firmware $VERSION (commit \`$COMMIT\`) for the ESP32-2432S028R (CYD and CYD2USB).
+
+          **Web flasher** (Chrome/Edge on a desktop): $PAGES_URL
+
+          | File | Content |
+          |---|---|
+          | \`$prefix-firmware.bin\` | Application at 0x10000 (the build behind the web flasher) |
+          | \`$prefix-bootloader.bin\`, \`-partitions.bin\`, \`-boot_app0.bin\` | Flash parts of the same build |
+          | \`SHA256SUMS\` | Checksums; provenance of every file: \`gh attestation verify <file> --repo $GH_REPO\` |
+          | \`cyd-hf-generator-$VERSION-licenses.tar.gz\` | License (GPL-3.0-or-later), third-party notices and license texts |
+          | \`cyd-hf-generator-$VERSION-lgpl-sources.tar.gz\` | Source of the LGPL libraries in the firmware (Arduino-ESP32, AsyncTCP, ESPAsyncWebServer) |
+
+          Copyright (C) 2026 DM8SB. Licensed under the GNU GPL version 3 or later (GPL-3.0-or-later), WITHOUT ANY WARRANTY. Source of this release: the source archives below (tag \`$TAG\`); all libraries are pinned in \`platformio.ini\`. Third-party components: \`THIRD_PARTY_NOTICES.md\` and the licenses archive.
+
+          Offsets (PlatformIO upload):
+          \`\`\`
+          $offsets
+          \`\`\`
+          Install or update with esptool 5 (does not erase NVS: touch calibration, correction and WiFi stay; esptool 4: \`esptool.py\` and \`write_flash\`):
+          \`\`\`
+          esptool --chip esp32 write-flash $flash
+          \`\`\`
+          EOF
+          flags=()
+          [ "$PRERELEASE" = true ] && flags+=(--prerelease)
+          # Fails if the release appeared meanwhile: nothing is overwritten.
+          gh release create "$TAG" release/* --verify-tag --title "CYD HF Generator $VERSION" --notes-file notes.md "${flags[@]}"

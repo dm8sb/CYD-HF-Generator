@@ -1,0 +1,1446 @@
+// SPDX-FileCopyrightText: 2026 DM8SB
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// AppController with SettingsService, SI5351Manager and BacklightDriver on the fakes
+// (test/fakes): output states, CH3 IQ behavior, supervision and persistence.
+
+#include <unity.h>
+#include <Preferences.h>
+#include <Wire.h>
+#include <constants.h>
+#include <core/app_controller.h>
+#include <hal/i2c_bus.h>
+#include <pins.h>
+#include <helpers/si5351_model.h>
+#include <string.h>
+
+using namespace Si5351Model;
+
+static Fake::Si5351Chip& chip = Fake::si5351();
+static Fake::Nvs& nvs = Fake::nvs();
+
+static unsigned errorCount;
+static char lastErrorTitle[32];
+static char lastErrorText[160];
+
+static void onError(const char* title, const char* text) {
+    ++errorCount;
+    snprintf(lastErrorTitle, sizeof(lastErrorTitle), "%s", title);
+    snprintf(lastErrorText, sizeof(lastErrorText), "%s", text);
+}
+
+// Boots like main.cpp: I2C, settings, SI5351, backlight, stored channel settings.
+static Event lastEvent;
+static void onEvent(const Event& e, void*) {
+    lastEvent = e;
+    onError(e.title, e.text);
+}
+
+struct Device {
+    SettingsService settings;
+    SI5351Manager si;
+    BacklightDriver backlight;
+    AppController app;
+
+    Device() : app(settings, si, backlight) {
+        I2CBus::begin();
+        settings.begin();
+        PersistentState loaded;
+        settings.load(loaded);
+        app.begin(loaded);
+        backlight.begin();
+        app.connectHardware();
+        app.addListener(onEvent, nullptr);
+        backlight.setPercent(loaded.sys.backlight);
+        app.applyStoredChannelSettings();
+    }
+
+    // Main loop for `ms` milliseconds.
+    void run(uint32_t ms) {
+        for (uint32_t t = 0; t < ms; t += 50) {
+            Fake::advanceMs(50);
+            app.update();
+        }
+    }
+};
+
+void setUp() {
+    chip.reset();
+    nvs.reset();
+    Fake::clockMs() = 0;
+    errorCount = 0;
+    lastErrorTitle[0] = lastErrorText[0] = '\0';
+    Fake::wireMisuse() = false;
+    Fake::gpio() = Fake::Gpio {};
+    Wire.failBegin = false;
+    Wire.failEnd = false;
+    Wire.resetCounters();
+    Fake::serialLog().clear();
+}
+void tearDown() { TEST_ASSERT_FALSE(Fake::wireMisuse()); }
+
+static void assertHz(uint8_t clk, uint64_t expected, int32_t corr = 0) {
+    TEST_ASSERT_NULL(limitViolation(clk, corr));
+    TEST_ASSERT_DOUBLE_WITHIN(1.35, (double)expected, outputHz(clk, corr));
+}
+
+static void startIQ(Device& d) {
+    d.app.setChannelEnabled(1, true);
+    d.app.setChannelEnabled(3, true);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+}
+
+// ---------------------------------------------------------------------------
+// Outputs
+
+static void test_boot_with_defaults_all_outputs_off() {
+    Device d;
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_HEX8(0xFF, chip.regs[3]);
+    TEST_ASSERT_EQUAL(ChannelStatus::Off, d.app.channelStatus(1));
+    TEST_ASSERT_EQUAL(ChannelStatus::Off, d.app.channelStatus(2));
+    TEST_ASSERT_EQUAL(Ch3Status::Off, d.app.ch3Status());
+    // Frequencies are programmed, so switching on needs no retune.
+    assertHz(0, DEFAULT_FREQ_CH1);
+    assertHz(1, DEFAULT_FREQ_CH2);
+    TEST_ASSERT_TRUE(poweredDown(2));
+    TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, driveMa(0));
+    TEST_ASSERT_EQUAL_UINT32(DEFAULT_BACKLIGHT_PERCENT * 255 / 100, Fake::ledc().duty);
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+// Backlight PWM on GPIO21 (S38): 5 kHz, 8 bit, every write reaches the attached output.
+static void test_backlight_pwm_on_its_pin() {
+    Device d;
+    TEST_ASSERT_EQUAL_INT(PIN_BACKLIGHT, Fake::ledc().pin);
+    TEST_ASSERT_EQUAL_UINT32(5000, Fake::ledc().freq);
+    TEST_ASSERT_EQUAL_UINT8(8, Fake::ledc().bits);
+    TEST_ASSERT_EQUAL_INT(0, Fake::ledc().strayWrites);
+    const int writes = Fake::ledc().writes;
+    d.backlight.setPercent(100);
+    TEST_ASSERT_EQUAL_UINT32(255, Fake::ledc().duty);
+    d.backlight.setPercent(0);
+    TEST_ASSERT_EQUAL_UINT32(0, Fake::ledc().duty);
+    TEST_ASSERT_EQUAL_INT(writes + 2, Fake::ledc().writes);
+    TEST_ASSERT_EQUAL_INT(0, Fake::ledc().strayWrites);
+}
+
+static void test_switch_channel_on_and_off() {
+    Device d;
+    d.app.setChannelEnabled(2, true);
+    TEST_ASSERT_TRUE(enabled(1));
+    TEST_ASSERT_FALSE(enabled(0));
+    TEST_ASSERT_EQUAL(ChannelStatus::On, d.app.channelStatus(2));
+    d.app.setChannelEnabled(2, false);
+    TEST_ASSERT_FALSE(enabled(1));
+    TEST_ASSERT_EQUAL(ChannelStatus::Off, d.app.channelStatus(2));
+}
+
+static void test_retune_running_channel_without_dropout() {
+    Device d;
+    d.app.setChannelEnabled(1, true);
+    chip.clearLog();
+    d.app.setChannelFrequency(1, 7074000);
+    for (int i = 0; i < 100; ++i) d.app.adjustChannelFrequency(1, 10);
+    TEST_ASSERT_EQUAL_UINT(0, chip.writesTo(3));
+    TEST_ASSERT_EQUAL_UINT(0, chip.totalPllResets());
+    TEST_ASSERT_TRUE(enabled(0));
+    TEST_ASSERT_EQUAL_UINT64(7075000ULL, d.app.channel(1).frequency);
+    assertHz(0, 7075000);
+}
+
+// V-1: set* reject values outside the range (nothing changes), adjust* clamp.
+static void test_frequency_is_clamped_to_range() {
+    Device d;
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setChannelFrequency(1, 0));
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setChannelFrequency(1, 250000000ULL));
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelFrequency(1, FREQ_MIN_HZ));
+    d.app.adjustChannelFrequency(1, -1000000);
+    TEST_ASSERT_EQUAL_UINT64(FREQ_MIN_HZ, d.app.channel(1).frequency);
+    d.app.setChannelFrequency(1, FREQ_MAX_HZ);
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.adjustChannelFrequency(1, 1000000));
+    TEST_ASSERT_EQUAL_UINT64(FREQ_MAX_HZ, d.app.channel(1).frequency);
+    d.app.setChannelFrequency(1, 1500000);
+    d.app.adjustChannelFrequency(1, -2000000);
+    TEST_ASSERT_EQUAL_UINT64(FREQ_MIN_HZ, d.app.channel(1).frequency);
+    assertHz(0, FREQ_MIN_HZ);
+    // Only CH1 and CH2 have their own frequency.
+    d.app.setChannelFrequency(3, 5000000);
+    d.app.adjustChannelFrequency(0, 1);
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH2, d.app.channel(2).frequency);
+}
+
+static void test_global_drive_strength() {
+    Device d;
+    startIQ(d);
+    d.app.setGlobalDriveStrength(8);
+    for (uint8_t clk = 0; clk < 3; ++clk) TEST_ASSERT_EQUAL_UINT8(8, driveMa(clk));
+    d.app.setGlobalDriveStrength(5);
+    TEST_ASSERT_EQUAL_UINT8(8, d.app.system().drive_ma);
+    TEST_ASSERT_EQUAL_UINT8(8, driveMa(0));
+}
+
+static void test_correction_retunes_all_outputs() {
+    Device d;
+    startIQ(d);
+    d.app.setChannelEnabled(2, true);
+    d.app.setCorrection(970);
+    assertHz(0, DEFAULT_FREQ_CH1, 970);
+    assertHz(1, DEFAULT_FREQ_CH2, 970);
+    assertHz(2, DEFAULT_FREQ_CH1, 970);
+    TEST_ASSERT_TRUE(enabled(0) && enabled(1) && enabled(2));
+    // set* rejects values outside the range (V-1), adjust* clamps.
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setCorrection(1000000));
+    TEST_ASSERT_EQUAL_INT32(970, d.app.system().freq_correction);
+    d.app.adjustCorrection(1000000);
+    TEST_ASSERT_EQUAL_INT32(CORRECTION_MAX, d.app.system().freq_correction);
+    d.app.adjustCorrection(-1000000);
+    TEST_ASSERT_EQUAL_INT32(-CORRECTION_MAX, d.app.system().freq_correction);
+    assertHz(0, DEFAULT_FREQ_CH1, -CORRECTION_MAX);
+}
+
+static void test_backlight_and_step_are_limited() {
+    Device d;
+    // set* rejects, stepBacklight() stops at the limits (V-1).
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setBacklight(0));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setBacklight(BACKLIGHT_MIN_PERCENT));
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.stepBacklight(-1));
+    TEST_ASSERT_EQUAL_UINT8(BACKLIGHT_MIN_PERCENT, d.app.system().backlight);
+    TEST_ASSERT_EQUAL_UINT32(BACKLIGHT_MIN_PERCENT * 255 / 100, Fake::ledc().duty);
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setBacklight(150));
+    d.app.setBacklight(100);
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.stepBacklight(1));
+    TEST_ASSERT_EQUAL_UINT8(100, d.app.system().backlight);
+    TEST_ASSERT_EQUAL_UINT32(255, Fake::ledc().duty);
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setDeltaStep(5000));
+    TEST_ASSERT_EQUAL_UINT32(1000, d.app.system().delta_step);
+}
+
+// ---------------------------------------------------------------------------
+// CH3 IQ
+
+static void test_ch3_waits_for_master_then_runs() {
+    Device d;
+    d.app.setChannelEnabled(3, true);
+    TEST_ASSERT_EQUAL(Ch3Status::MasterOff, d.app.ch3Status());
+    TEST_ASSERT_FALSE(enabled(2));
+    d.app.setChannelEnabled(1, true);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+    assertHz(2, DEFAULT_FREQ_CH1);
+    TEST_ASSERT_EQUAL_UINT8(90, phase(2)); // 10 MHz: divider 90
+    TEST_ASSERT_EQUAL_MEMORY(chip.regs + 42, chip.regs + 58, 8);
+}
+
+static void test_ch3_follows_master_retune() {
+    Device d;
+    startIQ(d);
+    d.app.setChannelFrequency(1, 14200000);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+    assertHz(0, 14200000);
+    assertHz(2, 14200000);
+    TEST_ASSERT_EQUAL_UINT8(63, phase(2));
+    TEST_ASSERT_EQUAL_UINT64(14200000ULL, d.app.ch3Frequency());
+}
+
+static void test_ch3_below_iq_range_waits_and_resumes() {
+    Device d;
+    startIQ(d);
+    d.app.setChannelFrequency(1, IQ_MIN_HZ - 10000);
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooLow, d.app.ch3Status());
+    TEST_ASSERT_TRUE(d.app.ch3().enabled); // the request is kept
+    TEST_ASSERT_TRUE(poweredDown(2));
+    TEST_ASSERT_TRUE(enabled(0));
+    assertHz(0, IQ_MIN_HZ - 10000);
+    d.app.setChannelFrequency(1, IQ_MIN_HZ);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    TEST_ASSERT_TRUE(enabled(2));
+    assertHz(2, IQ_MIN_HZ);
+}
+
+static void test_ch3_master_switch() {
+    Device d;
+    startIQ(d);
+    d.app.setCH3Master(2);
+    TEST_ASSERT_EQUAL(Ch3Status::MasterOff, d.app.ch3Status());
+    TEST_ASSERT_FALSE(enabled(2));
+    // CH1 keeps running standalone on PLL A.
+    TEST_ASSERT_TRUE(enabled(0));
+    TEST_ASSERT_FALSE(usesPllB(0));
+    assertHz(0, DEFAULT_FREQ_CH1);
+    d.app.setChannelEnabled(2, true);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    TEST_ASSERT_TRUE(usesPllB(1) && usesPllB(2));
+    assertHz(2, DEFAULT_FREQ_CH2);
+    TEST_ASSERT_EQUAL_MEMORY(chip.regs + 50, chip.regs + 58, 8);
+    // Invalid masters are ignored.
+    d.app.setCH3Master(3);
+    TEST_ASSERT_EQUAL_UINT8(2, d.app.ch3().master);
+}
+
+static void test_ch3_phase_change() {
+    Device d;
+    startIQ(d);
+    d.app.setCH3Phase(180);
+    TEST_ASSERT_TRUE(inverted(2));
+    TEST_ASSERT_EQUAL_UINT8(0, phase(2));
+    d.app.setCH3Phase(270);
+    TEST_ASSERT_TRUE(inverted(2));
+    TEST_ASSERT_EQUAL_UINT8(90, phase(2));
+    d.app.setCH3Phase(45);
+    TEST_ASSERT_EQUAL_UINT16(270, d.app.ch3().phase);
+    TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+}
+
+static void test_master_off_switches_follower_off() {
+    Device d;
+    startIQ(d);
+    d.app.setChannelEnabled(1, false);
+    TEST_ASSERT_FALSE(enabled(0));
+    TEST_ASSERT_FALSE(enabled(2));
+    TEST_ASSERT_EQUAL(Ch3Status::MasterOff, d.app.ch3Status());
+    d.app.setChannelEnabled(1, true);
+    TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+}
+
+static void test_ch3_off_powers_clk2_down() {
+    Device d;
+    startIQ(d);
+    d.app.setChannelEnabled(3, false);
+    TEST_ASSERT_EQUAL(Ch3Status::Off, d.app.ch3Status());
+    TEST_ASSERT_TRUE(poweredDown(2));
+    TEST_ASSERT_TRUE(enabled(0));
+    assertHz(0, DEFAULT_FREQ_CH1);
+}
+
+// ---------------------------------------------------------------------------
+// Supervision
+
+static void test_boot_without_si5351_then_hot_plug() {
+    chip.present = false;
+    Device d;
+    TEST_ASSERT_FALSE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(ChannelStatus::NoDevice, d.app.channelStatus(1));
+    // Settings can still be changed.
+    d.app.setChannelFrequency(1, 7000000);
+    d.app.setChannelEnabled(1, true);
+    d.app.setChannelEnabled(3, true);
+    TEST_ASSERT_EQUAL(Ch3Status::NoDevice, d.app.ch3Status());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount); // main.cpp shows the boot dialog itself
+    chip.present = true;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(ChannelStatus::On, d.app.channelStatus(1));
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+    assertHz(0, 7000000);
+    assertHz(2, 7000000);
+}
+
+static void test_power_glitch_reports_once_and_restores() {
+    Device d;
+    d.app.setChannelFrequency(1, 7100000);
+    startIQ(d);
+    d.app.setCH3Phase(270);
+    chip.powerOn(); // SI5351 lost its configuration
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
+    // Reconnected in the same cycle (C-12); the dialog closes itself (connection count).
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+    assertHz(0, 7100000);
+    TEST_ASSERT_TRUE(inverted(2));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)ms(0).ratio(), phase(2));
+}
+
+// Audit C-12: a lost SI5351 is reconnected in the same supervision cycle that detects the
+// loss, so the outputs are back within one HW_CHECK_INTERVAL_MS (before: up to two).
+static void test_power_glitch_is_restored_in_the_same_cycle() {
+    Device d;
+    d.app.setChannelEnabled(1, true);
+    chip.powerOn(); // SI5351 lost its configuration
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(ChannelStatus::On, d.app.channelStatus(1));
+    TEST_ASSERT_TRUE(enabled(0));
+    assertHz(0, DEFAULT_FREQ_CH1);
+}
+
+// Audit T-3: millis() wraps after 49.7 days; supervision and autosave keep working.
+static void test_millis_wrap_keeps_supervision_and_autosave() {
+    Fake::clockMs() = 0xFFFFFFFFUL - 3000;
+    Device d;
+    d.app.setChannelEnabled(1, true);
+    d.app.setChannelFrequency(1, 7100000);
+    d.run(SETTINGS_AUTOSAVE_MS + 1000); // crosses the wrap
+    TEST_ASSERT_TRUE(Fake::clockMs() < 0x80000000UL);
+    TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
+    chip.powerOn();
+    d.run(2 * HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_TRUE(enabled(0));
+    assertHz(0, 7100000);
+}
+
+// Audit T-6: failing Wire.end() / Wire.begin() while searching leave the bus closed (no
+// transfer on a closed bus, tearDown checks) and the search goes on.
+static void test_failing_bus_reinit_is_survived() {
+    chip.present = false;
+    Device d;
+    Wire.failEnd = true;
+    d.run(3 * HW_CHECK_INTERVAL_MS);
+    Wire.failEnd = false;
+    Wire.failBegin = true;
+    d.run(3 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_FALSE(d.app.hardwareReady());
+    Wire.failBegin = false;
+    chip.present = true;
+    d.run(2 * HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+}
+
+// Audit T-8: a power glitch resets the spread spectrum registers; the reconnect writes them
+// again together with the outputs.
+static void test_reconnect_restores_spread_spectrum() {
+    Device d;
+    d.app.setSpread(Spread::Down05);
+    d.app.setChannelEnabled(1, true);
+    TEST_ASSERT_TRUE(spreadSpectrum().enabled);
+    chip.powerOn();
+    TEST_ASSERT_FALSE(spreadSpectrum().enabled);
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_TRUE(spreadSpectrum().enabled);
+    TEST_ASSERT_DOUBLE_WITHIN(0.0005, 0.005, spreadDownAmp());
+    TEST_ASSERT_NULL(limitViolation(0));
+    TEST_ASSERT_TRUE(enabled(0));
+}
+
+// Audit C-6: a failed output switch or off state write is a failed transfer, after which the
+// driver has marked the SI5351 as lost; the dialog says so (no "Output switch failed").
+static void test_failed_switch_or_off_state_reports_connection_lost() {
+    {
+        Device d;
+        chip.failAfter = 0;
+        d.app.setChannelEnabled(1, true);
+        TEST_ASSERT_EQUAL_UINT(1, errorCount);
+        TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
+        TEST_ASSERT_FALSE(d.app.hardwareReady());
+    }
+    setUp();
+    Device d;
+    chip.failAfter = 0;
+    d.app.setOffState(OffState::High);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
+}
+
+static void test_bus_failure_while_tuning_shows_no_hw() {
+    Device d;
+    d.app.setChannelEnabled(1, true);
+    chip.failAfter = 0;
+    d.app.setChannelFrequency(1, 8000000);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
+    // A lost device is NO HW, not an output error.
+    TEST_ASSERT_EQUAL(ChannelStatus::NoDevice, d.app.channelStatus(1));
+    chip.failAfter = -1;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(ChannelStatus::On, d.app.channelStatus(1));
+    assertHz(0, 8000000);
+}
+
+static void test_healthy_device_is_not_reconfigured() {
+    Device d;
+    startIQ(d);
+    chip.clearLog();
+    d.run(10 * HW_CHECK_INTERVAL_MS);
+    // Supervision only reads; it never touches a running output.
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+// ---------------------------------------------------------------------------
+// CONFIG options: backlight steps, tuning mode, spread, off state
+
+static void test_backlight_steps() {
+    Device d;
+    d.app.setBacklight(80);
+    d.app.stepBacklight(+1);
+    TEST_ASSERT_EQUAL_UINT8(90, d.app.system().backlight);
+    d.app.stepBacklight(+1);
+    d.app.stepBacklight(+1);
+    TEST_ASSERT_EQUAL_UINT8(100, d.app.system().backlight);
+    for (int i = 0; i < 12; ++i) d.app.stepBacklight(-1);
+    TEST_ASSERT_EQUAL_UINT8(BACKLIGHT_MIN_PERCENT, d.app.system().backlight);
+    d.app.setBacklight(44);
+    TEST_ASSERT_EQUAL_UINT8(40, d.app.system().backlight);
+}
+
+static void test_backlight_from_older_firmware_is_rounded() {
+    Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
+    p.putUChar("backlight", 35); // 1 % steps before 1.3.0
+    {
+        Device d;
+        TEST_ASSERT_EQUAL_UINT8(40, d.app.system().backlight);
+    }
+    p.putUChar("backlight", 5); // old minimum
+    Device d;
+    TEST_ASSERT_EQUAL_UINT8(BACKLIGHT_MIN_PERCENT, d.app.system().backlight);
+}
+
+static void test_config_options_default_and_persist() {
+    {
+        Device d;
+        TEST_ASSERT_EQUAL(TuningMode::Fractional, d.app.system().tuning_mode);
+        TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
+        TEST_ASSERT_EQUAL(OffState::Low, d.app.system().off_state);
+        d.app.setTuningMode(TuningMode::LowNoise);
+        d.app.setSpread(Spread::Down15);
+        d.app.setOffState(OffState::HighZ);
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+    }
+    Device d;
+    TEST_ASSERT_EQUAL(TuningMode::LowNoise, d.app.system().tuning_mode);
+    TEST_ASSERT_EQUAL(Spread::Down15, d.app.system().spread);
+    TEST_ASSERT_EQUAL(OffState::HighZ, d.app.system().off_state);
+    TEST_ASSERT_EQUAL(TuningMode::LowNoise, d.si.tuningMode());
+}
+
+// D22 / SEC-V-1: off state High puts DC on every switched-off output, so under
+// `Remote outputs: local only` a remote source may not select it (Denied); Low and High-Z stay
+// allowed, the touch source keeps High (after its own confirmation), and `allowed` lets the
+// network set it without a question.
+static void test_remote_off_state_high_needs_remote_outputs_allowed() {
+    Device d;
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setRemoteOutputsAllowed(false));
+    const Source remote[] = {Source::Web, Source::Scpi, Source::Usb};
+    for (Source s : remote) {
+        d.app.setSource(s);
+        TEST_ASSERT_EQUAL(Result::Denied, d.app.setOffState(OffState::High));
+        TEST_ASSERT_EQUAL(OffState::Low, d.app.system().off_state);
+        TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[24]);
+    }
+    d.app.setSource(Source::Scpi);
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setOffState(OffState::HighZ));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setOffState(OffState::Low));
+    // Touch may still set High; the network then cannot select it again, only leave it.
+    d.app.setSource(Source::Touch);
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setOffState(OffState::High));
+    d.app.setSource(Source::Web);
+    TEST_ASSERT_EQUAL(Result::Denied, d.app.setOffState(OffState::High));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setOffState(OffState::Low));
+    // Internal sources are not remote.
+    d.app.setSource(Source::Internal);
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setOffState(OffState::High));
+    d.app.setSource(Source::Touch);
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setOffState(OffState::Low));
+    // allowed: the network sets High without a question.
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setRemoteOutputsAllowed(true));
+    d.app.setSource(Source::Scpi);
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setOffState(OffState::High));
+    TEST_ASSERT_EQUAL(OffState::High, d.app.system().off_state);
+    d.app.setSource(Source::Touch);
+}
+
+// Grundzustand for the next group (audit U-13): everything back to the defaults except the
+// frequency correction (calibration), all outputs off, stored by the autosave.
+static void test_reset_to_defaults_keeps_the_correction() {
+    {
+        Device d;
+        d.app.setCorrection(970);
+        d.app.setChannelFrequency(1, 7100000);
+        d.app.setChannelFrequency(2, 455000);
+        d.app.setCH3Master(2);
+        d.app.setCH3Phase(270);
+        d.app.setDeltaStep(100);
+        d.app.setBacklight(30);
+        d.app.setGlobalDriveStrength(8);
+        d.app.setTuningMode(TuningMode::LowNoise);
+        d.app.setSpread(Spread::Down05);
+        d.app.setOffState(OffState::HighZ);
+        d.app.setChannelEnabled(1, true);
+        d.app.setChannelEnabled(3, true);
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+        d.app.resetToDefaults();
+        TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+        TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH2, d.app.channel(2).frequency);
+        TEST_ASSERT_FALSE(d.app.channel(1).enabled);
+        TEST_ASSERT_FALSE(d.app.ch3().enabled);
+        TEST_ASSERT_FALSE(enabled(0));
+        TEST_ASSERT_FALSE(enabled(2));
+        TEST_ASSERT_EQUAL_UINT8(1, d.app.ch3().master);
+        TEST_ASSERT_EQUAL_UINT16(90, d.app.ch3().phase);
+        TEST_ASSERT_EQUAL_UINT32(DEFAULT_DELTA_STEP, d.app.system().delta_step);
+        TEST_ASSERT_EQUAL_UINT8(DEFAULT_BACKLIGHT_PERCENT, d.app.system().backlight);
+        TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
+        TEST_ASSERT_EQUAL(TuningMode::Fractional, d.app.system().tuning_mode);
+        TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
+        TEST_ASSERT_EQUAL(OffState::Low, d.app.system().off_state);
+        TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[24]);
+        TEST_ASSERT_EQUAL_INT32(970, d.app.system().freq_correction); // calibration stays
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+    }
+    Device d; // stored
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL(TuningMode::Fractional, d.app.system().tuning_mode);
+    TEST_ASSERT_EQUAL_INT32(970, d.app.system().freq_correction);
+}
+
+// Factory reset: the NVS namespace is empty afterwards, the next start loads the defaults.
+static void test_erase_all_settings() {
+    {
+        Device d;
+        d.app.setCorrection(-500);
+        d.app.setChannelFrequency(1, 7100000);
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+        TEST_ASSERT_TRUE(d.settings.saveTouchCalibration(TouchCalibration {500, 3900, 300, 3800}));
+        TEST_ASSERT_TRUE(d.settings.eraseAll());
+    }
+    TEST_ASSERT_EQUAL_UINT(0, Fake::nvs().values.size());
+    Device d;
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL_INT32(0, d.app.system().freq_correction);
+    TouchCalibration c {};
+    TEST_ASSERT_FALSE(d.settings.loadTouchCalibration(&c));
+}
+
+// V-1 / S-12: every setter reports what happened; values are checked, never cut silently.
+static void test_setters_return_result_codes() {
+    Device d;
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelFrequency(1, 7100000));
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.setChannelFrequency(1, 7100000));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setChannelFrequency(3, 7100000));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setChannelFrequency(0, 7100000));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.adjustChannelFrequency(3, 100));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelEnabled(1, true));
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.setChannelEnabled(1, true));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setChannelEnabled(4, true));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setCH3Master(3));
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.setCH3Master(1));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setCH3Phase(45));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setCH3Phase(180));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setGlobalDriveStrength(5));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setGlobalDriveStrength(8));
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setBacklight(5));
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setBacklight(101));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setBacklight(30));
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setDeltaStep(500));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setDeltaStep(100));
+    TEST_ASSERT_EQUAL(Result::OutOfRange, d.app.setCorrection(CORRECTION_MAX + 1));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setCorrection(-CORRECTION_MAX));
+    // adjustCorrection clamps (GUI -/+).
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.adjustCorrection(-100));
+    TEST_ASSERT_EQUAL_INT32(-CORRECTION_MAX, d.app.system().freq_correction);
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setTuningMode((TuningMode)7));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setTuningMode(TuningMode::Integer));
+    TEST_ASSERT_EQUAL(Result::Conflict, d.app.setSpread(Spread::Down05)); // locked in Integer
+    TEST_ASSERT_EQUAL(Result::Invalid, d.app.setOffState((OffState)5));
+    TEST_ASSERT_EQUAL(Result::NoChange, d.app.setOffState(OffState::Low));
+    // Channel index strictly 1 or 2 (channel(3) returned CH2 before).
+    TEST_ASSERT_EQUAL_UINT64(0, d.app.channel(3).frequency);
+    TEST_ASSERT_FALSE(d.app.channel(3).enabled);
+}
+
+// Without the SI5351 the settings change (shown as NO HW); a failing transfer is HwError.
+static void test_setter_result_with_hardware_errors() {
+    chip.present = false;
+    Device d;
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelFrequency(1, 7100000));
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setChannelEnabled(1, true));
+    chip.present = true;
+    Device e;
+    e.app.setChannelEnabled(1, true);
+    chip.failAfter = 0;
+    TEST_ASSERT_EQUAL(Result::HwError, e.app.setChannelFrequency(1, 7200000));
+    chip.failAfter = -1;
+}
+
+// V-2: the revision changes with every visible change (state, output, status, connection) and
+// stays while nothing happens; the GUI redraws on it.
+static void test_revision_counts_changes() {
+    Device d;
+    uint32_t r = d.app.revision();
+    d.app.setChannelFrequency(1, DEFAULT_FREQ_CH1); // no change
+    TEST_ASSERT_EQUAL_UINT32(r, d.app.revision());
+    d.app.setChannelFrequency(1, 7100000);
+    TEST_ASSERT_TRUE(d.app.revision() != r);
+    r = d.app.revision();
+    d.app.setChannelEnabled(1, true);
+    TEST_ASSERT_TRUE(d.app.revision() != r);
+    r = d.app.revision();
+    d.run(SETTINGS_AUTOSAVE_MS + 3000); // autosave and supervision without a change
+    TEST_ASSERT_EQUAL_UINT32(r, d.app.revision());
+    chip.present = false; // connection lost
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(ChannelStatus::NoDevice, d.app.channelStatus(1));
+    TEST_ASSERT_TRUE(d.app.revision() != r);
+    r = d.app.revision();
+    chip.present = true; // back
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(ChannelStatus::On, d.app.channelStatus(1));
+    TEST_ASSERT_TRUE(d.app.revision() != r);
+}
+
+// V-4 / C-5: only the changed key is written.
+static void test_autosave_writes_only_changed_keys() {
+    Device d;
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    const unsigned before = nvs.writeCount;
+    d.app.setChannelFrequency(2, 7100000);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(before + 1, nvs.writeCount);
+    d.app.setTuningMode(TuningMode::LowNoise);
+    d.app.setGlobalDriveStrength(8);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(before + 3, nvs.writeCount);
+}
+
+// W-E17: SCPI changes are saved after 30 s of quiet, touch and web changes after 5 s.
+static void test_remote_changes_save_later() {
+    Device d;
+    d.app.setSource(Source::Scpi);
+    d.app.setChannelFrequency(1, 7100000);
+    d.app.setSource(Source::Touch);
+    const unsigned before = nvs.writeCount;
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(before, nvs.writeCount);
+    d.run(SETTINGS_REMOTE_AUTOSAVE_MS);
+    TEST_ASSERT_EQUAL_UINT(before + 1, nvs.writeCount);
+    d.app.setSource(Source::Web);
+    d.app.setChannelFrequency(1, 7200000);
+    d.app.setSource(Source::Touch);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(before + 2, nvs.writeCount);
+}
+
+// W-E19 / C-17: after *RST the defaults are not saved; a later change saves only its own key,
+// SYSTem:SAVE (saveNow) saves everything at once.
+static void test_reset_for_remote_is_not_saved() {
+    {
+        Device d;
+        d.app.setChannelFrequency(1, 7100000);
+        d.app.setChannelFrequency(2, 21000000);
+        d.app.setGlobalDriveStrength(8);
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+        d.app.setChannelEnabled(1, true);
+        d.app.resetForRemote();
+        TEST_ASSERT_FALSE(d.app.channel(1).enabled);
+        TEST_ASSERT_FALSE(enabled(0));
+        TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+        TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
+        d.run(SETTINGS_REMOTE_AUTOSAVE_MS + 100);
+        d.app.setChannelFrequency(2, 3500000); // only this key is stored
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+    }
+    {
+        Device d;
+        TEST_ASSERT_EQUAL_UINT64(7100000, d.app.channel(1).frequency); // not the default
+        TEST_ASSERT_EQUAL_UINT64(3500000, d.app.channel(2).frequency);
+        TEST_ASSERT_EQUAL_UINT8(8, d.app.system().drive_ma);
+        d.app.resetForRemote();
+        const unsigned before = nvs.writeCount;
+        TEST_ASSERT_TRUE(d.app.saveNow());
+        TEST_ASSERT_TRUE(nvs.writeCount > before);
+    }
+    Device d;
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
+}
+
+static void test_config_options_invalid_nvs_values() {
+    Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
+    p.putUChar("tune", 7);
+    p.putUChar("ssc", 9);
+    p.putUChar("off_st", 3);
+    Device d;
+    TEST_ASSERT_EQUAL(TuningMode::Fractional, d.app.system().tuning_mode);
+    TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
+    TEST_ASSERT_EQUAL(OffState::Low, d.app.system().off_state);
+}
+
+static void test_integer_mode_turns_spread_off() {
+    Device d;
+    d.app.setSpread(Spread::Down05);
+    TEST_ASSERT_EQUAL(Spread::Down05, d.app.spreadOf(1));
+    d.app.setTuningMode(TuningMode::Integer);
+    TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
+    d.app.setSpread(Spread::Down05); // locked in Integer
+    TEST_ASSERT_EQUAL(Spread::Off, d.app.system().spread);
+    // Stored spread with Integer mode (written by hand) is ignored at load.
+    Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
+    p.putUChar("ssc", 1);
+    p.putUChar("tune", 2);
+    Device d2;
+    TEST_ASSERT_EQUAL(Spread::Off, d2.app.system().spread);
+}
+
+static void test_spread_applies_to_pll_a_only() {
+    Device d;
+    d.app.setSpread(Spread::Center05);
+    TEST_ASSERT_EQUAL(Spread::Center05, d.app.spreadOf(1));
+    TEST_ASSERT_EQUAL(Spread::Off, d.app.spreadOf(2));
+    TEST_ASSERT_EQUAL(Spread::Center05, d.app.spreadOf(3)); // master CH1
+    d.app.setCH3Master(2);
+    TEST_ASSERT_EQUAL(Spread::Off, d.app.spreadOf(3));
+}
+
+// Integer mode: integer PLL and MultiSynth; the shown frequency is the programmed raster point.
+static void assertRasterOutput(uint8_t clk, double shownHz) {
+    TEST_ASSERT_NULL(limitViolation(clk));
+    TEST_ASSERT_TRUE(pll(clk).integer() && ms(clk).integer());
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, outputHz(clk), shownHz);
+}
+
+static void test_tuning_mode_change_reconfigures_all_outputs() {
+    Device d;
+    d.app.setChannelFrequency(1, 7100000);
+    d.app.setChannelFrequency(2, 14200000);
+    d.app.setChannelEnabled(2, true);
+    startIQ(d);
+    d.app.setTuningMode(TuningMode::LowNoise);
+    // CH2 standalone: even integer MultiSynth in integer mode.
+    TEST_ASSERT_TRUE(ms(1).integer() && fmod(ms(1).ratio(), 2.0) == 0.0 && (ctrl(1) & CTRL_MS_INT));
+    assertHz(1, 14200000);
+    assertHz(2, 7100000);
+    d.app.setTuningMode(TuningMode::Integer);
+    assertRasterOutput(0, d.app.actualHz(1));
+    assertRasterOutput(1, d.app.actualHz(2));
+    assertRasterOutput(2, d.app.actualHz(3));
+    TEST_ASSERT_DOUBLE_WITHIN(1e-6, d.app.actualHz(1), d.app.actualHz(3));
+    TEST_ASSERT_TRUE(enabled(0) && enabled(1) && enabled(2));
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    // Back to Fractional: the requested frequencies again.
+    d.app.setTuningMode(TuningMode::Fractional);
+    assertHz(0, 7100000);
+    assertHz(1, 14200000);
+    assertHz(2, 7100000);
+    TEST_ASSERT_TRUE(enabled(0) && enabled(1) && enabled(2));
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_iq_in_all_tuning_modes() {
+    Device d;
+    startIQ(d);
+    const TuningMode modes[] = {TuningMode::LowNoise, TuningMode::Integer, TuningMode::Fractional};
+    const uint16_t phases[] = {0, 90, 180, 270};
+    for (TuningMode m : modes) {
+        d.app.setTuningMode(m);
+        for (uint64_t f : {7100000ULL, 14200000ULL}) {
+            d.app.setChannelFrequency(1, f);
+            for (uint16_t ph : phases) {
+                d.app.setCH3Phase(ph);
+                TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+                TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+                TEST_ASSERT_EQUAL_MEMORY(chip.regs + 42, chip.regs + 58, 8);
+                TEST_ASSERT_EQUAL_UINT8((ph == 90 || ph == 270) ? (uint8_t)ms(0).ratio() : 0, phase(2));
+                TEST_ASSERT_EQUAL(ph >= 180, inverted(2));
+                if (m == TuningMode::Integer) {
+                    assertRasterOutput(0, d.app.actualHz(1));
+                    assertRasterOutput(2, d.app.actualHz(3));
+                } else {
+                    assertHz(0, f);
+                    assertHz(2, f);
+                }
+            }
+        }
+    }
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_spread_with_iq_on_master_ch1() {
+    Device d;
+    startIQ(d);
+    const TuningMode modes[] = {TuningMode::Fractional, TuningMode::LowNoise};
+    const Spread spreads[] = {Spread::Down05, Spread::Down15, Spread::Center05, Spread::Off};
+    for (TuningMode m : modes) {
+        d.app.setTuningMode(m);
+        for (Spread s : spreads) {
+            d.app.setSpread(s);
+            // Realigned after the PLL A reset; limitViolation() includes the modulated VCO.
+            TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+            TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+            TEST_ASSERT_EQUAL(s != Spread::Off, spreadSpectrum().enabled);
+            assertHz(0, DEFAULT_FREQ_CH1);
+            assertHz(2, DEFAULT_FREQ_CH1);
+            TEST_ASSERT_EQUAL_UINT8((uint8_t)ms(0).ratio(), phase(2));
+            // 10 MHz: divider 90 (900 MHz), with center spread 89 (890 MHz).
+            TEST_ASSERT_EQUAL_DOUBLE(s == Spread::Center05 ? 89.0 : 90.0, ms(0).ratio());
+        }
+    }
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_spread_and_off_state_reach_the_chip() {
+    Device d;
+    d.app.setChannelEnabled(1, true);
+    d.app.setSpread(Spread::Down05);
+    TEST_ASSERT_TRUE(spreadSpectrum().enabled);
+    TEST_ASSERT_NULL(limitViolation(0));
+    assertHz(0, DEFAULT_FREQ_CH1); // unmodulated
+    d.app.setTuningMode(TuningMode::Integer);
+    TEST_ASSERT_FALSE(spreadSpectrum().enabled);
+    TEST_ASSERT_NULL(limitViolation(0));
+    // Off state: register 24; CLK2 (CH3 off) keeps its driver powered for High.
+    d.app.setOffState(OffState::High);
+    TEST_ASSERT_EQUAL_HEX8(0x15, chip.regs[24]);
+    TEST_ASSERT_FALSE(poweredDown(2));
+    TEST_ASSERT_FALSE(enabled(2));
+    d.app.setOffState(OffState::Low);
+    TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[24]);
+    TEST_ASSERT_TRUE(poweredDown(2));
+    TEST_ASSERT_TRUE(enabled(0));
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+// Range extension (E-16): CH1/CH2 8 kHz-160 MHz, CH3 stays at 4.730-100 MHz and waits above.
+static void test_extended_range_and_ch3_limit() {
+    Device d;
+    d.app.setChannelFrequency(2, 8000);
+    d.app.setChannelEnabled(2, true);
+    assertHz(1, 8000);
+    // Above 112.5 MHz the error is up to 2 Hz (to 150 MHz) and 3 Hz (to 160 MHz), see test_si5351.
+    d.app.setChannelFrequency(2, 160000000ULL);
+    TEST_ASSERT_NULL(limitViolation(1, 0));
+    TEST_ASSERT_DOUBLE_WITHIN(3.0, 160000000.0, outputHz(1, 0));
+    d.app.setChannelFrequency(1, 120000000ULL);
+    d.app.setChannelEnabled(1, true);
+    d.app.setChannelEnabled(3, true);
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooHigh, d.app.ch3Status());
+    TEST_ASSERT_TRUE(poweredDown(2) || !enabled(2));
+    TEST_ASSERT_NULL(limitViolation(0, 0)); // the master runs on its own
+    TEST_ASSERT_DOUBLE_WITHIN(2.0, 120000000.0, outputHz(0, 0));
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    d.app.setChannelFrequency(1, 99000000ULL);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+}
+
+static void test_spread_narrows_the_iq_range_without_error() {
+    Device d;
+    d.app.setChannelFrequency(1, 4740000); // inside 4.730 MHz, below 4.748 151 MHz with -0.5 %
+    startIQ(d);
+    d.app.setSpread(Spread::Down05);
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooLow, d.app.ch3Status());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    TEST_ASSERT_TRUE(poweredDown(2) || !enabled(2));
+    d.app.setChannelFrequency(1, 99800000);
+    d.app.setSpread(Spread::Center05); // top limit 99.502 487 MHz
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooHigh, d.app.ch3Status());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    d.app.setSpread(Spread::Off);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    // CH2 as master: PLL B has no spread, the full range applies.
+    d.app.setSpread(Spread::Center05);
+    d.app.setChannelFrequency(2, 99800000);
+    d.app.setChannelEnabled(2, true);
+    d.app.setCH3Master(2);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+// ---------------------------------------------------------------------------
+// SDA/SCL detection: the cable at CN1 may be swapped
+
+static void test_boot_with_straight_cable() {
+    Device d;
+    TEST_ASSERT_EQUAL(LinkState::Connected, d.app.linkState());
+    TEST_ASSERT_EQUAL(I2CMap::Default, I2CBus::map());
+    TEST_ASSERT_EQUAL_INT(PIN_I2C_A, I2CBus::sdaPin());
+    TEST_ASSERT_EQUAL_UINT(1, Wire.beginCalls);
+    TEST_ASSERT_EQUAL_UINT32(I2C_FREQ_HZ, Wire.clockHz);
+    TEST_ASSERT_EQUAL_UINT16(I2C_TIMEOUT_MS, Wire.timeOutMs);
+}
+
+// Finding M-1 (2026-11-04, CYD2USB): a successful first connection at boot was not logged,
+// because the link state started as Connected.
+static void test_boot_logs_the_connection() {
+    Device d;
+    TEST_ASSERT_TRUE(Fake::serialLog().contains("[APP] SI5351 at 0x60, SDA=22 SCL=27"));
+    setUp();
+    chip.present = false;
+    Device e;
+    TEST_ASSERT_TRUE(Fake::serialLog().contains("[APP] SI5351 not found"));
+}
+
+static void test_boot_with_swapped_cable() {
+    chip.swapWires();
+    Device d;
+    TEST_ASSERT_EQUAL(LinkState::Connected, d.app.linkState());
+    TEST_ASSERT_EQUAL(I2CMap::Swapped, I2CBus::map());
+    TEST_ASSERT_EQUAL_INT(PIN_I2C_B, I2CBus::sdaPin());
+    TEST_ASSERT_EQUAL_UINT32(I2C_FREQ_HZ, Wire.clockHz);
+    assertHz(0, DEFAULT_FREQ_CH1);
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_boot_without_module_searches_quietly() {
+    chip.present = false;
+    Device d;
+    TEST_ASSERT_EQUAL(LinkState::NotFound, d.app.linkState());
+    Wire.resetCounters();
+    d.run(10 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    TEST_ASSERT_TRUE(Wire.beginCalls <= 10); // at most one re-init per cycle
+}
+
+static void test_hot_plug_straight_then_swapped() {
+    chip.present = false;
+    Device d;
+    chip.present = true;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    chip.present = false;
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "either order"));
+    chip.powerOn();
+    chip.swapWires();
+    chip.present = true;
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(I2CMap::Swapped, I2CBus::map());
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+}
+
+static void test_rewiring_while_running_restores_iq() {
+    Device d;
+    d.app.setChannelFrequency(1, 7100000);
+    startIQ(d);
+    d.app.setCH3Phase(270);
+    chip.powerOn(); // unplugged, cable turned around, plugged in again
+    chip.swapWires();
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_TRUE(enabled(0) && enabled(2));
+    assertHz(0, 7100000);
+    TEST_ASSERT_TRUE(inverted(2));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)ms(0).ratio(), phase(2));
+}
+
+static void test_dropout_reconnects_on_same_assignment() {
+    Device d;
+    Wire.resetCounters();
+    chip.failAfter = 0;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_FALSE(d.app.hardwareReady());
+    chip.failAfter = -1;
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    // The immediate reconnect (C-12) already tried the other assignment while the dropout
+    // lasted; the link ends up on the original one again.
+    TEST_ASSERT_EQUAL(I2CMap::Default, I2CBus::map());
+    TEST_ASSERT_TRUE(I2CBus::isOpen());
+}
+
+static void test_healthy_link_leaves_bus_setup_alone() {
+    Device d;
+    startIQ(d);
+    Wire.resetCounters();
+    d.run(100 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(0, Wire.beginCalls);
+    TEST_ASSERT_EQUAL_UINT(0, Wire.endCalls);
+    TEST_ASSERT_EQUAL_UINT(0, Wire.setClockCalls);
+}
+
+static void test_fake_ack_on_wrong_assignment_is_skipped() {
+    chip.swapWires();
+    chip.ghostOnWrongPins = true;
+    Device d;
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(I2CMap::Swapped, I2CBus::map());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    // Rewired straight later with another cable: the default assignment must not stay
+    // marked as foreign.
+    chip.powerOn();
+    chip.swapWires();
+    chip.ghostOnWrongPins = false;
+    d.run(2 * HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(I2CMap::Default, I2CBus::map());
+}
+
+static void test_foreign_device_is_not_programmed() {
+    chip.foreign = true;
+    chip.foreignValue = 0x5A; // passes the read-only checks, keeps no register
+    Device d;
+    TEST_ASSERT_EQUAL(LinkState::UnknownDevice, d.app.linkState());
+    d.run(10 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(1, chip.writes.size());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount); // main.cpp shows the boot dialog
+    // Replaced by an SI5351.
+    chip.present = false;
+    d.run(HW_CHECK_INTERVAL_MS);
+    chip.foreign = false;
+    chip.present = true;
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_si5351_powering_up_is_retried_while_present() {
+    chip.foreign = true; // still powering up: reads 0x00
+    Device d;
+    TEST_ASSERT_EQUAL(LinkState::UnknownDevice, d.app.linkState());
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+    chip.foreign = false;
+    chip.powerOn();
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+}
+
+static void test_bus_too_weak_for_400_khz_stays_at_100_khz() {
+    chip.maxClockHz = I2C_DETECT_HZ;
+    Device d;
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT32(I2C_DETECT_HZ, Wire.clockHz);
+    d.app.setChannelEnabled(1, true);
+    d.run(10 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL(ChannelStatus::On, d.app.channelStatus(1));
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    TEST_ASSERT_EQUAL_UINT16(1, d.app.connectionCount());
+}
+
+// V-3: a lost connection is a Link event from the supervision (Internal), with its text.
+static void test_link_events() {
+    Device d;
+    chip.present = false;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(EventCode::LinkLost, lastEvent.code);
+    TEST_ASSERT_EQUAL(EventCategory::Link, lastEvent.category);
+    TEST_ASSERT_EQUAL(Source::Internal, lastEvent.source);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
+}
+
+// A command reports with the source set by its server; listeners are limited.
+static void test_events_carry_the_source() {
+    Device d;
+    d.app.setChannelEnabled(1, true);
+    chip.failAfter = 0;
+    d.app.setSource(Source::Scpi);
+    d.app.setChannelFrequency(1, 7200000);
+    d.app.setSource(Source::Touch);
+    chip.failAfter = -1;
+    TEST_ASSERT_EQUAL(Source::Scpi, lastEvent.source);
+    TEST_ASSERT_EQUAL(EventCategory::Link, lastEvent.category); // the transfer failed: lost
+    TEST_ASSERT_TRUE(d.app.addListener(onEvent, nullptr));
+    TEST_ASSERT_TRUE(d.app.addListener(onEvent, nullptr));
+    TEST_ASSERT_FALSE(d.app.addListener(onEvent, nullptr)); // MAX_LISTENERS = 3
+}
+
+static void test_line_held_low_reports_blocked() {
+    Device d;
+    chip.lineLow = Fake::Si5351Chip::Line::Scl;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    // "Connection lost", and in the same cycle (C-12) the more precise reason.
+    TEST_ASSERT_EQUAL(LinkState::Blocked, d.app.linkState());
+    TEST_ASSERT_EQUAL_UINT(2, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "stays low"));
+    // Each later search stays short, so the GUI does not stall.
+    Fake::advanceMs(HW_CHECK_INTERVAL_MS);
+    const uint32_t t0 = Fake::clockMs();
+    d.app.update();
+    TEST_ASSERT_TRUE(Fake::clockMs() - t0 <= 2 * I2C_TIMEOUT_MS);
+    d.run(3 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(2, errorCount); // one dialog per change
+    chip.lineLow = Fake::Si5351Chip::Line::None;
+    chip.powerOn();
+    d.run(HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+}
+
+static void test_boot_releases_line_held_low() {
+    Fake::gpio().lowMask = 1u << PIN_I2C_A;
+    TEST_ASSERT_TRUE(I2CBus::begin());
+    // As SCL: 9 clocks + low before STOP; as SDA: low for the STOP.
+    TEST_ASSERT_EQUAL_UINT(11, Fake::gpio().falls[PIN_I2C_A]);
+    TEST_ASSERT_EQUAL_UINT(11, Fake::gpio().falls[PIN_I2C_B]);
+    Fake::gpio() = Fake::Gpio {};
+    TEST_ASSERT_TRUE(I2CBus::begin());
+    TEST_ASSERT_EQUAL_UINT(0, Fake::gpio().writes);
+}
+
+static void test_link_texts_fit_the_dialog() {
+    const LinkState states[] = {LinkState::NotFound, LinkState::Blocked, LinkState::UnknownDevice};
+    for (LinkState s : states) TEST_ASSERT_TRUE(strlen(AppController::linkText(s)) < 160);
+    Device d;
+    chip.present = false;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Reconnecting automatically.")); // not truncated
+}
+
+// ---------------------------------------------------------------------------
+// Persistence
+
+static void test_autosave_after_quiet_period() {
+    Device d;
+    d.app.setChannelFrequency(1, 7100000);
+    TEST_ASSERT_EQUAL(SaveState::Pending, d.app.saveState());
+    // Every change restarts the delay, so holding +/- does not wear the flash.
+    for (int i = 0; i < 10; ++i) {
+        d.run(1000);
+        d.app.adjustChannelFrequency(1, 1000);
+    }
+    TEST_ASSERT_EQUAL_UINT(0, nvs.writeCount);
+    d.run(SETTINGS_AUTOSAVE_MS - 200);
+    TEST_ASSERT_EQUAL_UINT(0, nvs.writeCount);
+    d.run(300);
+    TEST_ASSERT_TRUE(nvs.writeCount > 0);
+    TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
+    Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
+    TEST_ASSERT_EQUAL_UINT64(7110000ULL, p.getULong64("ch1_freq", 0));
+}
+
+// Audit C-5 / T-7: output states are not stored (A-4), so switching them must not write
+// the flash; neither must setting a stored value to the value it already has.
+static void test_unchanged_settings_do_not_write_flash() {
+    Device d;
+    d.run(SETTINGS_AUTOSAVE_MS + 1000);
+    const unsigned before = nvs.writeCount;
+    for (int i = 0; i < 10; ++i) {
+        d.app.setChannelEnabled(1, i % 2 == 0);
+        d.app.setChannelEnabled(3, i % 2 == 0);
+    }
+    const SystemSettings sys = d.app.system();
+    d.app.setDeltaStep(sys.delta_step);
+    d.app.setGlobalDriveStrength(sys.drive_ma);
+    d.app.setChannelFrequency(1, d.app.channel(1).frequency);
+    d.app.setChannelFrequency(2, d.app.channel(2).frequency);
+    TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
+    d.run(SETTINGS_AUTOSAVE_MS + 1000);
+    TEST_ASSERT_EQUAL_UINT(before, nvs.writeCount);
+    // A real change is still saved.
+    d.app.setDeltaStep(sys.delta_step == 1000 ? 100 : 1000);
+    TEST_ASSERT_EQUAL(SaveState::Pending, d.app.saveState());
+    d.run(SETTINGS_AUTOSAVE_MS + 1000);
+    TEST_ASSERT_TRUE(nvs.writeCount > before);
+}
+
+static void test_save_failure_is_reported() {
+    Device d;
+    nvs.failWrites = true;
+    d.app.setDeltaStep(100);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_EQUAL_STRING("Settings", lastErrorTitle);
+    TEST_ASSERT_EQUAL(SaveState::Failed, d.app.saveState());
+    nvs.failWrites = false;
+    d.app.setDeltaStep(10);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+}
+
+// Audit C-13 / T-5: a failed save keeps the change and retries every SETTINGS_RETRY_MS
+// without further dialogs; the change is not lost when the flash works again.
+static void test_failed_save_is_retried_without_new_dialogs() {
+    Device d;
+    nvs.failWrites = true;
+    d.app.setChannelFrequency(1, 7100000);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_EQUAL(SaveState::Failed, d.app.saveState());
+    d.run(4 * SETTINGS_RETRY_MS);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_EQUAL(SaveState::Failed, d.app.saveState());
+    // Flash works again, no further user change: the next retry saves the frequency.
+    nvs.failWrites = false;
+    d.run(SETTINGS_RETRY_MS + 100);
+    TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
+    TEST_ASSERT_EQUAL_UINT64(7100000ULL, p.getULong64("ch1_freq", 0));
+}
+
+static void test_nvs_unavailable() {
+    nvs.available = false;
+    Device d;
+    TEST_ASSERT_EQUAL(SaveState::Unavailable, d.app.saveState());
+    d.app.setChannelFrequency(1, 7100000);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(0, nvs.writeCount);
+    TEST_ASSERT_EQUAL(SaveState::Unavailable, d.app.saveState());
+    assertHz(0, 7100000);
+}
+
+static void test_settings_survive_reboot_but_outputs_start_off() {
+    {
+        Device d;
+        d.app.setChannelFrequency(1, 7100000);
+        d.app.setChannelFrequency(2, 21000000);
+        d.app.setChannelEnabled(1, true);
+        d.app.setChannelEnabled(2, true);
+        d.app.setChannelEnabled(3, true);
+        d.app.setCH3Master(2);
+        d.app.setCH3Phase(270);
+        d.app.setCorrection(-1234);
+        d.app.setGlobalDriveStrength(6);
+        d.app.setBacklight(50);
+        d.app.setDeltaStep(100);
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+        TEST_ASSERT_EQUAL(SaveState::Saved, d.app.saveState());
+    }
+    chip.powerOn();
+    Device d;
+    TEST_ASSERT_EQUAL_UINT64(7100000ULL, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL_UINT64(21000000ULL, d.app.channel(2).frequency);
+    TEST_ASSERT_EQUAL_UINT8(2, d.app.ch3().master);
+    TEST_ASSERT_EQUAL_UINT16(270, d.app.ch3().phase);
+    TEST_ASSERT_EQUAL_INT32(-1234, d.app.system().freq_correction);
+    TEST_ASSERT_EQUAL_UINT8(6, d.app.system().drive_ma);
+    TEST_ASSERT_EQUAL_UINT8(50, d.app.system().backlight);
+    TEST_ASSERT_EQUAL_UINT32(100, d.app.system().delta_step);
+    TEST_ASSERT_FALSE(d.app.channel(1).enabled);
+    TEST_ASSERT_FALSE(d.app.channel(2).enabled);
+    TEST_ASSERT_FALSE(d.app.ch3().enabled);
+    TEST_ASSERT_EQUAL_HEX8(0xFF, chip.regs[3]);
+    TEST_ASSERT_EQUAL_UINT8(6, driveMa(0));
+    assertHz(0, 7100000, -1234);
+}
+
+// Boot order (audit C-2, T-2): the actual frequency, and with it the "~" on MAIN, is known
+// only after applyStoredChannelSettings(); main.cpp redraws the GUI after that step.
+static void test_actual_frequency_known_only_after_stored_settings() {
+    {
+        Device d;
+        d.app.setTuningMode(TuningMode::Integer);
+        d.app.setChannelFrequency(1, 7100000);
+        d.run(SETTINGS_AUTOSAVE_MS + 1000);
+    }
+    SettingsService settings;
+    SI5351Manager si;
+    BacklightDriver backlight;
+    AppController app(settings, si, backlight);
+    I2CBus::begin();
+    settings.begin();
+    PersistentState loaded;
+    settings.load(loaded);
+    app.begin(loaded);
+    TEST_ASSERT_TRUE(app.connectHardware());
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, app.actualHz(1));
+    app.applyStoredChannelSettings();
+    // 25 MHz x 25 / 88, the nearest raster point to 7.1 MHz.
+    TEST_ASSERT_DOUBLE_WITHIN(0.5, 7102272.7, app.actualHz(1));
+}
+
+static void test_settings_load_sanitizes_invalid_values() {
+    Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
+    p.putULong64("ch1_freq", 0);
+    p.putULong64("ch2_freq", 1000000000ULL);
+    p.putUChar("ch3_master", 3);
+    p.putUInt("ch3_phase", 45);
+    p.putUChar("backlight", 0);
+    p.putUInt("delta", 7);
+    p.putInt("corr", 99999);
+    p.putUChar("drv_def", 5);
+    p.putUChar("ch1_en", 1); // stored by firmware 1.1.0, ignored since 1.2.0
+    Device d;
+    TEST_ASSERT_EQUAL_UINT64(FREQ_MIN_HZ, d.app.channel(1).frequency);
+    TEST_ASSERT_EQUAL_UINT64(FREQ_MAX_HZ, d.app.channel(2).frequency);
+    TEST_ASSERT_EQUAL_UINT8(1, d.app.ch3().master);
+    TEST_ASSERT_EQUAL_UINT16(90, d.app.ch3().phase);
+    TEST_ASSERT_EQUAL_UINT8(DEFAULT_BACKLIGHT_PERCENT, d.app.system().backlight);
+    TEST_ASSERT_EQUAL_UINT32(1, d.app.system().delta_step);
+    TEST_ASSERT_EQUAL_INT32(CORRECTION_MAX, d.app.system().freq_correction);
+    TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
+    TEST_ASSERT_FALSE(d.app.channel(1).enabled);
+    p.putUChar("backlight", 101);
+    p.putInt("corr", -99999);
+    Device d2;
+    TEST_ASSERT_EQUAL_UINT8(DEFAULT_BACKLIGHT_PERCENT, d2.app.system().backlight);
+    TEST_ASSERT_EQUAL_INT32(-CORRECTION_MAX, d2.app.system().freq_correction);
+}
+
+int main() {
+    UNITY_BEGIN();
+    RUN_TEST(test_boot_with_defaults_all_outputs_off);
+    RUN_TEST(test_backlight_pwm_on_its_pin);
+    RUN_TEST(test_switch_channel_on_and_off);
+    RUN_TEST(test_retune_running_channel_without_dropout);
+    RUN_TEST(test_frequency_is_clamped_to_range);
+    RUN_TEST(test_global_drive_strength);
+    RUN_TEST(test_correction_retunes_all_outputs);
+    RUN_TEST(test_backlight_and_step_are_limited);
+    RUN_TEST(test_ch3_waits_for_master_then_runs);
+    RUN_TEST(test_ch3_follows_master_retune);
+    RUN_TEST(test_ch3_below_iq_range_waits_and_resumes);
+    RUN_TEST(test_ch3_master_switch);
+    RUN_TEST(test_ch3_phase_change);
+    RUN_TEST(test_master_off_switches_follower_off);
+    RUN_TEST(test_ch3_off_powers_clk2_down);
+    RUN_TEST(test_boot_without_si5351_then_hot_plug);
+    RUN_TEST(test_power_glitch_reports_once_and_restores);
+    RUN_TEST(test_power_glitch_is_restored_in_the_same_cycle);
+    RUN_TEST(test_millis_wrap_keeps_supervision_and_autosave);
+    RUN_TEST(test_failing_bus_reinit_is_survived);
+    RUN_TEST(test_reconnect_restores_spread_spectrum);
+    RUN_TEST(test_failed_switch_or_off_state_reports_connection_lost);
+    RUN_TEST(test_bus_failure_while_tuning_shows_no_hw);
+    RUN_TEST(test_healthy_device_is_not_reconfigured);
+    RUN_TEST(test_backlight_steps);
+    RUN_TEST(test_backlight_from_older_firmware_is_rounded);
+    RUN_TEST(test_config_options_default_and_persist);
+    RUN_TEST(test_remote_off_state_high_needs_remote_outputs_allowed);
+    RUN_TEST(test_config_options_invalid_nvs_values);
+    RUN_TEST(test_setters_return_result_codes);
+    RUN_TEST(test_revision_counts_changes);
+    RUN_TEST(test_autosave_writes_only_changed_keys);
+    RUN_TEST(test_remote_changes_save_later);
+    RUN_TEST(test_reset_for_remote_is_not_saved);
+    RUN_TEST(test_setter_result_with_hardware_errors);
+    RUN_TEST(test_reset_to_defaults_keeps_the_correction);
+    RUN_TEST(test_erase_all_settings);
+    RUN_TEST(test_integer_mode_turns_spread_off);
+    RUN_TEST(test_spread_applies_to_pll_a_only);
+    RUN_TEST(test_tuning_mode_change_reconfigures_all_outputs);
+    RUN_TEST(test_iq_in_all_tuning_modes);
+    RUN_TEST(test_spread_with_iq_on_master_ch1);
+    RUN_TEST(test_spread_and_off_state_reach_the_chip);
+    RUN_TEST(test_spread_narrows_the_iq_range_without_error);
+    RUN_TEST(test_extended_range_and_ch3_limit);
+    RUN_TEST(test_boot_with_straight_cable);
+    RUN_TEST(test_boot_logs_the_connection);
+    RUN_TEST(test_boot_with_swapped_cable);
+    RUN_TEST(test_boot_without_module_searches_quietly);
+    RUN_TEST(test_hot_plug_straight_then_swapped);
+    RUN_TEST(test_rewiring_while_running_restores_iq);
+    RUN_TEST(test_dropout_reconnects_on_same_assignment);
+    RUN_TEST(test_healthy_link_leaves_bus_setup_alone);
+    RUN_TEST(test_fake_ack_on_wrong_assignment_is_skipped);
+    RUN_TEST(test_foreign_device_is_not_programmed);
+    RUN_TEST(test_si5351_powering_up_is_retried_while_present);
+    RUN_TEST(test_bus_too_weak_for_400_khz_stays_at_100_khz);
+    RUN_TEST(test_link_events);
+    RUN_TEST(test_events_carry_the_source);
+    RUN_TEST(test_line_held_low_reports_blocked);
+    RUN_TEST(test_boot_releases_line_held_low);
+    RUN_TEST(test_link_texts_fit_the_dialog);
+    RUN_TEST(test_autosave_after_quiet_period);
+    RUN_TEST(test_unchanged_settings_do_not_write_flash);
+    RUN_TEST(test_save_failure_is_reported);
+    RUN_TEST(test_failed_save_is_retried_without_new_dialogs);
+    RUN_TEST(test_nvs_unavailable);
+    RUN_TEST(test_settings_survive_reboot_but_outputs_start_off);
+    RUN_TEST(test_settings_load_sanitizes_invalid_values);
+    RUN_TEST(test_actual_frequency_known_only_after_stored_settings);
+    return UNITY_END();
+}

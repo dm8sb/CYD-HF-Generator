@@ -1,0 +1,523 @@
+// SPDX-FileCopyrightText: 2026 DM8SB
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// GUI input logic without LVGL (audit T-10, T-11): numpad editing and confirmation, tap on a
+// digit of the frequency label, colored step digit.
+
+#include <unity.h>
+#include <constants.h>
+#include <utils/frequency_utils.h>
+#include <utils/input_logic.h>
+#include <utils/message_queue.h>
+#include <utils/status_text.h>
+#include <string.h>
+
+using namespace InputLogic;
+
+void setUp() {}
+void tearDown() {}
+
+static Numpad typed(const char* keys) {
+    Numpad n;
+    char k[2] = {0, 0};
+    for (const char* p = keys; *p; ++p) {
+        k[0] = *p;
+        numpadKey(n, k, nullptr);
+    }
+    return n;
+}
+
+static void test_numpad_digits_and_one_point() {
+    Numpad n = typed("10.7.5");
+    TEST_ASSERT_EQUAL_STRING("10.75", n.text);
+    TEST_ASSERT_EQUAL(NumpadEvent::Ignored, numpadKey(n, ".", nullptr));
+    TEST_ASSERT_EQUAL(NumpadEvent::Ignored, numpadKey(n, "x", nullptr));
+    TEST_ASSERT_EQUAL(NumpadEvent::Ignored, numpadKey(n, nullptr, nullptr));
+}
+
+static void test_numpad_length_limit() {
+    Numpad n = typed("12345678901");
+    TEST_ASSERT_EQUAL_STRING("1234567890", n.text); // "150.000001" MHz needs 10
+    TEST_ASSERT_EQUAL_UINT(NUMPAD_MAX_LEN, n.len);
+    // The 10th character is not ignored silently (audit U-9).
+    TEST_ASSERT_EQUAL(NumpadEvent::Rejected, numpadKey(n, "1", nullptr));
+    TEST_ASSERT_EQUAL(NumpadError::TooLong, n.error);
+    TEST_ASSERT_EQUAL_STRING("1234567890", n.text);
+    // Backspace still works and clears the error.
+    TEST_ASSERT_EQUAL(NumpadEvent::Edited, numpadKey(n, KEY_BACKSPACE, nullptr));
+    TEST_ASSERT_EQUAL(NumpadError::None, n.error);
+}
+
+static void test_numpad_backspace_and_clear() {
+    Numpad n = typed("14.2");
+    TEST_ASSERT_EQUAL(NumpadEvent::Edited, numpadKey(n, KEY_BACKSPACE, nullptr));
+    TEST_ASSERT_EQUAL_STRING("14.", n.text);
+    TEST_ASSERT_EQUAL(NumpadEvent::Edited, numpadKey(n, "C", nullptr));
+    TEST_ASSERT_EQUAL_STRING("", n.text);
+    TEST_ASSERT_EQUAL(NumpadEvent::Ignored, numpadKey(n, KEY_BACKSPACE, nullptr));
+    // After backspace over the point a new point is allowed again.
+    n = typed("1.");
+    numpadKey(n, KEY_BACKSPACE, nullptr);
+    TEST_ASSERT_EQUAL(NumpadEvent::Edited, numpadKey(n, ".", nullptr));
+}
+
+static void test_numpad_units_confirm() {
+    uint64_t hz = 0;
+    Numpad n = typed("10.7");
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadKey(n, "MHz", &hz));
+    TEST_ASSERT_EQUAL_UINT64(10700000ULL, hz);
+    n = typed("1000");
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadKey(n, "kHz", &hz));
+    TEST_ASSERT_EQUAL_UINT64(1000000ULL, hz);
+    n = typed("5000000");
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadKey(n, "Hz", &hz));
+    TEST_ASSERT_EQUAL_UINT64(5000000ULL, hz);
+}
+
+// MESSPLAN B3: "500" MHz and "0.5" MHz are rejected and marked; the input stays, so it can be
+// corrected (audit U-9).
+static void test_numpad_rejects_out_of_range_and_empty() {
+    struct Case {
+        const char* text;
+        NumpadError error;
+    };
+    const Case bad[] = {{"500", NumpadError::OutOfRange}, {"0.005", NumpadError::OutOfRange},
+                        {"", NumpadError::Empty}, {".", NumpadError::Empty}};
+    for (const Case& c : bad) {
+        Numpad n = typed(c.text);
+        uint64_t hz = 42;
+        TEST_ASSERT_EQUAL_MESSAGE(NumpadEvent::Rejected, numpadKey(n, "MHz", &hz), c.text);
+        TEST_ASSERT_EQUAL_UINT64(42, hz);
+        TEST_ASSERT_EQUAL_MESSAGE(c.error, n.error, c.text);
+        TEST_ASSERT_EQUAL_STRING(c.text, n.text);
+        // The next key clears the error mark.
+        numpadKey(n, KEY_BACKSPACE, nullptr);
+        TEST_ASSERT_EQUAL(NumpadError::None, n.error);
+    }
+    // Corrected after the error: "500" -> "50" MHz.
+    Numpad n = typed("500");
+    numpadKey(n, "MHz", nullptr);
+    numpadKey(n, KEY_BACKSPACE, nullptr);
+    uint64_t hz = 0;
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadKey(n, "MHz", &hz));
+    TEST_ASSERT_EQUAL_UINT64(50000000ULL, hz);
+}
+
+static void test_numpad_error_texts() {
+    TEST_ASSERT_EQUAL_STRING("", numpadErrorText(NumpadError::None));
+    TEST_ASSERT_EQUAL_STRING("Enter a number", numpadErrorText(NumpadError::Empty));
+    TEST_ASSERT_EQUAL_STRING("8 kHz - 160 MHz", numpadErrorText(NumpadError::OutOfRange));
+    TEST_ASSERT_EQUAL_STRING("Max. 10 characters", numpadErrorText(NumpadError::TooLong));
+}
+
+// Monospaced test font: every character 10 px.
+static int width10(char, char, void*) { return 10; }
+
+static void test_char_index_at() {
+    const char* text = "10.700 000 MHz";
+    TEST_ASSERT_EQUAL_UINT(0, charIndexAt(text, 0, width10, nullptr));
+    TEST_ASSERT_EQUAL_UINT(0, charIndexAt(text, 9, width10, nullptr));
+    TEST_ASSERT_EQUAL_UINT(1, charIndexAt(text, 10, width10, nullptr));
+    TEST_ASSERT_EQUAL_UINT(13, charIndexAt(text, 139, width10, nullptr));
+    TEST_ASSERT_EQUAL_UINT(13, charIndexAt(text, 500, width10, nullptr)); // right of the text
+    TEST_ASSERT_EQUAL_UINT(0, charIndexAt(text, -5, width10, nullptr));
+}
+
+// A tap on a point or space selects the nearer neighbor (audit U-15): the targets are only
+// 1.8-3.4 mm wide.
+static void test_tap_index_assigns_separators_to_neighbors() {
+    const char* text = "10.700 000 MHz"; // 10 px per character
+    TEST_ASSERT_EQUAL_UINT(1, tapIndexAt(text, 22, width10, nullptr)); // left half of '.'
+    TEST_ASSERT_EQUAL_UINT(3, tapIndexAt(text, 27, width10, nullptr)); // right half of '.'
+    TEST_ASSERT_EQUAL_UINT(5, tapIndexAt(text, 61, width10, nullptr)); // left half of ' '
+    TEST_ASSERT_EQUAL_UINT(7, tapIndexAt(text, 66, width10, nullptr)); // right half of ' '
+    TEST_ASSERT_EQUAL_UINT(9, tapIndexAt(text, 101, width10, nullptr)); // ' ' before the unit
+    TEST_ASSERT_EQUAL_UINT(11, tapIndexAt(text, 107, width10, nullptr)); // unit side
+    TEST_ASSERT_EQUAL_UINT(4, tapIndexAt(text, 45, width10, nullptr)); // digits unchanged
+    TEST_ASSERT_EQUAL_UINT(13, tapIndexAt(text, 500, width10, nullptr));
+}
+
+static void test_tap_target() {
+    const char* text = "10.700 000 MHz";
+    uint32_t step = 0;
+    TEST_ASSERT_EQUAL(TapTarget::Step, tapTarget(text, 5, &step)); // 1 kHz digit
+    TEST_ASSERT_EQUAL_UINT32(1000, step);
+    TEST_ASSERT_EQUAL(TapTarget::Step, tapTarget(text, 9, &step)); // 1 Hz digit
+    TEST_ASSERT_EQUAL_UINT32(1, step);
+    TEST_ASSERT_EQUAL(TapTarget::Step, tapTarget(text, 1, &step)); // 1 MHz digit
+    TEST_ASSERT_EQUAL_UINT32(1000000, step);
+    TEST_ASSERT_EQUAL(TapTarget::Step, tapTarget(text, 0, &step)); // 10 MHz -> largest step
+    TEST_ASSERT_EQUAL_UINT32(DELTA_STEPS[DELTA_STEP_COUNT - 1], step);
+    TEST_ASSERT_EQUAL(TapTarget::None, tapTarget(text, 2, &step)); // point
+    TEST_ASSERT_EQUAL(TapTarget::None, tapTarget(text, 6, &step)); // space
+    TEST_ASSERT_EQUAL(TapTarget::Numpad, tapTarget(text, 11, &step));
+    TEST_ASSERT_EQUAL(TapTarget::Numpad, tapTarget(text, 13, &step));
+    TEST_ASSERT_EQUAL(TapTarget::None, tapTarget(text, 99, &step));
+}
+
+static void test_step_markup() {
+    char out[64];
+    stepMarkup("10.700 000 MHz", 1000, 0xFF0000, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("10.70#FF0000 0# 000 MHz", out);
+    stepMarkup("100.000 000 MHz", 1000000, 0x00FF00, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("10#00FF00 0#.000 000 MHz", out);
+    char small[16];
+    stepMarkup("10.700 000 MHz", 1, 0x123456, small, sizeof(small));
+    TEST_ASSERT_TRUE(strlen(small) < sizeof(small));
+}
+
+// ---------------------------------------------------------------------------
+// Message queue (audit T-12, A-38)
+
+// Tags as the GUI uses them (EventCategory).
+static constexpr uint8_t LINK = 1;
+static constexpr uint8_t OUTPUT = 2;
+
+static void test_queue_one_open_rest_waits_in_order() {
+    MessageQueue q;
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Open, q.post("SI5351", "Link lost"));
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Queued, q.post("SI5351", "Frequency set failed"));
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Queued, q.post("Settings", "Save failed"));
+    TEST_ASSERT_EQUAL_STRING("Link lost", q.openText());
+    const MessageQueue::Message* m = q.close();
+    TEST_ASSERT_NOT_NULL(m);
+    TEST_ASSERT_EQUAL_STRING("Frequency set failed", q.openText());
+    m = q.close();
+    TEST_ASSERT_EQUAL_STRING("Settings", m->title);
+    TEST_ASSERT_NULL(q.close());
+    TEST_ASSERT_FALSE(q.isOpen());
+}
+
+static void test_queue_drops_duplicates_and_overflow() {
+    MessageQueue q;
+    q.post("A", "one");
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Duplicate, q.post("A", "one"));
+    q.post("A", "two");
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Duplicate, q.post("B", "two"));
+    q.post("A", "three");
+    q.post("A", "four");
+    TEST_ASSERT_EQUAL_UINT8(MessageQueue::CAPACITY, q.queued());
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Full, q.post("A", "five"));
+    // A long text is compared as stored (truncated).
+    char longText[300];
+    memset(longText, 'x', sizeof(longText) - 1);
+    longText[sizeof(longText) - 1] = 0;
+    MessageQueue r;
+    r.post("A", longText);
+    TEST_ASSERT_EQUAL(MessageQueue::Post::Duplicate, r.post("A", longText));
+}
+
+static void test_queue_drops_link_messages_after_reconnect() {
+    MessageQueue q;
+    q.post("SI5351", "Link lost", LINK);
+    q.post("SI5351", "Frequency set failed", OUTPUT);
+    q.post("SI5351", "Link stays low", LINK);
+    TEST_ASSERT_TRUE(q.dropTagged(LINK)); // the open one is a link message
+    TEST_ASSERT_EQUAL_UINT8(1, q.queued());
+    q.close();
+    TEST_ASSERT_EQUAL_STRING("Frequency set failed", q.openText());
+    TEST_ASSERT_FALSE(q.dropTagged(LINK));
+}
+
+// ---------------------------------------------------------------------------
+// Confirmation dialogs (audit CQ-1, CQ-15, Konzept 3)
+
+enum : uint8_t { DELETE_NET = 1, OPEN_FALLBACK = 2, WEB_NETWORK = 3 };
+
+// The audit case: "Delete network" open, the open fallback AP question arrives. It waits; Cancel
+// of the delete dialog never confirms the fallback AP, and a tap on the old box after it closed
+// is ignored.
+static void test_confirm_auto_question_waits_for_the_open_dialog() {
+    ConfirmQueue q;
+    TEST_ASSERT_EQUAL(ConfirmQueue::Post::Open, q.post(DELETE_NET, 1));
+    const uint16_t del = q.open().generation;
+    TEST_ASSERT_NOT_EQUAL(0, del);
+    TEST_ASSERT_EQUAL(ConfirmQueue::Post::Queued, q.post(OPEN_FALLBACK));
+    TEST_ASSERT_EQUAL_UINT8(DELETE_NET, q.open().kind); // still the delete dialog
+    TEST_ASSERT_TRUE(q.pending(OPEN_FALLBACK));
+    ConfirmQueue::Entry a {};
+    TEST_ASSERT_TRUE(q.answer(del, &a));
+    TEST_ASSERT_EQUAL_UINT8(DELETE_NET, a.kind);
+    TEST_ASSERT_EQUAL_UINT8(1, a.payload); // the slot it was opened for
+    TEST_ASSERT_FALSE(q.isOpen());
+    TEST_ASSERT_TRUE(q.next());
+    TEST_ASSERT_EQUAL_UINT8(OPEN_FALLBACK, q.open().kind);
+    const uint16_t fb = q.open().generation;
+    TEST_ASSERT_NOT_EQUAL(del, fb);
+    // A second tap on the closed delete box: stale, the fallback dialog stays open.
+    TEST_ASSERT_FALSE(q.answer(del, &a));
+    TEST_ASSERT_EQUAL_UINT8(OPEN_FALLBACK, q.open().kind);
+    TEST_ASSERT_TRUE(q.answer(fb, &a));
+    TEST_ASSERT_EQUAL_UINT8(OPEN_FALLBACK, a.kind);
+    TEST_ASSERT_FALSE(q.next());
+    TEST_ASSERT_FALSE(q.answer(0));
+}
+
+static void test_confirm_order_duplicates_and_overflow() {
+    ConfirmQueue q;
+    q.post(DELETE_NET, 0);
+    TEST_ASSERT_EQUAL(ConfirmQueue::Post::Duplicate, q.post(DELETE_NET, 0));
+    TEST_ASSERT_EQUAL(ConfirmQueue::Post::Queued, q.post(DELETE_NET, 1)); // another slot
+    TEST_ASSERT_EQUAL(ConfirmQueue::Post::Queued, q.post(WEB_NETWORK));
+    TEST_ASSERT_EQUAL(ConfirmQueue::Post::Duplicate, q.post(WEB_NETWORK));
+    TEST_ASSERT_EQUAL(ConfirmQueue::Post::Queued, q.post(OPEN_FALLBACK));
+    TEST_ASSERT_EQUAL(ConfirmQueue::Post::Queued, q.post(9));
+    TEST_ASSERT_EQUAL_UINT8(ConfirmQueue::CAPACITY, q.queued());
+    TEST_ASSERT_EQUAL(ConfirmQueue::Post::Full, q.post(10));
+    const uint8_t order[] = {DELETE_NET, DELETE_NET, WEB_NETWORK, OPEN_FALLBACK, 9};
+    for (uint8_t i = 0; i < sizeof(order); ++i) {
+        if (i) TEST_ASSERT_TRUE(q.next());
+        TEST_ASSERT_EQUAL_UINT8(order[i], q.open().kind);
+        TEST_ASSERT_TRUE(q.answer(q.open().generation));
+    }
+    TEST_ASSERT_FALSE(q.next());
+    // Generations never repeat one in use and skip 0 after the wrap.
+    ConfirmQueue w;
+    uint16_t last = 0;
+    for (uint32_t i = 0; i < 70000; ++i) {
+        w.post(1);
+        TEST_ASSERT_NOT_EQUAL(0, w.open().generation);
+        TEST_ASSERT_NOT_EQUAL(last, w.open().generation);
+        last = w.open().generation;
+        w.answer(last);
+    }
+}
+
+// A question that is no longer needed (fallback AP no longer waiting, web change ended) goes,
+// open or waiting; an answer from its box is stale afterwards.
+static void test_confirm_drop_outdated_question() {
+    ConfirmQueue q;
+    q.post(OPEN_FALLBACK);
+    const uint16_t fb = q.open().generation;
+    q.post(WEB_NETWORK);
+    q.post(DELETE_NET, 0);
+    TEST_ASSERT_TRUE(q.drop(OPEN_FALLBACK)); // the open one: closed without an answer
+    TEST_ASSERT_FALSE(q.isOpen());
+    TEST_ASSERT_FALSE(q.answer(fb));
+    TEST_ASSERT_TRUE(q.next());
+    TEST_ASSERT_EQUAL_UINT8(WEB_NETWORK, q.open().kind);
+    TEST_ASSERT_FALSE(q.drop(DELETE_NET)); // waiting one removed, the open one stays
+    TEST_ASSERT_FALSE(q.pending(DELETE_NET));
+    TEST_ASSERT_EQUAL_UINT8(0, q.queued());
+    TEST_ASSERT_TRUE(q.pending(WEB_NETWORK));
+    TEST_ASSERT_FALSE(q.drop(OPEN_FALLBACK));
+}
+
+// ---------------------------------------------------------------------------
+// IQ limit text (audit T-13, C-11)
+
+static void test_iq_limit_is_rounded_towards_the_inside() {
+    char buf[16];
+    FrequencyUtils::formatIqLimit(4730000, true, 3, false, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("4.730", buf);
+    FrequencyUtils::formatIqLimit(4748151, true, 3, false, buf, sizeof(buf)); // -0.5 % spread
+    TEST_ASSERT_EQUAL_STRING("4.749", buf);
+    FrequencyUtils::formatIqLimit(4748151, true, 2, false, buf, sizeof(buf)); // MAIN
+    TEST_ASSERT_EQUAL_STRING("4.75", buf);
+    FrequencyUtils::formatIqLimit(99502487, false, 3, false, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("99.502", buf);
+    FrequencyUtils::formatIqLimit(99502487, false, 2, false, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("99.50", buf);
+    FrequencyUtils::formatIqLimit(100000000, false, 3, true, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("100", buf);
+    FrequencyUtils::formatIqLimit(100000000, false, 3, false, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("100.000", buf);
+}
+
+// ---------------------------------------------------------------------------
+// State texts of MAIN and the headers (audit U-1)
+
+static void test_status_texts_show_the_actual_state() {
+    using namespace StatusText;
+    TEST_ASSERT_EQUAL_STRING("ON", channel(ChannelStatus::On).text);
+    TEST_ASSERT_EQUAL(Tone::Ok, channel(ChannelStatus::On).tone);
+    TEST_ASSERT_EQUAL_STRING("OFF", channel(ChannelStatus::Off).text);
+    TEST_ASSERT_EQUAL(Tone::Muted, channel(ChannelStatus::Off).tone);
+    TEST_ASSERT_EQUAL_STRING("! ERR", channel(ChannelStatus::Error).text);
+    TEST_ASSERT_EQUAL_STRING("! NO HW", channel(ChannelStatus::NoDevice).text);
+    TEST_ASSERT_EQUAL(Tone::Error, channel(ChannelStatus::NoDevice).tone);
+    // CH3 switched on but waiting is not "ON" (before, the header showed the request).
+    TEST_ASSERT_EQUAL_STRING("WAIT", ch3(Ch3Status::MasterOff).text);
+    TEST_ASSERT_EQUAL_STRING("WAIT", ch3(Ch3Status::FreqTooLow).text);
+    TEST_ASSERT_EQUAL_STRING("WAIT", ch3(Ch3Status::FreqTooHigh).text);
+    TEST_ASSERT_EQUAL(Tone::Warn, ch3(Ch3Status::FreqTooHigh).tone);
+    TEST_ASSERT_EQUAL_STRING("ON", ch3(Ch3Status::Active).text);
+    TEST_ASSERT_EQUAL_STRING("! ERR", ch3(Ch3Status::Error).text);
+    TEST_ASSERT_EQUAL_STRING("! NO HW", ch3(Ch3Status::NoDevice).text);
+    TEST_ASSERT_EQUAL_STRING("OFF", ch3(Ch3Status::Off).text);
+}
+
+// Special modes line (audit U-2)
+static void test_mode_summary_lists_only_deviations() {
+    using namespace StatusText;
+    char buf[64];
+    TEST_ASSERT_EQUAL(Tone::Muted, modeSummary(TuningMode::Fractional, Spread::Off, DEFAULT_DRIVE_MA, OffState::Low, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("", buf);
+    TEST_ASSERT_EQUAL(Tone::Warn, modeSummary(TuningMode::LowNoise, Spread::Down05, 8, OffState::High, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("OFF=High | SSC -0.5% | Low noise | 8mA", buf);
+    TEST_ASSERT_EQUAL(Tone::Muted, modeSummary(TuningMode::Integer, Spread::Off, 2, OffState::HighZ, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("OFF=High-Z | Integer | 2mA", buf);
+    modeSummary(TuningMode::Fractional, Spread::Center05, DEFAULT_DRIVE_MA, OffState::Low, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("SSC +/-0.5%", buf);
+    char small[12];
+    modeSummary(TuningMode::LowNoise, Spread::Down15, 8, OffState::High, small, sizeof(small));
+    TEST_ASSERT_TRUE(strlen(small) < sizeof(small));
+}
+
+// Buttons at the screen edge take taps up to the edge (audit U-5)
+static void test_edge_area_reaches_only_near_edges() {
+    using namespace InputLogic;
+    // MAIN in the header (254..315 x 1..36): to the right and top edge, not left or down.
+    Area a = edgeArea({254, 1, 315, 36}, EDGE_REACH, 320, 240);
+    TEST_ASSERT_EQUAL(254, a.x1);
+    TEST_ASSERT_EQUAL(0, a.y1);
+    TEST_ASSERT_EQUAL(319, a.x2);
+    TEST_ASSERT_EQUAL(36, a.y2);
+    TEST_ASSERT_TRUE(contains(a, 319, 0)); // clamped corner tap
+    TEST_ASSERT_FALSE(contains(a, 253, 10));
+    TEST_ASSERT_FALSE(contains(a, 300, 37));
+    // CH1 at the bottom left (8..79 x 194..235): left and bottom edge.
+    a = edgeArea({8, 194, 79, 235}, EDGE_REACH, 320, 240);
+    TEST_ASSERT_TRUE(contains(a, 0, 239));
+    TEST_ASSERT_FALSE(contains(a, 80, 239)); // the gap to CH2 stays free
+    TEST_ASSERT_FALSE(contains(a, 40, 193));
+    // A button in the middle keeps its area.
+    a = edgeArea({100, 100, 150, 140}, EDGE_REACH, 320, 240);
+    TEST_ASSERT_EQUAL(100, a.x1);
+    TEST_ASSERT_EQUAL(100, a.y1);
+    TEST_ASSERT_EQUAL(150, a.x2);
+    TEST_ASSERT_EQUAL(140, a.y2);
+    // 9 px from the edge is too far.
+    a = edgeArea({9, 9, 50, 50}, EDGE_REACH, 320, 240);
+    TEST_ASSERT_EQUAL(9, a.x1);
+    TEST_ASSERT_EQUAL(9, a.y1);
+}
+
+// Output error dialogs name the channel and what happens next (audit U-21).
+static void test_output_error_texts_name_channel_and_retry() {
+    using namespace StatusText;
+    char buf[160];
+    outputErrorText(2, 0, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("CH2: frequency setup failed. Retrying every 2 s.", buf);
+    outputErrorText(3, 1, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("CH3: IQ setup failed, CLK2 stays off. CH1 keeps running. Retrying every 2 s.", buf);
+}
+
+// Hint on the channel page outside 1-100 MHz (E-16).
+static void test_range_note() {
+    using namespace StatusText;
+    TEST_ASSERT_EQUAL_STRING("", rangeNote(10000000ULL));
+    TEST_ASSERT_EQUAL_STRING("", rangeNote(1000000ULL));
+    TEST_ASSERT_EQUAL_STRING("", rangeNote(100000000ULL));
+    TEST_ASSERT_EQUAL_STRING(">100MHz: low level", rangeNote(100000001ULL));
+    TEST_ASSERT_EQUAL_STRING("<1MHz: harmonics", rangeNote(999999ULL));
+}
+
+// Screen lock (audit U-13): while locked no touch reaches LVGL; holding 2 s unlocks, and
+// that touch is swallowed until it is released.
+static void test_screen_lock() {
+    ScreenLock l;
+    TEST_ASSERT_FALSE(l.blocking());
+    TEST_ASSERT_EQUAL(ScreenLock::Event::None, l.update(true, 0)); // unlocked: passes through
+    l.update(false, 10);
+    l.lock();
+    TEST_ASSERT_TRUE(l.locked());
+    TEST_ASSERT_TRUE(l.blocking());
+    // A short tap does nothing but shows the hint.
+    TEST_ASSERT_EQUAL(ScreenLock::Event::Pressed, l.update(true, 100));
+    TEST_ASSERT_EQUAL(ScreenLock::Event::None, l.update(true, 1000));
+    TEST_ASSERT_EQUAL(ScreenLock::Event::Released, l.update(false, 1100));
+    TEST_ASSERT_TRUE(l.locked());
+    // Held for UNLOCK_HOLD_MS: unlocked, but still blocking until the finger lifts.
+    l.update(true, 2000);
+    TEST_ASSERT_EQUAL(ScreenLock::Event::None, l.update(true, 2000 + UNLOCK_HOLD_MS - 1));
+    TEST_ASSERT_EQUAL(ScreenLock::Event::Unlocked, l.update(true, 2000 + UNLOCK_HOLD_MS));
+    TEST_ASSERT_FALSE(l.locked());
+    TEST_ASSERT_TRUE(l.blocking());
+    TEST_ASSERT_EQUAL(ScreenLock::Event::None, l.update(true, 5000));
+    TEST_ASSERT_EQUAL(ScreenLock::Event::Released, l.update(false, 5100));
+    TEST_ASSERT_FALSE(l.blocking());
+}
+
+// Correction entry on the numpad (audit U-11): signed ppm with 0.01 ppm resolution, +-50.00.
+static void test_numpad_ppm_entry() {
+    int32_t centi = 0;
+    Numpad n = typed("9.7");
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadPpmKey(n, "ppm", &centi));
+    TEST_ASSERT_EQUAL_INT32(970, centi);
+    n = Numpad {};
+    TEST_ASSERT_EQUAL(NumpadEvent::Edited, numpadPpmKey(n, KEY_SIGN, &centi));
+    TEST_ASSERT_TRUE(n.negative);
+    const char* keys[] = {"1", "2", ".", "3", "4", "5"};
+    for (const char* k : keys) numpadPpmKey(n, k, &centi);
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadPpmKey(n, "ppm", &centi));
+    TEST_ASSERT_EQUAL_INT32(-1235, centi); // rounded to 0.01 ppm
+    // Out of range and empty input are rejected and stay editable.
+    n = typed("50.01");
+    centi = 7;
+    TEST_ASSERT_EQUAL(NumpadEvent::Rejected, numpadPpmKey(n, "ppm", &centi));
+    TEST_ASSERT_EQUAL(NumpadError::PpmRange, n.error);
+    TEST_ASSERT_EQUAL_STRING("50.01", n.text);
+    TEST_ASSERT_EQUAL_INT32(7, centi);
+    TEST_ASSERT_EQUAL_STRING("-50.00 to +50.00 ppm", numpadErrorText(NumpadError::PpmRange));
+    n = typed("50");
+    TEST_ASSERT_EQUAL(NumpadEvent::Confirmed, numpadPpmKey(n, "ppm", &centi));
+    TEST_ASSERT_EQUAL_INT32(CORRECTION_MAX, centi);
+    n = Numpad {};
+    TEST_ASSERT_EQUAL(NumpadEvent::Rejected, numpadPpmKey(n, "ppm", &centi));
+    TEST_ASSERT_EQUAL(NumpadError::Empty, n.error);
+    // C clears the sign as well; frequency units do nothing here.
+    n = typed("3");
+    numpadPpmKey(n, KEY_SIGN, &centi);
+    TEST_ASSERT_EQUAL(NumpadEvent::Edited, numpadPpmKey(n, "C", &centi));
+    TEST_ASSERT_FALSE(n.negative);
+    TEST_ASSERT_EQUAL_STRING("", n.text);
+    TEST_ASSERT_EQUAL(NumpadEvent::Ignored, numpadPpmKey(n, "MHz", &centi));
+}
+
+// Holding +/- speeds up (audit U-20): about 3 steps/s, after 3 s 10/s, after 6 s 20/s.
+static void test_repeat_speeds_up() {
+    TEST_ASSERT_TRUE(REPEAT_DELAY_MS < REPEAT_FAST_MS && REPEAT_FAST_MS < REPEAT_FASTER_MS);
+    TEST_ASSERT_EQUAL_UINT8(1, repeatSteps(0));
+    TEST_ASSERT_EQUAL_UINT8(1, repeatSteps(REPEAT_FAST_MS));
+    TEST_ASSERT_EQUAL_UINT8(1, repeatSteps(REPEAT_FASTER_MS - 1));
+    TEST_ASSERT_EQUAL_UINT8(2, repeatSteps(REPEAT_FASTER_MS));
+    TEST_ASSERT_EQUAL_UINT8(2, repeatSteps(60000));
+    // Slow phase: a repeat acts only REPEAT_SLOW_INTERVAL_MS after the last step.
+    TEST_ASSERT_FALSE(repeatDue(REPEAT_DELAY_MS + 100, 100));
+    TEST_ASSERT_FALSE(repeatDue(REPEAT_FAST_MS - 1, REPEAT_SLOW_INTERVAL_MS - 1));
+    TEST_ASSERT_TRUE(repeatDue(REPEAT_DELAY_MS + 300, REPEAT_SLOW_INTERVAL_MS));
+    // From REPEAT_FAST_MS every repeat acts.
+    TEST_ASSERT_TRUE(repeatDue(REPEAT_FAST_MS, 0));
+    TEST_ASSERT_TRUE(repeatDue(REPEAT_FASTER_MS, 0));
+}
+
+int main(int, char**) {
+    UNITY_BEGIN();
+    RUN_TEST(test_numpad_digits_and_one_point);
+    RUN_TEST(test_numpad_length_limit);
+    RUN_TEST(test_numpad_backspace_and_clear);
+    RUN_TEST(test_numpad_units_confirm);
+    RUN_TEST(test_numpad_rejects_out_of_range_and_empty);
+    RUN_TEST(test_char_index_at);
+    RUN_TEST(test_tap_target);
+    RUN_TEST(test_step_markup);
+    RUN_TEST(test_queue_one_open_rest_waits_in_order);
+    RUN_TEST(test_queue_drops_duplicates_and_overflow);
+    RUN_TEST(test_queue_drops_link_messages_after_reconnect);
+    RUN_TEST(test_confirm_auto_question_waits_for_the_open_dialog);
+    RUN_TEST(test_confirm_order_duplicates_and_overflow);
+    RUN_TEST(test_confirm_drop_outdated_question);
+    RUN_TEST(test_iq_limit_is_rounded_towards_the_inside);
+    RUN_TEST(test_status_texts_show_the_actual_state);
+    RUN_TEST(test_mode_summary_lists_only_deviations);
+    RUN_TEST(test_edge_area_reaches_only_near_edges);
+    RUN_TEST(test_numpad_error_texts);
+    RUN_TEST(test_tap_index_assigns_separators_to_neighbors);
+    RUN_TEST(test_output_error_texts_name_channel_and_retry);
+    RUN_TEST(test_range_note);
+    RUN_TEST(test_screen_lock);
+    RUN_TEST(test_numpad_ppm_entry);
+    RUN_TEST(test_repeat_speeds_up);
+    return UNITY_END();
+}

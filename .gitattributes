@@ -1,0 +1,7 @@
+# All text files use LF in the repository and in the working copy, independent of
+# core.autocrlf (Git for Windows sets it to true system-wide). Binary files are detected.
+* text=auto eol=lf
+# Shell scripts run on Linux CI runners and in Git Bash: always LF.
+*.sh text eol=lf
+# Fuzz seeds are exact byte strings: no line-ending conversion.
+test/fuzz/corpus/** binary

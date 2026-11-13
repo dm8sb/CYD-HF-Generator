@@ -1,0 +1,13 @@
+# Editors: LF and UTF-8 like the repository (.gitattributes). VS Code reads this with the
+# EditorConfig extension; without it set "files.eol": "\n".
+root = true
+
+[*]
+end_of_line = lf
+charset = utf-8
+insert_final_newline = true
+
+[test/fuzz/corpus/**]
+end_of_line = unset
+charset = unset
+insert_final_newline = unset

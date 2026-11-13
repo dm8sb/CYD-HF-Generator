@@ -1,0 +1,23 @@
+version = 1
+# Licensing of the files that carry no SPDX header of their own (AF31, LIC-8): documentation,
+# JSON, libFuzzer dictionaries and seeds, images and repository settings. All own files are
+# GPL-3.0-or-later; third-party license texts live in LICENSES/ (see THIRD_PARTY_NOTICES.md).
+# Source files (C/C++, Python, JavaScript, CSS, HTML, YAML, OpenSCAD, shell) have the two SPDX
+# lines in their header instead.
+
+[[annotations]]
+path = [
+    "*.md",
+    "**/*.md",
+    ".github/**",
+    "docs/**",
+    "flasher/*.json",
+    "test/fuzz/*.dict",
+    "test/fuzz/corpus/**",
+    ".editorconfig",
+    ".gitattributes",
+    ".gitignore",
+]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 DM8SB"
+SPDX-License-Identifier = "GPL-3.0-or-later"

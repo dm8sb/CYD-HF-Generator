@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 DM8SB
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Dependabot version updates (ARBEITSPLAN G6): keeps the SHA-pinned actions in
+# .github/workflows current (W-S24, audit S-20, S-27); it updates the SHA and the version
+# comment together. PlatformIO (platformio.ini) is not supported by Dependabot.
+#
+# Dependabot reads this file only from the default branch (main). The pull requests go to
+# the development branch `dev`, where the workflows are changed; main gets them with the
+# next release merge. Security updates always target main and ignore these options.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Berlin
+    # A new release must be a week old before it is proposed (supply chain: a hijacked
+    # release is usually found and pulled within days).
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "CI"
