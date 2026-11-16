@@ -108,6 +108,7 @@ Host-Tests: 406 Fälle in `native-win` und 4 in `native-win-fault`.
 | D43 | `/lxi/identification` bleibt ohne `MACAddress` und `LXIVersion` (W-S16, keine Konformitätsbehauptung) und ist damit nicht streng schemagültig; lxi-tools, PyVISA und python-vxi11 brauchen es nicht (LX1; Nutzer) |
 | D44 | Nächstes Release heißt **2.0.0** (Core 3, Weboberfläche, Netzsteuerung, LXI). Die Git-Historie wird vor `v2.0.0-rc1` durch einen neuen Wurzel-Commit ersetzt; alte Tags und Releases (`v1.3.3`, Release-Kandidaten 1.4.0) werden gelöscht, Rulesets kurz ab- und wieder eingeschaltet. Ablauf: `v2.0.0-rc1` als Pre-Release, Test durch den Nutzer, dann `v2.0.0`; Messungen danach (Nutzer) |
 | D45 | `v2.0.0-rc1` vom Nutzer getestet und für gut befunden; **2.0.0** erscheint ohne AF11, AF12 und AF55 und vor den Messungen. Diese folgen in 2.0.x; S64 bleibt die Freigabe nach den Messungen (Nutzer) |
+| D46 | CONFIG in Registern statt Scrollliste (Nutzertests am resistiven Touch: Scrollen schlecht und uneinheitlich, Blättern besser bewertet): Registerleiste unten mit `Signal`, `Freq`, `Net`, `Device`, `Info`, je höchstens drei Zeilen; `Reconnect all` nach `Net`, Touch-Abgleich neben `Lock` in `Device` (E-42). Dazu eine Kopfzeile für alle Seiten außer MAIN: `◀` oben links eine Ebene zurück statt `MAIN` rechts, Seitentasten rechts, Netzliste blättert mit `▲`/`▼` (E-43). Am Gerät keine Anzeige `Saved`/`Saving...` mehr, nur Speicherfehler in Rot; das Handbuch nennt das Speichern nach einigen Sekunden (E-44, Nutzer) |
 
 **Nicht umsetzen:** neue Funktionen außer N14 vorerst (D18); RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); Kanalwahl im Header (Rest von U-16: kein Platz neben Zustand und `MAIN`, über MAIN und die Karten 2 Tipps); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
 
@@ -417,6 +418,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 
 ### Phase 9 – Folgearbeiten (je ein Commit, nach Messergebnis oder Rückfrage)
 
+- [x] **U27 · Einheitliche Bedienung nach Nutzer-Feedback: CONFIG in Registern (D46, E-42).** Fünf Register unten statt Scrollliste, je höchstens drei Zeilen; Bedienelemente unverändert; Register bleibt bis zum Ausschalten. Einheitliche Kopfzeile mit `◀` auf allen Seiten außer MAIN (E-43); `Saved`/`Saving...` am Gerät ausgeblendet (E-44). Handbuch §8 und Anhang A (ein Bild je Register), A-25, A-31, E-42 (ersetzt E-22), CLAUDE.md. Prüfung: Host-Tests, Build ohne Warnungen, `render_images.py screens`; Bedientest am Gerät (alle Register, Auswahllisten in Zeile 3 öffnen nach oben, NUMPAD der Korrektur und `Setup` kehren ins richtige Register zurück). *Commit:* `U27: Split CONFIG into tabs`
 - [ ] **N1 · Standard-Tuning** ändern, wenn die Stufe-2-Messungen es tragen (Rückfrage 1, E-19).
 - [ ] **N2 · IQ-Abstimmen ohne Aussetzer** (Abschnitt 2.1).
 - [ ] **N3 · Ungerade IQ-Teiler bei 180°/270°**, wenn E4 einen Fehler > 1° zeigt.

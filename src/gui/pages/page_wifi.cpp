@@ -14,8 +14,6 @@ using namespace Layout;
 // WIFI pages (ARBEITSPLAN 3.4, S53b): overview with the two stored networks, scan list with
 // pages of ROWS entries (no scrolling) and a text entry with the on-screen keyboard. Foreign
 // SSIDs reach LVGL only sanitized (W-S9); keys are never shown once stored.
-static constexpr int BACK_W = 48;
-static constexpr int TITLE_X = 62;
 static constexpr int NET_Y = 44;
 static constexpr int NET_H = 42;
 static constexpr int NET_PITCH = NET_H + 4;
@@ -32,19 +30,15 @@ static constexpr int KB_Y = ENTRY_TA_Y + ENTRY_TA_H + 4;
 static_assert(NAV_Y + NAV_H <= SCREEN_HEIGHT, "scan list fits without scrolling");
 static_assert(STATUS_Y + 40 <= SCREEN_HEIGHT, "status lines fit");
 
-void Gui::addBackTitle_(PageId back, const char* title, lv_color_t color) {
-    addButton_(root_, LV_SYMBOL_LEFT, 4, 3, BACK_W, 36, Colors::gray(), Action::Navigate, (uint8_t)back);
-    lv_obj_t* t = addLabel_(root_, title, &lv_font_montserrat_20, color, TITLE_X, 10);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(t, SCREEN_WIDTH - TITLE_X - 8);
-}
+// The same header as the channel pages and CONFIG: back at the top left, then the title.
+void Gui::addBackTitle_(PageId back, const char* title, lv_color_t color) { createHeader_(title, color, 0, back); }
 
 // --- Overview ---------------------------------------------------------------
 
 void Gui::createWifi_() {
     const lv_color_t btnColor = lv_color_hex(0xF9A825);
     addBackTitle_(PageId::Config, "WIFI", Colors::config());
-    addButton_(root_, "Device", SCREEN_WIDTH - 4 - 84, 3, 84, 36, btnColor, Action::Navigate, (uint8_t)PageId::WifiDevice);
+    addButton_(root_, "Device", SCREEN_WIDTH - 4 - 84, BACK_Y, 84, BACK_H, btnColor, Action::Navigate, (uint8_t)PageId::WifiDevice);
     for (uint8_t slot = 0; slot < 2; ++slot) {
         lv_obj_t* card = addCard_(root_, MARGIN, NET_Y + slot * NET_PITCH, CONTENT_W, NET_H, Colors::config());
         lv_obj_set_style_pad_all(card, 4, 0);
@@ -137,7 +131,7 @@ void Gui::createWifiScan_() {
     char title[16];
     snprintf(title, sizeof(title), "Network %u", (unsigned)(wifiSlot_ + 1));
     addBackTitle_(PageId::Wifi, title, Colors::config());
-    addButton_(root_, "Scan", SCREEN_WIDTH - 4 - 66, 3, 66, 36, btnColor, Action::WifiRescan);
+    addButton_(root_, "Scan", SCREEN_WIDTH - 4 - 66, BACK_Y, 66, BACK_H, btnColor, Action::WifiRescan);
     for (uint8_t i = 0; i < ROWS; ++i) {
         lv_obj_t* row = addButton_(root_, "", MARGIN, ROW_Y + i * ROW_PITCH, CONTENT_W, ROW_H, Colors::cardBg(),
                                    Action::WifiPick, i);
@@ -154,10 +148,10 @@ void Gui::createWifiScan_() {
         lv_obj_align(w_.scanInfo[i], LV_ALIGN_RIGHT_MID, -6, 0);
         w_.scanRow[i] = row;
     }
-    addButton_(root_, LV_SYMBOL_LEFT, MARGIN, NAV_Y, 50, NAV_H, Colors::gray(), Action::WifiScanPage, 0);
+    addButton_(root_, LV_SYMBOL_UP, MARGIN, NAV_Y, 50, NAV_H, Colors::gray(), Action::WifiScanPage, 0);
     w_.scanPage = addLabel_(root_, "", &lv_font_montserrat_14, Colors::muted(), 0, 0);
     lv_obj_align(w_.scanPage, LV_ALIGN_TOP_LEFT, MARGIN + 58, NAV_Y + 9);
-    addButton_(root_, LV_SYMBOL_RIGHT, MARGIN + 110, NAV_Y, 50, NAV_H, Colors::gray(), Action::WifiScanPage, 1);
+    addButton_(root_, LV_SYMBOL_DOWN, MARGIN + 110, NAV_Y, 50, NAV_H, Colors::gray(), Action::WifiScanPage, 1);
     addButton_(root_, "Other...", SCREEN_WIDTH - 4 - 120, NAV_Y, 120, NAV_H, btnColor, Action::WifiOther);
     w_.scanState = addLabel_(root_, "", &lv_font_montserrat_16, Colors::muted(), 0, 0);
     lv_obj_align(w_.scanState, LV_ALIGN_TOP_MID, 0, ROW_Y + 2 * ROW_PITCH);

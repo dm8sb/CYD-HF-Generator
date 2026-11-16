@@ -25,6 +25,8 @@ inline lv_style_selector_t partState(uint32_t part, uint32_t state) { return par
 // refresh_() updates the existing widgets, so no widget is deleted inside its own event.
 class Gui {
 public:
+    // CONFIG tabs: Signal, Freq, Net, Device, Info.
+    static constexpr uint8_t CONFIG_TAB_COUNT = 5;
     // The display must already be initialized (DisplayPanel::begin()).
     void begin(AppController& app, TouchDriver& touch, DisplayPanel& display);
     void update();
@@ -112,7 +114,8 @@ private:
         DevIpMode,      // device page: DHCP / Static (dropdown)
         DevIpField,     // device page: arg 0..3 address, mask, gateway, DNS
         DevWebPassword, // device page: set, change or remove the web password
-        RemoteDisconnect // CONFIG info card: disconnect all web and SCPI clients
+        RemoteDisconnect, // CONFIG Net tab: disconnect all web and SCPI clients
+        ConfigTab         // CONFIG tab bar: arg tab 0..CONFIG_TAB_COUNT-1
     };
 
     struct Widgets {
@@ -127,7 +130,6 @@ private:
         lv_obj_t* cardState[3];
         lv_obj_t* cardDetail[3];
         lv_obj_t* cardSwitch[3];
-        lv_obj_t* cfgList;      // scroll container of the CONFIG rows
         lv_obj_t* blValue;
         lv_obj_t* corrValue;
         lv_obj_t* corrStep;
@@ -224,16 +226,16 @@ private:
     bool remoteShown_() const;
 
     // Returns the header bar for page-specific additions.
-    lv_obj_t* createHeader_(const char* title, lv_color_t color, uint8_t switchChannel);
+    lv_obj_t* createHeader_(const char* title, lv_color_t color, uint8_t switchChannel, PageId back = PageId::Main);
     // Switch = requested state; the label shows ERR in red when the output failed.
     // Switch = request, text = actual state (as on MAIN).
     void setHeaderState_(bool on, const StatusText::Text& state);
     // w_.info = actual output frequency of ch 1..3; deviations from 1 Hz on in the warning color.
     // Out line of a channel page; prefix (e.g. "Off | ") goes before it (U-17).
     void showOutput_(uint8_t ch, uint64_t requested, const char* prefix = "");
-    // CONFIG: a row card at position `index` of the list (title optional), and a row with a dropdown.
-    lv_obj_t* addConfigRow_(lv_obj_t* list, uint8_t index, int h, const char* title);
-    lv_obj_t* addOptionRow_(lv_obj_t* list, uint8_t index, const char* title, const char* options, Action action);
+    // CONFIG: a row card at position `index` of the tab (title optional), and a row with a dropdown.
+    lv_obj_t* addConfigRow_(lv_obj_t* parent, uint8_t index, int h, const char* title);
+    lv_obj_t* addOptionRow_(lv_obj_t* parent, uint8_t index, const char* title, const char* options, Action action);
     lv_obj_t* addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w, int h, lv_color_t color,
                          Action action, uint8_t arg = 0, bool repeat = false);
     lv_obj_t* addChip_(lv_obj_t* parent, const char* txt, int x, int y, int w, int h, lv_color_t color,
@@ -301,7 +303,7 @@ private:
     bool navPending_ = false;
     uint8_t channel_ = 1;       // channel shown on the CH1/CH2 page and edited by the numpad
     uint8_t corrStepIdx_ = 1;   // index into CORRECTION_STEPS
-    lv_coord_t configScrollY_ = 0; // CONFIG is rebuilt on every visit; RAM only
+    uint8_t configTab_ = 0;     // CONFIG tab shown on the next visit; RAM only
     uint32_t lastUpdateMs_ = 0;
     uint32_t lastRevision_ = 0;   // AppController::revision() of the last redraw
     uint16_t lastConnections_ = 0;

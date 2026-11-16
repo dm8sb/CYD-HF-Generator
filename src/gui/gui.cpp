@@ -152,8 +152,8 @@ lv_obj_t* Gui::addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w
     lv_obj_set_style_text_color(l, Colors::textOn(color), 0);
     lv_obj_center(l);
     reachEdges(b);
-    // A press that starts scrolling a parent (CONFIG) triggers nothing: once scrolling, LVGL 8.3
-    // sends neither CLICKED / SHORT_CLICKED nor LONG_PRESSED(_REPEAT), only RELEASED.
+    // A press that starts scrolling a parent triggers nothing (no page scrolls any more): once
+    // scrolling, LVGL 8.3 sends neither CLICKED / SHORT_CLICKED nor LONG_PRESSED(_REPEAT).
     if (repeat) {
         // Single tap = one step on release; holding repeats every LV_INDEV_DEF_LONG_PRESS_REP_TIME.
         // The press start lets a long hold speed up (U-20).
@@ -219,7 +219,7 @@ lv_obj_t* Gui::addSwitch_(lv_obj_t* parent, uint8_t ch, lv_color_t color) {
     return sw;
 }
 
-lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switchChannel) {
+lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switchChannel, PageId back) {
     lv_obj_t* bar = lv_obj_create(root_);
     lv_obj_set_pos(bar, 0, 0);
     lv_obj_set_size(bar, SCREEN_WIDTH, Layout::HEADER_H);
@@ -231,31 +231,27 @@ lv_obj_t* Gui::createHeader_(const char* title, lv_color_t color, uint8_t switch
     lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(bar, LV_OBJ_FLAG_CLICKABLE);
 
-    lv_obj_t* stripe = lv_obj_create(bar);
-    lv_obj_set_pos(stripe, 0, 0);
-    lv_obj_set_size(stripe, 5, Layout::HEADER_H);
-    lv_obj_set_style_bg_color(stripe, color, 0);
-    lv_obj_set_style_border_width(stripe, 0, 0);
-    lv_obj_set_style_radius(stripe, 0, 0);
-    lv_obj_clear_flag(stripe, LV_OBJ_FLAG_CLICKABLE);
-
+    addButton_(bar, LV_SYMBOL_LEFT, Layout::BACK_X, Layout::BACK_Y, Layout::BACK_W, Layout::BACK_H, Colors::gray(),
+               Action::Navigate, (uint8_t)back);
     lv_obj_t* t = addLabel_(bar, title, &lv_font_montserrat_20, color, 0, 0);
     lv_obj_align(t, LV_ALIGN_LEFT_MID, Layout::HEADER_TITLE_X, 0);
+    if (!switchChannel) {
+        // A long title ends in "..." before the right edge.
+        lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(t, SCREEN_WIDTH - Layout::HEADER_TITLE_X - 8);
+    }
 
     if (switchChannel) {
         // Right after the title: "CH3 IQ" is wider than "CH1" and would end under the switch.
         lv_obj_update_layout(t);
-        int switchX = Layout::HEADER_TITLE_X + lv_obj_get_width(t) + Layout::HEADER_TITLE_GAP;
-        if (switchX < Layout::HEADER_SWITCH_X) switchX = Layout::HEADER_SWITCH_X;
+        const int switchX = Layout::HEADER_TITLE_X + lv_obj_get_width(t) + Layout::HEADER_TITLE_GAP;
         w_.hdrSwitch = addSwitch_(bar, switchChannel, color);
         lv_obj_align(w_.hdrSwitch, LV_ALIGN_LEFT_MID, switchX, 0);
         w_.hdrState = addLabel_(bar, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
         styleState_(w_.hdrState);
-        lv_obj_align(w_.hdrState, LV_ALIGN_LEFT_MID, switchX + (Layout::HEADER_STATE_X - Layout::HEADER_SWITCH_X), 0);
+        lv_obj_align(w_.hdrState, LV_ALIGN_LEFT_MID, switchX + Layout::HEADER_STATE_DX, 0);
     }
 
-    // 36 px high and up to the top and right edge (audit U-5).
-    addButton_(bar, "MAIN", Layout::HEADER_MAIN_X, 1, Layout::HEADER_MAIN_W, Layout::HEADER_H - 2, Colors::gray(), Action::Navigate, (uint8_t)PageId::Main);
     return bar;
 }
 
@@ -296,12 +292,6 @@ void Gui::showOutput_(uint8_t ch, uint64_t requested, const char* prefix) {
 // Navigation and refresh
 
 void Gui::navigate(PageId page) {
-    if (currentPage_ == PageId::Config && w_.cfgList) {
-        // Where a running snap animation ends, so the restored position is a row top.
-        lv_point_t end;
-        lv_obj_get_scroll_end(w_.cfgList, &end);
-        configScrollY_ = end.y;
-    }
     // The numpad edits the correction when opened from CONFIG, else the channel frequency.
     if (page == PageId::Numpad) {
         numpadPpm_ = currentPage_ == PageId::Config;
@@ -575,6 +565,15 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             if (disconnectRemote_) disconnectRemote_();
             Logger::info("GUI", "Reconnect all remote clients");
             break;
+        case Action::ConfigTab:
+            // Rebuilds CONFIG with the other tab (deferred like any navigation).
+            if (arg < CONFIG_TAB_COUNT && arg != configTab_) {
+                configTab_ = arg;
+                requestNavigate_(PageId::Config);
+            } else if (obj) {
+                lv_obj_add_state(obj, LV_STATE_CHECKED); // a tap on the shown tab keeps it selected
+            }
+            return;
         case Action::WifiEdit:
         case Action::WifiDelete:
         case Action::WifiRescan:

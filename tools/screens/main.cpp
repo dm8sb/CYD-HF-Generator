@@ -172,10 +172,13 @@ int main(int argc, char** argv) {
     shot("numpad");
     show(PageId::CH3, "ch3");
     show(PageId::Config, "config");
-    // CONFIG scrolled to the end: the info card.
-    lv_obj_t* list = lv_obj_get_child(lv_scr_act(), 1);
-    lv_obj_scroll_by(list, 0, -lv_obj_get_scroll_bottom(list), LV_ANIM_OFF);
-    shot("config-info");
+    // The other CONFIG tabs, chosen on the tab bar like on the device (5 tabs of 60 px from x 4).
+    static const char* const TAB_SHOTS[] = {"config-freq", "config-net", "config-device", "config-info"};
+    for (int i = 0; i < 4; ++i) {
+        tap((int16_t)(4 + 30 + (i + 1) * 63), 221);
+        shot(TAB_SHOTS[i]);
+    }
+    tap(34, 221); // back to the first tab for the next run
     show(PageId::Wifi, "wifi");
     wifi.startScan();
     show(PageId::WifiScan, "wifi-scan");
@@ -187,5 +190,5 @@ int main(int argc, char** argv) {
     shot("dialog-network-change");
 
     printf("%d screens\n", gShots);
-    return gShots == 11 ? 0 : 1;
+    return gShots == 14 ? 0 : 1;
 }
