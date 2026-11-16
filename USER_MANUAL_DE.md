@@ -39,7 +39,7 @@ Für den Laborplatz; Einzelheiten in den genannten Abschnitten, Bilder der Seite
 6. **Vor dem Messen:** Steht unter einer Frequenz eine Moduszeile (z. B. `OFF=High`, `SSC -0.5%`, `Integer`), weicht CONFIG von den Werkseinstellungen ab (Abschnitt 2).
 7. **Bei Fehlern:** `! NO HW` = SI5351 nicht verbunden; `! ERR` = Einstellen fehlgeschlagen, die Firmware versucht es alle 2 s erneut (Abschnitt 11, Anhang C).
 
-Werkseinstellungen in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; Frequenzen 10 MHz (CH1) und 14 MHz (CH2), Schritt 1 kHz. Für die nächste Gruppe: CONFIG `Reset` → `Defaults` (die Kalibrierung bleibt); gegen Verstellen: CONFIG `Screen` → `Lock`.
+Werkseinstellungen in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; Frequenzen 10 MHz (CH1) und 14 MHz (CH2), Schritt 1 kHz. Für die nächste Gruppe: CONFIG `Device` → `Reset` → `Defaults` (die Kalibrierung bleibt); gegen Verstellen: CONFIG `Device` → `Screen` → `Lock`.
 
 ---
 
@@ -107,11 +107,11 @@ Bedienung auf der Hauptseite:
 - **Karte antippen** öffnet die Seite des Kanals.
 - **Schalter auf der Karte** (rechts, durch eine Linie abgetrennt) schaltet den Ausgang direkt ein oder aus, ohne die Seite zu wechseln. Ein Tipp auf die Frequenz oder `MHz` öffnet nur die Kanalseite.
 - Die Frequenzen stehen rechtsbündig, Dezimalpunkt und `MHz` aller Karten untereinander.
-- Die Statusleiste unten zeigt links den Speicherzustand (Abschnitt 8, `Saved`, `Saving...`, rot `Save failed` / `Not saved`) und hat rechts den Button `CONFIG` (gelb). Die Kanäle öffnen sich über ihre Karten. Bei gesperrtem Bildschirm steht dort zusätzlich `LOCKED` im orangen Feld (Abschnitt 8).
-- Rechts neben dem Speicherzustand steht der WLAN-Zustand (Abschnitt 8, `WiFi`): das WLAN-Symbol grün (verbunden) oder grau (sucht), `AP` grün, wenn der eigene Access Point läuft, `AP open` orange, wenn er ohne Passwort läuft; bei `Off` nichts.
+- Die Statusleiste unten zeigt links nur dann etwas zum Speichern, wenn es ein Problem gibt (rot `Save failed` / `Not saved`, Abschnitt 8), und hat rechts den Button `CONFIG` (gelb). Die Kanäle öffnen sich über ihre Karten. Bei gesperrtem Bildschirm steht dort zusätzlich `LOCKED` im orangen Feld (Abschnitt 8).
+- Daneben steht der WLAN-Zustand (Abschnitt 8, `WiFi`): das WLAN-Symbol grün (verbunden) oder grau (sucht), `AP` grün, wenn der eigene Access Point läuft, `AP open` orange, wenn er ohne Passwort läuft; bei `Off` nichts.
 - Nach einem Befehl der Fernsteuerung steht 10 s lang `REMOTE USB` (SCPI über USB), `REMOTE SCPI` (SCPI über TCP oder VXI-11) bzw. `REMOTE WEB` (Weboberfläche und REST) im blauen Feld (Farbe von CH3); `LOCKED` hat Vorrang.
 - Auf farbigen Tasten und gewählten Chips ist die Schrift dunkel, ausgeschaltete Schalter haben eine hellgraue Spur, nicht gewählte Chips einen grauen Rand.
-- Tasten am Bildschirmrand (z. B. `MAIN` oben rechts, `CONFIG` unten rechts, die äußeren NUMPAD-Tasten) reagieren bis an den Rand, auch auf einen Tipp knapp daneben in Richtung Rand. Der Abstand zwischen zwei Tasten bleibt frei.
+- Tasten am Bildschirmrand (z. B. `◀` oben links, `CONFIG` unten rechts, die äußeren NUMPAD-Tasten) reagieren bis an den Rand, auch auf einen Tipp knapp daneben in Richtung Rand. Der Abstand zwischen zwei Tasten bleibt frei.
 
 Statusanzeige unter dem Kanalnamen (in der Titelzeile der Kanalseiten ebenso). Jeder Zustand außer `OFF` steht als farbiges Feld mit dunkler Schrift; Fehler beginnen mit `!`. So sind aktive und gestörte Ausgänge auch ohne Farbunterscheidung und aus der Entfernung erkennbar.
 
@@ -125,7 +125,7 @@ Statusanzeige unter dem Kanalnamen (in der Titelzeile der Kanalseiten ebenso). J
 
 Die Farben der Kanäle: CH1 rot, CH2 grün, CH3 blau, CONFIG gelb.
 
-Die Kanalseiten und CONFIG haben eine Titelzeile mit dem Button `MAIN` rechts zur Rückkehr auf die Hauptseite. Auf den Kanalseiten enthält sie zusätzlich den ON/OFF-Schalter und daneben den tatsächlichen Zustand wie auf der Hauptseite: `ON`, `OFF`, `WAIT` (nur CH3), `! ERR` oder `! NO HW`. Der Schalter zeigt, was eingestellt ist, der Text, was der Ausgang gerade tut; bei CH3 kann der Schalter also auf ON stehen, während der Text `WAIT` zeigt. Das NUMPAD hat stattdessen die Taste `◀` (Abschnitt 6).
+Alle Seiten außer der Hauptseite haben dieselbe Titelzeile: links oben `◀` geht eine Ebene zurück (von CH1, CH2, CH3 und CONFIG zur Hauptseite, von den WIFI-Seiten zu CONFIG bzw. zur WIFI-Übersicht, vom NUMPAD ohne Änderung zur Seite davor), dahinter steht der Titel, rechts gegebenenfalls eine Taste der Seite (z. B. `Device`, `Scan`). Auf den Kanalseiten enthält die Titelzeile zusätzlich den ON/OFF-Schalter und daneben den tatsächlichen Zustand wie auf der Hauptseite: `ON`, `OFF`, `WAIT` (nur CH3), `! ERR` oder `! NO HW`. Der Schalter zeigt, was eingestellt ist, der Text, was der Ausgang gerade tut; bei CH3 kann der Schalter also auf ON stehen, während der Text `WAIT` zeigt. Das NUMPAD hat stattdessen die Taste `◀` (Abschnitt 6).
 
 Die RGB-LED zeigt auf den Kanal-Seiten ebenfalls die Kanal-Farbe:
 
@@ -485,40 +485,36 @@ CH3 / CLK2 = 5 MHz, 180° verschoben
 
 Auf der CONFIG-Seite werden globale Einstellungen geändert. Jede Änderung wirkt sofort und wird automatisch gespeichert (Abschnitt 9).
 
-### Aufbau und Scrollen
+### Aufbau und Register
 
-Die Titelzeile mit Speicheranzeige und `MAIN` bleibt stehen. Der Bereich darunter ist höher als der Bildschirm und lässt sich mit dem Finger senkrecht verschieben. CONFIG ist die einzige Seite, die scrollt.
+Die Titelzeile mit `◀` bleibt stehen. Darunter zeigt CONFIG höchstens drei Zeilen; unten wählt eine Registerleiste, welche. Nichts scrollt.
 
-| Zeile | Bedienelemente |
-|---|---|
-| `Drive all` | Auswahlliste `2 mA` … `8 mA` |
-| `Off state` | Auswahlliste `Low`, `High`, `High-Z` |
-| `Tuning` | Auswahlliste `Fractional`, `Low noise`, `Integer` |
-| `Spread CH1` | Auswahlliste `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
-| `Corr.` | Wert in ppm (antippen: Eingabe), Schritt-Taste, `−`, `+` |
-| `Backlight` | `−`, Wert, `+` |
-| `WiFi` | Auswahlliste `Off`, `Client`, `Access point`; Taste `Setup` (Seite WIFI) |
-| `Remote out.` | Auswahlliste `allowed`, `local only` |
-| `Touch` | Taste `Calibrate` (Touch-Abgleich) |
-| `Screen` | Taste `Lock` (Bildschirmsperre) |
-| `Reset` | Tasten `Defaults` und `Factory` (rot) |
-| Info-Karte | Firmware, Build, Display, Touch, SI5351, WLAN, Speicher |
+| Register | Zeile | Bedienelemente |
+|---|---|---|
+| `Signal` | `Drive all` | Auswahlliste `2 mA` … `8 mA` |
+| | `Off state` | Auswahlliste `Low`, `High`, `High-Z` |
+| | `Tuning` | Auswahlliste `Fractional`, `Low noise`, `Integer` |
+| `Freq` | `Spread CH1` | Auswahlliste `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
+| | `Corr.` | Wert in ppm (antippen: Eingabe), Schritt-Taste, `−`, `+` |
+| `Net` | `WiFi` | Auswahlliste `Off`, `Client`, `Access point`; Taste `Setup` (Seite WIFI) |
+| | `Remote out.` | Auswahlliste `allowed`, `local only` |
+| | `Clients` | Taste `Reconnect all` (Fernsteuer-Verbindungen trennen) |
+| `Device` | `Backlight` | `−`, Wert, `+` |
+| | `Screen` | Tasten `Lock` (Bildschirmsperre) und `Touch cal.` (Touch-Abgleich) |
+| | `Reset` | Tasten `Defaults` und `Factory` (rot) |
+| `Info` | Info-Karte | Firmware, Build, Display, Touch, SI5351, WLAN, Fernsteuerung, Speicher |
 
-- Oben stehen die Einstellungen, die das Signal verändern. Den Frequenzschritt stellen die Schritt-Tasten der Kanalseiten ein (Abschnitt 5).
-- Beim Öffnen sind drei Zeilen ganz und die obere Hälfte der vierten zu sehen. Die breite Scrollleiste rechts ist immer sichtbar und zeigt, dass die Liste weitergeht.
-- Die Seite rastet an den Zeilen ein.
-- Gescrollt wird erst ab etwa 10 px Fingerbewegung; ein kurzer Tipp bleibt ein Tipp. Beginnt das Wischen auf einer Taste, löst die Taste nicht aus, auch nicht die Wiederholung bei `Corr.`.
+- Ein Tipp auf ein Register zeigt dessen Zeilen; das gewählte Register ist gelb gefüllt. Beim ersten Öffnen nach dem Einschalten ist `Signal` gewählt, die Einstellungen, die das Signal verändern.
+- Das zuletzt gewählte Register bleibt erhalten, wenn man über `◀`, `Setup` oder das NUMPAD der Korrektur die Seite verlässt und zu CONFIG zurückkehrt (bis zum Ausschalten).
+- Den Frequenzschritt stellen die Schritt-Tasten der Kanalseiten ein (Abschnitt 5).
 - Auswahllisten öffnen sich nach oben, wenn unten kein Platz ist.
-- Die Scrollposition bleibt erhalten, wenn man über `MAIN` zur Hauptseite und wieder zu CONFIG wechselt (bis zum Ausschalten).
 
 ### Speicheranzeige
 
-In der Titelzeile zwischen `CONFIG` und `MAIN` steht der Speicherzustand, in jeder Scrollposition; die Statusleiste der Hauptseite zeigt ihn ebenso:
+Jede Änderung wird automatisch gespeichert, einige Sekunden nach der letzten Änderung (am Gerät 5 s, Abschnitt 9); eine Anzeige dafür gibt es nicht. Wer das Gerät direkt nach einer Änderung ausschaltet, verliert sie unter Umständen. Nur wenn das Speichern nicht klappt, steht in der Titelzeile rechts neben `CONFIG` und in der Statusleiste der Hauptseite in Rot:
 
 | Anzeige | Bedeutung |
 |---|---|
-| `Saving...` | Änderung noch nicht gespeichert (Autosave nach 5 s) |
-| `Saved` | Alles gespeichert |
 | `Save failed` (rot) | Speichern im Flash ist fehlgeschlagen, zusätzlich erscheint ein Dialog; die Firmware versucht es alle 30 s erneut |
 | `Not saved` (rot) | Flash-Speicher (NVS) beim Start nicht verfügbar, Änderungen gehen beim Ausschalten verloren |
 
@@ -719,10 +715,10 @@ Netze, Passwörter und die Daten des Access Points werden auf der Seite WIFI ein
 
 ### Seite WIFI (Setup)
 
-Oben links führt `<` zurück zu CONFIG. Darunter stehen die beiden Netzplätze `1` und `2`:
+Oben links führt `◀` zurück zu CONFIG. Darunter stehen die beiden Netzplätze `1` und `2`:
 
 - Netzname und darunter `Password set`, orange `Open network (no password)` oder `Empty`.
-- `Change`: sucht die Netze in der Umgebung (`Scanning...`, etwa 3 s) und zeigt sie, das stärkste zuerst, je 4 pro Seite; `<` und `>` blättern, `Scan` sucht neu. Rechts stehen Signalstärke und bei offenen Netzen orange `open`. Versteckte Netze erscheinen nicht; für sie gibt es `Other...` (Name eingeben).
+- `Change`: sucht die Netze in der Umgebung (`Scanning...`, etwa 3 s) und zeigt sie, das stärkste zuerst, je 4 pro Seite; `▲` und `▼` blättern, `Scan` sucht neu. Rechts stehen Signalstärke und bei offenen Netzen orange `open`. Versteckte Netze erscheinen nicht; für sie gibt es `Other...` (Name eingeben).
 - Ein Netz antippen: Bei einem Netz mit Passwort öffnet sich die Tastatur. Das Passwort (8–63 Zeichen, oder der 64-stellige Hex-Schlüssel (PMK) eines reinen WPA2-Netzes) eingeben, `Show`/`Hide` zeigt bzw. verdeckt es, rechts unter dem Feld steht die Zahl der Zeichen. Der Haken (✓) speichert, das Kreuz bricht ab. Ein offenes Netz wird erst nach einer Warnung (`Use`) übernommen.
 - Papierkorb: löscht den Platz nach Rückfrage.
 
@@ -774,7 +770,7 @@ Auswahlliste `allowed` (Standard) und `local only`. Bei `local only` darf die Fe
 
 Der Abgleich passt die Touch-Erkennung an das Board an: Mit fest eingestellten Werten lagen die Treffer je nach Board bis zu 19 px daneben, am rechten Rand war die Ecke nicht erreichbar.
 
-Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nach dem Löschen des Speichers), und jederzeit mit `Touch` → `Calibrate`:
+Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nach dem Löschen des Speichers), und jederzeit mit `Device` → `Screen` → `Touch cal.`:
 
 1. Ein oranges Kreuz erscheint nahe der linken oberen Ecke, darüber `Hold the cross (1/4)`.
 2. Die Kreuzmitte antippen und halten, bis das Kreuz grün wird (etwa ½ s, Anzeige `Release`), dann loslassen.
@@ -807,7 +803,7 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 
 ### Info-Karte
 
-Am Ende der Seite zeigt eine Karte Angaben für die Fehlersuche ohne seriellen Monitor, zum Beispiel:
+Das Register `Info` zeigt Angaben für die Fehlersuche ohne seriellen Monitor, zum Beispiel:
 
 ```text
 Firmware 2.0.0 | main 1a2b3c4
@@ -827,7 +823,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
 | `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke; `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
-| `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-Client über TCP 5025 oder, wenn dort keiner verbunden ist, über VXI-11. Darunter die Taste `Reconnect all`: trennt alle Browser-Verbindungen, beendet die Web-Anmeldungen, die SCPI-TCP- und die VXI-11-Verbindung. Die Gegenstellen verbinden sich danach von selbst neu (ein Browser ohne Web-Passwort nach wenigen Sekunden, ein SCPI-Programm sofort). Aussperren lässt sich niemand damit. Ein Web-Passwort sperrt nur Weboberfläche und REST; SCPI über TCP 5025 und VXI-11 bleiben ohne Anmeldung (Abschnitt 15). Gegen das Einschalten der Ausgänge aus dem Netz `Remote out.` auf `local only` stellen, gegen fremde Clients ein eigenes, gesichertes Netz verwenden oder das WLAN abschalten (Abschnitt 14). |
+| `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-Client über TCP 5025 oder, wenn dort keiner verbunden ist, über VXI-11. Die Taste `Reconnect all` (Register `Net`, Zeile `Clients`) trennt alle Browser-Verbindungen, beendet die Web-Anmeldungen, die SCPI-TCP- und die VXI-11-Verbindung. Die Gegenstellen verbinden sich danach von selbst neu (ein Browser ohne Web-Passwort nach wenigen Sekunden, ein SCPI-Programm sofort). Aussperren lässt sich niemand damit. Ein Web-Passwort sperrt nur Weboberfläche und REST; SCPI über TCP 5025 und VXI-11 bleiben ohne Anmeldung (Abschnitt 15). Gegen das Einschalten der Ausgänge aus dem Netz `Remote out.` auf `local only` stellen, gegen fremde Clients ein eigenes, gesichertes Netz verwenden oder das WLAN abschalten (Abschnitt 14). |
 | `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB |
 
 ---
@@ -839,7 +835,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 Ablauf:
 
 1. Eine Einstellung ändern.
-2. 5 Sekunden warten (auf CONFIG wechselt die Anzeige in der Titelzeile von `Saving...` auf `Saved`).
+2. 5 Sekunden warten.
 3. Die Firmware speichert automatisch in NVS.
 4. Im Serial Monitor erscheint:
 
@@ -960,7 +956,7 @@ Vorgehen:
 
 1. CONFIG öffnen.
 2. Bei `Drive all` den Wert `8 mA` auswählen.
-3. Warten, bis in der Titelzeile `Saved` angezeigt wird.
+3. Einige Sekunden warten, dann ist die Einstellung gespeichert.
 
 Diese Einstellung gilt danach für alle Kanäle.
 
@@ -1115,7 +1111,7 @@ Wichtige Meldungen:
 | `[SCPI] VXI-11 client 10.0.0.5 connected` / `refused (busy)` / `closed` | VXI-11-Verbindung; Gründe wie bei TCP, dazu `(record too large)` (Aufruf über 2 KB, z. B. ein Browser auf Port 9009). Suchanfragen an den Portmapper und Befehle werden nie geloggt |
 | `[WEB] Server on port: 80` | Weboberfläche bereit (WLAN verbunden oder Access Point) |
 | `[WEB] Login`, `[WEB] Login failed` | Anmeldung mit Web-Passwort richtig bzw. falsch (das Passwort wird nie geloggt) (`[WEB] Logout`: abgemeldet) |
-| `[GUI] Web password set` / `removed`, `[GUI] Reconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web-Passwort auf der Seite Device; `Reconnect all` auf der Info-Karte |
+| `[GUI] Web password set` / `removed`, `[GUI] Reconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web-Passwort auf der Seite Device; `Reconnect all` im Register `Net` (CONFIGarte |
 | `[WEB] Server stopped (WiFi off)` | WLAN `Off`: der Webserver nimmt nichts mehr an, offene Seiten werden getrennt |
 | `[WEB] Network change from the web; confirm within 120 s` / `Network change from the web: WiFi off` | Netzänderung aus dem Browser angenommen; sie wird gleich angewendet (`WiFi off`: endgültig, Abschnitt 16) |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Netzänderung aus dem Browser (Abschnitt 16) |
@@ -1241,7 +1237,7 @@ Der Generator versteht SCPI-Befehle über dieselbe USB-Verbindung, die auch das 
 - Liest das Gegenüber die Antworten nicht ab, liest auch das Gerät nichts mehr und schließt die Verbindung, wenn der Puffer voll ist.
 - Über einen offenen Access Point (ohne Passwort) ist SCPI über TCP gesperrt.
 - **Keine Anmeldung:** SCPI über TCP (und VXI-11, nächster Abschnitt) fragt nach keinem Passwort; das Web-Passwort schützt nur Weboberfläche und REST (Abschnitt 16). Wer im Netz ist, kann damit alle Befehle der Tabelle unten ausführen, auch `*RST` und `SYST:SAVE`. Eine eigene Einstellung zum Abschalten gibt es nicht, wie bei Laborgeräten üblich. Schutz: ein vertrauenswürdiges Netz (z. B. ein eigenes Gast- oder IoT-WLAN, Abschnitt 14) und `Remote out.` auf `local only`.
-- Ein Client, der regelmäßig Zeilen schickt, hält die einzige Verbindung beliebig lange; `Reconnect all` auf der Info-Karte (Abschnitt 8) trennt ihn, er kann sich aber sofort wieder verbinden.
+- Ein Client, der regelmäßig Zeilen schickt, hält die einzige Verbindung beliebig lange; `Reconnect all` (CONFIG, Register `Net`, Abschnitt 8) trennt ihn, er kann sich aber sofort wieder verbinden.
 
 ### LXI / VXI-11
 
@@ -1426,7 +1422,7 @@ Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt v
 
 ### MAIN
 
-![MAIN: drei Kanäle ein, Statusleiste mit Saved und WLAN-Symbol](docs/img/screen-main.png)
+![MAIN: drei Kanäle ein, Statusleiste mit WLAN-Symbol](docs/img/screen-main.png)
 
 ```text
 +--------------------------------------------+
@@ -1439,7 +1435,7 @@ Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt v
 | CH3              10.000 000 MHz |  [==o]   |
 | WAIT CH1 / 90° / master off     |          |
 +--------------------------------------------+
-| Saved   WiFi  REMOTE USB       [ CONFIG ]  |
+| WiFi  REMOTE USB               [ CONFIG ]  |
 +--------------------------------------------+
 ```
 
@@ -1449,7 +1445,7 @@ Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt v
 
 ```text
 +--------------------------------------------+
-| CH1  [==o]  ON                    [ MAIN ] |
+| [◀] CH1  [==o]  ON                         |
 +--------------------------------------------+
 | 10.000 000 MHz                             |
 | Out 10.000 000 MHz (+0.3 Hz)               |
@@ -1466,7 +1462,7 @@ Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt v
 
 ```text
 +--------------------------------------------+
-| CH3 IQ  [==o]  ON                 [ MAIN ] |
+| [◀] CH3 IQ  [==o]  ON                      |
 +--------------------------------------------+
 | 10.000 000 MHz                             |
 | Out 10.000 000 MHz (+0.3 Hz)               |
@@ -1480,17 +1476,17 @@ Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt v
 
 ### CONFIG
 
-![CONFIG oben: Drive all, Off state, Tuning, Spread CH1](docs/img/screen-config.png) ![CONFIG ans Ende gescrollt: Info-Karte mit Reconnect all](docs/img/screen-config-info.png)
+![CONFIG, Register Signal: Drive all, Off state, Tuning](docs/img/screen-config.png) ![CONFIG, Register Freq: Spread CH1, Corr.](docs/img/screen-config-freq.png) ![CONFIG, Register Net: WiFi, Remote out., Reconnect all](docs/img/screen-config-net.png) ![CONFIG, Register Device: Backlight, Screen, Reset](docs/img/screen-config-device.png) ![CONFIG, Register Info: Info-Karte](docs/img/screen-config-info.png)
 
 ```text
 +--------------------------------------------+
-| CONFIG   Saved                    [ MAIN ] |
+| [◀] CONFIG                                 |
 +--------------------------------------------+
-| Drive all   [ 4 mA        v]             # |
-| Off state   [ Low         v]             # |
-| Tuning      [ Fractional  v]             | |
-| Spread CH1  [ Off         v]             | |   <- wischen
-| (Corr., Backlight, WiFi, Remote out., ...) |
+| Drive all   [ 4 mA        v]               |
+| Off state   [ Low         v]               |
+| Tuning      [ Fractional  v]               |
++--------------------------------------------+
+|[Signal]| Freq |  Net  | Device |  Info    |
 +--------------------------------------------+
 ```
 
@@ -1559,7 +1555,7 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 | `2mA` … `8mA` | Ausgangsstrom (`Drive all`) | 8 |
 | `Corr.`, ppm | Frequenzkorrektur des Quarzes in Millionstel | 8 |
 | `LOCKED` (oranges Feld) | Bildschirm gesperrt; 2 s halten entsperrt | 8 |
-| `Saved` / `Saving...` / `Save failed` / `Not saved` | Speicherzustand | 8, 9 |
+| `Save failed` / `Not saved` | Speichern fehlgeschlagen bzw. nicht möglich | 8, 9 |
 | `Now …` | NUMPAD: aktuelle Frequenz | 6 |
 | `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: Grund einer abgelehnten Eingabe | 6 |
 | `-50.00 to +50.00 ppm` | NUMPAD der Korrektur: Wert außerhalb des Bereichs | 8 |
@@ -1582,7 +1578,7 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 | Frequenzzähler zeigt einige Hz Abweichung bei allen Frequenzen | Quarztoleranz | `Corr.` abgleichen | 8 |
 | CH3 bleibt bei `WAIT` | Master aus oder Masterfrequenz außerhalb des IQ-Bereichs | Master einschalten, Frequenz ≥ 4,730 MHz | 7, 11 |
 | `! NO HW` auf allen Karten | Kabel, 3,3 V oder GND an CN1 | Verbindung prüfen; SDA/SCL dürfen vertauscht sein | 11 |
-| Tipps landen neben der Taste, Rand schwer zu treffen | Touch-Abgleich fehlt oder passt nicht | CONFIG `Touch` → `Calibrate` | 8 |
+| Tipps landen neben der Taste, Rand schwer zu treffen | Touch-Abgleich fehlt oder passt nicht | CONFIG `Device` → `Touch cal.` | 8 |
 | Display zeigt nur Rauschen | Controller nicht erkannt | Firmware mit `DISPLAY_FORCE_PANEL` bauen | 13 |
 | Einstellungen nach dem Ausschalten verloren | `Save failed` / `Not saved` | Gerät neu starten; bleibt es, Flash-Speicher defekt | 9, 11 |
 | Ausgänge nach dem Einschalten aus | so vorgesehen | Ausgänge einschalten | 2 |

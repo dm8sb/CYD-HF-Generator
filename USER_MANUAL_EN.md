@@ -39,7 +39,7 @@ For the lab bench; details in the sections named, images of the pages in Appendi
 6. **Before measuring:** if a mode line appears below a frequency (e.g. `OFF=High`, `SSC -0.5%`, `Integer`), CONFIG differs from the factory settings (section 2).
 7. **On errors:** `! NO HW` = SI5351 not connected; `! ERR` = setup failed, the firmware retries every 2 s (section 11, Appendix C).
 
-Factory settings in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; frequencies 10 MHz (CH1) and 14 MHz (CH2), step 1 kHz. For the next group: CONFIG `Reset` → `Defaults` (the calibration stays); against accidental changes: CONFIG `Screen` → `Lock`.
+Factory settings in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; frequencies 10 MHz (CH1) and 14 MHz (CH2), step 1 kHz. For the next group: CONFIG `Device` → `Reset` → `Defaults` (the calibration stays); against accidental changes: CONFIG `Device` → `Screen` → `Lock`.
 
 ---
 
@@ -107,11 +107,11 @@ Operation on the main page:
 - **Tapping a card** opens the channel's page.
 - **The switch on a card** (on the right, separated by a line) turns the output on or off directly, without leaving the page. A tap on the frequency or `MHz` only opens the channel page.
 - The frequencies are right-aligned; decimal point and `MHz` of all cards line up.
-- The status bar at the bottom shows the save state on the left (section 8, `Saved`, `Saving...`, red `Save failed` / `Not saved`) and has the `CONFIG` button (yellow) on the right. The channels open via their cards. With the screen locked it also shows `LOCKED` in an orange field (section 8).
-- Right of the save state is the WiFi state (section 8, `WiFi`): the WiFi symbol green (connected) or gray (searching), `AP` green while the own access point runs, `AP open` orange when it runs without a password; nothing with `Off`.
+- The status bar at the bottom shows something about saving on the left only when there is a problem (red `Save failed` / `Not saved`, section 8) and has the `CONFIG` button (yellow) on the right. The channels open via their cards. With the screen locked it also shows `LOCKED` in an orange field (section 8).
+- Next to it is the WiFi state (section 8, `WiFi`): the WiFi symbol green (connected) or gray (searching), `AP` green while the own access point runs, `AP open` orange when it runs without a password; nothing with `Off`.
 - After a remote command `REMOTE USB` (SCPI over USB), `REMOTE SCPI` (SCPI over TCP or VXI-11) or `REMOTE WEB` (web interface and REST) shows for 10 s in a blue field (the CH3 color); `LOCKED` takes precedence.
 - Colored buttons and selected chips have dark text, switched-off switches a light gray track, unselected chips a gray border.
-- Buttons at the screen edge (e.g. `MAIN` top right, `CONFIG` bottom right, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.
+- Buttons at the screen edge (e.g. `◀` top left, `CONFIG` bottom right, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.
 
 Status display below the channel name (the same in the title bar of the channel pages). Every state except `OFF` appears as a colored field with dark text; errors start with `!`. Active and faulty outputs can thus be recognized without telling colors apart and from a distance.
 
@@ -125,7 +125,7 @@ Status display below the channel name (the same in the title bar of the channel 
 
 The channel colors: CH1 red, CH2 green, CH3 blue, CONFIG yellow.
 
-The channel pages and CONFIG have a title bar with the `MAIN` button on the right to return to the main page. On the channel pages, it also contains the ON/OFF switch and next to it the actual state as on the main page: `ON`, `OFF`, `WAIT` (CH3 only), `! ERR` or `! NO HW`. The switch shows what is set, the text what the output is doing; for CH3 the switch can therefore be ON while the text shows `WAIT`. The NUMPAD has the `◀` button instead (section 6).
+All pages except the main page have the same title bar: `◀` at the top left goes one level back (from CH1, CH2, CH3 and CONFIG to the main page, from the WIFI pages to CONFIG or the WIFI overview, from the NUMPAD without a change to the page before), the title follows, and on the right there may be a button of the page (e.g. `Device`, `Scan`). On the channel pages, the title bar also contains the ON/OFF switch and next to it the actual state as on the main page: `ON`, `OFF`, `WAIT` (CH3 only), `! ERR` or `! NO HW`. The switch shows what is set, the text what the output is doing; for CH3 the switch can therefore be ON while the text shows `WAIT`. The NUMPAD has the `◀` button instead (section 6).
 
 On the channel pages, the RGB LED also shows the channel color:
 
@@ -485,40 +485,36 @@ CH3 / CLK2 = 5 MHz, shifted by 180°
 
 The CONFIG page is where global settings are changed. Every change takes effect immediately and is saved automatically (section 9).
 
-### Layout and Scrolling
+### Layout and Tabs
 
-The title bar with the save indicator and `MAIN` stays fixed. The area below it is taller than the screen and can be moved vertically with a finger. CONFIG is the only page that scrolls.
+The title bar with `◀` stays fixed. Below it CONFIG shows at most three rows; a tab bar at the bottom selects which. Nothing scrolls.
 
-| Row | Controls |
-|---|---|
-| `Drive all` | drop-down list `2 mA` … `8 mA` |
-| `Off state` | drop-down list `Low`, `High`, `High-Z` |
-| `Tuning` | drop-down list `Fractional`, `Low noise`, `Integer` |
-| `Spread CH1` | drop-down list `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
-| `Corr.` | value in ppm (tap: entry), step button, `−`, `+` |
-| `Backlight` | `−`, value, `+` |
-| `WiFi` | drop-down `Off`, `Client`, `Access point`; button `Setup` (WIFI page) |
-| `Remote out.` | drop-down `allowed`, `local only` |
-| `Touch` | `Calibrate` button (touch calibration) |
-| `Screen` | `Lock` button (screen lock) |
-| `Reset` | `Defaults` and `Factory` (red) buttons |
-| Info card | Firmware, Build, Display, Touch, SI5351, WiFi, memory |
+| Tab | Row | Controls |
+|---|---|---|
+| `Signal` | `Drive all` | drop-down list `2 mA` … `8 mA` |
+| | `Off state` | drop-down list `Low`, `High`, `High-Z` |
+| | `Tuning` | drop-down list `Fractional`, `Low noise`, `Integer` |
+| `Freq` | `Spread CH1` | drop-down list `Off`, `-0.5 %`, `-1.5 %`, `+/-0.5 %` |
+| | `Corr.` | value in ppm (tap: entry), step button, `−`, `+` |
+| `Net` | `WiFi` | drop-down `Off`, `Client`, `Access point`; button `Setup` (WIFI page) |
+| | `Remote out.` | drop-down `allowed`, `local only` |
+| | `Clients` | `Reconnect all` button (disconnect remote connections) |
+| `Device` | `Backlight` | `−`, value, `+` |
+| | `Screen` | `Lock` (screen lock) and `Touch cal.` (touch calibration) buttons |
+| | `Reset` | `Defaults` and `Factory` (red) buttons |
+| `Info` | Info card | Firmware, Build, Display, Touch, SI5351, WiFi, remote access, memory |
 
-- The settings that change the signal come first. The frequency step is set with the step buttons of the channel pages (section 5).
-- When the page opens, three rows and the upper half of the fourth are visible. The wide scroll bar on the right is always visible and shows that the list continues.
-- The page snaps to the rows.
-- Scrolling only starts after about 10 px of finger movement; a short tap remains a tap. If a swipe starts on a button, the button does not trigger, and neither does the repeat function of `Corr.`.
+- A tap on a tab shows its rows; the selected tab is filled yellow. When CONFIG is opened for the first time after power-on, `Signal` is selected, the settings that change the signal.
+- The last selected tab is kept when you leave the page via `◀`, `Setup` or the numpad of the correction and come back to CONFIG (until power-off).
+- The frequency step is set with the step buttons of the channel pages (section 5).
 - Drop-down lists open upward when there is no room below.
-- The scroll position is kept when you go to the main page via `MAIN` and back to CONFIG (until power-off).
 
 ### Save Indicator
 
-The save state is shown in the title bar between `CONFIG` and `MAIN`, at every scroll position; the status bar of the main page shows it as well:
+Every change is saved automatically, a few seconds after the last change (5 s at the device, section 9); there is no indicator for it. If you switch the device off right after a change, it may be lost. Only when saving fails does the title bar to the right of `CONFIG` and the status bar of the main page show in red:
 
 | Display | Meaning |
 |---|---|
-| `Saving...` | Change not yet saved (autosave after 5 s) |
-| `Saved` | Everything saved |
 | `Save failed` (red) | Saving to flash failed; a dialog also appears; the firmware tries again every 30 s |
 | `Not saved` (red) | Flash storage (NVS) not available at startup; changes are lost at power-off |
 
@@ -719,10 +715,10 @@ Networks, passwords and the access point data are set up on the WIFI page (butto
 
 ### WIFI Page (Setup)
 
-`<` at the top left returns to CONFIG. Below are the two network slots `1` and `2`:
+`◀` at the top left returns to CONFIG. Below are the two network slots `1` and `2`:
 
 - Network name and below it `Password set`, orange `Open network (no password)` or `Empty`.
-- `Change`: scans the networks around (`Scanning...`, about 3 s) and lists them, strongest first, 4 per page; `<` and `>` turn the pages, `Scan` scans again. On the right are the signal strength and for open networks an orange `open`. Hidden networks do not appear; for them there is `Other...` (enter the name).
+- `Change`: scans the networks around (`Scanning...`, about 3 s) and lists them, strongest first, 4 per page; `▲` and `▼` turn the pages, `Scan` scans again. On the right are the signal strength and for open networks an orange `open`. Hidden networks do not appear; for them there is `Other...` (enter the name).
 - Tap a network: for a network with a password the keyboard opens. Enter the password (8–63 characters, or the 64-digit hex key (PMK) of a pure WPA2 network), `Show`/`Hide` shows or hides it, the number of characters is on the right below the field. The check mark (✓) saves, the cross cancels. An open network is taken only after a warning (`Use`).
 - Trash can: deletes the slot after a confirmation.
 
@@ -774,7 +770,7 @@ Drop-down `allowed` (default) and `local only`. With `local only` remote control
 
 The calibration adapts the touch detection to the board: with fixed values, hits were up to 19 px off depending on the board, and the corner at the right edge could not be reached.
 
-It starts automatically as long as no calibration is stored (first start, after erasing the memory), and at any time with `Touch` → `Calibrate`:
+It starts automatically as long as no calibration is stored (first start, after erasing the memory), and at any time with `Device` → `Screen` → `Touch cal.`:
 
 1. An orange cross appears near the top left corner, above it `Hold the cross (1/4)`.
 2. Tap the center of the cross and hold until the cross turns green (about ½ s, display `Release`), then let go.
@@ -827,7 +823,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Touch` | `Touch calibrated x … y …`: stored calibration with the raw values of the screen edges; `Touch not calibrated (default)`: fixed values |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
 | `WiFi` | `WiFi off`; connected: network, address, signal strength; `WiFi searching (<device name>)`; access point: `AP` or `Fallback AP`, name, address, number of connected devices (orange without password). Foreign network names are cleaned (control and invalid characters as `?`, at most 32 bytes) |
-| `Remote` | `web <n>` open browser pages, `SCPI <address>` or `-` the SCPI client over TCP 5025 or, if none is connected there, over VXI-11. Below it the button `Reconnect all`: closes all browser connections, ends the web sessions, the SCPI TCP and the VXI-11 connection. The peers connect again by themselves afterwards (a browser without web password within seconds, an SCPI program at once). It does not lock anybody out. A web password locks only the web interface and REST; SCPI over TCP 5025 and VXI-11 stay without login (section 15). To keep the outputs from being switched on from the network set `Remote out.` to `local only`; against foreign clients use an own, secured network or switch WiFi off (section 14). |
+| `Remote` | `web <n>` open browser pages, `SCPI <address>` or `-` the SCPI client over TCP 5025 or, if none is connected there, over VXI-11. The `Reconnect all` button (tab `Net`, row `Clients`) closes all browser connections, ends the web sessions, the SCPI TCP and the VXI-11 connection. The peers connect again by themselves afterwards (a browser without web password within seconds, an SCPI program at once). It does not lock anybody out. A web password locks only the web interface and REST; SCPI over TCP 5025 and VXI-11 stay without login (section 15). To keep the outputs from being switched on from the network set `Remote out.` to `local only`; against foreign clients use an own, secured network or switch WiFi off (section 14). |
 | `Heap` | free memory and its minimum since boot, largest contiguous block, free memory of the user interface (LVGL), each in KB |
 
 ---
@@ -839,7 +835,7 @@ Changes are saved automatically.
 Sequence:
 
 1. Change a setting.
-2. Wait 5 seconds (on CONFIG, the indicator in the title bar changes from `Saving...` to `Saved`).
+2. Wait 5 seconds.
 3. The firmware saves automatically to NVS.
 4. The serial monitor shows:
 
@@ -960,7 +956,7 @@ Procedure:
 
 1. Open CONFIG.
 2. Select `8 mA` for `Drive all`.
-3. Wait until `Saved` is shown in the title bar.
+3. Wait a few seconds; then the setting is saved.
 
 This setting then applies to all channels.
 
@@ -1115,7 +1111,7 @@ Important messages:
 | `[SCPI] VXI-11 client 10.0.0.5 connected` / `refused (busy)` / `closed` | VXI-11 connection; reasons as for TCP, plus `(record too large)` (a call over 2 KB, e.g. a browser on port 9009). Discovery requests to the portmapper and commands are never logged |
 | `[WEB] Server on port: 80` | Web interface ready (WiFi connected or access point) |
 | `[WEB] Login`, `[WEB] Login failed` | Login with the web password right or wrong (the password is never logged) (`[WEB] Logout`: logged out) |
-| `[GUI] Web password set` / `removed`, `[GUI] Reconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web password on the Device page; `Reconnect all` on the info card |
+| `[GUI] Web password set` / `removed`, `[GUI] Reconnect all remote clients`, `[WEB] Disconnected at the device, WebSockets: 1` | Web password on the Device page; `Reconnect all` in the `Net` tab (CONFIG) |
 | `[WEB] Server stopped (WiFi off)` | WiFi `Off`: the web server accepts nothing more, open pages are disconnected |
 | `[WEB] Network change from the web; confirm within 120 s` / `Network change from the web: WiFi off` | Network change from the browser accepted; it is applied shortly (`WiFi off`: final, section 16) |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Network change from the browser (section 16) |
@@ -1241,7 +1237,7 @@ The generator understands SCPI commands over the same USB connection that also c
 - If the peer does not read the answers, the device stops reading too and closes the connection when the buffer is full.
 - Over an open access point (without password) SCPI over TCP is blocked.
 - **No login:** SCPI over TCP (and VXI-11, next section) asks for no password; the web password protects only the web interface and REST (section 16). Anyone in the network can thus run every command of the table below, also `*RST` and `SYST:SAVE`. There is no setting of its own to switch it off, as usual for lab instruments. Protection: a trusted network (e.g. a separate guest or IoT WiFi, section 14) and `Remote out.` set to `local only`.
-- A client that sends lines regularly keeps the only connection as long as it likes; `Reconnect all` on the info card (section 8) disconnects it, but it can connect again at once.
+- A client that sends lines regularly keeps the only connection as long as it likes; `Reconnect all` (CONFIG, tab `Net`, section 8) disconnects it, but it can connect again at once.
 
 ### LXI / VXI-11
 
@@ -1426,7 +1422,7 @@ The images are rendered on the PC from the GUI code of the firmware and scaled u
 
 ### MAIN
 
-![MAIN: three channels on, status bar with Saved and the WiFi symbol](docs/img/screen-main.png)
+![MAIN: three channels on, status bar with the WiFi symbol](docs/img/screen-main.png)
 
 ```text
 +--------------------------------------------+
@@ -1439,7 +1435,7 @@ The images are rendered on the PC from the GUI code of the firmware and scaled u
 | CH3              10.000 000 MHz |  [==o]   |
 | WAIT CH1 / 90° / master off     |          |
 +--------------------------------------------+
-| Saved   WiFi  REMOTE USB       [ CONFIG ]  |
+| WiFi  REMOTE USB               [ CONFIG ]  |
 +--------------------------------------------+
 ```
 
@@ -1449,7 +1445,7 @@ The images are rendered on the PC from the GUI code of the firmware and scaled u
 
 ```text
 +--------------------------------------------+
-| CH1  [==o]  ON                    [ MAIN ] |
+| [◀] CH1  [==o]  ON                         |
 +--------------------------------------------+
 | 10.000 000 MHz                             |
 | Out 10.000 000 MHz (+0.3 Hz)               |
@@ -1466,7 +1462,7 @@ The images are rendered on the PC from the GUI code of the firmware and scaled u
 
 ```text
 +--------------------------------------------+
-| CH3 IQ  [==o]  ON                 [ MAIN ] |
+| [◀] CH3 IQ  [==o]  ON                      |
 +--------------------------------------------+
 | 10.000 000 MHz                             |
 | Out 10.000 000 MHz (+0.3 Hz)               |
@@ -1480,17 +1476,17 @@ The images are rendered on the PC from the GUI code of the firmware and scaled u
 
 ### CONFIG
 
-![CONFIG at the top: Drive all, Off state, Tuning, Spread CH1](docs/img/screen-config.png) ![CONFIG scrolled to the end: info card with Reconnect all](docs/img/screen-config-info.png)
+![CONFIG, tab Signal: Drive all, Off state, Tuning](docs/img/screen-config.png) ![CONFIG, tab Freq: Spread CH1, Corr.](docs/img/screen-config-freq.png) ![CONFIG, tab Net: WiFi, Remote out., Reconnect all](docs/img/screen-config-net.png) ![CONFIG, tab Device: Backlight, Screen, Reset](docs/img/screen-config-device.png) ![CONFIG, tab Info: info card](docs/img/screen-config-info.png)
 
 ```text
 +--------------------------------------------+
-| CONFIG   Saved                    [ MAIN ] |
+| [◀] CONFIG                                 |
 +--------------------------------------------+
-| Drive all   [ 4 mA        v]             # |
-| Off state   [ Low         v]             # |
-| Tuning      [ Fractional  v]             | |
-| Spread CH1  [ Off         v]             | |   <- swipe
-| (Corr., Backlight, WiFi, Remote out., ...) |
+| Drive all   [ 4 mA        v]               |
+| Off state   [ Low         v]               |
+| Tuning      [ Fractional  v]               |
++--------------------------------------------+
+|[Signal]| Freq |  Net  | Device |  Info    |
 +--------------------------------------------+
 ```
 
@@ -1559,7 +1555,7 @@ Rendered with `tools/web_mock.py` in the same state (section 16): desktop at 128
 | `2mA` … `8mA` | output current (`Drive all`) | 8 |
 | `Corr.`, ppm | frequency correction of the crystal in parts per million | 8 |
 | `LOCKED` (orange field) | screen locked; hold 2 s to unlock | 8 |
-| `Saved` / `Saving...` / `Save failed` / `Not saved` | save state | 8, 9 |
+| `Save failed` / `Not saved` | saving failed or not possible | 8, 9 |
 | `Now …` | NUMPAD: current frequency | 6 |
 | `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: reason for a rejected input | 6 |
 | `-50.00 to +50.00 ppm` | correction NUMPAD: value out of range | 8 |
@@ -1582,7 +1578,7 @@ Rendered with `tools/web_mock.py` in the same state (section 16): desktop at 128
 | Frequency counter shows a few Hz deviation at all frequencies | crystal tolerance | adjust `Corr.` | 8 |
 | CH3 stays at `WAIT` | master off or master frequency outside the IQ range | switch the master on, frequency ≥ 4.730 MHz | 7, 11 |
 | `! NO HW` on all cards | cable, 3.3 V or GND at CN1 | check the connection; SDA/SCL may be swapped | 11 |
-| Taps land next to the button, edge hard to hit | touch calibration missing or off | CONFIG `Touch` → `Calibrate` | 8 |
+| Taps land next to the button, edge hard to hit | touch calibration missing or off | CONFIG `Device` → `Touch cal.` | 8 |
 | Display shows only noise | controller not detected | build the firmware with `DISPLAY_FORCE_PANEL` | 13 |
 | Settings lost after power-off | `Save failed` / `Not saved` | restart the device; if it stays, the flash memory is defective | 9, 11 |
 | Outputs off after power-up | by design | switch the outputs on | 2 |

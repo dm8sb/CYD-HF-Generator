@@ -17,16 +17,17 @@ static constexpr int CONTENT_Y = HEADER_H + 4;
 static constexpr int CONTENT_W = 320 - 2 * MARGIN;
 static constexpr int CARD_PAD = 6;
 static constexpr int CARD_BORDER = 2;
-// Header: switch and state text right after the title, so "NO HW" fits before MAIN (U-1).
-static constexpr int HEADER_SWITCH_X = 66;
-static constexpr int HEADER_STATE_X = 126;
-static constexpr int HEADER_TITLE_X = 14;
-// A wider title ("CH3 IQ") moves switch and state text right: gap after the title. The widest
-// case (title to about x 84, state at about 156, "NO HW" about 55 px) still ends before MAIN.
+// Header of every page except MAIN (one rule for all levels): the back button at the top left
+// goes one level up (CH1-CH3 and CONFIG: MAIN), the title follows, page actions sit at the right.
+// The back button is 36 px high and reaches the top and left edge (U-5).
+static constexpr int BACK_X = 4;
+static constexpr int BACK_Y = 1;
+static constexpr int BACK_W = 52;
+static constexpr int BACK_H = HEADER_H - 2;
+static constexpr int HEADER_TITLE_X = BACK_X + BACK_W + 8;
+// Switch and state text right after the title (U-1); a wider title ("CH3 IQ") moves them right.
 static constexpr int HEADER_TITLE_GAP = 6;
-// Header MAIN button: 36 px high, up to the top and right edge (U-5).
-static constexpr int HEADER_MAIN_W = 62;
-static constexpr int HEADER_MAIN_X = 320 - HEADER_MAIN_W - 4;
+static constexpr int HEADER_STATE_DX = 60; // state text after the switch
 // Frequency card of the channel and CH3 pages: frequency (28 px), Out line, mode line.
 static constexpr int CARD_FREQ_H = 80;
 static constexpr int CARD_TEXT_X = 2;

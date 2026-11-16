@@ -6,10 +6,10 @@
 #include <utils/frequency_utils.h>
 #include <utils/input_logic.h>
 
+using namespace Layout;
+
 // Frequency entry of CH1/CH2: the unit keys confirm.
 // Top row: back key, title, input field; below the current value and error line, then the keys.
-static constexpr int BACK_W = 52;
-static constexpr int TITLE_X = 64;
 static constexpr int FIELD_X = 112;
 static constexpr int INFO_Y = 45;
 static constexpr int KEYS_Y = 62;
@@ -37,8 +37,9 @@ void Gui::createNumpad_(uint8_t ch) {
 
     // Back returns without a change: to the channel page, or to CONFIG for the correction.
     const PageId back = numpadPpm_ ? PageId::Config : numpadReturn_;
-    addButton_(root_, LV_SYMBOL_LEFT, 4, 3, BACK_W, 36, Colors::gray(), Action::Navigate, (uint8_t)back);
-    addLabel_(root_, numpadPpm_ ? "Corr." : (ch == 1 ? "CH1" : "CH2"), &lv_font_montserrat_20, color, TITLE_X, 10);
+    // Back button like every header (Layout::BACK_*); the entry field takes the rest of the row.
+    addButton_(root_, LV_SYMBOL_LEFT, BACK_X, BACK_Y, BACK_W, BACK_H, Colors::gray(), Action::Navigate, (uint8_t)back);
+    addLabel_(root_, numpadPpm_ ? "Corr." : (ch == 1 ? "CH1" : "CH2"), &lv_font_montserrat_20, color, HEADER_TITLE_X, 10);
 
     numpad_ = InputLogic::Numpad {};
     w_.ta = lv_textarea_create(root_);
