@@ -1218,7 +1218,7 @@ Radio and conformity:
 
 ## 15. Remote Control over USB and Network (SCPI)
 
-The generator understands SCPI commands over the same USB connection that also carries the log. Every change appears on the display at once; touch and SCPI have equal rights, the last change wins.
+The generator understands SCPI commands over the same USB connection that also carries the log. Every change appears on the display at once; touch and SCPI have equal rights, the last change wins. All remote interfaces with setup and examples are summarized on the API page [docs/REMOTE_API.md](docs/REMOTE_API.md).
 
 ### Connection
 

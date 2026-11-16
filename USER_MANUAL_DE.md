@@ -1218,7 +1218,7 @@ Funk und Konformität:
 
 ## 15. Fernsteuerung über USB und Netz (SCPI)
 
-Der Generator versteht SCPI-Befehle über dieselbe USB-Verbindung, die auch das Log ausgibt. Jede Änderung erscheint sofort auf dem Display; Touch und SCPI sind gleichberechtigt, die letzte Änderung gilt.
+Der Generator versteht SCPI-Befehle über dieselbe USB-Verbindung, die auch das Log ausgibt. Jede Änderung erscheint sofort auf dem Display; Touch und SCPI sind gleichberechtigt, die letzte Änderung gilt. Alle Schnittstellen zum Fernsteuern mit Einrichtung und Beispielen fasst die englische API-Seite [docs/REMOTE_API.md](docs/REMOTE_API.md) zusammen.
 
 ### Verbindung
 
