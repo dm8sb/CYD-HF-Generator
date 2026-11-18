@@ -1113,6 +1113,41 @@ static void test_healthy_link_leaves_bus_setup_alone() {
     TEST_ASSERT_EQUAL_UINT(0, Wire.setClockCalls);
 }
 
+// AF53 / PERF-11: without a chip the search tears the I2C driver down and up twice per attempt.
+// Every 2 s during the first minute after boot or after losing the chip, then every 10 s.
+static void test_search_backs_off_without_chip() {
+    static_assert(SI5351_SEARCH_FAST_INTERVAL_MS == 2000, "the manual names 2 s");
+    static_assert(SI5351_SEARCH_SLOW_INTERVAL_MS == 10000, "the manual names 10 s");
+    static_assert(SI5351_SEARCH_FAST_PHASE_MS == 60000, "the manual names one minute");
+    chip.present = false;
+    Device d;
+    TEST_ASSERT_FALSE(d.app.hardwareReady());
+    Wire.resetCounters();
+    d.run(20000); // first minute: 10 attempts
+    const uint32_t fast = Wire.beginCalls;
+    TEST_ASSERT_TRUE(fast >= 10);
+    d.run(SI5351_SEARCH_FAST_PHASE_MS);
+    Wire.resetCounters();
+    d.run(20000); // after it: 2 attempts
+    const uint32_t slow = Wire.beginCalls;
+    TEST_ASSERT_TRUE(slow > 0);
+    TEST_ASSERT_EQUAL_UINT32(fast, 5 * slow);
+    // Plugged in later: found within the slow interval, not necessarily within 2 s.
+    chip.present = true;
+    d.run(SI5351_SEARCH_SLOW_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    // Lost again: the fast phase starts over.
+    chip.present = false;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_FALSE(d.app.hardwareReady());
+    Wire.resetCounters();
+    d.run(20000);
+    TEST_ASSERT_EQUAL_UINT32(fast, Wire.beginCalls);
+    chip.present = true;
+    d.run(SI5351_SEARCH_FAST_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+}
+
 static void test_fake_ack_on_wrong_assignment_is_skipped() {
     chip.swapWires();
     chip.ghostOnWrongPins = true;
@@ -1483,6 +1518,7 @@ int main() {
     RUN_TEST(test_rewiring_while_running_restores_iq);
     RUN_TEST(test_dropout_reconnects_on_same_assignment);
     RUN_TEST(test_healthy_link_leaves_bus_setup_alone);
+    RUN_TEST(test_search_backs_off_without_chip);
     RUN_TEST(test_fake_ack_on_wrong_assignment_is_skipped);
     RUN_TEST(test_foreign_device_is_not_programmed);
     RUN_TEST(test_si5351_powering_up_is_retried_while_present);

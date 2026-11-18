@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <constants.h>
 
 #ifdef ESP_PLATFORM
 #include <esp_log.h>
@@ -63,7 +64,9 @@ void emit(char* line) {
     Lock lock;
     switch (out_) {
         case Output::ToSerial:
-            Serial.printf("%s", line);
+            // Raw bytes into the TX buffer: no format pass, and no wait for the UART while the
+            // buffer has room (AF53, PERF-10).
+            Serial.write((const uint8_t*)line, strlen(line));
             break;
         case Output::ToBuffer: {
             if (count_ == BUFFER_LINES) {
@@ -110,6 +113,9 @@ void begin(uint32_t baud) {
     if (!mutex_) mutex_ = xSemaphoreCreateMutex();
     esp_log_set_vprintf(idfVprintf);
 #endif
+    // Log lines go into this buffer instead of waiting for the UART (about 8.7 ms per 100 bytes
+    // at 115200 Bd); only possible before begin().
+    Serial.setTxBufferSize(SERIAL_TX_BUFFER_BYTES);
     Serial.begin(baud);
     uint32_t start = millis();
     while (!Serial && millis() - start < 500) { delay(1); }

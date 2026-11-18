@@ -41,7 +41,8 @@ public:
     void begin(const PersistentState& loaded);
     // Finds the SI5351 with either SDA/SCL assignment and initializes it (boot).
     bool connectHardware() { return connect_(); }
-    // Autosave and SI5351 supervision (health check, automatic reconnect).
+    // Autosave and SI5351 supervision (health check, automatic reconnect; without a chip the
+    // search slows down after a minute, AF53).
     void update();
     void applyStoredChannelSettings();
 
@@ -183,6 +184,10 @@ private:
     bool identifyLit_ = true;
     uint32_t identifyStartMs_ = 0;
     uint32_t lastHwCheckMs_ = 0;
+    // Search without a chip: running since searchSinceMs_ (boot or loss), slow after a minute.
+    bool searching_ = false;
+    bool searchSlow_ = false;
+    uint32_t searchSinceMs_ = 0;
     uint32_t revision_ = 0;
     LinkState link_ = LinkState::NotFound;
     // False until the first connection attempt: its result is always logged (finding M-1).
