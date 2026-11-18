@@ -39,4 +39,7 @@ struct GuiServices {
     uint8_t (*webClients)() = nullptr;
     uint32_t (*scpiClient)() = nullptr;
     void (*disconnectRemote)() = nullptr;
+    // Heap line of the info card (V-8, AF51b): free bytes, minimum since boot, largest free
+    // block; sampled every 5 s. Without it the line shows 0.
+    void (*heapInfo)(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largestBlock) = nullptr;
 };

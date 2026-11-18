@@ -41,6 +41,8 @@ public:
     // Controller events (V-3): a dialog, except for events of remote commands.
     static void onAppEvent(const Event& e, void* gui);
     void navigate(PageId page);
+    // The page shown (the status LED follows it, AF51b).
+    PageId page() const { return currentPage_; }
     // Touch calibration wizard (U-26). firstStart: no calibration stored; a timeout continues
     // with the default calibration on MAIN (otherwise back to CONFIG, unchanged).
     void calibrateTouch(bool firstStart);
@@ -222,13 +224,10 @@ private:
     int8_t rssiShown_ = 0;          // CONFIG info card, with hysteresis
     bool heapSampled_ = false;      // info card heap line, sampled every 5 s (AF12)
     uint32_t heapSampleMs_ = 0;
-    uint32_t heapFree_ = 0, heapMin_ = 0, heapBlock_ = 0, lvglFree_ = 0;
+    uint32_t heapFree_ = 0, heapMin_ = 0, heapBlock_ = 0, lvglFree_ = 0; // GuiServices::heapInfo, LVGL
     uint32_t refreshCount_ = 0;     // debug build: redraws and flushes per minute
     uint32_t flushCount_ = 0;
     uint32_t countLogMs_ = 0;
-    // Identify (W-E28): the LED blinks with the backlight, then shows the page again.
-    bool ledIdentify_ = false;
-    bool ledLit_ = false;
     char freqText_[24] {};      // plain frequency text on the channel page, for hit testing
     InputLogic::Numpad numpad_; // numpad input (InputLogic, host-tested)
     Widgets w_ {};

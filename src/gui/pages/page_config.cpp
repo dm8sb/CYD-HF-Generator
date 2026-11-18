@@ -7,7 +7,6 @@
 #include <utils/frequency_utils.h>
 #include <utils/ipv4.h>
 #include <utils/sanitize.h>
-#include <esp_heap_caps.h>
 
 using namespace Layout;
 
@@ -283,9 +282,8 @@ void Gui::refreshConfig_() {
 void Gui::sampleHeap_() {
     lv_mem_monitor_t mon;
     lv_mem_monitor(&mon);
-    heapFree_ = ESP.getFreeHeap();
-    heapMin_ = ESP.getMinFreeHeap();
-    heapBlock_ = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    heapFree_ = heapMin_ = heapBlock_ = 0;
+    if (services_.heapInfo) services_.heapInfo(&heapFree_, &heapMin_, &heapBlock_);
     lvglFree_ = mon.free_size;
     heapSampleMs_ = millis();
     heapSampled_ = true;

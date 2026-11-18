@@ -3,7 +3,6 @@
 
 #include "gui.h"
 #include "gui_layout.h"
-#include <drivers/status_led.h>
 #include <net/web_state.h>
 #include <net/wifi_policy.h>
 #include <utils/frequency_utils.h>
@@ -22,7 +21,6 @@ void Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
     display_ = &display;
     lastConnections_ = app.connectionCount();
 
-    StatusLed::begin();
 
     // LVGL warnings through the switchable logger (C-16), already for lv_init().
     lv_log_register_print_cb([](const char* line) { Logger::raw(line); });
@@ -303,7 +301,6 @@ void Gui::navigate(PageId page) {
     currentPage_ = page;
     if (page == PageId::CH1) channel_ = 1;
     else if (page == PageId::CH2) channel_ = 2;
-    StatusLed::showPage(page);
 
     root_ = lv_scr_act();
     lv_obj_clean(root_);
@@ -378,16 +375,6 @@ void Gui::refresh_() {
 
 void Gui::update() {
     wifiPages_.update();
-    if (app_->identifying()) {
-        if (!ledIdentify_ || app_->identifyLit() != ledLit_) {
-            ledIdentify_ = true;
-            ledLit_ = app_->identifyLit();
-            StatusLed::showAll(ledLit_);
-        }
-    } else if (ledIdentify_) {
-        ledIdentify_ = false;
-        StatusLed::showPage(currentPage_);
-    }
     if (currentPage_ == PageId::TouchCal) {
         tickTouchCal_();
         return;

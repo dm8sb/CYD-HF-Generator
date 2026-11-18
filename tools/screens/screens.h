@@ -5,7 +5,7 @@
 
 // Host screen renderer (tools/render_images.py screens): the real GUI (src/gui) on the host
 // with the fakes of test/fakes. host_stubs.cpp replaces the hardware classes the GUI holds
-// (DisplayPanel, TouchDriver, WifiManager, StatusLed, BuildInfo); main.cpp sets sample state,
+// (DisplayPanel, TouchDriver, WifiManager, BuildInfo); main.cpp sets sample state,
 // navigates and writes the frames. Not part of the firmware or the host tests.
 
 #include <stdint.h>

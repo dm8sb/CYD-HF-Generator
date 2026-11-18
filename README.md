@@ -78,6 +78,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - Confirmation dialogs (title, text, buttons, action) come from one table instead of an if/else chain; no visible change
 - The WIFI pages are a class of their own (`WifiPages`: overview, scan list, text entry, access point, device page with their widgets and state) instead of part of the GUI class; no visible change
 - GUI callbacks of main (touch calibration store, factory reset, WiFi manager and save, web change confirmation, web password worker, remote clients) are passed as one `GuiServices` struct instead of six setters; no visible change
+- The status LED is driven by `main` in every loop (color of the shown channel page, or Identify blinking with the backlight) instead of by the GUI; the GUI reads the heap line through a callback; no visible change
 
 ### 2.0.0
 
@@ -224,7 +225,7 @@ Needs Python 3, PlatformIO, OpenSCAD, Chrome or Edge and Node; details of the re
 - `core/app_controller.*`: single source of truth for runtime state, the only user of the SI5351 driver
 - `drivers/si5351_manager.*`, `drivers/si5351_plan.*`: SI5351 register driver and PLL/MultiSynth planning per tuning mode (pure functions)
 - `drivers/display_detect.*`, `drivers/display_panel.*`: controller detection (host-testable) and TFT_eSPI with the ST7789 init
-- `drivers/touch*`, `drivers/backlight.*`, `drivers/status_led.*`: touch with filter, backlight PWM, RGB LED
+- `drivers/touch*`, `drivers/backlight.*`, `drivers/status_led.*`, `drivers/led_color.h`: touch with filter, backlight PWM, RGB LED (driven by `main`: shown page or Identify)
 - `hal/i2c_bus.*`: owns `Wire`, opens either SDA/SCL assignment
 - `services/*`: Preferences storage and autosave
 - `remote/*`: command queue and state snapshot for remote access, line framer, SCPI command tree (`scpi.*`), the USB link (`scpi_usb.*`), SCPI over TCP (`scpi_tcp*`), ONC RPC and VXI-11 with portmapper (`onc_rpc.*`, `vxi11.*`, glue `vxi11_server.*`), LXI identification (`lxi_ident.*`), REST JSON mapping (`rest_json.*`, `rest_wifi.*`)
