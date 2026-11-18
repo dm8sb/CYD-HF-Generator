@@ -559,12 +559,11 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             return;
         case Action::WifiMode: {
             if (!wifi_) break;
-            NetSettings s = wifi_->settings();
             const WifiMode mode = (WifiMode)lv_dropdown_get_selected(obj);
-            if (mode == s.mode) break;
+            if (mode == wifi_->settings().mode) break;
+            NetSettings s = wifi_->settings();
             s.mode = mode;
-            if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
-            wifi_->apply(s);
+            commitNet_(s, NetApply::Restart);
             break;
         }
         case Action::RemoteOutputs:
@@ -807,9 +806,7 @@ void Gui::confirmEventCb_(lv_event_t* e) {
     if (yes && what == Confirm::DeleteNetwork && g->wifi_) {
         NetSettings s = g->wifi_->settings();
         NetConfig::clearNetwork(s, a.payload);
-        if (g->saveNet_ && !g->saveNet_(s)) g->showMessage("WiFi", "Saving the WiFi settings failed.");
-        g->wifi_->apply(s);
-        memset(&s, 0, sizeof(s));
+        g->commitNet_(s, NetApply::Restart);
     }
     if (yes && what == Confirm::ApOpen && g->wifi_) {
         g->storeAp_(g->wifi_->settings().apPassword, true);

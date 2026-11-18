@@ -279,10 +279,11 @@ void Gui::refreshEntry_() {
 bool Gui::storeNetwork_(const char* ssid, const char* key) {
     if (!wifi_) return false;
     NetSettings s = wifi_->settings();
-    if (NetConfig::setNetwork(s, wifiSlot_, ssid, key) != NetConfig::KeyResult::Ok) return false;
-    if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
-    wifi_->apply(s);
-    memset(&s, 0, sizeof(s)); // no key copy left on the stack
+    if (NetConfig::setNetwork(s, wifiSlot_, ssid, key) != NetConfig::KeyResult::Ok) {
+        memset(&s, 0, sizeof(s)); // no key copy left on the stack
+        return false;
+    }
+    if (!commitNet_(s, NetApply::Restart)) return false;
     Logger::info("GUI", "WiFi network stored");
     return true;
 }
@@ -349,7 +350,7 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                 }
                 NetSettings s = wifi_->settings();
                 snprintf(s.deviceName, sizeof(s.deviceName), "%s", text);
-                storeNet_(s);
+                commitNet_(s, NetApply::Restart);
                 requestNavigate_(PageId::WifiDevice);
                 return;
             }
@@ -365,10 +366,11 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                 // While static IP is on, an implausible combination is refused (W-S12).
                 const NetConfig::IpCheck c = NetConfig::checkStaticIp(s.staticIp);
                 if (s.staticIp.enabled && c != NetConfig::IpCheck::Ok) {
+                    memset(&s, 0, sizeof(s));
                     showMessage("Static IP", NetConfig::ipCheckText(c));
                     break;
                 }
-                storeNet_(s);
+                commitNet_(s, NetApply::Restart);
                 requestNavigate_(PageId::WifiDevice);
                 return;
             }
@@ -487,13 +489,13 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                 if (c != NetConfig::IpCheck::Ok) {
                     // Keep the values for editing, stay on DHCP.
                     s.staticIp.enabled = false;
-                    storeNet_(s);
+                    commitNet_(s, NetApply::Restart);
                     showMessage("Static IP", NetConfig::ipCheckText(c));
                     break;
                 }
             }
             s.staticIp.enabled = wantStatic;
-            storeNet_(s);
+            commitNet_(s, NetApply::Restart);
             break;
         }
         case Action::ApOpenToggle:
@@ -523,10 +525,7 @@ void Gui::storeAp_(const char* password, bool open) {
     NetSettings s = wifi_->settings();
     snprintf(s.apPassword, sizeof(s.apPassword), "%s", password ? password : "");
     s.apOpen = open;
-    if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
-    wifi_->applyAp(s);
-    memset(&s, 0, sizeof(s));
-    Logger::info("GUI", open ? "AP stored: open" : "AP stored: WPA2");
+    if (commitNet_(s, NetApply::Ap)) Logger::info("GUI", open ? "AP stored: open" : "AP stored: WPA2");
 }
 
 void Gui::createWifiAp_() {
@@ -625,9 +624,7 @@ void Gui::storeWebPassword_(const char* record) {
     if (!wifi_) return;
     NetSettings s = wifi_->settings();
     snprintf(s.webPassword, sizeof(s.webPassword), "%s", record ? record : "");
-    if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
-    wifi_->applyWebPassword(s.webPassword); // no WiFi restart; the web server ends its sessions
-    memset(&s, 0, sizeof(s));
+    commitNet_(s, NetApply::WebPassword);
 }
 
 void Gui::pollWebPassword_() {
@@ -646,11 +643,19 @@ void Gui::pollWebPassword_() {
     refresh_();
 }
 
-void Gui::storeNet_(NetSettings& s) {
-    if (!wifi_) return;
+bool Gui::commitNet_(NetSettings& s, NetApply how) {
+    if (!wifi_) {
+        memset(&s, 0, sizeof(s));
+        return false;
+    }
     if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
-    wifi_->apply(s);
-    memset(&s, 0, sizeof(s));
+    switch (how) {
+        case NetApply::Restart: wifi_->apply(s); break;
+        case NetApply::Ap: wifi_->applyAp(s); break;
+        case NetApply::WebPassword: wifi_->applyWebPassword(s.webPassword); break;
+    }
+    memset(&s, 0, sizeof(s)); // no copy of keys and passwords left on the stack
+    return true;
 }
 
 void Gui::createWifiDevice_() {

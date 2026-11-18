@@ -193,8 +193,11 @@ private:
     void storeWebPassword_(const char* record);
     // In update(): collects a finished hash.
     void pollWebPassword_();
-    // Saves and applies network settings (restarts the WiFi).
-    void storeNet_(NetSettings& s);
+    // The only touch path for network settings (AF15, CQ-5): saves s, reports a failed save,
+    // applies it (Restart: the WiFi restarts; Ap: only the access point; WebPassword: nothing
+    // restarts, the web server ends its sessions) and wipes s (keys and passwords).
+    enum class NetApply : uint8_t { Restart, Ap, WebPassword };
+    bool commitNet_(NetSettings& s, NetApply how);
     void createWifiAp_();
     void refreshWifiAp_();
     // Stores AP password / open flag (saved, running AP restarts).
