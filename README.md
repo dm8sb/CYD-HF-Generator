@@ -88,6 +88,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - Framework pinned exactly: `platform_packages` fixes the Arduino-ESP32 packages, the toolchain and esptool (the platform only asked for tilde ranges); CI and the release check the resolved packages against the pins and `THIRD_PARTY_NOTICES.md` (`tools/dep_check.py`), the release build runs without a package cache and its notes list every package; PlatformIO Core in CI is installed with hashes (`tools/requirements-ci.txt`, kept current by Dependabot); the package cache of CI is written only on `main` and `dev`
 - Zero-warning gate in CI: a compiler warning in `src/` or `include/` of the firmware builds fails the job `Firmware build`; host tests with `-Wall -Wextra`, `native-cpp20` with `-Werror`; a further job builds the touch log firmware and the host screen renderer
 - CI, fuzzing and CodeQL run on pushes to `main`, `dev` and `agent/**` and on pull requests (no longer on tags or other branches); runs on `main` are never cancelled by a later push, so the CodeQL alerts of `main` always come from a complete analysis
+- Host tests: the `Preferences` fake rejects NVS names over 15 characters and strings over 4000 bytes like the real NVS; `test_nvs` loads the complete key set of 2.0.0 from both namespaces (upgrade test)
 
 ### 2.0.0
 
@@ -208,7 +209,7 @@ pio test -e native             # host tests on Linux/macOS/CI (gcc in PATH)
 pio test -e native-win-fault   # IQ error state (TEST_FAULT_IQ); native-fault on Linux
 ```
 
-Host tests cover the SI5351 driver and planner against a register model (`test/helpers/si5351_model.h`, decoded independently of the driver), the AppController, display detection, touch, GUI input logic, status texts, contrast, the remote command queue, SCPI, SCPI over TCP, VXI-11 and LXI identification, the web request guard, REST JSON and WiFi mapping, network settings, WiFi policy, the logger and sanitizing, plus fuzz harnesses with a fixed seed (`test_fuzz_random`). `test/fakes` replaces the Arduino core, `Wire` and `Preferences`; the fuzz harnesses are described in [test/fuzz/README.md](test/fuzz/README.md).
+Host tests cover the SI5351 driver and planner against a register model (`test/helpers/si5351_model.h`, decoded independently of the driver), the AppController, display detection, touch, GUI input logic, status texts, contrast, the remote command queue, SCPI, SCPI over TCP, VXI-11 and LXI identification, the web request guard, REST JSON and WiFi mapping, network settings, the NVS limits and the upgrade from the stored keys of 2.0.0, WiFi policy, the logger and sanitizing, plus fuzz harnesses with a fixed seed (`test_fuzz_random`). `test/fakes` replaces the Arduino core, `Wire` and `Preferences`; the fuzz harnesses are described in [test/fuzz/README.md](test/fuzz/README.md).
 
 Touch test builds for the measurement plan (not built by a plain `pio run`, never released; CI builds the hit map env):
 
