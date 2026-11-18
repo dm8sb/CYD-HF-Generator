@@ -8,6 +8,7 @@
 #include <ESPmDNS.h>
 #include <DNSServer.h>
 #include <esp_netif.h>
+#include <esp_wifi.h>
 #if __has_include(<esp_random.h>)
 #include <esp_random.h> // IDF 5
 #else
@@ -30,11 +31,26 @@ constexpr uint32_t SCAN_INTERVAL_MS = 15000;
 constexpr uint8_t AP_MAX_STATIONS = 4;
 constexpr uint8_t OPEN_AP_MAX_STATIONS = 2; // W-S2
 constexpr uint32_t UI_SCAN_TIMEOUT_MS = 15000;
+// Highest TX power level of esp_wifi_set_max_tx_power() (21 dBm); the driver limits it to the
+// calibrated maximum of the PHY data (20 dBm on the ESP32).
+constexpr int8_t TX_POWER_MAX = 84;
 
 IPAddress toIp(uint32_t v) { return IPAddress((uint8_t)(v >> 24), (uint8_t)(v >> 16), (uint8_t)(v >> 8), (uint8_t)v); }
 uint32_t fromIp(const IPAddress& a) { return (uint32_t)a[0] << 24 | (uint32_t)a[1] << 16 | (uint32_t)a[2] << 8 | a[3]; }
 
 uint32_t hwRandom() { return esp_random(); }
+
+// D38 / E-45: no modem sleep and full TX power after every start of the radio. With modem
+// sleep the client wakes only at the beacon interval (pings of 220-390 ms, VISA timeouts).
+// The Arduino core applies its stored sleep type at every STA start, so it is stored first;
+// the driver calls cover a client that already runs and the access point.
+void radioAwake() {
+    WiFi.setSleep(WIFI_PS_NONE);
+    if (esp_wifi_set_ps(WIFI_PS_NONE) != ESP_OK) Logger::error("WIFI", "Power save off failed");
+    if (esp_wifi_set_max_tx_power(TX_POWER_MAX) != ESP_OK) Logger::error("WIFI", "TX power not set");
+    int8_t power = 0;
+    if (LOG_DEBUG && esp_wifi_get_max_tx_power(&power) == ESP_OK) Logger::debugValue("WIFI", "TX power (0.25 dBm)", power);
+}
 
 // Last disconnect reason of the client (WiFi task writes, loop() reads; one byte).
 volatile uint8_t lastDisconnectReason = 0;
@@ -91,6 +107,7 @@ void WifiManager::begin(const NetSettings& s, const uint8_t mac[6], SaveFn save)
     save_ = save;
     WiFi.persistent(false); // credentials only in "hfnet" as PMK (W-S14)
     WiFi.setAutoReconnect(false);
+    WiFi.setSleep(WIFI_PS_NONE); // stored for every STA start (D38)
     WiFi.onEvent(onWifiEvent);
     NetConfig::apSsid(mac_, status_.apSsid, sizeof(status_.apSsid));
     apply(s);
@@ -326,6 +343,7 @@ void WifiManager::startScan() {
     if (uiScanTempMode_) {
         if (!apOn_) WiFi.setHostname(settings_.deviceName);
         WiFi.mode(apOn_ ? WIFI_AP_STA : WIFI_STA);
+        radioAwake();
     }
     uiScanStartMs_ = millis();
     uiScan_ = WiFi.scanNetworks(true) == WIFI_SCAN_RUNNING ? ScanState::Running : ScanState::Failed;
@@ -373,6 +391,7 @@ void WifiManager::applyTargets_(const WifiPolicy::Targets& t) {
     if (staOn_ && !t.sta) stopSta_();
     if (have == WIFI_OFF && want != WIFI_OFF) WiFi.setHostname(settings_.deviceName); // before the netif starts
     WiFi.mode(want);
+    if (want != WIFI_OFF) radioAwake();
     if (t.sta && !staOn_) startSta_();
     if (t.ap && !apOn_) startAp_(t.apOpen);
     const bool mdnsWanted = want != WIFI_OFF;

@@ -1147,7 +1147,7 @@ Error messages start with `[ERROR]`, e.g.:
 | `[ERROR][BOOT] SI5351 init failed`, `[ERROR][BOOT] Touch init failed`, `[ERROR][TOUCH] XPT2046 init failed` | At startup the SI5351 or the touch controller does not answer; the SI5351 is searched further |
 | `[ERROR][BOOT] No memory for SCPI over TCP` / `No memory for VXI-11` / `No memory for the web server` | Too little memory at startup: SCPI over TCP, VXI-11 or the web interface stays off |
 | `[ERROR][WEB] No memory for the web server`, `[ERROR][WEB] Saving the network settings failed` | Web interface: too little memory when the server starts; network settings from the browser not saved |
-| `[ERROR][WIFI] Saving the AP password failed`, `[ERROR][WIFI] AP DHCP server start failed`, `[ERROR][WIFI] mDNS start failed` | WiFi: random password not saved; access point without DHCP server; `<device name>.local` not reachable (the address still works) |
+| `[ERROR][WIFI] Saving the AP password failed`, `[ERROR][WIFI] AP DHCP server start failed`, `[ERROR][WIFI] mDNS start failed`, `[ERROR][WIFI] Power save off failed` / `TX power not set` | WiFi: random password not saved; access point without DHCP server; `<device name>.local` not reachable (the address still works); the driver did not accept power save off or full TX power (WiFi still runs, but may answer more slowly, section 16) |
 | `[ERROR][FATAL] LVGL assert; restarting` | User interface out of memory or similar; the device restarts |
 | `task_wdt: Task watchdog got triggered … loopTask` | The firmware hung for 5 s; the device restarts |
 
@@ -1206,6 +1206,7 @@ For operation:
 - **Network without login:** with WiFi anyone who reaches the device in the network can control it over SCPI (TCP 5025 and VXI-11) without a password: change frequencies and settings, run `*RST` and `SYST:SAVE`, switch outputs off and, with `Remote out.` `allowed`, also on. The web password protects only the web interface and REST (section 16). Neither SCPI nor the web interface is encrypted (no HTTPS).
 - **Recommendation for the network:** run the device only in a trusted network, best in an own guest or IoT WiFi that is separated from the rest of the home network, or in the own access point with password (never open). Set `Remote out.` to `local only` if nothing may be switched on from the network; WiFi `Off` if the device shall not be operated from the network.
 - **Foreign device at 0x60:** if another device answers at I2C address 0x60, the firmware reads its identification and writes at most one test byte into its register 3 before it recognizes it as "not an SI5351" (section 11). Do not connect other devices with this address to CN1.
+- **Current with WiFi:** with WiFi `Client` or `Access point` the radio stays ready to receive all the time (no power save) and transmits at full power, so that the device answers in the network at once (section 16). The board then draws about 80–100 mA more than with WiFi `Off` (data sheet value, typical, not measured); the USB power supply or port must deliver it. With `Off` the radio is completely off.
 
 Radio and conformity:
 
@@ -1372,6 +1373,8 @@ More scripts are in the `tools/` folder (instructions in `tools/README.md`):
 ## 16. Web Interface
 
 With WiFi (section 8, WIFI page) the generator can also be operated in a browser: `http://<device name>.local/` or the address from the status line of the WIFI page; in the own access point `http://192.168.4.1/` (a phone usually opens the page by itself when connecting). The page is stored in the device, no internet connection is needed. No HTTPS: use it only in a trusted network (best an own guest or IoT WiFi) or in the own access point with password (section 14).
+
+WiFi runs without power save and at full transmit power: the device answers in the network (web interface, REST, SCPI over TCP, VXI-11, `ping`) mostly within a few milliseconds; with power save it took up to about 0.4 s. In return it draws more current (section 14).
 
 ### Operation
 

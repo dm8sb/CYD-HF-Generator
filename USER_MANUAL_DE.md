@@ -1147,7 +1147,7 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | `[ERROR][BOOT] SI5351 init failed`, `[ERROR][BOOT] Touch init failed`, `[ERROR][TOUCH] XPT2046 init failed` | Beim Start antwortet der SI5351 bzw. der Touch-Controller nicht; der SI5351 wird weiter gesucht |
 | `[ERROR][BOOT] No memory for SCPI over TCP` / `No memory for VXI-11` / `No memory for the web server` | Zu wenig Speicher beim Start: SCPI über TCP, VXI-11 bzw. die Weboberfläche bleibt aus |
 | `[ERROR][WEB] No memory for the web server`, `[ERROR][WEB] Saving the network settings failed` | Weboberfläche: zu wenig Speicher beim Start des Servers; Netzeinstellungen aus dem Browser nicht gespeichert |
-| `[ERROR][WIFI] Saving the AP password failed`, `[ERROR][WIFI] AP DHCP server start failed`, `[ERROR][WIFI] mDNS start failed` | WLAN: Zufallspasswort nicht gespeichert; Access Point ohne DHCP-Server; `<Gerätename>.local` nicht erreichbar (die Adresse geht weiter) |
+| `[ERROR][WIFI] Saving the AP password failed`, `[ERROR][WIFI] AP DHCP server start failed`, `[ERROR][WIFI] mDNS start failed`, `[ERROR][WIFI] Power save off failed` / `TX power not set` | WLAN: Zufallspasswort nicht gespeichert; Access Point ohne DHCP-Server; `<Gerätename>.local` nicht erreichbar (die Adresse geht weiter); der Treiber hat Energiesparen aus bzw. volle Sendeleistung nicht angenommen (das WLAN läuft trotzdem, antwortet aber womöglich langsamer, Abschnitt 16) |
 | `[ERROR][FATAL] LVGL assert; restarting` | Speicher der Bedienoberfläche erschöpft o. Ä.; das Gerät startet neu |
 | `task_wdt: Task watchdog got triggered … loopTask` | Firmware hing 5 s; das Gerät startet neu |
 
@@ -1206,6 +1206,7 @@ Zum Betrieb:
 - **Netz ohne Anmeldung:** Mit WLAN kann jeder, der das Gerät im Netz erreicht, es über SCPI (TCP 5025 und VXI-11) ohne Passwort steuern: Frequenzen und Einstellungen ändern, `*RST` und `SYST:SAVE` ausführen, Ausgänge ausschalten und bei `Remote out.` `allowed` auch einschalten. Das Web-Passwort schützt nur Weboberfläche und REST (Abschnitt 16). Weder SCPI noch die Weboberfläche sind verschlüsselt (kein HTTPS).
 - **Empfehlung für das Netz:** Das Gerät nur in einem vertrauenswürdigen Netz betreiben, am besten in einem eigenen Gast- oder IoT-WLAN, das vom übrigen Heimnetz getrennt ist, oder im eigenen Access Point mit Passwort (nie offen). `Remote out.` auf `local only` stellen, wenn aus dem Netz nichts eingeschaltet werden darf; WLAN `Off`, wenn das Gerät nicht aus dem Netz bedient werden soll.
 - **Fremdgerät an 0x60:** Antwortet auf der I2C-Adresse 0x60 ein anderes Gerät, liest die Firmware seine Kennung und schreibt höchstens ein Testbyte in dessen Register 3, bevor sie es als „kein SI5351“ erkennt (Abschnitt 11). Andere Geräte an CN1 mit dieser Adresse nicht anschließen.
+- **Stromaufnahme mit WLAN:** Mit WLAN `Client` oder `Access point` bleibt der Funk dauernd empfangsbereit (kein Energiesparen) und sendet mit voller Leistung, damit das Gerät im Netz sofort antwortet (Abschnitt 16). Das Board braucht dann etwa 80–100 mA mehr als mit WLAN `Off` (Datenblattwert, typisch, nicht gemessen); das USB-Netzteil bzw. der USB-Port muss das liefern. Mit `Off` ist der Funk ganz aus.
 
 Funk und Konformität:
 
@@ -1372,6 +1373,8 @@ Weitere Skripte liegen im Ordner `tools/` (Anleitung in `tools/README.md`):
 ## 16. Weboberfläche
 
 Mit WLAN (Abschnitt 8, Seite WIFI) lässt sich der Generator auch im Browser bedienen: `http://<Gerätename>.local/` oder die Adresse aus der Statuszeile der Seite WIFI; im eigenen Access Point `http://192.168.4.1/` (ein Handy öffnet die Seite beim Verbinden meist von selbst). Die Seite liegt im Gerät, es braucht keine Internetverbindung. Kein HTTPS: nur in einem vertrauenswürdigen Netz (am besten einem eigenen Gast- oder IoT-WLAN) oder im eigenen Access Point mit Passwort benutzen (Abschnitt 14).
+
+Das WLAN läuft ohne Energiesparen und mit voller Sendeleistung: Das Gerät antwortet im Netz (Weboberfläche, REST, SCPI über TCP, VXI-11, `ping`) meist nach wenigen Millisekunden, mit Energiesparen wären es bis zu etwa 0,4 s gewesen. Dafür braucht es mehr Strom (Abschnitt 14).
 
 ### Bedienen
 
