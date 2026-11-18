@@ -386,6 +386,50 @@ static void test_web_password_job() {
 
 // --- Limits --------------------------------------------------------------------------------
 
+// AF18 (SEC-V-2, PERF-18): unsolicited PONGs do not keep a dead client alive, so its slot is
+// freed (displaced) after PONG_TIMEOUT_MS; a PING flood closes the client (the web UI never
+// pings; every PING queues a PONG in the library's unbounded control queue).
+static void test_ws_unsolicited_pongs_do_not_hold_a_slot() {
+    WsClients w;
+    TEST_ASSERT_TRUE(w.add(1, 0));
+    TEST_ASSERT_TRUE(w.add(2, 0));
+    TEST_ASSERT_TRUE(w.add(3, 0));
+    TEST_ASSERT_FALSE(w.add(4, 0)); // full
+    // Client 3 sends a PONG every second on its own and never answers a PING.
+    const uint8_t junk[4] = {'c', 'y', 'd', 0};
+    uint8_t answer[3][4] {};
+    uint32_t t = 0;
+    for (; t <= WsClients::PONG_TIMEOUT_MS + 1000; t += 1000) {
+        w.pong(3, t, junk, sizeof(junk)); // unsolicited: not the payload of our PING
+        uint32_t id = 0;
+        uint8_t payload[WsClients::PING_PAYLOAD_LEN];
+        while ((id = w.duePing(t, 0x5A000000u + t + id, payload)) != 0) {
+            if (id != 3) memcpy(answer[id - 1], payload, sizeof(payload));
+        }
+        w.pong(1, t, answer[0], 4); // 1 and 2 answer (repeating an answer changes nothing)
+        w.pong(2, t, answer[1], 4);
+        if (w.expired(t) == 3) break;
+    }
+    TEST_ASSERT_TRUE(t <= WsClients::PONG_TIMEOUT_MS + 1000);
+    TEST_ASSERT_EQUAL_UINT8(2, w.count());
+    TEST_ASSERT_TRUE(w.add(4, t)); // the freed slot takes a new client
+    TEST_ASSERT_EQUAL_UINT32(0, w.expired(t));
+}
+
+static void test_ws_ping_flood_closes() {
+    WsClients w;
+    w.add(7, 0);
+    for (uint8_t i = 0; i < WsClients::PING_BUDGET; ++i) TEST_ASSERT_TRUE(w.clientPing(7, 100 * i));
+    TEST_ASSERT_FALSE(w.clientPing(7, 1000)); // one more within the window
+    // Slow PINGs (a proxy keeping the link) stay allowed.
+    WsClients s;
+    s.add(8, 0);
+    for (uint32_t t = 0; t < 10 * WsClients::PING_WINDOW_MS; t += WsClients::PING_WINDOW_MS / 2) {
+        TEST_ASSERT_TRUE(s.clientPing(8, t));
+    }
+    TEST_ASSERT_FALSE(s.clientPing(99, 0)); // unknown client
+}
+
 static HttpPreFilter::Verdict feedAll(HttpPreFilter& f, const std::string& s, uint32_t now = 0) {
     return f.feed((const uint8_t*)s.data(), s.size(), now);
 }
@@ -474,13 +518,15 @@ static void test_connection_tables() {
     TEST_ASSERT_EQUAL_UINT32(13, w.needingState(2));
     TEST_ASSERT_EQUAL_UINT32(0, w.needingState(3));
     // Ping every 15 s, closed after 30 s without pong.
-    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS - 1));
-    TEST_ASSERT_EQUAL_UINT32(11, w.duePing(WsClients::PING_MS));
-    TEST_ASSERT_EQUAL_UINT32(12, w.duePing(WsClients::PING_MS));
-    TEST_ASSERT_EQUAL_UINT32(13, w.duePing(WsClients::PING_MS));
-    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS));
-    w.pong(11, 20000);
-    w.pong(12, 20000);
+    uint8_t p11[4], p12[4], p13[4];
+    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS - 1, 1, p11));
+    TEST_ASSERT_EQUAL_UINT32(11, w.duePing(WsClients::PING_MS, 0x11111111u, p11));
+    TEST_ASSERT_EQUAL_UINT32(12, w.duePing(WsClients::PING_MS, 0x22222222u, p12));
+    TEST_ASSERT_EQUAL_UINT32(13, w.duePing(WsClients::PING_MS, 0x33333333u, p13));
+    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS, 4, p13));
+    w.pong(11, 20000, p11, 4);
+    w.pong(12, 20000, p12, 4);
+    w.pong(13, 20000, p11, 4); // the payload of another client's PING: ignored
     TEST_ASSERT_EQUAL_UINT32(0, w.expired(WsClients::PONG_TIMEOUT_MS));
     TEST_ASSERT_EQUAL_UINT32(13, w.expired(WsClients::PONG_TIMEOUT_MS + 1));
     TEST_ASSERT_EQUAL_UINT8(2, w.count());
@@ -508,5 +554,7 @@ int main(int, char**) {
     RUN_TEST(test_web_password_job);
     RUN_TEST(test_prefilter_limits);
     RUN_TEST(test_connection_tables);
+    RUN_TEST(test_ws_unsolicited_pongs_do_not_hold_a_slot);
+    RUN_TEST(test_ws_ping_flood_closes);
     return UNITY_END();
 }

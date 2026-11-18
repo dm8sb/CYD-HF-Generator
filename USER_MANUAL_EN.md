@@ -1120,6 +1120,7 @@ Important messages:
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Network change from the browser (section 16) |
 | `[GUI] Network change refused: web change pending` | A network setting at the device was refused because a change from the browser waits for its confirmation (section 16) |
 | `[WEB] WebSocket closed: no pong` | Browser no longer answers |
+| `[WEB] WebSocket closed: ping flood` | A client sent more than 3 WebSocket pings in 10 s (the web interface sends none) and was disconnected |
 | `[APP] Remote outputs: allowed` / `Remote outputs: local only` | CONFIG `Remote out.` changed (saved at once) |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
 | `[APP] Identify` | `SYST:IDEN`: backlight and LED blink for 5 s |
@@ -1387,13 +1388,13 @@ WiFi runs without power save and at full transmit power: the device answers in t
 - Keyboard: `↑`/`↓` (also `+`/`−`) frequency by the step, `←`/`→` step larger/smaller, `PgUp`/`PgDn` frequency × 10 / ÷ 10, `1`/`2`/`3` channel, `F` or `Enter` input field, `O` output on/off, `?` help.
 - Changes at the device or over SCPI appear after about 1 s and are highlighted briefly; a field with focus is not overwritten. Without connection everything is gray.
 - After a change from the browser the device status bar shows `REMOTE WEB` for 10 s. `Remote out.` `local only` (section 8) applies here too: switching on and `Off state` `High` are refused (then without a question, the message shows next to the selection).
-- At most 3 browsers at a time; a fourth sees `Too many clients (max. 3)`.
+- At most 3 browsers at a time; a fourth sees `Too many clients (max. 3)`. A tab in the background (covered or minimized) frees its place after 60 s and connects again as soon as it is shown. A connection that does not answer the device's checks (every 15 s) is closed after 30 s; one that floods the device with checks of its own (WebSocket ping) at once.
 - Only at the device: defaults and factory reset, touch calibration, screen lock, new access point password, web password (WIFI → `Device`, row `Web pw.`).
 - The footer at the end of the page shows `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` and `licenses` open the repository and `THIRD_PARTY_NOTICES.md` on GitHub as of the release tag of the firmware (e.g. `v2.0.0`) in a new tab (this needs internet access in the browser, section 1, "Licenses").
 
 ### Web Password
 
-If a web password is set, the page asks for it before the first change (reading works without). The login takes about 1.5 s and lasts 12 h. After 5 wrong attempts the login is locked for 30 s, every further lock lasts twice as long (up to 16 min). `Log out` in the header (only with a web password and a login) ends the login; the next change asks for the password again. The web password is set at the device on the Device page (section 8); without a web password everyone in the network can operate the device. It protects **only the web interface and REST**: SCPI over TCP 5025 and VXI-11 ask for no password and stay operable for anyone in the network even with a web password (section 15). Over an open access point (without password) the login is blocked, because the password would go over the air unencrypted: the page does not send it and shows `Passwords cannot be sent over the open access point`, and the device refuses `POST /api/login` as well (403). With a web password the device can therefore only be viewed over an open access point, not operated.
+If a web password is set, the page asks for it as soon as it opens: without a login it shows no values; the device gives out the state (`GET /api/state`), the token and the live values (WebSocket) only with a login as well. If the question is cancelled, the header shows `Login required` and the `Log in` button asks again. Only the LXI identification `/lxi/identification` stays readable without login (manufacturer, model, serial number, version, address; the same that `*IDN?` gives over SCPI anyway). The login takes about 1.5 s and lasts 12 h. After 5 wrong attempts the login is locked for 30 s, every further lock lasts twice as long (up to 16 min). `Log out` in the header (only with a web password and a login) ends the login; the page then asks for the password again. Setting, changing or removing the web password at the device ends every login and disconnects the open pages; they connect again (with a password after a new login). The web password is set at the device on the Device page (section 8); without a web password everyone in the network can operate the device. It protects **only the web interface and REST**: SCPI over TCP 5025 and VXI-11 ask for no password and stay operable for anyone in the network even with a web password (section 15). Over an open access point (without password) the login is blocked, because the password would go over the air unencrypted: the page does not send it and shows `Passwords cannot be sent over the open access point`, and the device refuses `POST /api/login` as well (403). With a web password the device can therefore neither be viewed nor operated over an open access point.
 
 ### Network Settings from the Browser
 
@@ -1418,14 +1419,14 @@ Programs can use the same functions over HTTP and JSON; example in `tools/rest_e
 
 | Call | Content |
 |---|---|
-| `GET /api/state` | State as JSON (channels, CH3, CONFIG, WiFi, saving, `REMOTE`) |
+| `GET /api/state` | State as JSON (channels, CH3, CONFIG, WiFi, saving, `REMOTE`); with a web password only with a login |
 | `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` or `{"frequencyText":"7.1M"}` |
 | `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
 | `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` under `local only` 403), `correction` (0.01 ppm), `step`, `backlight` |
 | `POST /api/save`, `/api/identify` | `{}`; saving like `SYST:SAVE` at most once per 10 s (section 15) |
 | `POST /api/login`, `POST /api/logout` | `{"password":"…"}` or `{}`, answer with a session cookie or an expired cookie |
 | `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Network settings (passwords write-only; `slot` 0 and 1 = network 1 and 2 at the device; network password 8–63 characters or 64 hex digits), confirmation, network scan (at most every 10 s) |
-| WebSocket `/ws?t=<token>` | State on every change |
+| WebSocket `/ws?t=<token>` | State on every change; with a web password only with a login |
 
 Every `POST` needs `Content-Type: application/json` and the header `X-CYD-Token` with the token from the page (new with every restart, `GET /api/token`). Errors come as with SCPI as `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` (switching on, `offState` `high`) 403, too many commands 429, device busy 503, not logged in 401. Limits: request at most 1 KB, address 256 characters, 20 setting commands per second. `backlight` takes every value from 10 to 100 and rounds to 10 % (55 → 60). All error codes and HTTP status codes are listed in `data/www/README.md`.
 

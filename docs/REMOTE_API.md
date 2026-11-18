@@ -259,7 +259,7 @@ gen.close()
 Only when a web password is set at the device:
 
 - `POST /api/login` with `{"password":"…"}` → 204 and a session cookie (`HttpOnly`, `SameSite=Strict`, 12 h). Send the cookie with every following request.
-- Without a valid session every `POST` (except login/logout) and `GET /api/wifi*` answer 401 `Login required`. `GET /api/state` and the WebSocket stay readable without login.
+- Without a valid session every `POST` (except login/logout), `GET /api/wifi*`, `GET /api/state`, `GET /api/token` and the WebSocket upgrade answer 401 `Login required` (reading needs the login as well). Only the page and `GET /lxi/identification` stay readable without login. Setting, changing or removing the password ends every session and closes every WebSocket.
 - 5 wrong passwords lock the login for 30 s, every further lock doubles (up to 16 min): 429 with `retryAfter`.
 - `POST /api/logout` with `{}` → 204, ends the session.
 - Over an open access point any body with a password field is refused (403).
@@ -314,7 +314,7 @@ Only when a web password is set at the device:
 | `GET /api/wifi/scan` | – | `{"state":"running\|done\|failed","networks":[{"ssid","rssi","secure"}]}` (start at most every 10 s) |
 | `GET /api/token` | – | `{"token":"…"}` (same-origin only) |
 | `GET /lxi/identification` | – | LXI identification XML |
-| WebSocket `/ws?t=<token>` | – | state on connect and on every change (push only, at most 3 clients) |
+| WebSocket `/ws?t=<token>` | – | state on connect and on every change (push only, at most 3 clients; with a web password the session cookie is needed; only a PONG with the payload of the device's PING counts, more than 3 PINGs in 10 s close with 1008) |
 
 **Network changes** (`POST /api/wifi`) only stay after a confirmation, so nobody locks themselves out: the WiFi restarts with the new data, then `POST /api/wifi/confirm` must arrive within 120 s at the new address; without a web password the touch screen asks `Network change` as well (`Keep`). Otherwise the previous settings return. Only the confirmed state is saved (a power loss meanwhile brings back the previous settings), and while the change is open the touch screen changes no network settings; it offers `Revert` (`Web change pending`), also with a web password. `slot` is 0 or 1 (network 1 and 2); `password` is `""` (open network), 8–63 characters or 64 hex digits; passwords are write-only. `{"mode":"off"}` applies at once without confirmation and must come alone (any other key → 400 `-108`); WiFi can then only be switched on at the device.
 

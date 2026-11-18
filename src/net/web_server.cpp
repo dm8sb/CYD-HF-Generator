@@ -33,7 +33,6 @@ constexpr const char* CSP = "default-src 'none'; script-src 'self'; style-src 's
 constexpr const char* JSON = "application/json";
 constexpr uint32_t JOB_WAIT_MS = 100;        // a job taken by loop() finishes within this
 constexpr uint32_t LOGIN_TIMEOUT_MS = 5000;  // a password check that never ends answers 503
-constexpr uint8_t PING_PAYLOAD[3] = {'c', 'y', 'd'};
 constexpr uint32_t CLEANUP_MS = 1000;
 constexpr uint32_t STACK_LOG_MS = 60000; // debug log of the task stack reserves (W-S23)
 constexpr uint16_t WS_TOO_BIG = 1009;
@@ -235,6 +234,7 @@ struct WebHmiServer::Impl {
     bool settingsKnown = false;
     bool listening = false;
     bool disconnectRequested = false; // set and served in loop() (GUI)
+    bool closeWs = false;             // the web password changed: WebSockets close (loop)
 
     Impl(CommandQueue& c, StateSnapshot& s, WifiManager& w, bool (*sv)(const NetSettings&))
         : commands(c), snapshot(s), wifi(w), save(sv) {
@@ -267,8 +267,8 @@ struct WebHmiServer::Impl {
         memcpy(indexHtml + pre, token, RequestGuard::TOKEN_LEN);
         memcpy(indexHtml + pre + RequestGuard::TOKEN_LEN, at + 9, page.size - pre - 9);
         indexHtml[indexLen] = '\0';
-        ws->onEvent([this](AsyncWebSocket*, AsyncWebSocketClient* c, AwsEventType t, void* arg, uint8_t*, size_t) {
-            wsEvent(c, t, arg);
+        ws->onEvent([this](AsyncWebSocket*, AsyncWebSocketClient* c, AwsEventType t, void* arg, uint8_t* data, size_t len) {
+            wsEvent(c, t, arg, data, len);
         });
         // The WebSocket is not registered as a handler: Handler checks every request first and
         // passes allowed upgrades of /ws to it.
@@ -830,7 +830,7 @@ struct WebHmiServer::Impl {
     }
 
     // ---------------------------------------------------------------- WebSocket (async_tcp)
-    void wsEvent(AsyncWebSocketClient* c, AwsEventType t, void* arg) {
+    void wsEvent(AsyncWebSocketClient* c, AwsEventType t, void* arg, const uint8_t* data, size_t len) {
         const uint32_t now = millis();
         switch (t) {
             case WS_EVT_CONNECT: {
@@ -855,8 +855,23 @@ struct WebHmiServer::Impl {
                 break;
             }
             case WS_EVT_PONG: {
+                // Only the answer to our PING (its random payload) counts (AF18).
                 Lock l(mutex);
-                wsc.pong(c->id(), now);
+                wsc.pong(c->id(), now, data, len);
+                break;
+            }
+            case WS_EVT_PING: {
+                // The library queues a PONG for every PING in an unbounded queue; the UI never
+                // pings, so a flood closes the client (AF18, SEC-V-2).
+                bool ok;
+                {
+                    Lock l(mutex);
+                    ok = wsc.clientPing(c->id(), now);
+                }
+                if (!ok) {
+                    Logger::info("WEB", "WebSocket closed: ping flood");
+                    c->close(WS_POLICY, "Ping flood");
+                }
                 break;
             }
             case WS_EVT_DATA: {
@@ -1012,7 +1027,9 @@ struct WebHmiServer::Impl {
         cfg.deviceName = ns.deviceName;
         cfg.token = token;
         cfg.passwordSet = d.passwordSet;
-        cfg.loginForReads = false; // ARBEITSPLAN 3.6 point 7: state and /ws readable without login
+        // D25 (AF18): with a web password the state, the token and the WebSocket need a session as
+        // well; /lxi/identification stays open (D33, not under /api/).
+        cfg.loginForReads = d.passwordSet;
 
         const bool settingsChanged = !settingsKnown || memcmp(&lastSettings, &ns, sizeof(ns)) != 0;
         char json[RestWifi::SETTINGS_SIZE];
@@ -1038,7 +1055,12 @@ struct WebHmiServer::Impl {
             snprintf(guardName, sizeof(guardName), "%s", ns.deviceName);
         }
         if (settingsChanged) {
-            if (strcmp(record, ns.webPassword) != 0) guard.endAllSessions(); // password changed or removed
+            if (strcmp(record, ns.webPassword) != 0) {
+                // Password set, changed or removed: every session ends, and the open WebSockets
+                // close so that they come back under the new rule (D25).
+                guard.endAllSessions();
+                if (settingsKnown) closeWs = true;
+            }
             snprintf(record, sizeof(record), "%s", ns.webPassword);
             passwordSet = d.passwordSet;
             memcpy(wifiJson, json, sizeof(wifiJson));
@@ -1101,6 +1123,10 @@ struct WebHmiServer::Impl {
     }
 
     void serveDisconnect() {
+        if (closeWs) {
+            closeWs = false;
+            ws->closeAll(WS_GOING_AWAY);
+        }
         if (!disconnectRequested) return;
         disconnectRequested = false;
         uint8_t n;
@@ -1114,12 +1140,13 @@ struct WebHmiServer::Impl {
 
     void keepAlive(uint32_t now) {
         uint32_t ping, dead;
+        uint8_t payload[WsClients::PING_PAYLOAD_LEN];
         {
             Lock l(mutex);
-            ping = wsc.duePing(now);
+            ping = wsc.duePing(now, esp_random(), payload);
             dead = wsc.expired(now);
         }
-        if (ping) ws->ping(ping, PING_PAYLOAD, sizeof(PING_PAYLOAD));
+        if (ping) ws->ping(ping, payload, sizeof(payload));
         if (dead) {
             Logger::info("WEB", "WebSocket closed: no pong");
             ws->close(dead, 1001);

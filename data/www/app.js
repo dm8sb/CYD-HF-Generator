@@ -33,6 +33,13 @@ let pendEnd = 0, pendAt = 0, pendT = 0, toastT = 0, loginP = null, loginRes = nu
 // This browser has a login session (the cookie is HttpOnly): set by a login or by a request that
 // needs one, cleared by 401 and the logout. Only shown while a web password is set.
 let authed = false, pwSet = false, pwKnown = false;
+// D25: with a web password even reading needs the login. needLogin: a read was refused (401);
+// declined: the login dialog was cancelled, so reads stop asking until "Log in" is pressed.
+let needLogin = false, declined = false;
+// A hidden tab closes its WebSocket after HIDDEN_CLOSE_MS and polls nothing (AF18): it would
+// hold one of the three slots.
+const HIDDEN_CLOSE_MS = 60000;
+let paused = false, hideT = 0;
 const Q = {}, busy = {};
 const U = {ch: {}, card: {}, cardEl: {}, cfg: {}, wifi: {}};
 
@@ -147,8 +154,12 @@ async function api(path, body, retried) {
   }
   let r, j = null;
   try { r = await fetch(path, o); } catch (e) { throw apiErr(0); }
-  if (r.status === 401) setAuthed(false);
-  if (r.status === 401 && !retried && path !== '/api/login' && path !== '/api/logout') {
+  if (r.status === 401) {
+    setAuthed(false);
+    needLogin = true;
+    syncLogin();
+  }
+  if (r.status === 401 && !retried && path !== '/api/login' && path !== '/api/logout' && !(declined && !post)) {
     await login();
     return api(path, body, true);
   }
@@ -157,6 +168,8 @@ async function api(path, body, retried) {
   // Writes and the WiFi settings need the session while a password is set (without one the flag
   // means nothing and the button stays hidden).
   if (path !== '/api/logout' && (post || path.startsWith('/api/wifi'))) setAuthed(true);
+  // A state read while a password is set needs the session as well (D25).
+  if (path === '/api/state' && j && j.device && j.device.passwordSet) setAuthed(true);
   if (j && j.ch && j.config) apply(j);
   return j;
 }
@@ -293,11 +306,14 @@ async function doLogin(e) {
     if (r.ok) {
       const res = loginRes;
       loginP = null;
+      declined = false;
       $('dlgLogin').close();
       setAuthed(true);
       res();
       wsRetry = 2000;
+      poll();
       connectWs();
+      if (!NET) loadNet();
       return;
     }
     let j = null;
@@ -308,7 +324,13 @@ async function doLogin(e) {
 }
 function setAuthed(v) {
   authed = v;
+  if (v) needLogin = false;
   $('bLogout').hidden = !(pwSet && authed);
+  syncLogin();
+}
+// "Log in" while the device refuses reads without a session (D25) and none is open.
+function syncLogin() {
+  $('bLogin').hidden = !(needLogin && !authed);
 }
 // Ends this browser's session; the state stays readable, the next write asks for the password.
 async function logout() {
@@ -344,12 +366,18 @@ function apply(st) {
 async function poll() {
   if (polling) return;
   polling = true;
-  while (!wsLive) {
+  while (!wsLive && !paused) {
     try {
       apply(await api('/api/state'));
       fails = 0;
       setOnline(true);
     } catch (e) {
+      if (e.status === 401) {
+        // Login refused or cancelled: nothing to read until "Log in" (D25).
+        setOnline(false);
+        set($('conn'), 'Login required');
+        break;
+      }
       if (++fails >= 2) setOnline(false);
     }
     await sleep(1000);
@@ -357,7 +385,7 @@ async function poll() {
   polling = false;
 }
 function connectWs() {
-  if (ws || !window.WebSocket) return;
+  if (ws || !window.WebSocket || paused) return;
   try {
     ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?t=' + encodeURIComponent(TOKEN));
   } catch (e) { ws = null; return; }
@@ -367,14 +395,31 @@ function connectWs() {
     ws = null;
     wsLive = false;
     setOnline(online);
+    if (paused) return; // hidden tab: back when it is shown
     poll();
     setTimeout(connectWs, wsRetry);
     wsRetry = Math.min(wsRetry * 2, 30000);
   };
 }
+// Hidden for HIDDEN_CLOSE_MS: the WebSocket closes and nothing polls; shown again: reconnect.
+function onVisibility() {
+  clearTimeout(hideT);
+  if (D.hidden) {
+    hideT = setTimeout(() => {
+      paused = true;
+      if (ws) ws.close();
+    }, HIDDEN_CLOSE_MS);
+    return;
+  }
+  if (!paused) return;
+  paused = false;
+  wsRetry = 2000;
+  poll();
+  connectWs();
+}
 // Push only on change: a slow GET confirms the link and catches a missed message.
 async function heartbeat() {
-  if (!wsLive) return;
+  if (!wsLive || D.hidden) return; // no heartbeat in the background (AF18)
   try { apply(await api('/api/state')); } catch (e) { if (e.status !== 401 && ws) ws.close(); }
 }
 
@@ -914,13 +959,22 @@ function init() {
   $('bIdent').addEventListener('click', () => act(api('/api/identify', {}).then(() => toast('Identify: display and LED blink for 5 s', true))));
   $('bSave').addEventListener('click', () => act(api('/api/save', {})));
   $('bLogout').addEventListener('click', logout);
+  $('bLogin').addEventListener('click', () => {
+    declined = false;
+    login().catch(() => {});
+  });
+  D.addEventListener('visibilitychange', onVisibility);
   $('bHelp').addEventListener('click', () => $('dlgHelp').showModal());
   $('helpX').addEventListener('click', () => $('dlgHelp').close());
   $('askOk').addEventListener('click', () => $('dlgAsk').close('ok'));
   $('askNo').addEventListener('click', () => $('dlgAsk').close('no'));
   $('fLogin').addEventListener('submit', doLogin);
   $('dlgLogin').addEventListener('close', () => {
-    if (loginP) { loginP = null; loginRej(apiErr(401)); }
+    if (loginP) {
+      loginP = null;
+      declined = true; // reads stop asking; "Log in" in the header asks again
+      loginRej(apiErr(401));
+    }
   });
   D.querySelectorAll('nav a[data-ch]').forEach((a) => a.addEventListener('click', () => select(+a.dataset.ch)));
   D.addEventListener('keydown', onKey);

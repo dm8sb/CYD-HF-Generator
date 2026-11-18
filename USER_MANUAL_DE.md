@@ -1120,6 +1120,7 @@ Wichtige Meldungen:
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Netzänderung aus dem Browser (Abschnitt 16) |
 | `[GUI] Network change refused: web change pending` | Eine Netzeinstellung am Gerät wurde abgelehnt, weil eine Änderung aus dem Browser auf die Bestätigung wartet (Abschnitt 16) |
 | `[WEB] WebSocket closed: no pong` | Browser antwortet nicht mehr |
+| `[WEB] WebSocket closed: ping flood` | Ein Client hat mehr als 3 WebSocket-Pings in 10 s geschickt (die Weboberfläche schickt keine) und wurde getrennt |
 | `[APP] Remote outputs: allowed` / `Remote outputs: local only` | CONFIG `Remote out.` geändert (sofort gespeichert) |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
 | `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
@@ -1387,13 +1388,13 @@ Das WLAN läuft ohne Energiesparen und mit voller Sendeleistung: Das Gerät antw
 - Tastatur: `↑`/`↓` (auch `+`/`−`) Frequenz im Schritt, `←`/`→` Schritt größer/kleiner, `Bild↑`/`Bild↓` Frequenz × 10 / ÷ 10, `1`/`2`/`3` Kanal, `F` oder `Enter` Eingabefeld, `O` Ausgang ein/aus, `?` Hilfe.
 - Änderungen am Gerät oder per SCPI erscheinen nach etwa 1 s und werden kurz hervorgehoben; ein Feld mit Fokus wird nicht überschrieben. Ohne Verbindung ist alles grau.
 - Die Statusleiste am Gerät zeigt nach einer Änderung aus dem Browser 10 s lang `REMOTE WEB`. `Remote out.` `local only` (Abschnitt 8) gilt auch hier: Einschalten und `Off state` `High` werden abgelehnt (dann ohne Rückfrage, die Meldung steht neben der Auswahl).
-- Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`.
+- Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`. Ein Tab im Hintergrund (verdeckt oder minimiert) gibt seinen Platz nach 60 s frei und verbindet sich wieder, sobald er sichtbar wird. Eine Verbindung, die auf die Prüfanfragen des Geräts (alle 15 s) nicht antwortet, trennt das Gerät nach 30 s; eine, die das Gerät selbst mit Prüfanfragen (WebSocket-Ping) überflutet, sofort.
 - Nur am Gerät: Grundzustand und Werksreset, Touch-Abgleich, Bildschirmsperre, neues Access-Point-Passwort, Web-Passwort (WIFI → `Device`, Zeile `Web pw.`).
 - Die Fußzeile am Ende der Seite zeigt `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` und `licenses` öffnen das Repository bzw. `THIRD_PARTY_NOTICES.md` auf GitHub im Stand des Release-Tags der Firmware (z. B. `v2.0.0`) in einem neuen Tab (dafür braucht der Browser Internet, Abschnitt 1, „Lizenzen“).
 
 ### Web-Passwort
 
-Ist ein Web-Passwort gesetzt, fragt die Seite vor dem ersten Ändern danach (Lesen geht ohne). Die Anmeldung dauert etwa 1,5 s und gilt 12 h. Nach 5 falschen Versuchen ist die Anmeldung 30 s gesperrt, jede weitere Sperre dauert doppelt so lang (bis 16 min). `Log out` in der Kopfzeile (nur mit Web-Passwort und Anmeldung) beendet die Anmeldung; die nächste Änderung fragt wieder nach dem Passwort. Das Web-Passwort wird am Gerät auf der Seite Device festgelegt (Abschnitt 8); ohne Web-Passwort kann jeder im Netz das Gerät bedienen. Es schützt **nur Weboberfläche und REST**: SCPI über TCP 5025 und VXI-11 fragen nach keinem Passwort und bleiben auch mit Web-Passwort für jeden im Netz bedienbar (Abschnitt 15). Über einen offenen Access Point (ohne Passwort) ist die Anmeldung gesperrt, weil das Passwort dort unverschlüsselt über Funk ginge: Die Seite schickt es nicht ab und zeigt `Passwords cannot be sent over the open access point`, das Gerät lehnt `POST /api/login` ebenso ab (403). Mit Web-Passwort lässt sich das Gerät über einen offenen Access Point daher nur ansehen, nicht bedienen.
+Ist ein Web-Passwort gesetzt, fragt die Seite schon beim Öffnen danach: Ohne Anmeldung zeigt sie keine Werte, auch Zustand (`GET /api/state`), Token und Live-Werte (WebSocket) gibt das Gerät nur mit Anmeldung heraus. Wird die Abfrage abgebrochen, steht in der Kopfzeile `Login required` und die Taste `Log in` fragt erneut. Ohne Anmeldung lesbar bleibt nur die LXI-Kennung `/lxi/identification` (Hersteller, Modell, Seriennummer, Version, Adresse; dasselbe, was `*IDN?` über SCPI ohnehin liefert). Die Anmeldung dauert etwa 1,5 s und gilt 12 h. Nach 5 falschen Versuchen ist die Anmeldung 30 s gesperrt, jede weitere Sperre dauert doppelt so lang (bis 16 min). `Log out` in der Kopfzeile (nur mit Web-Passwort und Anmeldung) beendet die Anmeldung; die Seite fragt danach wieder nach dem Passwort. Setzen, Ändern oder Entfernen des Web-Passworts am Gerät beendet alle Anmeldungen und trennt die offenen Seiten; sie verbinden sich neu (mit Passwort nach erneuter Anmeldung). Das Web-Passwort wird am Gerät auf der Seite Device festgelegt (Abschnitt 8); ohne Web-Passwort kann jeder im Netz das Gerät bedienen. Es schützt **nur Weboberfläche und REST**: SCPI über TCP 5025 und VXI-11 fragen nach keinem Passwort und bleiben auch mit Web-Passwort für jeden im Netz bedienbar (Abschnitt 15). Über einen offenen Access Point (ohne Passwort) ist die Anmeldung gesperrt, weil das Passwort dort unverschlüsselt über Funk ginge: Die Seite schickt es nicht ab und zeigt `Passwords cannot be sent over the open access point`, das Gerät lehnt `POST /api/login` ebenso ab (403). Mit Web-Passwort lässt sich das Gerät über einen offenen Access Point daher weder ansehen noch bedienen.
 
 ### Netzeinstellungen aus dem Browser
 
@@ -1418,14 +1419,14 @@ Programme können dieselben Funktionen über HTTP und JSON nutzen; Beispiel in `
 
 | Aufruf | Inhalt |
 |---|---|
-| `GET /api/state` | Zustand als JSON (Kanäle, CH3, CONFIG, WLAN, Speichern, `REMOTE`) |
+| `GET /api/state` | Zustand als JSON (Kanäle, CH3, CONFIG, WLAN, Speichern, `REMOTE`); mit Web-Passwort nur mit Anmeldung |
 | `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` oder `{"frequencyText":"7.1M"}` |
 | `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
 | `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` bei `local only` 403), `correction` (0,01 ppm), `step`, `backlight` |
 | `POST /api/save`, `/api/identify` | `{}`; Speichern wie `SYST:SAVE` höchstens einmal je 10 s (Abschnitt 15) |
 | `POST /api/login`, `POST /api/logout` | `{"password":"…"}` bzw. `{}`, Antwort mit Sitzungs-Cookie bzw. abgelaufenem Cookie |
 | `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Netzeinstellungen (Passwörter nur schreibend; `slot` 0 und 1 = Netz 1 und 2 am Gerät; Netzpasswort 8–63 Zeichen oder 64 Hex-Zeichen), Bestätigung, Netzsuche (höchstens alle 10 s) |
-| WebSocket `/ws?t=<Token>` | Zustand bei jeder Änderung |
+| WebSocket `/ws?t=<Token>` | Zustand bei jeder Änderung; mit Web-Passwort nur mit Anmeldung |
 
 Jeder `POST` braucht `Content-Type: application/json` und den Kopf `X-CYD-Token` mit dem Token aus der Seite (neu bei jedem Neustart, `GET /api/token`). Fehler kommen wie bei SCPI als `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` (Einschalten, `offState` `high`) 403, zu viele Befehle 429, Gerät beschäftigt 503, nicht angemeldet 401. Grenzen: Anfrage höchstens 1 KB, Adresse 256 Zeichen, 20 Schreibbefehle pro Sekunde. `backlight` nimmt jeden Wert von 10 bis 100 und rundet auf 10 % (55 → 60). Alle Fehlercodes und HTTP-Statuscodes stehen in `data/www/README.md`.
 

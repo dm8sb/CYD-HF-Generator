@@ -10,7 +10,7 @@ make (token, content type, origin, body size, unknown keys, types, ranges, rate 
 UI meets the same answers as on the device.
 
     python tools/web_mock.py                     # http://127.0.0.1:8080/
-    python tools/web_mock.py --password secret1  # login required for writes and WiFi
+    python tools/web_mock.py --password secret1  # login required for everything but the page (D25)
     python tools/web_mock.py --local-only        # Remote outputs: local only (switch-on, off state High -> 403)
     python tools/web_mock.py --open-ap           # client sits on the open AP (passwords -> 403)
     python tools/web_mock.py --hw NFO --no-ws --demo --confirm-timeout 20
@@ -572,11 +572,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         m = self.model
         try:
             with m.lock:
+                # D25: with a web password the token and the state need a session as well.
+                if url.path in ("/api/token", "/api/state") and not self.session_ok():
+                    raise ApiError(401, "-200,Login required")
                 if url.path == "/api/token":
                     return self.send(200, {"token": self.token})
                 if url.path == "/api/state":
-                    if self.server.login_all and not self.session_ok():
-                        raise ApiError(401, "-200,Login required")
                     return self.send(200, m.state())
                 if url.path in ("/api/wifi", "/api/wifi/scan"):
                     if not self.session_ok():
@@ -707,7 +708,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(400, {"error": "-200,WebSocket upgrade expected"})
         if q.get("t", [""])[0] != self.token or (origin and origin != self.own_origin()):
             return self.send(403, {"error": "-200,Forbidden"})
-        if self.server.login_all and not self.session_ok():
+        if not self.session_ok():  # D25
             return self.send(401, {"error": "-200,Login required"})
         with m.lock:
             if m.ws_count >= MAX_WS:
@@ -744,6 +745,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         sock, m = self.connection, self.model
         sock.settimeout(5)
         last_rev, last_ping, last_pong = None, time.monotonic(), time.monotonic()
+        nonce = None                # payload of our unanswered PING (AF18)
+        pings, ping_window = 0, time.monotonic()
         while True:
             with m.lock:
                 rev = m.rev
@@ -753,7 +756,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 last_rev = rev
             now = time.monotonic()
             if now - last_ping >= 15:
-                self.ws_send(0x9, b"cyd")
+                nonce = secrets.token_bytes(4)
+                self.ws_send(0x9, nonce)
                 last_ping = now
             if now - last_pong > 30:
                 self.ws_send(0x8, struct.pack(">H", 1001))
@@ -775,9 +779,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.ws_send(0x8, data[:2])
                 return
             if op == 0x9:
+                # The UI never pings: more than 3 PINGs in 10 s close the socket (AF18).
+                if time.monotonic() - ping_window >= 10:
+                    pings, ping_window = 0, time.monotonic()
+                pings += 1
+                if pings > 3:
+                    self.ws_send(0x8, struct.pack(">H", 1008) + b"Ping flood")
+                    return
                 self.ws_send(0xA, data)
             elif op == 0xA:
-                last_pong = time.monotonic()
+                # Only the answer to our PING counts (its random payload), not unsolicited PONGs.
+                if nonce is not None and data == nonce:
+                    last_pong = time.monotonic()
+                    nonce = None
             # Text and binary frames are ignored: the socket is push only.
 
 
@@ -791,7 +805,7 @@ def main():
     ap.add_argument("--host", default="127.0.0.1", help="bind address (0.0.0.0 for phones in the LAN)")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--password", default="", help="web password: login required for writes and WiFi settings")
-    ap.add_argument("--login-all", action="store_true", help="with --password: also /api/state and /ws need the login")
+    ap.add_argument("--login-all", action="store_true", help="no effect: with --password the state, token and /ws always need the login (D25)")
     ap.add_argument("--local-only", action="store_true", help="Remote outputs: local only (switch-on and off state High answer 403)")
     ap.add_argument("--open-ap", action="store_true", help="the client sits on the open AP: password fields answer 403")
     ap.add_argument("--hw", default="CONN", choices=("CONN", "NFO", "BLOC", "UNKN"), help="SI5351 link state")
@@ -807,7 +821,7 @@ def main():
     Handler.model = Model(args)
     Handler.token = args.token or secrets.token_hex(16)
     srv = Server((args.host, args.port), Handler)
-    srv.bind_host, srv.password, srv.login_all = args.host, args.password, args.login_all and bool(args.password)
+    srv.bind_host, srv.password = args.host, args.password
     srv.open_ap, srv.no_ws, srv.verbose = args.open_ap, args.no_ws, args.verbose
 
     def ticker():

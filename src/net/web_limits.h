@@ -82,17 +82,27 @@ private:
 
 // WebSocket clients (W-E10, W-S6): at most MAX, push only, ping every PING_MS, closed after
 // PONG_TIMEOUT_MS without an answer; needsState marks a client that has not got the current state.
+// AF18: only a PONG that answers our PING counts: it must echo the PING's random payload
+// (PING_PAYLOAD_LEN bytes from duePing), so unsolicited PONGs cannot keep a client that reads
+// nothing (a hidden tab, a dead peer, a slot hog) in its slot, and more than PING_BUDGET PINGs from a client within PING_WINDOW_MS close it (the
+// web UI never pings; the library queues a PONG for every PING without a limit).
 class WsClients {
 public:
     static constexpr uint8_t MAX = 3;
     static constexpr uint32_t PING_MS = 15000;
     static constexpr uint32_t PONG_TIMEOUT_MS = 30000;
     static constexpr size_t MAX_FRAME = 512; // inbound frames (W-S6); the state goes out at ~800 B
+    static constexpr uint8_t PING_BUDGET = 3;
+    static constexpr size_t PING_PAYLOAD_LEN = 4;
+    static constexpr uint32_t PING_WINDOW_MS = 10000;
 
     // false when MAX clients are registered (the caller closes the new one).
     bool add(uint32_t id, uint32_t nowMs);
     void remove(uint32_t id);
-    void pong(uint32_t id, uint32_t nowMs);
+    // A PONG from the client: counts only while our PING waits for it and with its payload.
+    void pong(uint32_t id, uint32_t nowMs, const uint8_t* data, size_t len);
+    // A PING from the client; false = flood (or unknown client): the caller closes it.
+    bool clientPing(uint32_t id, uint32_t nowMs);
     uint8_t count() const;
     // Every client gets the next state.
     void markAll();
@@ -100,8 +110,9 @@ public:
     // got it.
     uint32_t needingState(uint8_t index) const;
     void sent(uint32_t id);
-    // A client due for a ping (0 = none); marks it pinged.
-    uint32_t duePing(uint32_t nowMs);
+    // A client due for a ping (0 = none); marks it pinged with nonce (random) as the payload,
+    // written to payload[PING_PAYLOAD_LEN].
+    uint32_t duePing(uint32_t nowMs, uint32_t nonce, uint8_t payload[PING_PAYLOAD_LEN]);
     // A client silent for longer than PONG_TIMEOUT_MS (0 = none); removes it.
     uint32_t expired(uint32_t nowMs);
     // An inbound frame of this total length is acceptable (push only: anything else is ignored).
@@ -113,6 +124,10 @@ private:
         uint32_t lastPongMs;
         uint32_t lastPingMs;
         bool needsState;
+        bool awaitingPong;    // our PING is unanswered
+        uint32_t nonce;       // its payload
+        uint8_t pingsIn;      // PINGs from the client in the current window
+        uint32_t pingWindowMs;
     };
     Client clients_[MAX] {};
 };

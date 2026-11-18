@@ -4,10 +4,10 @@ Static files the firmware embeds and serves (S55: `tools/embed_www.py` gzips `ap
 
 | File | Bytes | gzip -9 | Content |
 |---|---:|---:|---|
-| `index.html` | 3 812 | 1 541 | Skeleton: header, license footer, dialogs (help, login, confirm), `<meta name="cyd-token" content="{{TOKEN}}">` |
-| `app.js` | 41 247 | 14 128 | Everything else: areas, rendering, REST, WebSocket/polling, keyboard |
+| `index.html` | 3 906 | 1 560 | Skeleton: header, license footer, dialogs (help, login, confirm), `<meta name="cyd-token" content="{{TOKEN}}">` |
+| `app.js` | 43 121 | 14 719 | Everything else: areas, rendering, REST, WebSocket/polling, keyboard |
 | `style.css` | 9 230 | 3 134 | Dark theme in the colors of `include/palette.h`, responsive layout |
-| total | 54 289 | 18 803 | |
+| total | 56 257 | 19 413 | |
 
 This README is not embedded and not served.
 
@@ -21,7 +21,7 @@ This README is not embedded and not served.
 
 ## Areas
 
-- **Header:** device name and version, connection (`Live` = WebSocket, `Polling`, `Offline`), save state (`Saved`, `Saving...`, `Save failed`, `Not saved`), `REMOTE <source>`, SI5351 problem, `Identify`, `Save`, `Log out` (only while a web password is set and this browser is logged in), `?`, and the links MAIN, CH1, CH2, CH3, CONFIG, WiFi. It stays at the top on every width (on a phone as well, like the output bar at the bottom); anchors stop below it (`--toph` follows its height). On a phone `MAIN` scrolls to the top, the cards are the output bar.
+- **Header:** device name and version, connection (`Live` = WebSocket, `Polling`, `Offline`), save state (`Saved`, `Saving...`, `Save failed`, `Not saved`), `REMOTE <source>`, SI5351 problem, `Identify`, `Save`, `Log out` (only while a web password is set and this browser is logged in), `Log in` (after a cancelled login while reads need it, D25), `?`, and the links MAIN, CH1, CH2, CH3, CONFIG, WiFi. It stays at the top on every width (on a phone as well, like the output bar at the bottom); anchors stop below it (`--toph` follows its height). On a phone `MAIN` scrolls to the top, the cards are the output bar.
 - **MAIN:** three cards as on the device: state (`ON`, `OFF`, `! ERR`, `WAIT`, `! NO HW`), frequency (`~` in Integer mode from 1 Hz deviation, below 100 MHz), mode line (`IQ master` / `IQ master of CH3`; CH3: `CH1 / 90°` with the reason for `WAIT`), switch. On a phone (< 700 px) the cards form a fixed output bar at the bottom and the areas are stacked.
 - **CH1, CH2:** switch and state, frequency digits (the digit of the step in the channel color; click = step, wheel = change that digit, click on the unit = input field), `Out` line, mode line with `IQ master (90°)` and the range hint, step chips `1M` … `1`, `−`/`+` with hold-to-repeat as on the device, frequency field.
 - **CH3 IQ:** switch, state, frequency, status line (`Off  |  follows CHx`, `Out …`, `Master CHx is off: click to switch on` as a button, `Waiting: CHx below 4.730 MHz`, …), master and phase chips, IQ range note, field for the master frequency.
@@ -52,7 +52,7 @@ Python 3, standard library only. Serves this directory with `{{TOKEN}}` replaced
 python tools/web_mock.py                       # prints http://127.0.0.1:8080/
 python tools/web_mock.py --host 0.0.0.0        # for a phone in the LAN
 python tools/web_mock.py --password secret123  # login for writes and WiFi (state stays public)
-python tools/web_mock.py --password secret123 --login-all   # state and /ws need the login, too
+python tools/web_mock.py --password secret123   # state, token and /ws need the login, too (D25; --login-all is kept and has no effect)
 python tools/web_mock.py --local-only          # Remote outputs: local only -> switch-on and offState high 403
 python tools/web_mock.py --open-ap             # client on the open AP -> password fields 403
 python tools/web_mock.py --hw NFO              # no SI5351: NO HW
@@ -170,7 +170,8 @@ Scan: the first GET starts a scan (`running`), the GET after it finished returns
 - `device.passwordSet` tells whether a web password is set; it is set at the device only (no REST call, WIFI > Device > `Web pw.`). Setting, changing or removing it ends every session; the UI then hides `Log out` until the next login. Without one, a network change needs `Keep` at the touch screen as well: a web `Confirm` before that answers `-221,Confirm at the device as well` and counts once the touch confirms.
 - Stale token after a restart: 403 `-200,Invalid token: reload the page`.
 - Error codes: see [Errors](#errors) (the earlier list here was merged into it, DOC-2).
-- `/api/state` and `/ws` are readable without login also when a password is set (they hold no secrets, MAC or commit).
+- Changed by D25 (AF18): with a web password `GET /api/state`, `GET /api/token` and the `/ws` upgrade need a session as well (401 `Login required`); the page itself (it carries the token) and `GET /lxi/identification` (D33) stay readable. The UI asks for the password when a read answers 401; after a cancelled login reads stop asking and the header shows `Login required` with a `Log in` button. Setting, changing or removing the password ends every session and closes every WebSocket. Without a web password everything stays readable as before (the state holds no secrets, MAC or commit).
+- WebSocket (AF18): the device pings every 15 s with a random 4-byte payload; only a PONG with that payload counts, so unsolicited PONGs keep no client alive (closed 30 s after the last answer). More than 3 PINGs from a client within 10 s close it with 1008 (the UI never pings). A hidden page closes its WebSocket after 60 s and polls nothing; it reconnects when it is shown again, and sends no heartbeat while hidden.
 - Without connection `wifi.ssid`/`ip` are `""`, `rssi` 0; with the AP `ip` is the AP address.
 - No REST call for `Defaults` / `Factory`, touch calibration, screen lock, AP `Regenerate` and the web password; the UI says these are set at the device.
 - `PgUp`/`PgDn` are read as frequency × 10 / ÷ 10 (ARBEITSPLAN 3.6 "× 10 / ÷ 10"); `←`/`→` already step the step size by decades.

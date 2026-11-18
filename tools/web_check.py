@@ -81,12 +81,13 @@ def err(j):
 
 
 # --- minimal RFC 6455 client --------------------------------------------------------------
-def ws_open(hostport, path, timeout=5):
+def ws_open(hostport, path, timeout=5, cookie=""):
     host, _, port = hostport.partition(":")
     s = socket.create_connection((host, int(port or 80)), timeout=timeout)
     key = base64.b64encode(os.urandom(16)).decode()
+    extra = "Cookie: %s\r\n" % cookie if cookie else ""
     s.sendall(("GET %s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-               "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n" % (path, hostport, key)).encode())
+               "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n%s\r\n" % (path, hostport, key, extra)).encode())
     head = b""
     while b"\r\n\r\n" not in head:
         part = s.recv(1024)
@@ -173,8 +174,18 @@ def main():
     st, _, _ = api.raw("GET", "/README.md")
     check("README.md not served", st == 404, "HTTP %d" % st)
 
-    # Login first if a password is set.
+    # Login first if a password is set; until then only the page and the LXI identification are
+    # readable (D25, D33).
     if args.password:
+        st, _, j = api.call("GET", "/api/state")
+        check("state without login -> 401 (D25)", st == 401 and "Login required" in err(j), "%d %s" % (st, j))
+        st, _, _ = api.call("GET", "/api/token")
+        check("token without login -> 401 (D25)", st == 401, "HTTP %d" % st)
+        s, st, _ = ws_open(args.host, "/ws?t=" + api.token)
+        check("WebSocket without login -> 401 (D25)", st == 401, "HTTP %d" % st)
+        s.close()
+        st, _, raw = api.raw("GET", "/lxi/identification")
+        check("LXI identification without login -> 200 (D33)", st == 200 and b"<LXIDevice" in raw, "HTTP %d" % st)
         st, _, j = api.call("POST", "/api/config", {"step": 1000})
         check("write without login -> 401", st == 401 and "Login required" in err(j), "%d %s" % (st, j))
         st, _, j = api.call("POST", "/api/login", {"password": args.password + "x"})
@@ -296,11 +307,11 @@ def main():
         check("new scan within 10 s -> 429", st == 429, "HTTP %d" % st)
 
     # WebSocket (W-S6, W-E10).
-    s, st, _ = ws_open(args.host, "/ws?t=" + "0" * 32)
+    s, st, _ = ws_open(args.host, "/ws?t=" + "0" * 32, cookie=api.cookie)
     check("WebSocket with a wrong token -> 403", st == 403, "HTTP %d" % st)
     s.close()
     socks = []
-    s, st, buf = ws_open(args.host, "/ws?t=" + api.token)
+    s, st, buf = ws_open(args.host, "/ws?t=" + api.token, cookie=api.cookie)
     ok = check("WebSocket upgrade -> 101", st == 101, "HTTP %d" % st)
     if ok:
         op, data, buf = ws_read(s, buf, 3)
@@ -316,9 +327,9 @@ def main():
         ws_read(s, buf, 1)
         socks.append(s)
         for _ in range(2):
-            s2, st2, _ = ws_open(args.host, "/ws?t=" + api.token)
+            s2, st2, _ = ws_open(args.host, "/ws?t=" + api.token, cookie=api.cookie)
             socks.append(s2)
-        s4, st4, _ = ws_open(args.host, "/ws?t=" + api.token)
+        s4, st4, _ = ws_open(args.host, "/ws?t=" + api.token, cookie=api.cookie)
         check("fourth WebSocket -> 503", st4 == 503, "HTTP %d" % st4)
         s4.close()
         st, _, raw = api.raw("GET", "/")
@@ -329,6 +340,20 @@ def main():
         check("inbound frame > 512 B -> close 1009", op == 0x8 and data[:2] == struct.pack(">H", 1009), "op %s %s" % (op, data[:2]))
         for x in socks:
             x.close()
+        # AF18: the UI never pings; a PING flood closes the socket (policy 1008).
+        time.sleep(0.5)
+        f, stf, buf = ws_open(args.host, "/ws?t=" + api.token, cookie=api.cookie)
+        closed = None
+        if stf == 101:
+            for _ in range(8):
+                f.sendall(ws_frame(0x9, b"p"))
+            end = time.time() + 3
+            while time.time() < end and closed is None:
+                op, data, buf = ws_read(f, buf, 1)
+                if op == 0x8:
+                    closed = data[:2]
+        check("PING flood -> close 1008", closed == struct.pack(">H", 1008), "HTTP %d, close %s" % (stf, closed))
+        f.close()
 
     # Logout (S56): {} only, token like every POST, no session needed; the cookie expires and
     # the session ends.

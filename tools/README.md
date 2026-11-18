@@ -91,5 +91,5 @@ python tools/web_check.py cyd-hf-1a2b.local --password secret123   # ... against
 
 The mock gives the firmware's answers (S55); where they differ, the firmware is the reference.
 
-Further flags: `--login-all`, `--local-only`, `--open-ap`, `--hw`, `--no-ws`, `--confirm-timeout`, `--token`
+Further flags: `--local-only`, `--open-ap`, `--hw`, `--no-ws`, `--confirm-timeout`, `--token` (`--login-all` has no effect any more: with `--password` the state, token and `/ws` always need the login, D25)
 (`--help` explains them).
