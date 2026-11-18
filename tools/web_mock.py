@@ -37,6 +37,7 @@ import urllib.parse
 from decimal import Decimal, ROUND_HALF_UP
 
 import device_constants as dc
+import hostport
 
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "www")
 # Firmware version of the mock (device.version; the footer links its tag like the firmware, E-39).
@@ -70,7 +71,8 @@ SCAN_TIME, SCAN_EVERY = 2.0, 10.0
 LOGIN_FAILS, LOGIN_LOCK = 5, 30
 
 NAME_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$")
-IP_RE = re.compile(r"^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$")
+# Dotted quad as the firmware accepts it (utils/ipv4.h): 0..255, no leading zeros.
+IP_RE = re.compile(r"^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\Z")
 FREQ_RE = re.compile(r"^\s*(\d[\d ]*(?:[.,][\d ]*)?|[.,]\d[\d ]*)\s*(hz|khz|mhz|k|m)?\s*$", re.I)
 
 SCAN_LIST = [("Lab", -48, True), ("Lab-Guest", -55, True), ("Workshop", -61, True), ("FRITZ!Box 7590 XY", -67, True),
@@ -501,7 +503,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # ---- checks shared by all requests
     def host_ok(self):
-        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]").lower()
+        host = hostport.host_only(self.headers.get("Host") or "")
         name = self.model.net["name"]
         allowed = {"localhost", "127.0.0.1", self.connection.getsockname()[0], name, name + ".local", self.server.bind_host}
         return host in allowed

@@ -30,6 +30,8 @@ import statistics
 import sys
 import time
 
+import hostport
+
 # ---------------------------------------------------------------------------
 # Expected values (USER_MANUAL_EN.md section 15). Edit here when the firmware
 # or the manual changes.
@@ -172,8 +174,7 @@ class UsbLink:
 
 class TcpLink:
     def __init__(self, target, timeout):
-        host, _, port = target.rpartition(":") if ":" in target else (target, "", "")
-        self.sock = socket.create_connection((host, int(port or 5025)), timeout=timeout)
+        self.sock = socket.create_connection(hostport.split(target, 5025), timeout=timeout)
         self.buf = b""
 
     def write_raw(self, data):

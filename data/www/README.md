@@ -51,7 +51,6 @@ Python 3, standard library only. Serves this directory with `{{TOKEN}}` replaced
 ```bash
 python tools/web_mock.py                       # prints http://127.0.0.1:8080/
 python tools/web_mock.py --host 0.0.0.0        # for a phone in the LAN
-python tools/web_mock.py --password secret123  # login for writes and WiFi (state stays public)
 python tools/web_mock.py --password secret123   # state, token and /ws need the login, too (D25; --login-all is kept and has no effect)
 python tools/web_mock.py --local-only          # Remote outputs: local only -> switch-on and offState high 403
 python tools/web_mock.py --open-ap             # client on the open AP -> password fields 403

@@ -22,26 +22,35 @@ const SAVE = {saved: 'Saved', pending: 'Saving...', failed: 'Save failed', unava
 const HW = {CONN: 'SI5351 connected', NFO: 'SI5351 not found', BLOC: 'I2C bus blocked (line held low)', UNKN: 'Unknown device at 0x60'};
 const KEY = {set: 'password set', open: 'open network', none: 'empty'};
 const IPK = ['ip', 'mask', 'gateway', 'dns'];
-const IPRE = /^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$/;
+// Dotted quad as the firmware accepts it (utils/ipv4.h): 0..255, no leading zeros.
+const IPRE = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
 const NAMERE = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/;
 
 // Frequency range and step list of the firmware (state.limits, AF48); steps largest first.
 let L = null;
-let S = null, NET = null, first = true, sel = 1, online = false, cstep = 1;
-let ws = null, wsLive = false, wsRetry = 2000, polling = false, fails = 0, lastWrite = 0;
-let pendEnd = 0, pendAt = 0, pendT = 0, toastT = 0, loginP = null, loginRes = null, loginRej = null;
-// This browser has a login session (the cookie is HttpOnly): set by a login or by a request that
-// needs one, cleared by 401 and the logout. Only shown while a web password is set.
-let authed = false, pwSet = false, pwKnown = false;
-// D25: with a web password even reading needs the login. needLogin: a read was refused (401);
-// declined: the login dialog was cancelled, so reads stop asking until "Log in" is pressed.
-let needLogin = false, declined = false;
+// S: last device state; NET: WiFi settings (GET /api/wifi); first: before the first render (no
+// change flash); sel: selected channel; cstep: index into CSTEP; Q/busy: coalesced writes and
+// dropdowns waiting for an answer; U: the widgets.
+let S = null, NET = null, first = true, sel = 1, cstep = 1, toastTimer = 0;
+const Q = {}, busy = {};
+const U = {ch: {}, card: {}, cardEl: {}, cfg: {}, wifi: {}};
 // A hidden tab closes its WebSocket after HIDDEN_CLOSE_MS and polls nothing (AF18): it would
 // hold one of the three slots.
 const HIDDEN_CLOSE_MS = 60000;
-let paused = false, hideT = 0;
-const Q = {}, busy = {};
-const U = {ch: {}, card: {}, cardEl: {}, cfg: {}, wifi: {}};
+// Link to the device: online (state readable), WebSocket (live: open), its retry delay, the
+// polling loop, failed polls, the last write (writes at most every 60 ms), hidden tab (paused,
+// hideT: the timer that pauses it).
+const conn = {online: false, ws: null, live: false, retry: 2000, polling: false, fails: 0, lastWrite: 0,
+  paused: false, hideT: 0};
+// Login. session: this browser has a login session (the cookie is HttpOnly): set by a login or
+// by a request that needs one, cleared by 401 and the logout; only shown while a web password is
+// set (pwSet, known from the first state: pwKnown). D25: with a web password even reading needs
+// the login. needLogin: a read was refused (401); declined: the login dialog was cancelled, so
+// reads stop asking until "Log in" is pressed. prompt/resolve/reject: the open login dialog.
+const auth = {session: false, pwSet: false, pwKnown: false, needLogin: false, declined: false,
+  prompt: null, resolve: null, reject: null};
+// Network change waiting for Confirm: end and start time, countdown timer.
+const pending = {end: 0, at: 0, timer: 0};
 
 // ---- DOM helpers
 function h(tag, p, ...kids) {
@@ -86,8 +95,8 @@ function toast(m, ok) {
   el.textContent = m;
   el.dataset.t = ok ? 'ok' : 'err';
   el.hidden = false;
-  clearTimeout(toastT);
-  toastT = setTimeout(() => { el.hidden = true; }, 5000);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 5000);
 }
 const fail = (e) => toast(e.msg || String(e));
 
@@ -143,10 +152,10 @@ function apiErr(status, j) {
 async function api(path, body, retried) {
   const post = body !== undefined;
   if (post) {
-    if (!online) throw apiErr(0);
+    if (!conn.online) throw apiErr(0);
     // The device takes at most 20 writes/s per source (W-S11).
-    const t = Math.max(Date.now(), lastWrite + 60);
-    lastWrite = t;
+    const t = Math.max(Date.now(), conn.lastWrite + 60);
+    conn.lastWrite = t;
     if (t > Date.now()) await sleep(t - Date.now());
   }
   const o = {cache: 'no-store', credentials: 'same-origin'};
@@ -160,10 +169,10 @@ async function api(path, body, retried) {
   try { r = await fetch(path, o); } catch (e) { throw apiErr(0); }
   if (r.status === 401) {
     setAuthed(false);
-    needLogin = true;
+    auth.needLogin = true;
     syncLogin();
   }
-  if (r.status === 401 && !retried && path !== '/api/login' && path !== '/api/logout' && !(declined && !post)) {
+  if (r.status === 401 && !retried && path !== '/api/login' && path !== '/api/logout' && !(auth.declined && !post)) {
     await login();
     return api(path, body, true);
   }
@@ -181,7 +190,7 @@ const act = (p) => p.catch(fail);
 
 // Coalesced writes: steps typed or held faster than the device answers are merged.
 function queue(k, cur, fn, send) {
-  if (!S || !online) return;
+  if (!S || !conn.online) return;
   const q = Q[k] || (Q[k] = {t: null, busy: false});
   const base = q.t != null ? q.t : cur;
   const t = fn(base);
@@ -288,12 +297,12 @@ function ask(title, text, ok) {
   });
 }
 function login() {
-  if (!loginP) {
-    loginP = new Promise((res, rej) => { loginRes = res; loginRej = rej; });
+  if (!auth.prompt) {
+    auth.prompt = new Promise((res, rej) => { auth.resolve = res; auth.reject = rej; });
     $('loginErr').textContent = '';
     $('dlgLogin').showModal();
   }
-  return loginP;
+  return auth.prompt;
 }
 async function doLogin(e) {
   e.preventDefault();
@@ -309,13 +318,13 @@ async function doLogin(e) {
       headers: {'Content-Type': 'application/json', 'X-CYD-Token': TOKEN}, body: JSON.stringify({password: pw.value})});
     pw.value = '';
     if (r.ok) {
-      const res = loginRes;
-      loginP = null;
-      declined = false;
+      const res = auth.resolve;
+      auth.prompt = null;
+      auth.declined = false;
       $('dlgLogin').close();
       setAuthed(true);
       res();
-      wsRetry = 2000;
+      conn.retry = 2000;
       poll();
       connectWs();
       if (!NET) loadNet();
@@ -328,14 +337,14 @@ async function doLogin(e) {
   } catch (x) { err.textContent = 'No connection to the device'; }
 }
 function setAuthed(v) {
-  authed = v;
-  if (v) needLogin = false;
-  $('bLogout').hidden = !(pwSet && authed);
+  auth.session = v;
+  if (v) auth.needLogin = false;
+  $('bLogout').hidden = !(auth.pwSet && auth.session);
   syncLogin();
 }
 // "Log in" while the device refuses reads without a session (D25) and none is open.
 function syncLogin() {
-  $('bLogin').hidden = !(needLogin && !authed);
+  $('bLogin').hidden = !(auth.needLogin && !auth.session);
 }
 // Ends this browser's session; the state stays readable, the next write asks for the password.
 async function logout() {
@@ -354,13 +363,13 @@ async function logout() {
 
 // ---- Connection: WebSocket push, polling as fallback
 function setOnline(v) {
-  online = v;
+  conn.online = v;
   $('ui').disabled = !v;
   $('bIdent').disabled = $('bSave').disabled = $('bLogout').disabled = !v;
   D.body.classList.toggle('offline', !v);
   const c = $('conn');
-  c.textContent = wsLive ? 'Live' : v ? 'Polling' : 'Offline';
-  c.dataset.t = wsLive ? 'ok' : v ? '' : 'err';
+  c.textContent = conn.live ? 'Live' : v ? 'Polling' : 'Offline';
+  c.dataset.t = conn.live ? 'ok' : v ? '' : 'err';
 }
 function apply(st) {
   if (!st || !Array.isArray(st.ch) || !st.ch3 || !st.config || !st.limits || !Array.isArray(st.limits.steps)) return;
@@ -370,12 +379,12 @@ function apply(st) {
   first = false;
 }
 async function poll() {
-  if (polling) return;
-  polling = true;
-  while (!wsLive && !paused) {
+  if (conn.polling) return;
+  conn.polling = true;
+  while (!conn.live && !conn.paused) {
     try {
       apply(await api('/api/state'));
-      fails = 0;
+      conn.fails = 0;
       setOnline(true);
     } catch (e) {
       if (e.status === 401) {
@@ -384,49 +393,49 @@ async function poll() {
         set($('conn'), 'Login required');
         break;
       }
-      if (++fails >= 2) setOnline(false);
+      if (++conn.fails >= 2) setOnline(false);
     }
     await sleep(1000);
   }
-  polling = false;
+  conn.polling = false;
 }
 function connectWs() {
-  if (ws || !window.WebSocket || paused) return;
+  if (conn.ws || !window.WebSocket || conn.paused) return;
   try {
-    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?t=' + encodeURIComponent(TOKEN));
-  } catch (e) { ws = null; return; }
-  ws.onopen = () => { wsLive = true; wsRetry = 2000; fails = 0; setOnline(true); };
-  ws.onmessage = (e) => { try { apply(JSON.parse(e.data)); } catch (x) { /* not a state */ } };
-  ws.onclose = () => {
-    ws = null;
-    wsLive = false;
-    setOnline(online);
-    if (paused) return; // hidden tab: back when it is shown
+    conn.ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?t=' + encodeURIComponent(TOKEN));
+  } catch (e) { conn.ws = null; return; }
+  conn.ws.onopen = () => { conn.live = true; conn.retry = 2000; conn.fails = 0; setOnline(true); };
+  conn.ws.onmessage = (e) => { try { apply(JSON.parse(e.data)); } catch (x) { /* not a state */ } };
+  conn.ws.onclose = () => {
+    conn.ws = null;
+    conn.live = false;
+    setOnline(conn.online);
+    if (conn.paused) return; // hidden tab: back when it is shown
     poll();
-    setTimeout(connectWs, wsRetry);
-    wsRetry = Math.min(wsRetry * 2, 30000);
+    setTimeout(connectWs, conn.retry);
+    conn.retry = Math.min(conn.retry * 2, 30000);
   };
 }
 // Hidden for HIDDEN_CLOSE_MS: the WebSocket closes and nothing polls; shown again: reconnect.
 function onVisibility() {
-  clearTimeout(hideT);
+  clearTimeout(conn.hideT);
   if (D.hidden) {
-    hideT = setTimeout(() => {
-      paused = true;
-      if (ws) ws.close();
+    conn.hideT = setTimeout(() => {
+      conn.paused = true;
+      if (conn.ws) conn.ws.close();
     }, HIDDEN_CLOSE_MS);
     return;
   }
-  if (!paused) return;
-  paused = false;
-  wsRetry = 2000;
+  if (!conn.paused) return;
+  conn.paused = false;
+  conn.retry = 2000;
   poll();
   connectWs();
 }
 // Push only on change: a slow GET confirms the link and catches a missed message.
 async function heartbeat() {
-  if (!wsLive || D.hidden) return; // no heartbeat in the background (AF18)
-  try { apply(await api('/api/state')); } catch (e) { if (e.status !== 401 && ws) ws.close(); }
+  if (!conn.live || D.hidden) return; // no heartbeat in the background (AF18)
+  try { apply(await api('/api/state')); } catch (e) { if (e.status !== 401 && conn.ws) conn.ws.close(); }
 }
 
 // ---- Render
@@ -455,13 +464,22 @@ const approx = (a, f) => S.config.tuning === 'integer' && S.hw === 'CONN' && a >
 
 function render() {
   if (!S) return;
-  const cf = S.config, c3 = S.ch3, wf = S.wifi || {}, st = step();
+  const wf = S.wifi || {}, st = step();
+  renderHeader(wf);
+  renderChannel(1, st);
+  renderChannel(2, st);
+  renderCh3(st);
+  renderConfig(wf);
+  renderWifi(wf);
+}
+
+function renderHeader(wf) {
   // A password set or removed at the device ends every session (S55b); the first state only
   // tells whether one is set.
-  const ps = !!(S.device && S.device.passwordSet), changed = pwKnown && ps !== pwSet;
-  pwSet = ps;
-  pwKnown = true;
-  setAuthed(changed ? false : authed);
+  const ps = !!(S.device && S.device.passwordSet), changed = auth.pwKnown && ps !== auth.pwSet;
+  auth.pwSet = ps;
+  auth.pwKnown = true;
+  setAuthed(changed ? false : auth.session);
   set($('dev'), [wf.name, S.device && S.device.version && 'v' + S.device.version].filter(Boolean).join(' · '));
   line($('save'), SAVE[S.save] || S.save, S.save === 'failed' || S.save === 'unavailable' ? 'err' : '');
   const rem = $('remote'), hw = $('hw');
@@ -469,75 +487,73 @@ function render() {
   if (S.remote) set(rem, 'REMOTE ' + String(S.remote).toUpperCase());
   hw.hidden = S.hw === 'CONN';
   set(hw, HW[S.hw] || S.hw);
+}
 
-  for (const n of [1, 2]) {
-    const c = chOf(n), f = pend('f' + n, c.frequency), card = U.card[n], w = U.ch[n], modes = c.modes || [];
-    const iq = c3.master === n && c3.status !== 'OFF';
-    badge(card.st, c.status);
-    badge(w.st, c.status);
-    setSw(card.sw, c.enabled);
-    setSw(w.sw, c.enabled);
-    set(card.f, (approx(c.actual, c.frequency) && f === c.frequency ? '~' : '') + fmtF(f));
-    modeLine(card.d, modes, iq ? (modes.length ? 'IQ master' : 'IQ master of CH3') : '');
-    showDigits(w.f, f, st);
-    if (c.status === 'NOHW' || c.status === 'ERR') {
-      line(w.out, c.status === 'NOHW' ? 'SI5351 not found' : 'Output error, retrying', 'err');
-    } else {
-      const o = outLine(c.actual, c.frequency, spreadOf(n));
-      line(w.out, (c.status === 'OFF' ? 'Off | ' : '') + o[0], o[1] ? 'warn' : '');
-    }
-    modeLine(w.m, modes, iq ? 'IQ master (' + c3.phase + '°)' : '', rangeNote(f));
-    syncSteps(w);
-    w.steps.forEach((b, i) => press(b, L.steps[i] === snap(st)));
-  }
-
-  const m = c3.master, mc = chOf(m), w = U.ch[3], card = U.card[3], f3 = pend('f' + m, c3.frequency);
-  const lo = c3.iqMin, hi = c3.iqMax;
-  let reason = '', info = '', tone = '', wake = false;
-  if (c3.status === 'WAIT') {
-    tone = 'warn';
-    if (!mc.enabled) {
-      reason = ' / master off';
-      info = 'Master CH' + m + ' is off: click to switch on';
-      wake = true;
-    } else if (mc.frequency < lo) {
-      reason = ' / < ' + iqLim(lo, 1, 2) + ' MHz';
-      info = 'Waiting: CH' + m + ' below ' + iqLim(lo, 1, 3) + ' MHz';
-    } else {
-      reason = ' / > ' + iqLim(hi, 0, 2) + ' MHz';
-      info = 'Waiting: CH' + m + ' above ' + iqLim(hi, 0, 3) + ' MHz';
-    }
-  } else if (c3.status === 'ERR') {
-    reason = ' / setup failed';
-    info = 'IQ setup failed, retrying';
-    tone = 'err';
-  } else if (c3.status === 'NOHW') {
-    info = 'SI5351 not found';
-    tone = 'err';
-  } else if (c3.status === 'OFF') {
-    info = 'Off  |  follows CH' + m;
+// CH1/CH2: MAIN card and channel page.
+function renderChannel(n, st) {
+  const c3 = S.ch3, c = chOf(n), f = pend('f' + n, c.frequency), card = U.card[n], w = U.ch[n], modes = c.modes || [];
+  const iq = c3.master === n && c3.status !== 'OFF';
+  badge(card.st, c.status);
+  badge(w.st, c.status);
+  setSw(card.sw, c.enabled);
+  setSw(w.sw, c.enabled);
+  set(card.f, (approx(c.actual, c.frequency) && f === c.frequency ? '~' : '') + fmtF(f));
+  modeLine(card.d, modes, iq ? (modes.length ? 'IQ master' : 'IQ master of CH3') : '');
+  showDigits(w.f, f, st);
+  if (c.status === 'NOHW' || c.status === 'ERR') {
+    line(w.out, c.status === 'NOHW' ? 'SI5351 not found' : 'Output error, retrying', 'err');
   } else {
-    const o = outLine(c3.actual, c3.frequency, spreadOf(3));
-    info = o[0];
-    tone = o[1] ? 'warn' : '';
+    const o = outLine(c.actual, c.frequency, spreadOf(n));
+    line(w.out, (c.status === 'OFF' ? 'Off | ' : '') + o[0], o[1] ? 'warn' : '');
   }
+  modeLine(w.m, modes, iq ? 'IQ master (' + c3.phase + '°)' : '', rangeNote(f));
+  syncSteps(w);
+  w.steps.forEach((b, i) => press(b, L.steps[i] === snap(st)));
+}
+
+// CH3 status as on the device (StatusText::ch3Info, "click" instead of "tap"): the reason for
+// the MAIN card, the status line, its tone and whether it offers to switch the master on.
+function ch3Info(c3, m, mc) {
+  const lo = c3.iqMin, hi = c3.iqMax;
+  switch (c3.status) {
+    case 'WAIT':
+      if (!mc.enabled) return {reason: ' / master off', info: 'Master CH' + m + ' is off: click to switch on', tone: 'warn', wake: true};
+      if (mc.frequency < lo) {
+        return {reason: ' / < ' + iqLim(lo, 1, 2) + ' MHz', info: 'Waiting: CH' + m + ' below ' + iqLim(lo, 1, 3) + ' MHz', tone: 'warn'};
+      }
+      return {reason: ' / > ' + iqLim(hi, 0, 2) + ' MHz', info: 'Waiting: CH' + m + ' above ' + iqLim(hi, 0, 3) + ' MHz', tone: 'warn'};
+    case 'ERR': return {reason: ' / setup failed', info: 'IQ setup failed, retrying', tone: 'err'};
+    case 'NOHW': return {reason: '', info: 'SI5351 not found', tone: 'err'};
+    case 'OFF': return {reason: '', info: 'Off  |  follows CH' + m, tone: ''};
+    default: {
+      const o = outLine(c3.actual, c3.frequency, spreadOf(3));
+      return {reason: '', info: o[0], tone: o[1] ? 'warn' : ''};
+    }
+  }
+}
+
+function renderCh3(st) {
+  const c3 = S.ch3, m = c3.master, mc = chOf(m), w = U.ch[3], card = U.card[3], f3 = pend('f' + m, c3.frequency);
+  const s = ch3Info(c3, m, mc);
   badge(card.st, c3.status);
   badge(w.st, c3.status);
   setSw(card.sw, c3.enabled);
   setSw(w.sw, c3.enabled);
   set(card.f, (approx(c3.actual, c3.frequency) ? '~' : '') + fmtF(f3));
-  line(card.d, 'CH' + m + ' / ' + c3.phase + '°' + reason, '');
+  line(card.d, 'CH' + m + ' / ' + c3.phase + '°' + s.reason, '');
   showDigits(w.f, f3, st);
-  w.wake.hidden = !wake;
-  w.out.hidden = wake;
-  if (wake) set(w.wake, info); else line(w.out, info, tone);
+  w.wake.hidden = !s.wake;
+  w.out.hidden = !!s.wake;
+  if (s.wake) set(w.wake, s.info); else line(w.out, s.info, s.tone);
   modeLine(w.m, mc.modes || []);
   w.ms.forEach((b, i) => press(b, m === i + 1));
   w.ph.forEach((b, i) => press(b, c3.phase === i * 90));
-  set(w.note, 'IQ range ' + iqLim(lo, 1, 3) + ' - ' + iqLim(hi, 0, 3, 1) +
+  set(w.note, 'IQ range ' + iqLim(c3.iqMin, 1, 3) + ' - ' + iqLim(c3.iqMax, 0, 3, 1) +
     ' MHz. 180°/270° use output inversion. Drive strength is set globally in CONFIG.');
+}
 
-  const C = U.cfg, lock = cf.tuning === 'integer';
+function renderConfig(wf) {
+  const cf = S.config, C = U.cfg, lock = cf.tuning === 'integer';
   selVal(C.drive, 'drive', cf.drive);
   selVal(C.offState, 'offState', cf.offState);
   selVal(C.tuning, 'tuning', cf.tuning);
@@ -553,7 +569,6 @@ function render() {
   set(C.fw, (S.device && S.device.version) || '-');
   line(C.hw, HW[S.hw] || S.hw, S.hw === 'CONN' ? '' : 'err');
   set(C.name, wf.name || '-');
-  renderWifi(wf);
 }
 
 function renderWifi(wf) {
@@ -568,8 +583,8 @@ function renderWifi(wf) {
   W.pendTouch.hidden = !!(S.device && S.device.passwordSet);
   // Optional (proposed) field: a pending change is also visible over the new connection.
   if (typeof wf.confirmWithin === 'number') {
-    if (wf.confirmWithin > 0 && !pendEnd) startPending(wf.confirmWithin, '');
-    else if (wf.confirmWithin <= 0 && pendEnd && Date.now() - pendAt > 3000) stopPending();
+    if (wf.confirmWithin > 0 && !pending.end) startPending(wf.confirmWithin, '');
+    else if (wf.confirmWithin <= 0 && pending.end && Date.now() - pending.at > 3000) stopPending();
   }
 }
 
@@ -583,7 +598,7 @@ function rep(text, fn, label, cls) {
   let tm = 0, t0 = 0;
   const stop = () => { clearTimeout(tm); tm = 0; };
   const tick = () => {
-    if (!online) return stop();
+    if (!conn.online) return stop();
     const el = Date.now() - t0;
     fn(el >= 6000 ? 2 : 1);
     tm = setTimeout(tick, el >= 3000 ? 100 : 300);
@@ -611,7 +626,7 @@ function digits(n) {
   });
   el.addEventListener('wheel', (e) => {
     const d = e.target.closest('.dg');
-    if (!d || !online || !S) return;
+    if (!d || !conn.online || !S) return;
     e.preventDefault();
     const now = Date.now();
     if (now - last > 400) acc = 0;
@@ -851,20 +866,20 @@ function newAddr(b) {
     'If this page loses the connection, open http://' + name + '.local/' + (ip ? ' or http://' + ip + '/' : '') + ' and confirm there.';
 }
 function startPending(sec, addr) {
-  pendEnd = Date.now() + sec * 1000;
-  pendAt = Date.now();
+  pending.end = Date.now() + sec * 1000;
+  pending.at = Date.now();
   U.wifi.addr.textContent = addr;
   U.wifi.pend.hidden = false;
-  clearTimeout(pendT);
+  clearTimeout(pending.timer);
   tickPending();
 }
 function stopPending() {
-  pendEnd = 0;
-  clearTimeout(pendT);
+  pending.end = 0;
+  clearTimeout(pending.timer);
   U.wifi.pend.hidden = true;
 }
 function tickPending() {
-  const s = Math.ceil((pendEnd - Date.now()) / 1000);
+  const s = Math.ceil((pending.end - Date.now()) / 1000);
   if (s <= 0) {
     stopPending();
     line(U.wifi.err, 'Not confirmed: the previous settings return.', 'err');
@@ -872,7 +887,7 @@ function tickPending() {
     return;
   }
   U.wifi.pendT.textContent = 'Confirm within ' + s + ' s, otherwise the previous settings return.';
-  pendT = setTimeout(tickPending, 1000);
+  pending.timer = setTimeout(tickPending, 1000);
 }
 async function confirmNet() {
   try {
@@ -934,7 +949,7 @@ function onKey(e) {
     return;
   }
   if (k === '?') { $('dlgHelp').showModal(); e.preventDefault(); return; }
-  if (!S || !online) return;
+  if (!S || !conn.online) return;
   switch (k) {
     case '1': case '2': case '3': select(+k, true); break;
     case 'ArrowUp': case '+': stepF(sel, 1); break;
@@ -974,7 +989,7 @@ function init() {
   $('bSave').addEventListener('click', () => act(api('/api/save', {})));
   $('bLogout').addEventListener('click', logout);
   $('bLogin').addEventListener('click', () => {
-    declined = false;
+    auth.declined = false;
     login().catch(() => {});
   });
   D.addEventListener('visibilitychange', onVisibility);
@@ -984,10 +999,10 @@ function init() {
   $('askNo').addEventListener('click', () => $('dlgAsk').close('no'));
   $('fLogin').addEventListener('submit', doLogin);
   $('dlgLogin').addEventListener('close', () => {
-    if (loginP) {
-      loginP = null;
-      declined = true; // reads stop asking; "Log in" in the header asks again
-      loginRej(apiErr(401));
+    if (auth.prompt) {
+      auth.prompt = null;
+      auth.declined = true; // reads stop asking; "Log in" in the header asks again
+      auth.reject(apiErr(401));
     }
   });
   D.querySelectorAll('nav a[data-ch]').forEach((a) => a.addEventListener('click', () => select(+a.dataset.ch)));
