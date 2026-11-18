@@ -258,7 +258,8 @@ struct Harness {
             FUZZ_CHECK(n <= Vxi11Core::MAX_READ && n <= reads[i].second);
             for (uint32_t k = 0; k < n; ++k) {
                 const uint8_t c = r[36 + k];
-                FUZZ_CHECK((c >= 0x20 && c <= 0x7E) || c == '\n');
+                // TAB is allowed in a line and comes back inside error texts (-113 with the header).
+                FUZZ_CHECK((c >= 0x20 && c <= 0x7E) || c == '\n' || c == '\t');
             }
             return;
         }
