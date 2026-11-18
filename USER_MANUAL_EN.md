@@ -984,7 +984,7 @@ The same holds for questions with two buttons (e.g. `Delete network`, `Open fall
 
 If the SI5351 is not found at startup, **one** message appears. After that, the channels on the main page show `! NO HW` and the channel pages show `SI5351 not found`. Settings can still be changed and are saved.
 
-The firmware checks every 2 seconds whether the SI5351 responds. If it is connected later or a loose contact is fixed, the firmware reconnects automatically, restores the set frequencies and ON/OFF states and closes the connection message. If the connection is lost during operation (or the SI5351 briefly loses power), the message `Connection lost` appears and the channels show `! NO HW` until the connection is restored. The firmware tries to reconnect right after detecting the loss; after a short power interruption the outputs therefore run again after about 2 s at the latest.
+The firmware checks every 2 seconds whether the SI5351 responds. Without an SI5351 it searches every 2 s during the first minute after boot or after losing the connection, then every 10 s (each search step sets up the I2C driver again for both assignments); a module connected later is then found after about 10 s at the latest. If it is connected later or a loose contact is fixed, the firmware reconnects automatically, restores the set frequencies and ON/OFF states and closes the connection message. If the connection is lost during operation (or the SI5351 briefly loses power), the message `Connection lost` appears and the channels show `! NO HW` until the connection is restored. The firmware tries to reconnect right after detecting the loss; after a short power interruption the outputs therefore run again after about 2 s at the latest.
 
 SDA and SCL may be connected to CN1 in either order (GPIO22/GPIO27). The firmware tries both assignments, also after replugging during operation. The info card on CONFIG and the serial monitor show the assignment found, with the suffix `(swapped)` for swapped wires.
 
@@ -1080,6 +1080,8 @@ Serial monitor:
 pio device monitor -b 115200
 ```
 
+The firmware writes log lines into a 1 KB transmit buffer and does not wait for the serial port. If more lines arrive than leave at 115,200 Bd (about 11 KB/s), it waits only once the buffer is full.
+
 Important messages:
 
 | Message | Meaning |
@@ -1091,6 +1093,7 @@ Important messages:
 | `[SI5351] Init OK; all outputs off` | SI5351 initialized, all outputs off |
 | `[APP] SI5351 at 0x60, SDA=22 SCL=27` | Connected; with swapped wires `SDA=27 SCL=22 (swapped)` |
 | `[APP] SI5351 not found` | No SI5351 found; the search continues |
+| `[APP] SI5351 search every 10 s` | One minute without an SI5351: the search runs only every 10 s (section 11) |
 | `[TOUCH] XPT2046 init OK on VSPI` | Touch ready |
 | `[TOUCH] Calibration started` | Touch calibration begins |
 | `[TOUCH] Calibrated: x 161..3778, y 245..3830, check -2/+2 px` | Calibration stored: raw values of the screen edges, deviation of the check cross |
@@ -1140,7 +1143,7 @@ Error messages start with `[ERROR]`, e.g.:
 | Message | Meaning |
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Supervision: the SI5351 does not respond or has lost its configuration |
-| `[ERROR][SI5351] I2C transfer failed; device lost` | An I2C transfer to the SI5351 failed; the search for the SI5351 starts (every 2 s) |
+| `[ERROR][SI5351] I2C transfer failed; device lost` | An I2C transfer to the SI5351 failed; the search for the SI5351 starts (every 2 s for one minute, then every 10 s) |
 | `[E][esp32-hal-i2c-ng.c:372] i2cWriteReadNonStop(): i2c_master_transmit_receive failed: [259] ESP_ERR_INVALID_STATE`, then `[E][Wire.cpp:532] requestFrom(): i2cWriteReadNonStop returned Error 259` | Message of the Arduino core (I2C driver) about the same failure, together with `[ERROR][SI5351] I2C transfer failed; device lost` |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Unusual register 183, e.g. a clone; the module is used anyway |
 | `[ERROR][APP] I2C fails at 400 kHz; staying at 100 kHz` | The bus only works at 100 kHz (e.g. weak pull-ups) |

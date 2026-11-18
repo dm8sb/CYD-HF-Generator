@@ -7,6 +7,7 @@
 #include <unity.h>
 #include <Arduino.h>
 #include <string.h>
+#include <constants.h>
 #include <utils/logger.h>
 
 void setUp() {
@@ -23,6 +24,21 @@ static void test_serial_output_by_default() {
     TEST_ASSERT_TRUE(Fake::serialLog().contains("[APP] hello\n"));
     TEST_ASSERT_TRUE(Fake::serialLog().contains("[ERROR][SI5351] lost\n"));
     TEST_ASSERT_EQUAL_UINT16(0, Logger::buffered());
+}
+
+// AF53 / PERF-10: lines go out as raw bytes into a TX buffer set up before Serial.begin().
+static void test_serial_lines_are_written_raw_into_a_tx_buffer() {
+    Fake::serialLog().begun = false;
+    Fake::serialLog().txBufferSize = 0;
+    Logger::begin(115200);
+    TEST_ASSERT_TRUE(Fake::serialLog().begun);
+    TEST_ASSERT_EQUAL_UINT32(1024, SERIAL_TX_BUFFER_BYTES);
+    TEST_ASSERT_EQUAL_UINT32(SERIAL_TX_BUFFER_BYTES, Fake::serialLog().txBufferSize);
+    Fake::serialLog().clear();
+    Logger::info("APP", "100%s %d");
+    TEST_ASSERT_EQUAL_UINT(0, Fake::serialLog().printfCalls);
+    TEST_ASSERT_EQUAL_UINT(1, Fake::serialLog().writeCalls);
+    TEST_ASSERT_TRUE(Fake::serialLog().contains("[APP] 100%s %d\n"));
 }
 
 static void test_buffer_keeps_serial_clean() {
@@ -95,6 +111,7 @@ static void test_off_drops_everything() {
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_serial_output_by_default);
+    RUN_TEST(test_serial_lines_are_written_raw_into_a_tx_buffer);
     RUN_TEST(test_buffer_keeps_serial_clean);
     RUN_TEST(test_control_characters_are_replaced);
     RUN_TEST(test_buffer_drops_the_oldest_lines);

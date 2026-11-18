@@ -58,7 +58,18 @@ void AppController::updateIdentify_() {
 
 void AppController::superviseHardware_() {
     const uint32_t now = millis();
-    if (now - lastHwCheckMs_ < HW_CHECK_INTERVAL_MS) return;
+    uint32_t interval = HW_CHECK_INTERVAL_MS;
+    if (searching_ && !si5351_.ready() && now - searchSinceMs_ >= SI5351_SEARCH_FAST_PHASE_MS) {
+        interval = SI5351_SEARCH_SLOW_INTERVAL_MS;
+        if (!searchSlow_) {
+            searchSlow_ = true;
+            static_assert(SI5351_SEARCH_SLOW_INTERVAL_MS == 10000, "the log line names 10 s");
+            Logger::info("APP", "SI5351 search every 10 s");
+        }
+    } else if (searching_) {
+        interval = SI5351_SEARCH_FAST_INTERVAL_MS;
+    }
+    if (now - lastHwCheckMs_ < interval) return;
     lastHwCheckMs_ = now;
     // Events of the supervision come from no command.
     const Source previous = source_;
@@ -126,6 +137,7 @@ bool AppController::connect_() {
                 I2CBus::open(m);
             }
             ++connections_;
+            searching_ = false;
             setLinkState_(LinkState::Connected);
             return true;
         }
@@ -135,6 +147,12 @@ bool AppController::connect_() {
             foreignKeptNoWrite_ = e == SI5351Manager::Error::NoReadback;
             foreign = true;
         }
+    }
+    if (!searching_) {
+        // First failed attempt after boot or a loss: the fast phase of the search starts.
+        searching_ = true;
+        searchSlow_ = false;
+        searchSinceMs_ = millis();
     }
     setLinkState_(foreign ? LinkState::UnknownDevice : timeout ? LinkState::Blocked : LinkState::NotFound);
     return false;

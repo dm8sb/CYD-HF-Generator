@@ -60,6 +60,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - CONFIG in five tabs instead of a scrolled list (`Signal`, `Freq`, `Net`, `Device`, `Info`; tab bar at the bottom, at most three rows each, nothing scrolls); `Reconnect all` moved to `Net`, the touch calibration next to `Lock` in `Device` (E-42)
 - One header for every page except MAIN: `◀` at the top left goes one level back (replaces the `MAIN` button of the channel pages and CONFIG), page actions at the right; the WiFi scan list pages with `▲`/`▼` (E-43)
 - The device no longer shows `Saved` / `Saving...`; only save errors appear in red (E-44)
+- Log lines go into a 1 KB serial transmit buffer instead of waiting for the UART; without an SI5351 the search slows down from every 2 s to every 10 s after one minute (log line `[APP] SI5351 search every 10 s`)
 - The numpad rounds half a hertz exactly like SCPI and REST (integer arithmetic instead of `double`; e.g. `1.0079105 MHz` gave 1 007 910 Hz instead of 1 007 911 Hz)
 
 ### 2.0.0
