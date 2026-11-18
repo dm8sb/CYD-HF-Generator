@@ -90,6 +90,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - CI, fuzzing and CodeQL run on pushes to `main`, `dev` and `agent/**` and on pull requests (no longer on tags or other branches); runs on `main` are never cancelled by a later push, so the CodeQL alerts of `main` always come from a complete analysis
 - Host tests: the `Preferences` fake rejects NVS names over 15 characters and strings over 4000 bytes like the real NVS; `test_nvs` loads the complete key set of 2.0.0 from both namespaces (upgrade test)
 - Host tests pin the boundaries and error paths the mutation audit found open (AF35): CH3 exactly at 4.730 and 100 MHz, the remainder of the remote rate limit (75 ms steps, `millis()` overflow), Authorization 1024/1025 bytes, five UTF-8 edges, the autosave and retry delays, the Identify blinking with the backlight, the RSSI tie of two WiFi networks (the first one wins), every failing transfer of the SI5351 init, closed I2C bus, cut log lines, an inconsistent touch calibration and NVS write errors; the random tests restart from their seed in every test and name it in the message
+- Fix: a log line longer than 127 bytes on the serial port lost its newline, so the next line was glued to it; the cut line now ends with a newline like in the SCPI log buffer (found by the AF35 tests)
 
 ### 2.0.0
 
