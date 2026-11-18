@@ -1325,7 +1325,7 @@ Short form in capitals, any case (`FREQ`, `freq`, `FREQuency`). `<n>` is the cha
 | `SYSTem:HEAP?` | `<free>,<minimum>,<largest block>` | Memory in bytes (at most 0.1 s old) |
 | `SYSTem:IDENtify` | – | Backlight and RGB LED blink for 5 s |
 | `SYSTem:LOG?` | `"<line>"` | Oldest buffered log line, `""` when none is left; only over USB, over TCP and VXI-11 always `""` (the buffer stays with the USB session) |
-| `SYSTem:SAVE` | – | Save all settings at once |
+| `SYSTem:SAVE` | – | Save the changed settings at once (at most once per 10 s, see below) |
 | `SYSTem:ERRor[:NEXT]?`, `SYSTem:ERRor:COUNt?` | `<code>,"<text>"` | Error queue (16 entries), `0,"No error"` when empty |
 | `SYSTem:VERSion?` | `1999.0` | SCPI version |
 
@@ -1337,7 +1337,7 @@ Several commands in one line: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` starts again at the 
 
 ### Saving, Defaults and Errors
 
-- Settings changed over SCPI are saved after 30 s without a further change (at the touch screen after 5 s). `SYST:SAVE` saves at once.
+- Settings changed over SCPI are saved after 30 s without a further change (at the touch screen after 5 s). `SYST:SAVE` saves at once, but only the changed values (without a change it writes nothing) and at most once per 10 s per interface (USB, network SCPI, web interface/REST). A further `SYST:SAVE` within these 10 s is accepted without an error and merged with the previous one: the save then follows 10 s after the previous save. So no program can wear out the flash memory by saving continuously.
 - Errors caused by an SCPI command (e.g. output errors) open no dialog on the display; they are in the error queue (`-240,"Hardware error;SI5351"`) and in the log.
 - `Remote outputs`: with the option at `local only` the device refuses `OUTP<n> ON` and `OUTP:OFFS HIGH` with `-221,"Settings conflict;Remote outputs: local only"`; switching off and `OUTP:OFFS LOW` and `HIZ` stay allowed. The option can only be changed at the device (CONFIG row `Remote out.`).
 
@@ -1422,7 +1422,7 @@ Programs can use the same functions over HTTP and JSON; example in `tools/rest_e
 | `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` or `{"frequencyText":"7.1M"}` |
 | `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
 | `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` under `local only` 403), `correction` (0.01 ppm), `step`, `backlight` |
-| `POST /api/save`, `/api/identify` | `{}` |
+| `POST /api/save`, `/api/identify` | `{}`; saving like `SYST:SAVE` at most once per 10 s (section 15) |
 | `POST /api/login`, `POST /api/logout` | `{"password":"…"}` or `{}`, answer with a session cookie or an expired cookie |
 | `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Network settings (passwords write-only; `slot` 0 and 1 = network 1 and 2 at the device; network password 8–63 characters or 64 hex digits), confirmation, network scan (at most every 10 s) |
 | WebSocket `/ws?t=<token>` | State on every change |

@@ -112,7 +112,7 @@ The same command set and the same line rules apply over USB, TCP 5025 and VXI-11
 | `SYSTem:HEAP?` | `<free>,<minimum>,<largest block>` | Memory in bytes (at most 0.1 s old) |
 | `SYSTem:IDENtify` | – | Backlight and RGB LED blink for 5 s |
 | `SYSTem:LOG?` | `"<line>"` | Oldest buffered log line, `""` when empty; USB only (TCP and VXI-11 always `""`) |
-| `SYSTem:SAVE` | – | Save all settings at once |
+| `SYSTem:SAVE` | – | Save the changed settings at once; at most once per 10 s per interface, a further request within 10 s is merged silently and saved 10 s after the previous save |
 | `SYSTem:ERRor[:NEXT]?` | `<code>,"<text>"` | Next entry of the error queue (16 entries), `0,"No error"` when empty |
 | `SYSTem:ERRor:COUNt?` | `<n>` | Number of queued errors |
 | `SYSTem:VERSion?` | `1999.0` | SCPI version |
@@ -252,7 +252,7 @@ gen.close()
 - Base URL `http://<ip>` or `http://<name>.local`; in the own access point `http://192.168.4.1`. The `Host` header must be the device address, `<name>` or `<name>.local` (else 421).
 - Every `POST` needs `Content-Type: application/json`, a `Content-Length` and the header **`X-CYD-Token: <token>`**. The token is new with every restart; read it from `<meta name="cyd-token" content="…">` of `GET /` (or `GET /api/token` from a same-origin page). A stale token gives 403 `Invalid token: reload the page`.
 - Limits: body ≤ 1 KB, path ≤ 256 bytes, headers ≤ 2 KB, at most 4 HTTP connections, 20 writes/s.
-- Settings written over REST are saved 5 s after the last change; `POST /api/save` saves at once.
+- Settings written over REST are saved 5 s after the last change; `POST /api/save` saves the changed values at once, at most once per 10 s (a further request within 10 s answers 200 and is saved 10 s after the previous save).
 
 ### 4.2 Login
 

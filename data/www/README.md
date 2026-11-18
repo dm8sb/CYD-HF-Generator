@@ -90,7 +90,7 @@ How the UI reads it:
 | `POST /api/channel/<1\|2>` | subset of `{"enabled":bool,"frequency":int,"frequencyText":str}`, at most one of the two frequency keys | 200 state |
 | `POST /api/ch3` | subset of `{"enabled":bool,"master":1\|2,"phase":0\|90\|180\|270}` | 200 state |
 | `POST /api/config` | subset of `drive`, `tuning`, `spread`, `offState`, `correction`, `step`, `backlight`; `offState` `high` under `remoteOutputs` `local` → 403 `-221,Remote outputs: local only` (D22) | 200 state |
-| `POST /api/save`, `POST /api/identify` | `{}` | 200 state |
+| `POST /api/save`, `POST /api/identify` | `{}` | 200 state; save: only the changed keys, at most once per 10 s per source, a further request within 10 s is merged silently (still 200) and saved 10 s after the previous save (D26) |
 | `POST /api/login` | `{"password":str}` | 204 + `Set-Cookie` (HttpOnly, SameSite=Strict, 12 h); over an open AP 403 `-221,Passwords cannot be sent over the open access point` (W-S1, SEC-3), the UI does not send it there (`wifi.ap.active` and `open`) |
 | `POST /api/logout` | `{}` | 204 + `Set-Cookie: cyd_sid=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict`; ends the session of the cookie; needs no session (token and JSON as every POST) |
 | `GET /api/wifi` | | `{"mode","networks":[{"ssid","key":"set\|open\|none"}×2],"ap":{"ssid","open","passwordSet"},"name","staticIp":{"enabled","ip","mask","gateway","dns"}}` |

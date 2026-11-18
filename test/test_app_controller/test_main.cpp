@@ -757,6 +757,62 @@ static void test_reset_for_remote_is_not_saved() {
     TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
 }
 
+// AF17, D26: explicit saves (SYSTem:SAVE, POST /api/save) at most once per 10 s per source;
+// more are merged silently and saved at the latest 10 s after the previous save. A save writes
+// only the keys that changed.
+static void test_explicit_save_rate_limited_per_source() {
+    Device d;
+    d.app.setSource(Source::Scpi);
+    d.app.setChannelFrequency(1, 7100000);
+    unsigned before = nvs.writeCount;
+    TEST_ASSERT_TRUE(d.app.saveNow());
+    TEST_ASSERT_EQUAL_UINT(before + 1, nvs.writeCount); // only ch1_freq
+    // "FREQ ...;:SYST:SAVE" in a loop: 10 per second for 30 s.
+    before = nvs.writeCount;
+    for (int i = 0; i < 300; ++i) {
+        d.app.setSource(Source::Scpi);
+        d.app.setChannelFrequency(1, 7000000 + 1000 * (uint64_t)(i % 7));
+        TEST_ASSERT_TRUE(d.app.saveNow()); // never an error (D26)
+        d.app.setSource(Source::Touch);
+        d.run(100);
+    }
+    TEST_ASSERT_TRUE(nvs.writeCount - before <= 4); // one per 10 s (was 300)
+    TEST_ASSERT_TRUE(nvs.writeCount - before >= 2);
+    // The last value is saved at the latest 10 s after the previous save.
+    const uint64_t last = d.app.channel(1).frequency;
+    d.run(10100);
+    {
+        Device again;
+        TEST_ASSERT_EQUAL_UINT64(last, again.app.channel(1).frequency);
+    }
+    // Another source has its own budget.
+    d.app.setSource(Source::Web);
+    d.app.setChannelFrequency(2, 3600000);
+    before = nvs.writeCount;
+    TEST_ASSERT_TRUE(d.app.saveNow());
+    d.app.setSource(Source::Touch);
+    TEST_ASSERT_EQUAL_UINT(before + 1, nvs.writeCount);
+}
+
+// AF17: SAVE without a change writes nothing (the NVS has every value already).
+static void test_explicit_save_writes_only_changed_keys() {
+    Device d;
+    d.app.setSource(Source::Usb);
+    unsigned before = nvs.writeCount;
+    TEST_ASSERT_TRUE(d.app.saveNow());
+    TEST_ASSERT_EQUAL_UINT(before, nvs.writeCount);
+    d.app.setGlobalDriveStrength(6);
+    d.app.setBacklight(50);
+    d.run(10100); // SCPI autosave waits 30 s: still unsaved
+    before = nvs.writeCount;
+    d.app.setSource(Source::Usb);
+    TEST_ASSERT_TRUE(d.app.saveNow());
+    d.app.setSource(Source::Touch);
+    TEST_ASSERT_EQUAL_UINT(before + 2, nvs.writeCount);
+    d.run(SETTINGS_REMOTE_AUTOSAVE_MS + 100); // nothing left for the autosave
+    TEST_ASSERT_EQUAL_UINT(before + 2, nvs.writeCount);
+}
+
 static void test_config_options_invalid_nvs_values() {
     Preferences p;
     p.begin("hfgen"); // SETTINGS_NAMESPACE
@@ -1406,6 +1462,8 @@ int main() {
     RUN_TEST(test_autosave_writes_only_changed_keys);
     RUN_TEST(test_remote_changes_save_later);
     RUN_TEST(test_reset_for_remote_is_not_saved);
+    RUN_TEST(test_explicit_save_rate_limited_per_source);
+    RUN_TEST(test_explicit_save_writes_only_changed_keys);
     RUN_TEST(test_setter_result_with_hardware_errors);
     RUN_TEST(test_reset_to_defaults_keeps_the_correction);
     RUN_TEST(test_erase_all_settings);

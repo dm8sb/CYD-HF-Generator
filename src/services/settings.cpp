@@ -65,8 +65,15 @@ bool SettingsService::save_(const PersistentState& s, uint16_t keys) {
 
 bool SettingsService::saveNow(const PersistentState& state) {
     if (!available_) return false;
-    if (!save_(state, SettingKey::All)) return false;
-    dirtyKeys_ = 0;
+    const uint16_t keys = unsavedKeys_ | dirtyKeys_;
+    if (keys && !save_(state, keys)) {
+        // The autosave retries them (C-13).
+        dirtyKeys_ |= keys;
+        retryPending_ = true;
+        lastChange_ = millis();
+        return false;
+    }
+    dirtyKeys_ = unsavedKeys_ = 0;
     retryPending_ = saveFailed_ = false;
     return true;
 }
@@ -88,7 +95,7 @@ void SettingsService::defaults(PersistentState& s) {
 
 bool SettingsService::eraseAll() {
     if (!available_) return false;
-    dirtyKeys_ = 0;
+    dirtyKeys_ = unsavedKeys_ = 0;
     retryPending_ = false;
     const bool ok = storage_.clear();
     if (ok) Logger::info("SETTINGS", "All settings erased");
@@ -140,6 +147,7 @@ bool SettingsService::removeDisplayPanel() {
 
 void SettingsService::markDirty(uint16_t keys, uint32_t quietMs) {
     dirtyKeys_ |= keys;
+    unsavedKeys_ |= keys;
     quietMs_ = quietMs;
     retryPending_ = false;
     lastChange_ = millis();
@@ -154,6 +162,7 @@ SaveResult SettingsService::update(const PersistentState& state) {
         return SaveResult::None;
     }
     if (save_(state, dirtyKeys_)) {
+        unsavedKeys_ &= (uint16_t)~dirtyKeys_;
         dirtyKeys_ = 0;
         retryPending_ = saveFailed_ = false;
         return SaveResult::Saved;

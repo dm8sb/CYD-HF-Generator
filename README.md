@@ -65,6 +65,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - The display redraws only what changes: labels, colors and the AP QR code are set only for a new value, a touch action redraws once, the RSSI on the info card follows changes of 3 dB or more, the heap line is sampled every 5 s; `SYSTem:HEAP?` answers from a cache of at most 100 ms
 - WiFi search with backoff: no background scan without a stored network, 15 s doubling to 5 min while no stored network is seen, at most every 2 min with devices on the fallback AP (E-46)
 - One owner of the network settings during a web change: only the confirmed state is saved (a power loss brings back the previous settings), the device refuses network changes meanwhile with `Web change pending` (`Revert` / `Keep`), also with a web password (E-47)
+- `SYSTem:SAVE` and `POST /api/save` write only the changed keys and at most once per 10 s per source; further requests are merged silently (no flash wear from a save loop)
 
 ### 2.0.0
 

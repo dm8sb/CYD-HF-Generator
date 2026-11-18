@@ -30,11 +30,18 @@ void AppController::applyStoredChannelSettings() {
     Logger::info("APP", "Stored channel settings applied");
 }
 
+bool AppController::saveNow() {
+    if (saveLimiter_.request((uint8_t)source_, millis()) == SaveLimiter::Decision::Deferred) return true;
+    return settings_.saveNow(state_);
+}
+
 void AppController::update() {
     if (settings_.update(state_) == SaveResult::Failed) {
         report_(EventCode::SaveFailed, EventCategory::Settings, "Settings",
                 "Saving to flash (NVS) failed. Changes will be lost at power off.");
     }
+    // A merged explicit save (AF17); a failure leaves the keys to the autosave retry.
+    if (saveLimiter_.due(millis())) settings_.saveNow(state_);
     superviseHardware_();
     updateIdentify_();
 }

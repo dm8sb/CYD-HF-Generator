@@ -1325,7 +1325,7 @@ Kurzform groß geschrieben, Groß-/Kleinschreibung beliebig (`FREQ`, `freq`, `FR
 | `SYSTem:HEAP?` | `<frei>,<Minimum>,<größter Block>` | Speicher in Byte (höchstens 0,1 s alt) |
 | `SYSTem:IDENtify` | – | Backlight und RGB-LED blinken 5 s |
 | `SYSTem:LOG?` | `"<Zeile>"` | Älteste gepufferte Logzeile, `""` wenn keine mehr da ist; nur über USB, über TCP und VXI-11 immer `""` (der Puffer bleibt der USB-Sitzung) |
-| `SYSTem:SAVE` | – | Alle Einstellungen sofort speichern |
+| `SYSTem:SAVE` | – | Geänderte Einstellungen sofort speichern (höchstens einmal je 10 s, siehe unten) |
 | `SYSTem:ERRor[:NEXT]?`, `SYSTem:ERRor:COUNt?` | `<Code>,"<Text>"` | Fehlerwarteschlange (16 Einträge), `0,"No error"` wenn leer |
 | `SYSTem:VERSion?` | `1999.0` | SCPI-Version |
 
@@ -1337,7 +1337,7 @@ Mehrere Befehle in einer Zeile: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` beginnt wieder an 
 
 ### Speichern, Grundzustand und Fehler
 
-- Über SCPI geänderte Einstellungen werden nach 30 s ohne weitere Änderung gespeichert (am Touch nach 5 s). `SYST:SAVE` speichert sofort.
+- Über SCPI geänderte Einstellungen werden nach 30 s ohne weitere Änderung gespeichert (am Touch nach 5 s). `SYST:SAVE` speichert sofort, aber nur die geänderten Werte (ohne Änderung schreibt es nichts) und höchstens einmal je 10 s je Schnittstelle (USB, Netz-SCPI, Weboberfläche/REST). Ein weiteres `SYST:SAVE` innerhalb dieser 10 s wird ohne Fehler angenommen und mit dem vorigen zusammengefasst: Gespeichert wird dann 10 s nach dem vorigen Speichern. So kann kein Programm den Flash-Speicher durch Dauer-Speichern abnutzen.
 - Fehler, die ein SCPI-Befehl auslöst (z. B. Ausgangsfehler), öffnen keinen Dialog auf dem Display; sie stehen in der Fehlerwarteschlange (`-240,"Hardware error;SI5351"`) und im Log.
 - `Remote outputs`: Steht die Option auf `local only`, lehnt das Gerät `OUTP<n> ON` und `OUTP:OFFS HIGH` mit `-221,"Settings conflict;Remote outputs: local only"` ab; Ausschalten sowie `OUTP:OFFS LOW` und `HIZ` bleiben erlaubt. Die Option lässt sich nur am Gerät ändern (CONFIG-Zeile `Remote out.`).
 
@@ -1422,7 +1422,7 @@ Programme können dieselben Funktionen über HTTP und JSON nutzen; Beispiel in `
 | `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` oder `{"frequencyText":"7.1M"}` |
 | `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
 | `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` bei `local only` 403), `correction` (0,01 ppm), `step`, `backlight` |
-| `POST /api/save`, `/api/identify` | `{}` |
+| `POST /api/save`, `/api/identify` | `{}`; Speichern wie `SYST:SAVE` höchstens einmal je 10 s (Abschnitt 15) |
 | `POST /api/login`, `POST /api/logout` | `{"password":"…"}` bzw. `{}`, Antwort mit Sitzungs-Cookie bzw. abgelaufenem Cookie |
 | `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Netzeinstellungen (Passwörter nur schreibend; `slot` 0 und 1 = Netz 1 und 2 am Gerät; Netzpasswort 8–63 Zeichen oder 64 Hex-Zeichen), Bestätigung, Netzsuche (höchstens alle 10 s) |
 | WebSocket `/ws?t=<Token>` | Zustand bei jeder Änderung |
