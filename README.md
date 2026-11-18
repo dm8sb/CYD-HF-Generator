@@ -63,6 +63,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - WiFi without power save and at full TX power: the device answers in the network within milliseconds instead of up to 0.4 s, at about 80–100 mA more current (E-45)
 - The WiFi status is cached: addresses and network name once per connection, signal strength and AP stations at most once per second, instead of several driver calls in every loop; the web server rebuilds its shared state only on a change
 - The display redraws only what changes: labels, colors and the AP QR code are set only for a new value, a touch action redraws once, the RSSI on the info card follows changes of 3 dB or more, the heap line is sampled every 5 s; `SYSTem:HEAP?` answers from a cache of at most 100 ms
+- WiFi search with backoff: no background scan without a stored network, 15 s doubling to 5 min while no stored network is seen, at most every 2 min with devices on the fallback AP (E-46)
 
 ### 2.0.0
 

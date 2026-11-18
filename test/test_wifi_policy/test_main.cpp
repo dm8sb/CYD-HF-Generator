@@ -175,17 +175,71 @@ static void test_connect_timeout_across_millis_wrap() {
     TEST_ASSERT_EQUAL_INT((int)Connector::Step::TimedOut, (int)c.poll(t0 + Connector::CONNECT_TIMEOUT_MS));
 }
 
+static const bool ONE_STORED[2] = {true, false};
+
 static void test_scan_due_and_millis_wrap() {
     Connector c;
     c.reset();
     // The first scan at once, whatever millis() is (also 0).
-    TEST_ASSERT_TRUE(c.scanDue(0));
+    TEST_ASSERT_TRUE(c.scanDue(0, ONE_STORED, false));
     c.scanStarted(0xFFFFFF00u);
-    TEST_ASSERT_FALSE(c.scanDue(0xFFFFFF00u + 1000));
-    TEST_ASSERT_TRUE(c.scanDue(0xFFFFFF00u + Connector::SCAN_INTERVAL_MS));
+    TEST_ASSERT_FALSE(c.scanDue(0xFFFFFF00u + 1000, ONE_STORED, false));
+    TEST_ASSERT_TRUE(c.scanDue(0xFFFFFF00u + Connector::SCAN_INTERVAL_MS, ONE_STORED, false));
     // A scan of the WIFI page counts as the last scan.
     c.scanEnded(50000);
-    TEST_ASSERT_FALSE(c.scanDue(50000 + Connector::SCAN_INTERVAL_MS - 1));
+    TEST_ASSERT_FALSE(c.scanDue(50000 + Connector::SCAN_INTERVAL_MS - 1, ONE_STORED, false));
+}
+
+// AF14, D32: no background scan without a stored network.
+static void test_no_scan_without_stored_network() {
+    Connector c;
+    c.reset();
+    const bool none[2] = {false, false};
+    TEST_ASSERT_FALSE(c.scanDue(0, none, false));
+    TEST_ASSERT_FALSE(c.scanDue(10 * 60000, none, false));
+    TEST_ASSERT_TRUE(c.scanDue(10 * 60000, ONE_STORED, false));
+}
+
+// AF14, D32: 15 s, doubling while no stored network is seen, at most 5 min; a seen network
+// (or a connection) starts again at 15 s.
+static void test_scan_backoff() {
+    Connector c;
+    c.reset();
+    const uint32_t expected[] = {15000, 30000, 60000, 120000, 240000, 300000, 300000};
+    uint32_t t = 1000;
+    c.scanStarted(t);
+    for (uint32_t gap : expected) {
+        TEST_ASSERT_EQUAL_UINT32(gap, c.scanIntervalMs(false));
+        TEST_ASSERT_FALSE(c.scanDue(t + gap - 1, ONE_STORED, false));
+        TEST_ASSERT_TRUE(c.scanDue(t + gap, ONE_STORED, false));
+        c.scanResult(false); // nothing stored in the scan
+        t += gap;
+        c.scanStarted(t);
+    }
+    c.scanResult(true);
+    TEST_ASSERT_EQUAL_UINT32(Connector::SCAN_INTERVAL_MS, c.scanIntervalMs(false));
+    for (int i = 0; i < 4; ++i) c.scanResult(false);
+    c.connected();
+    TEST_ASSERT_EQUAL_UINT32(Connector::SCAN_INTERVAL_MS, c.scanIntervalMs(false));
+    for (int i = 0; i < 4; ++i) c.scanResult(false);
+    c.scanEnded(t); // a scan of the WIFI page
+    TEST_ASSERT_EQUAL_UINT32(Connector::SCAN_INTERVAL_MS, c.scanIntervalMs(false));
+    for (int i = 0; i < 4; ++i) c.scanResult(false);
+    c.reset();
+    TEST_ASSERT_EQUAL_UINT32(Connector::SCAN_INTERVAL_MS, c.scanIntervalMs(false));
+}
+
+// AF14, D32: with stations at the fallback AP at most every 2 min (the AP leaves its channel
+// for every scan and attempt).
+static void test_scan_with_ap_stations() {
+    Connector c;
+    c.reset();
+    c.scanStarted(0);
+    TEST_ASSERT_EQUAL_UINT32(Connector::SCAN_WITH_STATIONS_MS, c.scanIntervalMs(true));
+    TEST_ASSERT_FALSE(c.scanDue(Connector::SCAN_WITH_STATIONS_MS - 1, ONE_STORED, true));
+    TEST_ASSERT_TRUE(c.scanDue(Connector::SCAN_WITH_STATIONS_MS, ONE_STORED, true));
+    for (int i = 0; i < 6; ++i) c.scanResult(false);
+    TEST_ASSERT_EQUAL_UINT32(Connector::SCAN_BACKOFF_MAX_MS, c.scanIntervalMs(true));
 }
 
 // The stronger network fails (wrong password) twice in a row: the other one gets its turn after
@@ -252,6 +306,9 @@ int main(int, char**) {
     RUN_TEST(test_connect_timeout_at_the_limit);
     RUN_TEST(test_connect_timeout_across_millis_wrap);
     RUN_TEST(test_scan_due_and_millis_wrap);
+    RUN_TEST(test_no_scan_without_stored_network);
+    RUN_TEST(test_scan_backoff);
+    RUN_TEST(test_scan_with_ap_stations);
     RUN_TEST(test_stronger_network_fails_twice);
     RUN_TEST(test_both_hidden_round_robin);
     RUN_TEST(test_open_ap_idle);

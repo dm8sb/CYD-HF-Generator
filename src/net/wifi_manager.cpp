@@ -259,9 +259,12 @@ void WifiManager::tryConnect_() {
             snprintf(line, sizeof(line), "Seen %s, RSSI %d dBm, %s", ssid, rssi[k], authName(auth[k]));
             Logger::info("WIFI", line);
         }
-        if (rssi[0] == WifiPolicy::NOT_SEEN && rssi[1] == WifiPolicy::NOT_SEEN) {
-            char line[64];
-            snprintf(line, sizeof(line), "No stored network among %d seen", found);
+        const bool seen = rssi[0] != WifiPolicy::NOT_SEEN || rssi[1] != WifiPolicy::NOT_SEEN;
+        conn_.scanResult(seen);
+        if (!seen) {
+            char line[80];
+            snprintf(line, sizeof(line), "No stored network among %d seen; next scan in %lu s", found,
+                     (unsigned long)(conn_.scanIntervalMs(apStations_ > 0) / 1000));
             Logger::info("WIFI", line);
         }
         WiFi.scanDelete();
@@ -340,12 +343,13 @@ void WifiManager::update() {
                 status_.lastFailure = WifiPolicy::classifyFailure(lastDisconnectReason);
                 ++revision_;
             }
+            const bool storedNets[2] = {settings_.networks[0].ssid[0] != '\0', settings_.networks[1].ssid[0] != '\0'};
             if (!conn_.attempting() && uiScan_ != ScanState::Running) {
                 const int sc = WiFi.scanComplete();
                 if (sc >= 0 || (scanning_ && sc == WIFI_SCAN_FAILED)) {
                     scanning_ = false;
                     tryConnect_();
-                } else if (sc != WIFI_SCAN_RUNNING && conn_.scanDue(now)) {
+                } else if (sc != WIFI_SCAN_RUNNING && conn_.scanDue(now, storedNets, apOn_ && apStations_ > 0)) {
                     conn_.scanStarted(now);
                     scanning_ = WiFi.scanNetworks(true) == WIFI_SCAN_RUNNING;
                     if (!scanning_) tryConnect_();

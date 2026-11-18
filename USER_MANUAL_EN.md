@@ -709,6 +709,7 @@ Drop-down `Off` (default), `Client`, `Access point`. The setting is saved and ap
 
 - `Off`: the radio is off (for the cleanest RF).
 - `Client`: the device looks for the stored networks and connects to the strongest. If it finds none for 60 s, it additionally opens its own access point (fallback) and keeps searching; as soon as it is connected, the access point goes off.
+  It searches every 15 s at first; as long as none of the stored networks is seen, the interval doubles up to 5 min (15 s, 30 s, 1 min, 2 min, 4 min, 5 min). A hidden network is tried at the same pace. With devices connected to the fallback access point it searches at most every 2 min, because the access point leaves its channel briefly for every search. Without a stored network it does not search at all. After a router outage reconnecting can therefore take up to 5 min; `Change` on the WIFI page or a newly stored network starts the search again at once with 15 s.
 - `Access point`: the device opens its own network `CYD-HF-<4 digits>` with a password.
 
 Networks, passwords and the access point data are set up on the WIFI page (button `Setup` on the right of the row). The status bar and the info card show the state.
@@ -1122,7 +1123,7 @@ Important messages:
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
 | `[APP] Identify` | `SYST:IDEN`: backlight and LED blink for 5 s |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WiFi mode at boot or after a change and the device name; default `Off` (radio off) |
-| `[WIFI] Seen <network>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Scan result for the stored networks |
+| `[WIFI] Seen <network>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen; next scan in 30 s` | Scan result for the stored networks; without a match with the time to the next search (section 8, `WiFi`) |
 | `[WIFI] Connecting to <network>`, `[WIFI] Connected to <network>, 192.168.1.50, RSSI -60 dBm` | Connecting and connected with an address |
 | `[WIFI] Network not reached (reason 201)` | No connection after 15 s; reason from the WiFi driver (201 = network not found, 2/15/202 = login or password refused) |
 | `[WIFI] Connection lost; searching` | Connection lost, the search goes on |

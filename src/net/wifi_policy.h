@@ -73,10 +73,18 @@ bool openApIdleExpired(uint32_t nowMs, uint32_t idleSinceMs);
 // Timing of the client while it has no address (AF13, TEST-9): background scans, connection
 // attempts with their timeout and the slot that failed last. Pure state; WifiManager starts the
 // scans and attempts and reports what happened. All times wrap-safe (millis()).
+// Backoff (AF14, D32, PERF-5): no background scan without a stored network; the interval starts
+// at SCAN_INTERVAL_MS and doubles after every scan without a stored network up to
+// SCAN_BACKOFF_MAX_MS; a seen network or a connection starts again at SCAN_INTERVAL_MS. With
+// stations at the fallback AP at least SCAN_WITH_STATIONS_MS (the AP leaves its channel for
+// every scan and attempt). An attempt follows every background scan, so WiFi.begin() for an
+// unseen (hidden) network runs at the same pace.
 class Connector {
 public:
     static constexpr uint32_t CONNECT_TIMEOUT_MS = 15000;
     static constexpr uint32_t SCAN_INTERVAL_MS = 15000;
+    static constexpr uint32_t SCAN_BACKOFF_MAX_MS = 5 * 60000;
+    static constexpr uint32_t SCAN_WITH_STATIONS_MS = 2 * 60000;
     enum class Step : uint8_t { None, TimedOut };
 
     // The client (re)starts: no attempt, nothing failed, the first scan is due at once.
@@ -84,11 +92,20 @@ public:
     // Called in every loop() while the client has no address. TimedOut once when the running
     // attempt reached CONNECT_TIMEOUT_MS; lastFailed() is its slot then.
     Step poll(uint32_t nowMs);
-    // A background scan should start now (no attempt runs, the interval since the last scan).
-    bool scanDue(uint32_t nowMs) const;
+    // A background scan should start now: a network is stored, no attempt runs and the interval
+    // since the last scan has passed. apStations: stations are connected to the fallback AP.
+    bool scanDue(uint32_t nowMs, const bool stored[2], bool apStations) const;
+    uint32_t scanIntervalMs(bool apStations) const;
+    // Result of a background scan: a stored network was in it (back to SCAN_INTERVAL_MS) or not
+    // (the interval doubles).
+    void scanResult(bool storedSeen);
     void scanStarted(uint32_t nowMs);
-    // A scan of the WIFI page ended: the background scan waits a full interval.
-    void scanEnded(uint32_t nowMs) { scanStarted(nowMs); }
+    // A scan of the WIFI page ended: the background scan waits SCAN_INTERVAL_MS, the backoff
+    // starts again (someone is setting up the network).
+    void scanEnded(uint32_t nowMs) {
+        scanStarted(nowMs);
+        intervalMs_ = SCAN_INTERVAL_MS;
+    }
     // The slot to try after a scan (rssi[] from mergeSeen, NOT_SEEN for unseen), -1 = none
     // stored; advances the round robin for hidden networks.
     int choose(const bool stored[2], const int rssi[2]);
@@ -106,6 +123,7 @@ private:
     uint8_t next_ = 0;
     bool scanned_ = false; // a scan ran since reset() (millis() may be 0 at a real scan)
     uint32_t lastScanMs_ = 0;
+    uint32_t intervalMs_ = SCAN_INTERVAL_MS;
 };
 
 }

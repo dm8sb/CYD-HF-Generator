@@ -709,6 +709,7 @@ Auswahlliste `Off` (Standard), `Client`, `Access point`. Die Einstellung wird so
 
 - `Off`: Der Funk ist aus (für die sauberste HF).
 - `Client`: Das Gerät sucht die gespeicherten WLANs und verbindet sich mit dem stärksten. Findet es 60 s lang keines, öffnet es zusätzlich einen eigenen Access Point (Rückfall) und sucht weiter; sobald es verbunden ist, geht der Access Point aus.
+  Gesucht wird zuerst alle 15 s; solange keines der gespeicherten Netze zu sehen ist, verdoppelt sich der Abstand bis auf 5 min (15 s, 30 s, 1 min, 2 min, 4 min, 5 min). Ein verstecktes Netz wird im selben Takt angewählt. Sind Geräte mit dem Rückfall-Access-Point verbunden, sucht es höchstens alle 2 min, weil der Access Point dafür jedes Mal kurz seinen Kanal verlässt. Ohne gespeichertes Netz sucht es gar nicht. Nach einem Ausfall des Routers kann das Wiederverbinden daher bis zu 5 min dauern; `Change` auf der Seite WIFI oder ein neu gespeichertes Netz startet die Suche sofort wieder mit 15 s.
 - `Access point`: Das Gerät öffnet ein eigenes WLAN `CYD-HF-<4 Stellen>` mit Passwort.
 
 Netze, Passwörter und die Daten des Access Points werden auf der Seite WIFI eingerichtet (Taste `Setup` rechts in der Zeile). Statusleiste und Info-Karte zeigen den Zustand.
@@ -1122,7 +1123,7 @@ Wichtige Meldungen:
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
 | `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WLAN-Betriebsart beim Start bzw. nach einer Änderung und Gerätename; Standard `Off` (Funk aus) |
-| `[WIFI] Seen <Netz>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Ergebnis der Netzsuche für die gespeicherten Netze |
+| `[WIFI] Seen <Netz>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen; next scan in 30 s` | Ergebnis der Netzsuche für die gespeicherten Netze; ohne Treffer mit dem Abstand bis zur nächsten Suche (Abschnitt 8, `WiFi`) |
 | `[WIFI] Connecting to <Netz>`, `[WIFI] Connected to <Netz>, 192.168.1.50, RSSI -60 dBm` | Verbindungsaufbau und Verbindung mit Adresse |
 | `[WIFI] Network not reached (reason 201)` | Nach 15 s keine Verbindung; Grund des WLAN-Treibers (201 = Netz nicht gefunden, 2/15/202 = Anmeldung bzw. Passwort abgelehnt) |
 | `[WIFI] Connection lost; searching` | Verbindung verloren, die Suche läuft weiter |

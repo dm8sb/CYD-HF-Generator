@@ -87,9 +87,18 @@ Connector::Step Connector::poll(uint32_t nowMs) {
     return Step::TimedOut;
 }
 
-bool Connector::scanDue(uint32_t nowMs) const {
-    if (attempting_) return false;
-    return !scanned_ || nowMs - lastScanMs_ >= SCAN_INTERVAL_MS;
+uint32_t Connector::scanIntervalMs(bool apStations) const {
+    return apStations && intervalMs_ < SCAN_WITH_STATIONS_MS ? SCAN_WITH_STATIONS_MS : intervalMs_;
+}
+
+bool Connector::scanDue(uint32_t nowMs, const bool stored[2], bool apStations) const {
+    if (attempting_ || !(stored[0] || stored[1])) return false;
+    return !scanned_ || nowMs - lastScanMs_ >= scanIntervalMs(apStations);
+}
+
+void Connector::scanResult(bool storedSeen) {
+    if (storedSeen) intervalMs_ = SCAN_INTERVAL_MS;
+    else intervalMs_ = intervalMs_ >= SCAN_BACKOFF_MAX_MS / 2 ? SCAN_BACKOFF_MAX_MS : 2 * intervalMs_;
 }
 
 void Connector::scanStarted(uint32_t nowMs) {
@@ -112,6 +121,7 @@ void Connector::attemptStarted(int slot, uint32_t nowMs) {
 void Connector::connected() {
     attempting_ = false;
     lastFailed_ = -1;
+    intervalMs_ = SCAN_INTERVAL_MS;
 }
 
 }
