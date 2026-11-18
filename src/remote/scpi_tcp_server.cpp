@@ -5,6 +5,7 @@
 
 #include <errno.h>
 #include <lwip/sockets.h>
+#include <net/ip_address.h>
 #include <constants.h>
 #include <utils/logger.h>
 
@@ -16,7 +17,6 @@ constexpr uint8_t ACCEPTS_PER_UPDATE = 2;
 
 bool wouldBlock(int err) { return err == EWOULDBLOCK || err == EAGAIN; }
 
-uint32_t ipv4(const IPAddress& a) { return (uint32_t)a[0] << 24 | (uint32_t)a[1] << 16 | (uint32_t)a[2] << 8 | a[3]; }
 }
 
 ScpiTcpServer::ScpiTcpServer(ScpiBackend& backend, const char* serial)
@@ -65,7 +65,7 @@ void ScpiTcpServer::accept_(uint32_t nowMs) {
     for (uint8_t i = 0; i < ACCEPTS_PER_UPDATE; ++i) {
         WiFiClient c = server_.accept();
         if (c.fd() < 0) return;
-        if (link_.offer(ipv4(c.remoteIP()), nowMs) != ScpiTcpLink::Accept::Accepted) {
+        if (link_.offer(fromIpAddress(c.remoteIP()), nowMs) != ScpiTcpLink::Accept::Accepted) {
             c.stop(); // W-E13: one connection; refused without an answer
             continue;
         }

@@ -5,6 +5,7 @@
 #include "../gui_layout.h"
 #include <net/net_settings.h>
 #include <net/request_guard.h>
+#include <utils/ipv4.h>
 #include <utils/logger.h>
 #include <utils/sanitize.h>
 #include <string.h>
@@ -101,7 +102,7 @@ void Gui::refreshWifi_() {
         char ssid[33];
         char ip[16];
         Sanitize::text(w.ssid, strlen(w.ssid), ssid, sizeof(ssid));
-        NetConfig::formatIpv4(w.staIp, ip, sizeof(ip));
+        Ipv4::format(w.staIp, ip, sizeof(ip));
         snprintf(buf, sizeof(buf), "Connected %s\n%s, %s.local", ssid, ip, s.deviceName);
         color = Colors::ok();
     } else if (s.mode == WifiMode::AccessPoint) {
@@ -361,7 +362,7 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             }
             if (entryPurpose_ == EntryPurpose::IpField) {
                 uint32_t v = 0;
-                if (!NetConfig::parseIpv4(text, &v)) {
+                if (!Ipv4::parse(text, &v)) {
                     snprintf(entryError_, sizeof(entryError_), "e.g. 192.168.1.50");
                     break;
                 }
@@ -468,7 +469,7 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             if (!wifi_) return;
             const StaticIp& ip = wifi_->settings().staticIp;
             const uint32_t values[4] = {ip.ip, ip.mask, ip.gateway, ip.dns};
-            if (values[arg & 3]) NetConfig::formatIpv4(values[arg & 3], entrySsid_, sizeof(entrySsid_));
+            if (values[arg & 3]) Ipv4::format(values[arg & 3], entrySsid_, sizeof(entrySsid_));
             else entrySsid_[0] = '\0';
             entryField_ = arg & 3;
             entryPurpose_ = EntryPurpose::IpField;
@@ -720,7 +721,7 @@ void Gui::refreshWifiDevice_() {
     const uint32_t lease[4] = {w.staIp, w.staMask, w.staGateway, w.staDns};
     for (uint8_t i = 0; i < 4; ++i) {
         const uint32_t v = s.staticIp.enabled ? stored[i] : (stored[i] ? stored[i] : lease[i]);
-        if (v) NetConfig::formatIpv4(v, buf, sizeof(buf));
+        if (v) Ipv4::format(v, buf, sizeof(buf));
         else snprintf(buf, sizeof(buf), i == 3 ? "= gateway" : "-");
         Ui::setText(w_.devField[i], buf);
         Ui::setTextColor(w_.devField[i], s.staticIp.enabled ? Colors::text() : Colors::muted());

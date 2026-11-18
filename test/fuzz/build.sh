@@ -54,11 +54,11 @@ sources() {
         scpi) echo "src/remote/scpi.cpp src/remote/line_framer.cpp src/utils/frequency_utils.cpp src/utils/logger.cpp" ;;
         scpi_number) echo "src/remote/scpi.cpp src/utils/frequency_utils.cpp src/utils/logger.cpp" ;;
         remote_frequency) echo "src/utils/frequency_utils.cpp" ;;
-        net_settings) echo "src/net/net_settings.cpp src/net/request_guard.cpp src/net/pbkdf2.cpp src/utils/sanitize.cpp src/services/storage.cpp src/utils/logger.cpp" ;;
+        net_settings) echo "src/net/net_settings.cpp src/net/request_guard.cpp src/utils/ipv4.cpp src/net/pbkdf2.cpp src/utils/sanitize.cpp src/services/storage.cpp src/utils/logger.cpp" ;;
         scan_list) echo "src/net/scan_list.cpp src/utils/sanitize.cpp" ;;
-        request_guard) echo "src/net/request_guard.cpp src/net/pbkdf2.cpp src/utils/sanitize.cpp" ;;
-        rest_json) echo "src/remote/rest_json.cpp src/utils/frequency_utils.cpp src/utils/sanitize.cpp src/utils/status_text.cpp" ;;
-        vxi11) echo "src/remote/onc_rpc.cpp src/remote/vxi11.cpp src/remote/scpi.cpp src/remote/line_framer.cpp src/utils/frequency_utils.cpp src/utils/logger.cpp" ;;
+        request_guard) echo "src/net/request_guard.cpp src/utils/ipv4.cpp src/net/pbkdf2.cpp src/utils/sanitize.cpp" ;;
+        rest_json) echo "src/remote/rest_json.cpp src/utils/ipv4.cpp src/utils/frequency_utils.cpp src/utils/sanitize.cpp src/utils/status_text.cpp" ;;
+        vxi11) echo "src/remote/onc_rpc.cpp src/utils/ipv4.cpp src/remote/vxi11.cpp src/remote/scpi.cpp src/remote/line_framer.cpp src/utils/frequency_utils.cpp src/utils/logger.cpp" ;;
         *) echo "unknown target $1" >&2; exit 2 ;;
     esac
 }

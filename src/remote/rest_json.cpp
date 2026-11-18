@@ -11,6 +11,7 @@
 #include <config.h>
 #include <constants.h>
 #include <utils/frequency_utils.h>
+#include <utils/ipv4.h>
 #include <utils/sanitize.h>
 #include <utils/status_text.h>
 
@@ -663,16 +664,13 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
     cfg["backlight"] = (unsigned)sys.backlight;
     cfg["remoteOutputs"] = s.remoteOutputsAllowed ? "allowed" : "local";
 
-    char ssid[33], name[33], apSsid[33], version[33], ip[16];
+    char ssid[33], name[33], apSsid[33], version[33], ip[Ipv4::TEXT_SIZE];
     clean(d.ssid, sizeof(d.ssid), ssid, sizeof(ssid));
     clean(d.name, sizeof(d.name), name, sizeof(name));
     clean(d.apSsid, sizeof(d.apSsid), apSsid, sizeof(apSsid));
     clean(d.version ? d.version : APP_VERSION, 32, version, sizeof(version));
     ip[0] = '\0';
-    if (d.ip) {
-        snprintf(ip, sizeof(ip), "%u.%u.%u.%u", (unsigned)(d.ip >> 24), (unsigned)((d.ip >> 16) & 255),
-                 (unsigned)((d.ip >> 8) & 255), (unsigned)(d.ip & 255));
-    }
+    if (d.ip) Ipv4::format(d.ip, ip, sizeof(ip));
     JsonObject wifi = doc["wifi"].to<JsonObject>();
     wifi["mode"] = wifiModeName(d.mode);
     wifi["connected"] = d.connected;

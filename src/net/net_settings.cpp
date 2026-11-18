@@ -143,31 +143,6 @@ const char* ipCheckText(IpCheck c) {
     return "Not accepted.";
 }
 
-bool parseIpv4(const char* t, uint32_t* out) {
-    if (!t || !out) return false;
-    uint32_t v = 0;
-    for (int part = 0; part < 4; ++part) {
-        if (*t < '0' || *t > '9') return false;
-        uint32_t n = 0;
-        int digits = 0;
-        while (*t >= '0' && *t <= '9') {
-            n = n * 10 + (uint32_t)(*t++ - '0');
-            if (++digits > 3) return false;
-        }
-        if (n > 255 || (digits > 1 && t[-digits] == '0')) return false; // no leading zeros (octal)
-        v = (v << 8) | n;
-        if (part < 3 && *t++ != '.') return false;
-    }
-    if (*t) return false;
-    *out = v;
-    return true;
-}
-
-void formatIpv4(uint32_t ip, char* out, size_t outSize) {
-    snprintf(out, outSize, "%u.%u.%u.%u", (unsigned)(ip >> 24), (unsigned)((ip >> 16) & 255),
-             (unsigned)((ip >> 8) & 255), (unsigned)(ip & 255));
-}
-
 bool webPasswordSet(const NetSettings& s) { return s.webPassword[0] != '\0'; }
 
 bool setWebPassword(NetSettings& s, const char* password, size_t len, uint32_t (*rand32)()) {

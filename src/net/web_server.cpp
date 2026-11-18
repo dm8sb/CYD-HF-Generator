@@ -23,6 +23,7 @@
 #include <remote/rest_wifi.h>
 #include <config.h>
 #include <utils/logger.h>
+#include "ip_address.h"
 #include "request_guard.h"
 #include "web_limits.h"
 #include "web_state.h"
@@ -45,7 +46,6 @@ uint32_t hwRandom() { return esp_random(); }
 // 64-bit monotonic ms for the request guard (no 49.7-day wrap of millis()).
 uint64_t guardNow() { return (uint64_t)(esp_timer_get_time() / 1000); }
 
-uint32_t ipv4(const IPAddress& a) { return (uint32_t)a[0] << 24 | (uint32_t)a[1] << 16 | (uint32_t)a[2] << 8 | a[3]; }
 
 struct Lock {
     explicit Lock(SemaphoreHandle_t m) : m_(m) { xSemaphoreTake(m_, portMAX_DELAY); }
@@ -431,8 +431,8 @@ struct WebHmiServer::Impl {
         g.authorization = header(req, "Authorization");
         g.upgrade = header(req, "Upgrade");
         g.headerBytes = headerBytes;
-        g.clientIp = ipv4(req->client()->remoteIP());
-        g.localIp = ipv4(req->client()->localIP());
+        g.clientIp = fromIpAddress(req->client()->remoteIP());
+        g.localIp = fromIpAddress(req->client()->localIP());
         g.freeHeap = ESP.getFreeHeap();
 
         GuardDecision d;

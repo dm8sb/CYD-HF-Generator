@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <net/pbkdf2.h>
+#include <utils/ipv4.h>
 #include <utils/sanitize.h>
 
 namespace {
@@ -58,30 +59,6 @@ bool tchar(char c) {
 
 // Visible ASCII or blank (header values we accept at all).
 bool printable(char c) { return c == ' ' || c == '\t' || (c > 0x20 && c < 0x7F); }
-
-bool parseIpv4(const char* s, size_t n, uint32_t* out) {
-    uint32_t v = 0;
-    size_t i = 0;
-    for (int part = 0; part < 4; ++part) {
-        if (i >= n || !digit(s[i])) return false;
-        const size_t start = i;
-        uint32_t x = 0;
-        while (i < n && digit(s[i])) {
-            if (i - start == 3) return false;
-            x = x * 10 + (uint32_t)(s[i] - '0');
-            ++i;
-        }
-        if (x > 255 || (i - start > 1 && s[start] == '0')) return false; // no leading zeros (octal)
-        v = (v << 8) | x;
-        if (part < 3) {
-            if (i >= n || s[i] != '.') return false;
-            ++i;
-        }
-    }
-    if (i != n) return false;
-    *out = v;
-    return true;
-}
 
 bool validPort(const char* s, size_t n) {
     if (n == 0 || n > 5) return false;
@@ -226,9 +203,9 @@ bool RequestGuard::captiveLocation(char* out, size_t outSize) const {
     if (!out || outSize == 0) return false;
     out[0] = '\0';
     if (config_.apIp == 0) return false;
-    const uint32_t a = config_.apIp;
-    const int w = snprintf(out, outSize, "http://%u.%u.%u.%u/", (unsigned)(a >> 24), (unsigned)((a >> 16) & 255),
-                           (unsigned)((a >> 8) & 255), (unsigned)(a & 255));
+    char ip[Ipv4::TEXT_SIZE];
+    Ipv4::format(config_.apIp, ip, sizeof(ip));
+    const int w = snprintf(out, outSize, "http://%s/", ip);
     return w > 0 && (size_t)w < outSize;
 }
 
@@ -240,7 +217,7 @@ RequestGuard::HostKind RequestGuard::classifyHost_(const char* s, size_t n) cons
     size_t h = 0;
     if (!splitPort(s, n, &h) || h == 0) return HostKind::Invalid;
     uint32_t ip = 0;
-    if (parseIpv4(s, h, &ip)) {
+    if (Ipv4::parse(s, h, &ip)) {
         const bool own = ip != 0 && (ip == config_.staIp || ip == config_.apIp);
         return own ? HostKind::Own : HostKind::Foreign;
     }

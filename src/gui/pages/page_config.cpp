@@ -5,6 +5,7 @@
 #include "../gui_layout.h"
 #include <utils/build_info.h>
 #include <utils/frequency_utils.h>
+#include <utils/ipv4.h>
 #include <utils/sanitize.h>
 #include <esp_heap_caps.h>
 
@@ -232,14 +233,14 @@ void Gui::refreshConfig_() {
         const WifiManager::Status& w = wifi_->status();
         char ip[16];
         if (w.apActive) {
-            NetConfig::formatIpv4(w.apIp, ip, sizeof(ip));
+            Ipv4::format(w.apIp, ip, sizeof(ip));
             snprintf(buf, sizeof(buf), "%s %s %s, %u connected", w.fallback ? "Fallback AP" : "AP", w.apSsid, ip,
                      (unsigned)w.apStations);
             if (w.apOpen) wifiColor = Colors::warn();
         } else if (w.staConnected) {
             char ssid[33];
             Sanitize::text(w.ssid, strlen(w.ssid), ssid, sizeof(ssid));
-            NetConfig::formatIpv4(w.staIp, ip, sizeof(ip));
+            Ipv4::format(w.staIp, ip, sizeof(ip));
             rssiShown_ = StatusViewRules::rssiShown(rssiShown_, w.rssi);
             snprintf(buf, sizeof(buf), "WiFi %s %s %d dBm", ssid, ip, (int)rssiShown_);
         } else if (w.needsOpenConfirmation) {
@@ -255,7 +256,7 @@ void Gui::refreshConfig_() {
     const unsigned web = webClients_ ? webClients_() : 0;
     const uint32_t scpi = scpiClient_ ? scpiClient_() : 0;
     char scpiText[16] = "-";
-    if (scpi) NetConfig::formatIpv4(scpi, scpiText, sizeof(scpiText));
+    if (scpi) Ipv4::format(scpi, scpiText, sizeof(scpiText));
     snprintf(buf, sizeof(buf), "Remote: web %u, SCPI %s", web, scpiText);
     Ui::setText(w_.remoteInfo, buf);
     // Heap (V-8): free, minimum since boot, largest block; LVGL pool free. Sampled every 5 s

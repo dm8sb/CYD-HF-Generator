@@ -76,10 +76,8 @@ enum class IpCheck : uint8_t { Ok, BadMask, ZeroAddress, SameAsGateway, OutsideS
 // W-S12: contiguous mask /1../30, address and gateway in one subnet, different, neither the
 // network nor the broadcast address.
 IpCheck checkStaticIp(const StaticIp& ip);
-bool parseIpv4(const char* text, uint32_t* out);
 // Short English reason for the WIFI device page.
 const char* ipCheckText(IpCheck c);
-void formatIpv4(uint32_t ip, char* out, size_t outSize);
 
 // Web password (W-E8, W-S13): stored as a WebPassword record (PBKDF2, net/request_guard.h),
 // never as text. setWebPassword() hashes (slow, ~0.2-0.3 s on the ESP32: only from loop());

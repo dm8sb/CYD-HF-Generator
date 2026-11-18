@@ -17,6 +17,8 @@
 #include <dhcpserver/dhcpserver.h>
 #include <bootloader_random.h>
 #include <utils/logger.h>
+#include <utils/ipv4.h>
+#include "ip_address.h"
 #include <utils/sanitize.h>
 #include <constants.h>
 #include <remote/lxi_ident.h>
@@ -33,8 +35,6 @@ constexpr uint32_t UI_SCAN_TIMEOUT_MS = 15000;
 // calibrated maximum of the PHY data (20 dBm on the ESP32).
 constexpr int8_t TX_POWER_MAX = 84;
 
-IPAddress toIp(uint32_t v) { return IPAddress((uint8_t)(v >> 24), (uint8_t)(v >> 16), (uint8_t)(v >> 8), (uint8_t)v); }
-uint32_t fromIp(const IPAddress& a) { return (uint32_t)a[0] << 24 | (uint32_t)a[1] << 16 | (uint32_t)a[2] << 8 | a[3]; }
 
 uint32_t hwRandom() { return esp_random(); }
 
@@ -189,7 +189,8 @@ void WifiManager::startSta_() {
     conn_.reset();
     const StaticIp& ip = settings_.staticIp;
     if (ip.enabled && NetConfig::checkStaticIp(ip) == NetConfig::IpCheck::Ok) {
-        WiFi.config(toIp(ip.ip), toIp(ip.gateway), toIp(ip.mask), toIp(ip.dns ? ip.dns : ip.gateway));
+        WiFi.config(toIpAddress(ip.ip), toIpAddress(ip.gateway), toIpAddress(ip.mask),
+                    toIpAddress(ip.dns ? ip.dns : ip.gateway));
     } else {
         WiFi.config(IPAddress((uint32_t)0), IPAddress((uint32_t)0), IPAddress((uint32_t)0));
     }
@@ -291,10 +292,10 @@ void WifiManager::tryConnect_() {
 // The addresses and the network name are read once per address (AF11), not in every loop().
 void WifiManager::readAddresses_() {
     seenGotIp_ = gotIpEvents;
-    staIp_ = fromIp(WiFi.localIP());
-    staMask_ = fromIp(WiFi.subnetMask());
-    staGateway_ = fromIp(WiFi.gatewayIP());
-    staDns_ = fromIp(WiFi.dnsIP());
+    staIp_ = fromIpAddress(WiFi.localIP());
+    staMask_ = fromIpAddress(WiFi.subnetMask());
+    staGateway_ = fromIpAddress(WiFi.gatewayIP());
+    staDns_ = fromIpAddress(WiFi.dnsIP());
     wifi_ap_record_t ap {};
     memset(staSsid_, 0, sizeof(staSsid_));
     if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
@@ -311,7 +312,7 @@ void WifiManager::onGotIp_() {
     conn_.connected();
     readAddresses_();
     char ip[16];
-    NetConfig::formatIpv4(staIp_, ip, sizeof(ip));
+    Ipv4::format(staIp_, ip, sizeof(ip));
     char ssid[33];
     Sanitize::text(staSsid_, strnlen(staSsid_, 32), ssid, sizeof(ssid)); // SEC-6
     char line[96];
