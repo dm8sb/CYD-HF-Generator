@@ -63,10 +63,22 @@ static void webConfirmAnswer(bool keep) {
 }
 
 // SCPI over USB (S51): runs in loop(), commands through the queue.
+// SYSTem:HEAP? from a cache of at most 100 ms (AF12, PERF-4): the largest block is a walk of
+// the heap under its lock, a query flood must not run it for every query.
 static void heapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) {
-    *freeBytes = ESP.getFreeHeap();
-    *minFree = ESP.getMinFreeHeap();
-    *largest = ESP.getMaxAllocHeap();
+    static uint32_t at = 0, cachedFree = 0, cachedMin = 0, cachedLargest = 0;
+    static bool valid = false;
+    const uint32_t now = millis();
+    if (!valid || now - at >= 100) {
+        cachedFree = ESP.getFreeHeap();
+        cachedMin = ESP.getMinFreeHeap();
+        cachedLargest = ESP.getMaxAllocHeap();
+        at = now;
+        valid = true;
+    }
+    *freeBytes = cachedFree;
+    *minFree = cachedMin;
+    *largest = cachedLargest;
 }
 static void coreDebugOutput(bool enabled) { Serial.setDebugOutput(enabled); }
 static void serialWrite(const char* data, size_t len, void*) { Serial.write((const uint8_t*)data, len); }

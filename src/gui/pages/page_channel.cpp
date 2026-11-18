@@ -59,13 +59,13 @@ void Gui::refreshChannel_() {
     FrequencyUtils::format(c.frequency, freqText_, sizeof(freqText_));
     InputLogic::stepMarkup(freqText_, app.system().delta_step, lv_color_to32(Colors::forChannel(channel_)), buf,
                            sizeof(buf));
-    lv_label_set_text(w_.freq, buf);
+    Ui::setText(w_.freq, buf);
 
     // The step is visible through the colored digit and the chips; the info line shows the
     // actual output frequency.
     if (status == ChannelStatus::NoDevice || status == ChannelStatus::Error) {
-        lv_label_set_text(w_.info, status == ChannelStatus::NoDevice ? "SI5351 not found" : "Output error, retrying");
-        lv_obj_set_style_text_color(w_.info, Colors::error(), 0);
+        Ui::setText(w_.info, status == ChannelStatus::NoDevice ? "SI5351 not found" : "Output error, retrying");
+        Ui::setTextColor(w_.info, Colors::error());
     } else {
         // Switched off, the line shows what the output will deliver (U-17).
         showOutput_(channel_, c.frequency, status == ChannelStatus::Off ? "Off | " : "");

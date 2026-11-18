@@ -68,7 +68,7 @@ void Gui::refreshCH3_() {
     const Ch3Status status = app.ch3Status();
     setHeaderState_(c3.enabled, StatusText::ch3(status));
     FrequencyUtils::format(app.ch3Frequency(), buf, sizeof(buf));
-    lv_label_set_text(w_.freq, buf);
+    Ui::setText(w_.freq, buf);
 
     lv_color_t infoColor = Colors::muted();
     char iqMin[12], iqMax[12];
@@ -104,8 +104,8 @@ void Gui::refreshCH3_() {
             break;
     }
     if (status != Ch3Status::Active) {
-        lv_label_set_text(w_.info, buf);
-        lv_obj_set_style_text_color(w_.info, infoColor, 0);
+        Ui::setText(w_.info, buf);
+        Ui::setTextColor(w_.info, infoColor);
     }
 
     showModes_(w_.modes, 3);

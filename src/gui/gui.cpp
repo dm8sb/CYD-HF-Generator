@@ -59,6 +59,7 @@ Gui* Gui::from_(lv_obj_t* obj) {
 
 void Gui::flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p) {
     Gui* g = static_cast<Gui*>(disp->user_data);
+    ++g->flushCount_;
     const int16_t w = area->x2 - area->x1 + 1;
     const int16_t h = area->y2 - area->y1 + 1;
     g->display_->flush(area->x1, area->y1, w, h, (uint16_t*)&color_p->full);
@@ -81,7 +82,7 @@ void Gui::handleLockEvent_(InputLogic::ScreenLock::Event e) {
     if (e == Ev::None) return;
     if (!lockHint_) {
         lockHint_ = lv_label_create(lv_layer_top());
-        lv_label_set_text(lockHint_, "Locked: hold 2 s to unlock");
+        Ui::setText(lockHint_, "Locked: hold 2 s to unlock");
         lv_obj_set_style_text_font(lockHint_, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(lockHint_, Colors::textDark(), 0);
         lv_obj_set_style_bg_color(lockHint_, Colors::warn(), 0);
@@ -111,7 +112,7 @@ void Gui::on_(lv_obj_t* obj, lv_event_code_t code, Action action, uint8_t arg) {
 
 lv_obj_t* Gui::addLabel_(lv_obj_t* parent, const char* txt, const lv_font_t* font, lv_color_t color, int x, int y) {
     lv_obj_t* l = lv_label_create(parent);
-    lv_label_set_text(l, txt);
+    Ui::setText(l, txt);
     lv_obj_set_style_text_font(l, font, 0);
     lv_obj_set_style_text_color(l, color, 0);
     lv_obj_set_pos(l, x, y);
@@ -147,7 +148,7 @@ lv_obj_t* Gui::addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w
     lv_obj_set_style_shadow_width(b, 0, 0);
     lv_obj_set_style_pad_all(b, 0, 0);
     lv_obj_t* l = lv_label_create(b);
-    lv_label_set_text(l, txt);
+    Ui::setText(l, txt);
     lv_obj_set_style_text_font(l, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l, Colors::textOn(color), 0);
     lv_obj_center(l);
@@ -184,7 +185,7 @@ lv_obj_t* Gui::addChip_(lv_obj_t* parent, const char* txt, int x, int y, int w, 
     lv_obj_set_style_text_color(b, Colors::text(), 0);
     lv_obj_set_style_text_color(b, Colors::textOn(color), LV_STATE_CHECKED);
     lv_obj_t* l = lv_label_create(b);
-    lv_label_set_text(l, txt);
+    Ui::setText(l, txt);
     lv_obj_center(l);
     reachEdges(b);
     on_(b, LV_EVENT_CLICKED, action, arg);
@@ -270,11 +271,11 @@ void Gui::styleState_(lv_obj_t* label) {
 // OFF as gray text, every other state filled with its tone and dark text: a filled label marks
 // an active or faulty output also for color-blind users and from a distance (audit U-19).
 void Gui::showState_(lv_obj_t* label, const StatusText::Text& state) {
-    lv_label_set_text(label, state.text);
+    Ui::setText(label, state.text);
     const bool filled = state.tone != StatusText::Tone::Muted;
-    lv_obj_set_style_bg_opa(label, filled ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    lv_obj_set_style_bg_color(label, Colors::forTone(state.tone), 0);
-    lv_obj_set_style_text_color(label, filled ? Colors::textDark() : Colors::muted(), 0);
+    Ui::setBgOpa(label, filled ? LV_OPA_COVER : LV_OPA_TRANSP);
+    Ui::setBgColor(label, Colors::forTone(state.tone));
+    Ui::setTextColor(label, filled ? Colors::textDark() : Colors::muted());
 }
 
 // Includes SI5351 rounding, the Integer raster and spread spectrum; assumes a correct
@@ -283,9 +284,9 @@ void Gui::showOutput_(uint8_t ch, uint64_t requested, const char* prefix) {
     char out[64], buf[72];
     const double dev = FrequencyUtils::formatOutput(app_->actualHz(ch), requested, app_->spreadOf(ch), out, sizeof(out));
     snprintf(buf, sizeof(buf), "%s%s", prefix, out);
-    lv_label_set_text(w_.info, buf);
+    Ui::setText(w_.info, buf);
     const bool warn = fabs(dev) >= FrequencyUtils::DEVIATION_WARN_HZ;
-    lv_obj_set_style_text_color(w_.info, warn ? Colors::warn() : Colors::muted(), 0);
+    Ui::setTextColor(w_.info, warn ? Colors::warn() : Colors::muted());
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +366,11 @@ void Gui::refresh_() {
         case PageId::WifiAp: refreshWifiAp_(); break;
         case PageId::WifiDevice: refreshWifiDevice_(); break;
     }
+    // A redraw right after an action is the redraw of this state: update() must not repeat it
+    // (AF12, every touch action redrew twice).
+    lastRevision_ = app_->revision();
+    lastView_ = statusView_();
+    ++refreshCount_;
 }
 
 void Gui::update() {
@@ -408,17 +414,21 @@ void Gui::update() {
     // output errors (cleared by the periodic retry) change.
     if (millis() - lastUpdateMs_ < GUI_UPDATE_INTERVAL_MS) return;
     lastUpdateMs_ = millis();
+    if (LOG_DEBUG && lastUpdateMs_ - countLogMs_ >= 60000) {
+        Logger::debugValue("GUI", "Redraws per min", refreshCount_);
+        Logger::debugValue("GUI", "Flushes per min", flushCount_);
+        refreshCount_ = flushCount_ = 0;
+        countLogMs_ = lastUpdateMs_;
+    }
     // SI5351 reconnected (possibly between two samples): connection dialogs are outdated.
     if (app_->connectionCount() != lastConnections_) {
         lastConnections_ = app_->connectionCount();
         if (app_->hardwareReady()) dismissLinkMessages_();
     }
-    // Any change in the controller (also from the supervision and remote commands), the WiFi
-    // state or the REMOTE indicator: redraw (V-2).
-    const uint32_t sig = statusSignature_();
-    if (app_->revision() != lastRevision_ || sig != lastStatusSig_) {
-        lastRevision_ = app_->revision();
-        lastStatusSig_ = sig;
+    // Any change in the controller (also from the supervision and remote commands) or in what
+    // the page shows of WiFi, heap and the REMOTE indicator: redraw (V-2, AF12). The setters
+    // touch only widgets whose content changes.
+    if (app_->revision() != lastRevision_ || statusView_() != lastView_) {
         refresh_();
     } else {
         refreshSaveState_(); // MAIN status bar and CONFIG header; no-op on the other pages
@@ -674,8 +684,8 @@ void Gui::showModes_(lv_obj_t* label, uint8_t ch, const char* extra, const char*
     char buf[160];
     snprintf(buf, sizeof(buf), "%s%s%s%s%s", modes, (modes[0] && extra[0]) ? " | " : "", extra,
              ((modes[0] || extra[0]) && note[0]) ? " | " : "", note);
-    lv_label_set_text(label, buf);
-    lv_obj_set_style_text_color(label, Colors::forTone(tone), 0);
+    Ui::setText(label, buf);
+    Ui::setTextColor(label, Colors::forTone(tone));
 }
 
 void Gui::confirm_(Confirm what, uint8_t payload) {

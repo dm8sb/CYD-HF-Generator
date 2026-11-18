@@ -15,6 +15,7 @@
 #include <utils/input_logic.h>
 #include <utils/message_queue.h>
 #include <utils/status_text.h>
+#include <utils/status_view.h>
 
 // Part and state of a style: LVGL 8 keeps them in two unnamed enums, and C++20 deprecates `|`
 // between those (GCC 14 on Arduino 3.x warns).
@@ -221,8 +222,10 @@ private:
     void refreshSaveState_();
     // MAIN status bar: WiFi and REMOTE (W-E26).
     void refreshStatusBar_();
-    // Changes when the status bar or the WiFi/heap lines of the info card need a redraw.
-    uint32_t statusSignature_() const;
+    // What the current page shows besides the controller state (AF12): a redraw happens only
+    // when it differs from the view of the last redraw. Samples the heap for the info card.
+    StatusView statusView_();
+    void sampleHeap_();
     bool remoteShown_() const;
 
     // Returns the header bar for page-specific additions.
@@ -307,7 +310,15 @@ private:
     uint32_t lastUpdateMs_ = 0;
     uint32_t lastRevision_ = 0;   // AppController::revision() of the last redraw
     uint16_t lastConnections_ = 0;
-    uint32_t lastStatusSig_ = 0;
+    StatusView lastView_ {};
+    int8_t rssiShown_ = 0;          // CONFIG info card, with hysteresis
+    bool heapSampled_ = false;      // info card heap line, sampled every 5 s (AF12)
+    uint32_t heapSampleMs_ = 0;
+    uint32_t heapFree_ = 0, heapMin_ = 0, heapBlock_ = 0, lvglFree_ = 0;
+    uint32_t apQrHash_ = 0;         // QR text shown on the AP page (0 = none yet)
+    uint32_t refreshCount_ = 0;     // debug build: redraws and flushes per minute
+    uint32_t flushCount_ = 0;
+    uint32_t countLogMs_ = 0;
     WifiManager* wifi_ = nullptr;
     bool (*saveNet_)(const NetSettings&) = nullptr;
     // WIFI pages (RAM only)

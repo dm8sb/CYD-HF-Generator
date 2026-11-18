@@ -109,7 +109,7 @@ The same command set and the same line rules apply over USB, TCP 5025 and VXI-11
 | `SYSTem:STEP <Hz>` | Hz | Step of `+`/`−` at the device: 1 Hz … 1 MHz in powers of ten; units allowed |
 | `SYSTem:BACKlight <%>` | % | Display brightness 10–100 %, rounded to 10 % (55 → 60); unit `PCT` allowed |
 | `SYSTem:SI5351?` | `CONN` / `NFO` / `BLOC` / `UNKN` | SI5351 link: connected, not found, line held low, foreign device |
-| `SYSTem:HEAP?` | `<free>,<minimum>,<largest block>` | Memory in bytes |
+| `SYSTem:HEAP?` | `<free>,<minimum>,<largest block>` | Memory in bytes (at most 0.1 s old) |
 | `SYSTem:IDENtify` | – | Backlight and RGB LED blink for 5 s |
 | `SYSTem:LOG?` | `"<line>"` | Oldest buffered log line, `""` when empty; USB only (TCP and VXI-11 always `""`) |
 | `SYSTem:SAVE` | – | Save all settings at once |

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <lvgl.h>
+#include <string.h>
 #include <palette.h>
 #include <utils/contrast.h>
 #include <utils/status_text.h>
@@ -70,5 +71,29 @@ inline lv_color_t forTone(StatusText::Tone t) {
         case StatusText::Tone::Muted: break;
     }
     return muted();
+}
+}
+
+// Setters that touch a widget only when the value changes (AF12, PERF-2/16): in LVGL 8.4
+// lv_label_set_text() and the local style setters invalidate the widget even for the same
+// value, and every invalidated area is a SPI burst to the display next to the SI5351.
+namespace Ui {
+inline void setText(lv_obj_t* label, const char* text) {
+    const char* now = lv_label_get_text(label);
+    if (!now || !text || strcmp(now, text) != 0) lv_label_set_text(label, text);
+}
+inline void setTextColor(lv_obj_t* obj, lv_color_t c) {
+    if (lv_obj_get_style_text_color(obj, LV_PART_MAIN).full != c.full) lv_obj_set_style_text_color(obj, c, 0);
+}
+inline void setBgColor(lv_obj_t* obj, lv_color_t c) {
+    if (lv_obj_get_style_bg_color(obj, LV_PART_MAIN).full != c.full) lv_obj_set_style_bg_color(obj, c, 0);
+}
+inline void setBgOpa(lv_obj_t* obj, lv_opa_t opa) {
+    if (lv_obj_get_style_bg_opa(obj, LV_PART_MAIN) != opa) lv_obj_set_style_bg_opa(obj, opa, 0);
+}
+inline void setHidden(lv_obj_t* obj, bool hidden) {
+    if (lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN) == hidden) return;
+    if (hidden) lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
 }
 }

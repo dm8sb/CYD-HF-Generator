@@ -130,7 +130,7 @@ static void setCardFrequency(lv_obj_t* label, const AppController& app, uint8_t 
     char buf[24];
     buf[0] = '~';
     FrequencyUtils::format(requested, buf + 1, sizeof(buf) - 1);
-    lv_label_set_text(label, approx ? buf : buf + 1);
+    Ui::setText(label, approx ? buf : buf + 1);
 }
 
 void Gui::refreshMain_() {
@@ -171,7 +171,7 @@ void Gui::refreshMain_() {
         case Ch3Status::NoDevice: break;
     }
     snprintf(buf, sizeof(buf), "CH%u / %u\xC2\xB0%s", c3.master, c3.phase, reason);
-    lv_label_set_text(w_.cardDetail[2], buf);
+    Ui::setText(w_.cardDetail[2], buf);
     placeDetail(w_.cardDetail[2], w_.cardState[2]);
     if (c3.enabled) lv_obj_add_state(w_.cardSwitch[2], LV_STATE_CHECKED);
     else lv_obj_clear_state(w_.cardSwitch[2], LV_STATE_CHECKED);
@@ -183,25 +183,57 @@ bool Gui::remoteShown_() const {
     return app_->lastRemote() != Source::Touch && millis() - app_->lastRemoteMs() < REMOTE_INDICATOR_MS;
 }
 
-uint32_t Gui::statusSignature_() const {
-    uint32_t sig = remoteShown_() ? 0x80000000u | ((uint32_t)app_->lastRemote() << 28) : 0;
-    if (wifi_) {
-        const WifiManager::Status& w = wifi_->status();
-        sig ^= (uint32_t)w.mode | (uint32_t)w.staConnected << 2 | (uint32_t)w.apActive << 3 |
-               (uint32_t)w.apOpen << 4 | (uint32_t)w.apStations << 5 | (uint32_t)(uint8_t)(w.rssi / 5) << 9 |
-               (uint32_t)w.needsOpenConfirmation << 17;
-        sig ^= w.staIp * 2654435761u;
-        // WIFI pages: scan progress and connection feedback.
-        sig ^= ((uint32_t)wifi_->scanState() | (uint32_t)wifi_->scanList().count() << 2 | (uint32_t)w.connecting << 7 |
-                (uint32_t)w.lastFailure << 8) * 97u;
+StatusView Gui::statusView_() {
+    StatusView v;
+    memset(&v, 0, sizeof(v));
+    if (remoteShown_()) v.remote = (uint8_t)((uint8_t)app_->lastRemote() + 1);
+    if (!wifi_) return v;
+    const WifiManager::Status& w = wifi_->status();
+    switch (currentPage_) {
+        case PageId::Main: // status bar: WiFi symbol or AP
+            v.wifiMode = (uint8_t)w.mode;
+            v.staConnected = w.staConnected;
+            v.apActive = w.apActive;
+            v.apOpen = w.apOpen;
+            break;
+        case PageId::Config:
+            v.wifiMode = (uint8_t)w.mode; // tab Net: WiFi dropdown
+            if (!w_.wifiInfo) break;      // the info lines exist on the Info tab only
+            v.staConnected = w.staConnected;
+            v.apActive = w.apActive;
+            v.apOpen = w.apOpen;
+            v.fallback = w.fallback;
+            v.needsOpenConfirmation = w.needsOpenConfirmation;
+            v.apStations = w.apStations;
+            v.staIp = w.staIp;
+            rssiShown_ = StatusViewRules::rssiShown(rssiShown_, w.staConnected ? w.rssi : 0);
+            v.rssi = rssiShown_;
+            if (StatusViewRules::heapDue(millis(), heapSampleMs_, heapSampled_)) sampleHeap_();
+            v.heapStep = StatusViewRules::heapStep(heapFree_);
+            v.webClients = webClients_ ? webClients_() : 0;
+            v.scpiClient = scpiClient_ ? scpiClient_() : 0;
+            break;
+        case PageId::Wifi:
+        case PageId::WifiScan:
+        case PageId::TextEntry:
+        case PageId::WifiAp:
+        case PageId::WifiDevice: // status line, scan progress, connection feedback, AP state
+            v.wifiMode = (uint8_t)w.mode;
+            v.staConnected = w.staConnected;
+            v.apActive = w.apActive;
+            v.apOpen = w.apOpen;
+            v.fallback = w.fallback;
+            v.needsOpenConfirmation = w.needsOpenConfirmation;
+            v.connecting = w.connecting;
+            v.apStations = w.apStations;
+            v.lastFailure = (uint8_t)w.lastFailure;
+            v.staIp = w.staIp;
+            v.scanState = (uint8_t)wifi_->scanState();
+            v.scanCount = wifi_->scanList().count();
+            break;
+        default: break;
     }
-    // The heap line of the info card in 1 KB steps, and its remote clients (S55b).
-    if (currentPage_ == PageId::Config) {
-        sig ^= (ESP.getFreeHeap() / 1024) * 40503u;
-        if (webClients_) sig ^= (uint32_t)webClients_() * 0x01000193u;
-        if (scpiClient_) sig ^= scpiClient_() * 0x9E3779B1u;
-    }
-    return sig;
+    return v;
 }
 
 void Gui::refreshStatusBar_() {
@@ -219,17 +251,16 @@ void Gui::refreshStatusBar_() {
             color = w.staConnected ? Colors::ok() : Colors::muted();
         }
     }
-    lv_label_set_text(w_.wifiState, text);
-    lv_obj_set_style_text_color(w_.wifiState, color, 0);
+    Ui::setText(w_.wifiState, text);
+    Ui::setTextColor(w_.wifiState, color);
     // LOCKED, else REMOTE <source> for a while after a remote command.
     const bool locked = lock_.locked();
-    if (locked) lv_obj_clear_flag(w_.lockState, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_add_flag(w_.lockState, LV_OBJ_FLAG_HIDDEN);
+    Ui::setHidden(w_.lockState, !locked);
     if (!locked && remoteShown_()) {
         const Source s = app_->lastRemote();
-        lv_label_set_text(w_.remoteState, s == Source::Web ? "REMOTE WEB" : s == Source::Scpi ? "REMOTE SCPI" : "REMOTE USB");
-        lv_obj_clear_flag(w_.remoteState, LV_OBJ_FLAG_HIDDEN);
+        Ui::setText(w_.remoteState, s == Source::Web ? "REMOTE WEB" : s == Source::Scpi ? "REMOTE SCPI" : "REMOTE USB");
+        Ui::setHidden(w_.remoteState, false);
     } else {
-        lv_obj_add_flag(w_.remoteState, LV_OBJ_FLAG_HIDDEN);
+        Ui::setHidden(w_.remoteState, true);
     }
 }
