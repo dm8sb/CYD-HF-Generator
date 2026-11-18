@@ -341,6 +341,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 
 ### Phase 9 – Folgearbeiten (je ein Commit, nach Messergebnis oder Rückfrage)
 
+- [ ] **DK1 · Doku konsolidieren (nach dem Merge von Priorität 3 und 6, vom Hauptagenten selbst).** README („Next release“ zu einer Release-Liste zusammenfassen, Doppelungen mit Handbuch und API-Seite entfernen), Handbuch DE/EN (neue Abschnitte §8, §17, §18 und die Änderungen aus AF11–AF19 auf Doppelungen und Querverweise prüfen, Inhaltsverzeichnis, Glossar), `docs/REMOTE_API.md` gegen §15/§16 und den REST-Vertrag abgleichen, CLAUDE.md, SECURITY.md, `tools/README.md`, Plan (Erledigtes entfernen); Linkprüfung und Parität DE/EN. *Commit:* `DK1: Consolidate the documentation`
 - [ ] **N1 · Standard-Tuning** ändern, wenn die Stufe-2-Messungen es tragen (Rückfrage 1, E-19).
 - [ ] **N2 · IQ-Abstimmen ohne Aussetzer** (Abschnitt 2.1).
 - [ ] **N3 · Ungerade IQ-Teiler bei 180°/270°**, wenn E4 einen Fehler > 1° zeigt.
