@@ -99,9 +99,9 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 | D31 | Der WLAN-Schlüssel darf überall auch ein 64-stelliger Hex-PMK sein: Touch-Tastatur (Seite WIFI), REST und Weboberfläche nehmen 8–63 Zeichen Passphrase oder genau 64 Hex-Zeichen an; E-30, Vertrag und Handbuch werden angeglichen (DOC-13, AF8; Nutzer) |
 | D32 | WLAN-Suche ohne Verbindung: ohne gespeichertes Netz kein Scan; sonst Backoff 15 s → 5 min, solange kein gespeichertes Netz gesehen wird; mit Stationen am Rückfall-AP höchstens alle 2–5 min. `WiFi.begin()` für ein ungesehenes gespeichertes Netz (versteckte SSID) nur noch im selben Takt. Wiederverbinden nach Router-Ausfall dauert damit bis zu 5 min (PERF-5, AF14; Nutzer) |
 | D33 | `GET /lxi/identification` liefert der Web-Server auf Port 80 (Host-/Origin-Prüfung wie die übrige Seite) und bleibt auch mit Web-Passwort ohne Anmeldung lesbar, wie bei Laborgeräten üblich: es enthält nur, was `*IDN?` über Netz-SCPI ohne Login ohnehin liefert (D24). Ausnahme zu D25 (W-E12, LX1, AF18; Nutzer) |
-| D34 | Einzeltasten-Kürzel der Weboberfläche sind standardmäßig **aus**; Schalter „Single-key shortcuts“ im Hilfedialog (im Browser gespeichert); eingeschaltet wirken sie nur im Kanalbereich, nie in Eingabefeldern (A11Y-3, AF41; Nutzer) |
-| D35 | CH1-Schrift in Kanalfarbe auch am Gerät `#F4615D` (5,6 : 1 auf den Karten statt 4,1 : 1), Flächen und Rahmen bleiben `#E53935`; Web und Gerät gleich (A11Y-21, AF43; Nutzer) |
-| D36 | Graue Info- und Modus-Zeilen am Gerät auf Montserrat 14, wo es ohne Abschneiden passt; eng bemessene Stellen (Statusleiste, festes Zeilenraster) behalten 12; Prüfung am Host-Rendering und am Gerät (A11Y-21, AF43; Nutzer) |
+| D34 | Einzeltasten-Kürzel der Weboberfläche sind standardmäßig **aus**; Schalter „Single-key shortcuts“ im Hilfedialog (im Browser gespeichert); eingeschaltet wirken sie nur im Kanalbereich, nie in Eingabefeldern (A11Y-3, AF41; Nutzer) — entfällt mit D48 |
+| D35 | CH1-Schrift in Kanalfarbe auch am Gerät `#F4615D` (5,6 : 1 auf den Karten statt 4,1 : 1), Flächen und Rahmen bleiben `#E53935`; Web und Gerät gleich (A11Y-21, AF43; Nutzer) — entfällt mit D48 |
+| D36 | Graue Info- und Modus-Zeilen am Gerät auf Montserrat 14, wo es ohne Abschneiden passt; eng bemessene Stellen (Statusleiste, festes Zeilenraster) behalten 12; Prüfung am Host-Rendering und am Gerät (A11Y-21, AF43; Nutzer) — entfällt mit D48 |
 | D37 | Umfang vor der Freigabe (S64): AF1–AF10, AF28 (Einstellungen) und zusätzlich AF11/AF12 (HF-Ruhe), damit S59/S60 den endgültigen Stand messen (Nutzer) |
 | D38 | WLAN vorerst ohne Energiesparen (`WIFI_PS_NONE`) und mit voller Sendeleistung: Reaktionszeit zuerst. Messungen und daraus abgeleitete Änderungen kommen zuletzt, die Hardware ist fest. Anlass: im LX1-Gerätetest 220–390 ms Ping mit Modem-Sleep, pyvisa-py scheiterte am Standard-Verbindungs-Timeout (PERF-15, S49; Nutzer) |
 | D39 | Strukturarbeiten (CQ-3, CQ-6; AF49, AF50) erst nach der Freigabe: sie erscheint mit dem geprüften Stand (Nutzer) |
@@ -113,6 +113,7 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 | D45 | `v2.0.0-rc1` vom Nutzer getestet und für gut befunden; **2.0.0** erscheint ohne AF11, AF12 und AF55 und vor den Messungen. Diese folgen in 2.0.x; S64 bleibt die Freigabe nach den Messungen (Nutzer) |
 | D46 | CONFIG in Registern statt Scrollliste (Nutzertests am resistiven Touch: Scrollen schlecht und uneinheitlich, Blättern besser bewertet): Registerleiste unten mit `Signal`, `Freq`, `Net`, `Device`, `Info`, je höchstens drei Zeilen; `Reconnect all` nach `Net`, Touch-Abgleich neben `Lock` in `Device` (E-42). Dazu eine Kopfzeile für alle Seiten außer MAIN: `◀` oben links eine Ebene zurück statt `MAIN` rechts, Seitentasten rechts, Netzliste blättert mit `▲`/`▼` (E-43). Am Gerät keine Anzeige `Saved`/`Saving...` mehr, nur Speicherfehler in Rot; das Handbuch nennt das Speichern nach einigen Sekunden (E-44, Nutzer) |
 | D47 | Nächster Block selbständig: AF55, AF11, AF12, AF13–AF19, G2 und N8. N8 jetzt mit Rechen- und Datenblattwerten, Pegel als „typisch, nicht gemessen“ markiert, nach S63 durch Messwerte ersetzt. UI-Schritte (AF12, AF16, AF18) gesammelt am Ende am Gerät testen. Release erst danach, zusammen mit U27 und der API-Seite (Nutzer) |
+| D48 | Priorität 5 (Barrierefreiheit, AF40–AF43) wird nicht umgesetzt: Gerät und Weboberfläche lassen sich für den Anwendungsfall gut genug bedienen. D34–D36 entfallen damit; die A11Y-Befunde bleiben nur als Namen (Nutzer) |
 
 **Nicht umsetzen:** neue Funktionen außer N14 vorerst (D18); RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); Kanalwahl im Header (Rest von U-16: kein Platz neben Zustand und `MAIN`, über MAIN und die Karten 2 Tipps); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
 
@@ -145,7 +146,7 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 - [ ] **Fakes:** Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln (mehrere Namespaces und Strings im Preferences-Fake). Dazu NVS-Grenzen im Fake (Schlüssel und Namespaces > 15 Zeichen, Strings > 4000 B) und ein Upgrade-Test mit alten Schlüsseln (TEST-11). → AF38
 - [ ] **Geräte-Glue ohne Test** (TEST-1, CQ-6): `web_server.cpp`, `wifi_manager.cpp`, `scpi_tcp_server.cpp` nicht host-kompiliert; `web_check` prüft nur den Mock. → AF32, AF33, AF34, S61
 - [ ] **Testlücken** (TEST-4 bis TEST-8, TEST-10, TEST-12, TEST-14): überlebende Mutanten, Identify ungetestet, keine Sanitizer für die Unit-Tests, keine Fuzz-Ziele für Vorfilter und `RestWifi`, Python-Werkzeuge nicht in der CI. → AF34–AF38, AF47
-- [ ] **Struktur** (CQ-3, CQ-4, CQ-6, CQ-7, CQ-8 und Niedrig-Punkte CQ-9 bis CQ-23): `Gui`- und `WebHmiServer::Impl`-Größe, Texteingabe an LVGL gebunden, Texte zwischen Firmware/JS/Mocks dupliziert, Farbe außerhalb der Palette. → AF43–AF52
+- [ ] **Struktur** (CQ-3, CQ-4, CQ-6, CQ-7, CQ-8 und Niedrig-Punkte CQ-9 bis CQ-23): `Gui`- und `WebHmiServer::Impl`-Größe, Texteingabe an LVGL gebunden, Texte zwischen Firmware/JS/Mocks dupliziert, Farbe außerhalb der Palette. → AF47, AF49–AF51 (CH1-Farbe in der Palette entfällt mit D48)
 
 ### 2.4 Plattform und Lieferkette
 
@@ -166,13 +167,6 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 - [M] **„50 % Tastverhältnis“** (Handbuch §1) ist nicht belegt (E5). → S72
 
 ### 2.6 Sicherheit und Netz (Audit)
-
-
-### 2.7 Barrierefreiheit (Web-UI, WCAG 2.2 AA)
-
-- [ ] **Reflow bei Zoom** (A11Y-1 + A11Y-20): Kopfzeile und Ausgangsleiste belegen bei 400 % Zoom 222 von 256 px; Navigation scrollt bei 320 px. **Kontrast CH1-Rot** 4,13:1 (A11Y-2, Gerät A11Y-21). → AF40, AF43
-- [ ] **Tastenkürzel** (A11Y-3, A11Y-4, A11Y-10, A11Y-15, A11Y-16): Einzeltasten ohne Abschaltung, `PgUp`/Pfeile global umbelegt, Zielkanal nur visuell. → AF41
-- [ ] **Statusmeldungen und Beschriftungen** (A11Y-5 bis A11Y-9, A11Y-11, A11Y-12, A11Y-14, A11Y-17; A11Y-13, A11Y-18, A11Y-19): Toast, Speicher-/HW-Status, Login-Fehler und WLAN-Frist ohne Ansage; Gruppen und Dialogtext ohne Zuordnung. → AF40, AF42
 
 ---
 
@@ -309,22 +303,6 @@ Entwürfe zu größeren Audit-Befunden für offene Schritte in Phase 10. Entfern
 - **Empfehlung:** b + c + d. Option a nur für einen schmalen `WiFi`-Fake, falls nach AF13 noch Logik in `wifi_manager.cpp` übrig ist. Optional `screens-win` als Compile-Check der GUI in der CI.
 - **Folgen:** `build_src_filter` und die Liste in CLAUDE.md, README-Tests, `test/fuzz/README.md`, MESSPLAN (S61 mit `web_check`-Protokoll).
 
-#### Konzept 7 · Barrierefreiheit der Weboberfläche (und Kontrast am Gerät)
-
-- **Problem:**
-  - Reflow bei Zoom (A11Y-1), CH1-Rot unter 4,5:1 (A11Y-2/21).
-  - Globale Einzeltasten und umbelegte Scroll-Tasten, die HF-Ausgänge schalten bzw. verstellen (A11Y-3/4).
-  - Statusmeldungen ohne Ansage (A11Y-5/6/7/9/12), fehlende Zuordnungen (A11Y-8/10/11/14).
-- **Entwurf:**
-  - **CSS:** Kopfzeile und Leiste nur bei ausreichender Höhe fixieren (`max-height`-Query), `nav` umbrechen.
-  - **Farbe:** Textfarbe CH1 `#f4615d` im Web und `Palette::CH1_TEXT` am Gerät. Rahmen und Schalter bleiben im Kanalrot (Non-Text 3:1 erfüllt).
-  - **Tastatur:** Schalter „Single-key shortcuts“ im Hilfedialog. Kürzel wirken nur bei Fokus auf `body` bzw. im Kanalbereich. Frequenzanzeige als `spinbutton`, Pfeile und `PgUp` nur dort.
-  - **Ansagen:** Zwei dauerhaft vorhandene Live-Regionen (`status`, `alert`) als einzige Ansagewege. Fehler in `alert`, Werte nach eigenen Änderungen verzögert in `status`.
-  - **Struktur:** `<main>`, `h1`, Gruppen mit `aria-labelledby`, Dialoge mit `aria-describedby`.
-  - **Bewegung:** `prefers-reduced-motion`.
-- **Empfehlung:** AF40, AF41, AF42, AF43 in dieser Reihenfolge. Kürzel standardmäßig aus, einschaltbar, nur im Kanalbereich wirksam (D34).
-- **Folgen:** `data/www/README.md` (Tastatur, Rollen, keine `hidden`-Live-Regionen), Handbuch §16 (Tabelle der Tasten, Schalter), `test_contrast` (neue Paare), `render_images.py`. Optional ein axe-Lauf über `tools/cdp_shot.mjs` als nicht verpflichtender CI-Job.
-
 ---
 
 ## 4. Aufgabenliste
@@ -399,13 +377,6 @@ Jeder Schritt nennt Befund-IDs, Ort, Problem und Richtung selbst. „Konzept n�
 - [ ] **AF37 · Fuzz-Ziele für Vorfilter und `RestWifi` (M).** TEST-7. `fuzz_prefilter` (Chunks, Zeitschritte, Monotonie, Grenzen 414/431/413, differentiell gegen `RequestGuard`), `fuzz_rest_wifi` gegen unabhängige Referenz (unbekannter Schlüssel → −108, PSK nie im Echo, Ablehnung → `next == cur`); `fuzz.yml`, `test/fuzz/README.md`. Prüfung: 60-s-Lauf je Ziel in der CI, danach 10-Mio.-Lauf vor dem nächsten Release. *Commit:* `AF37: Add fuzz targets for the pre-filter and the WiFi REST parser`
 - [ ] **AF38 · NVS-Grenzen im Fake, Upgrade-Test (S–M).** TEST-11 (Abschnitt 2.3 „Fakes“). Fake lehnt Schlüssel/Namespaces > 15 Zeichen und Strings > 4000 B ab; `test_upgrade_from_old_keys` mit dem vollständigen Schlüsselsatz des letzten Release. Prüfung: Test scheitert mit einem absichtlich zu langen Schlüssel. *Commit:* `AF38: Model NVS limits in the fake and test the upgrade`
 - [ ] **AF39 · Messhelfer für S61 (M).** TEST-2. `tools/slowloris.py` (L-S5: 30 offene Anfragen, Abschluss nach 10 s), fehlende Helfer aus dem MESSPLAN-Anhang anlegen oder dort streichen (`lsec_check.py`, `scpi_selftest.py`, `touchstat.py`, `counter_log.py`), Firmware-Env mit `TEST_FAULT_IQ=1` für die Mess-ID A8 (MESSPLAN), `device_check.py`-Profile für L6/L22. `tools/README.md`, MESSPLAN-Anhang. Prüfung: Helfer gegen Mock/Fake. *Commit:* `AF39: Add the measurement helpers for tier 1W`
-
-#### Priorität 5 – Barrierefreiheit
-
-- [ ] **AF40 · Web-UI: Reflow, Kontrast, Struktur, Bewegung (S–M).** A11Y-1 + A11Y-20, A11Y-2, A11Y-13, A11Y-18, A11Y-19. `@media (max-height:500px)` ohne sticky/fixed, `nav{flex-wrap:wrap}`, flachere Kopfzeile; `--c1` für Text `#f4615d`; `<main>`, `h1`, Sections mit `aria-labelledby`; `prefers-reduced-motion`; Hilfe-Button-Name, `thead`. `data/www/README.md`, Handbuch §16 (falls Bilder/Text betroffen), `render_images.py web`. Prüfung: axe-core-Lauf (320 × 256 CSS-px = 400 % Zoom, 1280 × 720 bei 200 %; heute belegen Kopfzeile und Leiste 222 von 256 bzw. 198 von 360 px, „WiFi“ liegt bei 320 px außerhalb, CH1-Text 4,13 : 1) ohne `color-contrast`-/Landmark-Verstöße, 400-%-Probe; Sichtprüfung im Browser. *Commit:* `AF40: Make the web UI reflow at high zoom and fix CH1 text contrast`
-- [ ] **AF41 · Tastenkürzel abschaltbar und lokal (M).** A11Y-3, A11Y-4, A11Y-10, A11Y-15, A11Y-16. Schalter „Single-key shortcuts“ im Hilfedialog, Standard aus (D34; `localStorage` mit try/catch); Buchstaben-/Ziffernkürzel nur bei Fokus auf `body`/Kanalbereich; Frequenzanzeige als `role="spinbutton"` mit `aria-valuetext`, Pfeile/`PgUp` nur dort; `aria-current` für den gewählten Kanal; Leerzeichen in der Ziffernanzeige; Selects erst bei Enter/Blur bzw. entprellt. Tastaturtabelle in `data/www/README.md`, Handbuch §16. Heute wirken `1`/`2`/`3`, `f`, `o`, `?`, `+`, `-` überall außerhalb von Eingabefeldern (`app.js` `onKey`), dreimal `PgUp` nach dem Laden hob CH1 von 10 auf 100 MHz, der Zielkanal ist nur am Rahmen erkennbar, jede Pfeiltaste in einer Auswahlliste schreibt sofort. Prüfung: Tab-Durchlauf, `PgUp` auf `body` scrollt; Bedientest. *Commit:* `AF41: Scope keyboard shortcuts and let users turn them off`
-- [ ] **AF42 · Statusmeldungen und Beschriftungen (M).** A11Y-5 bis A11Y-9, A11Y-11, A11Y-12, A11Y-14, A11Y-17. Dauerhafte `status`-/`alert`-Regionen; `#save`/`#hw`; `aria-describedby`/`aria-invalid`; Dialog `aria-describedby`; Fokus auf `Confirm` der WLAN-Frist mit Ansage; Gruppen für Master/Phase, Korrekturschritt; Wertansage nach −/+ und Enter, Fokus bleibt im Feld; eindeutige Labels WiFi/CONFIG; `#conn` nur bei Änderung. Prüfung: Accessibility-Tree-Dump, axe; optional Stichprobe mit NVDA. *Commit:* `AF42: Announce status changes and label grouped controls in the web UI`
-- [ ] **AF43 · Gerät: CH1-Textfarbe und Aktionsfarbe in der Palette (S).** A11Y-21, CQ-8. `Palette::CH1_TEXT = 0xF4615D` für Text in Kanalfarbe, `Palette::ACTION_AMBER`/`Colors::action()` statt `0xF9A825`; Paare in `test_contrast` (≥ 4,5 für Text); Modus-/Infozeilen, wo Platz ist, auf Montserrat 14 (D36). Prüfung: `test_contrast` scheitert vor dem Fix; `render_images.py screens`; Bedientest. *Commit:* `AF43: Use a readable CH1 text color and keep all colors in the palette`
 
 #### Priorität 6 – Struktur und Kleinkram
 
