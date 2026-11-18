@@ -252,6 +252,11 @@ const scpi_choice_def_t OFFSTATE_CHOICES[] = {
     {"LOW", (int32_t)OffState::Low}, {"HIGH", (int32_t)OffState::High}, {"HIZ", (int32_t)OffState::HighZ},
     SCPI_CHOICE_LIST_END};
 const char* const TUNING_NAMES[] = {"FRAC", "LNO", "INT"};
+constexpr uint8_t TUNING_COUNT = sizeof(TUNING_NAMES) / sizeof(TUNING_NAMES[0]);
+static_assert(TUNING_COUNT == (uint8_t)TuningMode::Integer + 1, "one name per TuningMode");
+static_assert(sizeof(TUNING_CHOICES) / sizeof(TUNING_CHOICES[0]) == TUNING_COUNT + 1, "TUNING_CHOICES");
+static_assert(sizeof(SPREAD_CHOICES) / sizeof(SPREAD_CHOICES[0]) == (size_t)Spread::Center05 + 2, "SPREAD_CHOICES");
+static_assert(sizeof(OFFSTATE_CHOICES) / sizeof(OFFSTATE_CHOICES[0]) == (size_t)OffState::HighZ + 2, "OFFSTATE_CHOICES");
 
 scpi_result_t choice(scpi_t* c, const scpi_choice_def_t* choices, CommandType type) {
     int32_t v = 0;
@@ -305,7 +310,7 @@ scpi_result_t outputStatusQ(scpi_t* c) {
     return SCPI_RES_OK;
 }
 
-const NumberSpec DRIVE_SPEC {0, nullptr, 2, 8, DEFAULT_DRIVE_MA};
+const NumberSpec DRIVE_SPEC {0, nullptr, DRIVE_MA_MIN, DRIVE_MA_MAX, DEFAULT_DRIVE_MA};
 
 scpi_result_t drive(scpi_t* c) {
     int64_t v;
@@ -468,7 +473,7 @@ scpi_result_t tuningQ(scpi_t* c) {
     Snapshot s;
     if (!state(c, &s)) return SCPI_RES_ERR;
     const uint8_t t = (uint8_t)s.state.sys.tuning_mode;
-    SCPI_ResultMnemonic(c, TUNING_NAMES[t <= 2 ? t : 0]);
+    SCPI_ResultMnemonic(c, TUNING_NAMES[t < TUNING_COUNT ? t : 0]);
     return SCPI_RES_OK;
 }
 

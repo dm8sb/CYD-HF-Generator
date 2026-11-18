@@ -5,6 +5,8 @@
 #include "../gui_layout.h"
 #include <net/net_settings.h>
 #include <net/request_guard.h>
+#include <net/wifi_policy.h>
+#include <utils/ipv4.h>
 #include <utils/logger.h>
 #include <utils/sanitize.h>
 #include <string.h>
@@ -72,31 +74,36 @@ void Gui::refreshWifi_() {
             char shown[33];
             Sanitize::text(n.ssid, strlen(n.ssid), shown, sizeof(shown));
             snprintf(buf, sizeof(buf), "%u  %s", (unsigned)(slot + 1), shown);
-            lv_label_set_text(w_.netSub[slot], n.key[0] ? "Password set" : "Open network (no password)");
-            lv_obj_set_style_text_color(w_.netSub[slot], n.key[0] ? Colors::muted() : Colors::warn(), 0);
+            Ui::setText(w_.netSub[slot], n.key[0] ? "Password set" : "Open network (no password)");
+            Ui::setTextColor(w_.netSub[slot], n.key[0] ? Colors::muted() : Colors::warn());
         } else {
             snprintf(buf, sizeof(buf), "%u  -", (unsigned)(slot + 1));
-            lv_label_set_text(w_.netSub[slot], "Empty");
-            lv_obj_set_style_text_color(w_.netSub[slot], Colors::muted(), 0);
+            Ui::setText(w_.netSub[slot], "Empty");
+            Ui::setTextColor(w_.netSub[slot], Colors::muted());
         }
-        lv_label_set_text(w_.netText[slot], buf);
+        Ui::setText(w_.netText[slot], buf);
     }
     snprintf(buf, sizeof(buf), "AP  %s", wifi_->status().apSsid);
-    lv_label_set_text(w_.apText, buf);
+    Ui::setText(w_.apText, buf);
     const bool apRuns = wifi_->status().apActive;
     snprintf(buf, sizeof(buf), "%s, %s", s.apOpen ? "open" : "WPA2", apRuns ? "active" : "off");
-    lv_label_set_text(w_.apSub, buf);
-    lv_obj_set_style_text_color(w_.apSub, s.apOpen ? Colors::warn() : Colors::muted(), 0);
+    Ui::setText(w_.apSub, buf);
+    Ui::setTextColor(w_.apSub, s.apOpen ? Colors::warn() : Colors::muted());
     // Feedback (ARBEITSPLAN 3.4): what the WiFi does now and why the last attempt failed.
     const WifiManager::Status& w = wifi_->status();
     lv_color_t color = Colors::muted();
-    if (s.mode == WifiMode::Off) {
+    const uint16_t pendingS = netPendingS_ ? netPendingS_() : 0;
+    if (pendingS) {
+        // AF16: the settings shown are the web change; they stay only when confirmed.
+        snprintf(buf, sizeof(buf), "Web change pending (%u s)\nConfirm in the browser", (unsigned)pendingS);
+        color = Colors::warn();
+    } else if (s.mode == WifiMode::Off) {
         snprintf(buf, sizeof(buf), "WiFi is Off. Choose Client in CONFIG > WiFi.");
     } else if (w.staConnected) {
         char ssid[33];
         char ip[16];
         Sanitize::text(w.ssid, strlen(w.ssid), ssid, sizeof(ssid));
-        NetConfig::formatIpv4(w.staIp, ip, sizeof(ip));
+        Ipv4::format(w.staIp, ip, sizeof(ip));
         snprintf(buf, sizeof(buf), "Connected %s\n%s, %s.local", ssid, ip, s.deviceName);
         color = Colors::ok();
     } else if (s.mode == WifiMode::AccessPoint) {
@@ -120,8 +127,8 @@ void Gui::refreshWifi_() {
     } else {
         snprintf(buf, sizeof(buf), "Searching...");
     }
-    lv_label_set_text(w_.wifiStatus, buf);
-    lv_obj_set_style_text_color(w_.wifiStatus, color, 0);
+    Ui::setText(w_.wifiStatus, buf);
+    Ui::setTextColor(w_.wifiStatus, color);
 }
 
 // --- Scan list --------------------------------------------------------------
@@ -168,25 +175,25 @@ void Gui::refreshWifiScan_() {
         const uint8_t idx = (uint8_t)(scanPage_ * ROWS + i);
         if (showList && idx < list.count()) {
             const ScanEntry& e = list.at(idx);
-            lv_label_set_text(w_.scanName[i], e.shown);
+            Ui::setText(w_.scanName[i], e.shown);
             char info[24];
             snprintf(info, sizeof(info), "%d dBm %s", (int)e.rssi, e.secure ? "" : "open");
-            lv_label_set_text(w_.scanInfo[i], info);
-            lv_obj_set_style_text_color(w_.scanInfo[i], e.secure ? Colors::muted() : Colors::warn(), 0);
-            lv_obj_clear_flag(w_.scanRow[i], LV_OBJ_FLAG_HIDDEN);
+            Ui::setText(w_.scanInfo[i], info);
+            Ui::setTextColor(w_.scanInfo[i], e.secure ? Colors::muted() : Colors::warn());
+            Ui::setHidden(w_.scanRow[i], false);
         } else {
-            lv_obj_add_flag(w_.scanRow[i], LV_OBJ_FLAG_HIDDEN);
+            Ui::setHidden(w_.scanRow[i], true);
         }
     }
     const char* state = "";
     if (st == WifiManager::ScanState::Running) state = "Scanning...";
     else if (st == WifiManager::ScanState::Failed) state = "Scan failed. Tap Scan.";
     else if (st == WifiManager::ScanState::Done && list.count() == 0) state = "No network found";
-    lv_label_set_text(w_.scanState, state);
+    Ui::setText(w_.scanState, state);
     char page[12];
     if (showList) snprintf(page, sizeof(page), "%u/%u", (unsigned)(scanPage_ + 1), (unsigned)pages);
     else page[0] = '\0';
-    lv_label_set_text(w_.scanPage, page);
+    Ui::setText(w_.scanPage, page);
 }
 
 // --- Text entry -------------------------------------------------------------
@@ -255,7 +262,7 @@ void Gui::createEntry_() {
     lv_obj_move_foreground(w_.entryInfo);
     // Ssid, device name and IP fields start with the current text (entrySsid_ holds it).
     if (!password && entrySsid_[0]) lv_textarea_set_text(w_.ta, entrySsid_);
-    if (apPass && w_.entryShow) lv_label_set_text(lv_obj_get_child(w_.entryShow, 0), "Hide");
+    if (apPass && w_.entryShow) Ui::setText(lv_obj_get_child(w_.entryShow, 0), "Hide");
 }
 
 void Gui::refreshEntry_() {
@@ -270,8 +277,8 @@ void Gui::refreshEntry_() {
     else if (webPass && len == 0 && wifi_ && NetConfig::webPasswordSet(wifi_->settings()))
         snprintf(buf, sizeof(buf), "empty + OK: remove");
     else snprintf(buf, sizeof(buf), "%u/%u", (unsigned)len, maxLen);
-    lv_label_set_text(w_.entryInfo, buf);
-    lv_obj_set_style_text_color(w_.entryInfo, entryError_[0] ? Colors::error() : Colors::muted(), 0);
+    Ui::setText(w_.entryInfo, buf);
+    Ui::setTextColor(w_.entryInfo, entryError_[0] ? Colors::error() : Colors::muted());
 }
 
 // --- Actions ----------------------------------------------------------------
@@ -279,10 +286,11 @@ void Gui::refreshEntry_() {
 bool Gui::storeNetwork_(const char* ssid, const char* key) {
     if (!wifi_) return false;
     NetSettings s = wifi_->settings();
-    if (NetConfig::setNetwork(s, wifiSlot_, ssid, key) != NetConfig::KeyResult::Ok) return false;
-    if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
-    wifi_->apply(s);
-    memset(&s, 0, sizeof(s)); // no key copy left on the stack
+    if (NetConfig::setNetwork(s, wifiSlot_, ssid, key) != NetConfig::KeyResult::Ok) {
+        memset(&s, 0, sizeof(s)); // no key copy left on the stack
+        return false;
+    }
+    if (!commitNet_(s, NetApply::Restart)) return false;
     Logger::info("GUI", "WiFi network stored");
     return true;
 }
@@ -334,7 +342,7 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::EntryShow: {
             const bool hidden = lv_textarea_get_password_mode(w_.ta);
             lv_textarea_set_password_mode(w_.ta, !hidden);
-            lv_label_set_text(lv_obj_get_child(obj, 0), hidden ? "Hide" : "Show");
+            Ui::setText(lv_obj_get_child(obj, 0), hidden ? "Hide" : "Show");
             break;
         }
         case Action::EntryChanged:
@@ -349,13 +357,13 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                 }
                 NetSettings s = wifi_->settings();
                 snprintf(s.deviceName, sizeof(s.deviceName), "%s", text);
-                storeNet_(s);
+                commitNet_(s, NetApply::Restart);
                 requestNavigate_(PageId::WifiDevice);
                 return;
             }
             if (entryPurpose_ == EntryPurpose::IpField) {
                 uint32_t v = 0;
-                if (!NetConfig::parseIpv4(text, &v)) {
+                if (!Ipv4::parse(text, &v)) {
                     snprintf(entryError_, sizeof(entryError_), "e.g. 192.168.1.50");
                     break;
                 }
@@ -365,10 +373,11 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                 // While static IP is on, an implausible combination is refused (W-S12).
                 const NetConfig::IpCheck c = NetConfig::checkStaticIp(s.staticIp);
                 if (s.staticIp.enabled && c != NetConfig::IpCheck::Ok) {
+                    memset(&s, 0, sizeof(s));
                     showMessage("Static IP", NetConfig::ipCheckText(c));
                     break;
                 }
-                storeNet_(s);
+                commitNet_(s, NetApply::Restart);
                 requestNavigate_(PageId::WifiDevice);
                 return;
             }
@@ -382,6 +391,7 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                     snprintf(entryError_, sizeof(entryError_), "8-64 characters");
                     break;
                 }
+                if (netChangeBlocked_()) break; // before the hash: the password stays in the field
                 // Hashed by a worker (~1.3 s); the device page shows "Saving..." until then.
                 if (webPwHashing_ || !webPwStart_ || !webPwStart_(text, len)) {
                     snprintf(entryError_, sizeof(entryError_), "Busy, try again");
@@ -460,7 +470,7 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             if (!wifi_) return;
             const StaticIp& ip = wifi_->settings().staticIp;
             const uint32_t values[4] = {ip.ip, ip.mask, ip.gateway, ip.dns};
-            if (values[arg & 3]) NetConfig::formatIpv4(values[arg & 3], entrySsid_, sizeof(entrySsid_));
+            if (values[arg & 3]) Ipv4::format(values[arg & 3], entrySsid_, sizeof(entrySsid_));
             else entrySsid_[0] = '\0';
             entryField_ = arg & 3;
             entryPurpose_ = EntryPurpose::IpField;
@@ -487,13 +497,13 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                 if (c != NetConfig::IpCheck::Ok) {
                     // Keep the values for editing, stay on DHCP.
                     s.staticIp.enabled = false;
-                    storeNet_(s);
+                    commitNet_(s, NetApply::Restart);
                     showMessage("Static IP", NetConfig::ipCheckText(c));
                     break;
                 }
             }
             s.staticIp.enabled = wantStatic;
-            storeNet_(s);
+            commitNet_(s, NetApply::Restart);
             break;
         }
         case Action::ApOpenToggle:
@@ -517,19 +527,20 @@ static constexpr int AP_TEXT_X = QR_X + QR_SIZE + 2 * QR_QUIET + 10;
 static constexpr int AP_BTN_Y = QR_Y + QR_SIZE + 2 * QR_QUIET + 6;
 static constexpr int AP_BTN_H = 36;
 static_assert(AP_BTN_Y + AP_BTN_H + 16 <= SCREEN_HEIGHT, "buttons and state line fit");
+// The AP state line names these times.
+static_assert(WifiPolicy::FALLBACK_AFTER_MS == 60000, "state line says 60 s");
+static_assert(WifiPolicy::OPEN_AP_IDLE_OFF_MS == 15 * 60000, "state line says 15 min");
 
 void Gui::storeAp_(const char* password, bool open) {
     if (!wifi_) return;
     NetSettings s = wifi_->settings();
     snprintf(s.apPassword, sizeof(s.apPassword), "%s", password ? password : "");
     s.apOpen = open;
-    if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
-    wifi_->applyAp(s);
-    memset(&s, 0, sizeof(s));
-    Logger::info("GUI", open ? "AP stored: open" : "AP stored: WPA2");
+    if (commitNet_(s, NetApply::Ap)) Logger::info("GUI", open ? "AP stored: open" : "AP stored: WPA2");
 }
 
 void Gui::createWifiAp_() {
+    apQrHash_ = 0; // a new code widget
     const lv_color_t btnColor = lv_color_hex(0xF9A825);
     addBackTitle_(PageId::Wifi, "Access point", Colors::config());
     // The phone needs a light quiet zone around the code.
@@ -555,8 +566,9 @@ void Gui::createWifiAp_() {
     w_.apOpenBtn = addButton_(root_, "", MARGIN + 182, AP_BTN_Y, CONTENT_W - 182, AP_BTN_H, Colors::gray(),
                               Action::ApOpenToggle);
     w_.apState = addLabel_(root_, "", &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, AP_BTN_Y + AP_BTN_H + 2);
-    // A password exists from the first visit on, so the QR code always works (W-E3).
-    if (wifi_ && !NetConfig::validPassphrase(wifi_->settings().apPassword)) {
+    // A password exists from the first visit on, so the QR code always works (W-E3); not while a
+    // web change is open (AF16: it would be refused).
+    if (wifi_ && !NetConfig::validPassphrase(wifi_->settings().apPassword) && !(netPendingS_ && netPendingS_())) {
         char pw[NetConfig::AP_PASSWORD_LEN + 1];
         wifi_->newApPassword(pw);
         storeAp_(pw, wifi_->settings().apOpen);
@@ -568,18 +580,25 @@ void Gui::refreshWifiAp_() {
     if (!wifi_) return;
     const NetSettings& s = wifi_->settings();
     const WifiManager::Status& w = wifi_->status();
-    lv_label_set_text(w_.apName, w.apSsid);
+    Ui::setText(w_.apName, w.apSsid);
     char qr[160];
     if (NetConfig::wifiQrText(w.apSsid, s.apPassword, s.apOpen, qr, sizeof(qr))) {
-        lv_qrcode_update(w_.apQr, qr, strlen(qr));
-        lv_obj_clear_flag(w_.apQr, LV_OBJ_FLAG_HIDDEN);
+        // Rebuilt only for a new text (AF12): the code is the largest area of the page.
+        uint32_t h = 2166136261u;
+        for (const char* c = qr; *c; ++c) h = (h ^ (uint8_t)*c) * 16777619u;
+        if (h == 0) h = 1;
+        if (h != apQrHash_) {
+            lv_qrcode_update(w_.apQr, qr, strlen(qr));
+            apQrHash_ = h;
+        }
+        Ui::setHidden(w_.apQr, false);
     } else {
-        lv_obj_add_flag(w_.apQr, LV_OBJ_FLAG_HIDDEN);
+        Ui::setHidden(w_.apQr, true);
     }
     memset(qr, 0, sizeof(qr));
-    lv_label_set_text(w_.apPass, s.apOpen ? "none (open)" : s.apPassword);
-    lv_obj_set_style_text_color(w_.apPass, s.apOpen ? Colors::warn() : Colors::text(), 0);
-    lv_label_set_text(lv_obj_get_child(w_.apOpenBtn, 0), s.apOpen ? "Secure" : "Open...");
+    Ui::setText(w_.apPass, s.apOpen ? "none (open)" : s.apPassword);
+    Ui::setTextColor(w_.apPass, s.apOpen ? Colors::warn() : Colors::text());
+    Ui::setText(lv_obj_get_child(w_.apOpenBtn, 0), s.apOpen ? "Secure" : "Open...");
     char buf[64];
     if (w.apActive) {
         snprintf(buf, sizeof(buf), "Active, %u connected%s", (unsigned)w.apStations, w.fallback ? " (fallback)" : "");
@@ -590,7 +609,7 @@ void Gui::refreshWifiAp_() {
     } else {
         snprintf(buf, sizeof(buf), "Off. Choose Access point in CONFIG > WiFi.");
     }
-    lv_label_set_text(w_.apState, buf);
+    Ui::setText(w_.apState, buf);
 }
 
 // --- Device (S53d) ----------------------------------------------------------
@@ -617,9 +636,7 @@ void Gui::storeWebPassword_(const char* record) {
     if (!wifi_) return;
     NetSettings s = wifi_->settings();
     snprintf(s.webPassword, sizeof(s.webPassword), "%s", record ? record : "");
-    if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
-    wifi_->applyWebPassword(s.webPassword); // no WiFi restart; the web server ends its sessions
-    memset(&s, 0, sizeof(s));
+    commitNet_(s, NetApply::WebPassword);
 }
 
 void Gui::pollWebPassword_() {
@@ -638,11 +655,27 @@ void Gui::pollWebPassword_() {
     refresh_();
 }
 
-void Gui::storeNet_(NetSettings& s) {
-    if (!wifi_) return;
+bool Gui::netChangeBlocked_() {
+    if (!netPendingS_ || netPendingS_() == 0) return false;
+    Logger::info("GUI", "Network change refused: web change pending");
+    confirm_(Confirm::WebPending);
+    return true;
+}
+
+bool Gui::commitNet_(NetSettings& s, NetApply how) {
+    // One owner (AF16): while a web change waits, only the web change itself is saved.
+    if (!wifi_ || netChangeBlocked_()) {
+        memset(&s, 0, sizeof(s));
+        return false;
+    }
     if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
-    wifi_->apply(s);
-    memset(&s, 0, sizeof(s));
+    switch (how) {
+        case NetApply::Restart: wifi_->apply(s); break;
+        case NetApply::Ap: wifi_->applyAp(s); break;
+        case NetApply::WebPassword: wifi_->applyWebPassword(s.webPassword); break;
+    }
+    memset(&s, 0, sizeof(s)); // no copy of keys and passwords left on the stack
+    return true;
 }
 
 void Gui::createWifiDevice_() {
@@ -683,7 +716,7 @@ void Gui::refreshWifiDevice_() {
     const WifiManager::Status& w = wifi_->status();
     char buf[48];
     snprintf(buf, sizeof(buf), "%s.local", s.deviceName);
-    lv_label_set_text(w_.devName, buf);
+    Ui::setText(w_.devName, buf);
     if (lv_dropdown_get_selected(w_.devIpMode) != (s.staticIp.enabled ? 1u : 0u)) {
         lv_dropdown_set_selected(w_.devIpMode, s.staticIp.enabled ? 1 : 0);
     }
@@ -692,13 +725,13 @@ void Gui::refreshWifiDevice_() {
     const uint32_t lease[4] = {w.staIp, w.staMask, w.staGateway, w.staDns};
     for (uint8_t i = 0; i < 4; ++i) {
         const uint32_t v = s.staticIp.enabled ? stored[i] : (stored[i] ? stored[i] : lease[i]);
-        if (v) NetConfig::formatIpv4(v, buf, sizeof(buf));
+        if (v) Ipv4::format(v, buf, sizeof(buf));
         else snprintf(buf, sizeof(buf), i == 3 ? "= gateway" : "-");
-        lv_label_set_text(w_.devField[i], buf);
-        lv_obj_set_style_text_color(w_.devField[i], s.staticIp.enabled ? Colors::text() : Colors::muted(), 0);
+        Ui::setText(w_.devField[i], buf);
+        Ui::setTextColor(w_.devField[i], s.staticIp.enabled ? Colors::text() : Colors::muted());
     }
     const bool pwSet = NetConfig::webPasswordSet(s);
-    lv_label_set_text(w_.devWebPw, webPasswordText(pwSet, webPwHashing_));
+    Ui::setText(w_.devWebPw, webPasswordText(pwSet, webPwHashing_));
     // No password: everyone in the network can operate the device in the browser (warning color).
-    lv_obj_set_style_text_color(w_.devWebPw, pwSet || webPwHashing_ ? Colors::text() : Colors::warn(), 0);
+    Ui::setTextColor(w_.devWebPw, pwSet || webPwHashing_ ? Colors::text() : Colors::warn());
 }

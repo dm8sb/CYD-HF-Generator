@@ -108,7 +108,7 @@ void Gui::handleNumpadKey_(lv_obj_t* matrix) {
             }
             return;
         case InputLogic::NumpadEvent::Rejected:
-            lv_label_set_text(w_.npError, InputLogic::numpadErrorText(numpad_.error));
+            Ui::setText(w_.npError, InputLogic::numpadErrorText(numpad_.error));
             lv_obj_set_style_border_color(ta, Colors::error(), 0);
             return;
         case InputLogic::NumpadEvent::Edited: {
@@ -120,6 +120,6 @@ void Gui::handleNumpadKey_(lv_obj_t* matrix) {
         case InputLogic::NumpadEvent::Ignored:
             break;
     }
-    lv_label_set_text(w_.npError, "");
+    Ui::setText(w_.npError, "");
     lv_obj_set_style_border_color(ta, numpadColor_(), 0);
 }

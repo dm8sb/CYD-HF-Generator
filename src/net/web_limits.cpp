@@ -136,7 +136,7 @@ bool WsClients::add(uint32_t id, uint32_t nowMs) {
         if (c.id == 0 && !free) free = &c;
     }
     if (!free) return false;
-    *free = Client {id, nowMs, nowMs, true};
+    *free = Client {id, nowMs, nowMs, true, false, 0, 0, nowMs};
     return true;
 }
 
@@ -146,10 +146,35 @@ void WsClients::remove(uint32_t id) {
     }
 }
 
-void WsClients::pong(uint32_t id, uint32_t nowMs) {
+static void putNonce(uint32_t n, uint8_t out[WsClients::PING_PAYLOAD_LEN]) {
+    for (size_t i = 0; i < WsClients::PING_PAYLOAD_LEN; ++i) out[i] = (uint8_t)(n >> (8 * i));
+}
+
+void WsClients::pong(uint32_t id, uint32_t nowMs, const uint8_t* data, size_t len) {
+    if (!data || len != PING_PAYLOAD_LEN) return;
     for (Client& c : clients_) {
-        if (id != 0 && c.id == id) c.lastPongMs = nowMs;
+        if (id == 0 || c.id != id || !c.awaitingPong) continue;
+        uint8_t want[PING_PAYLOAD_LEN];
+        putNonce(c.nonce, want);
+        if (memcmp(want, data, len) == 0) {
+            c.lastPongMs = nowMs;
+            c.awaitingPong = false;
+        }
     }
+}
+
+bool WsClients::clientPing(uint32_t id, uint32_t nowMs) {
+    for (Client& c : clients_) {
+        if (id == 0 || c.id != id) continue;
+        if (nowMs - c.pingWindowMs >= PING_WINDOW_MS) {
+            c.pingWindowMs = nowMs;
+            c.pingsIn = 0;
+        }
+        if (c.pingsIn >= PING_BUDGET) return false;
+        ++c.pingsIn;
+        return true;
+    }
+    return false;
 }
 
 uint8_t WsClients::count() const {
@@ -176,10 +201,13 @@ void WsClients::sent(uint32_t id) {
     }
 }
 
-uint32_t WsClients::duePing(uint32_t nowMs) {
+uint32_t WsClients::duePing(uint32_t nowMs, uint32_t nonce, uint8_t payload[PING_PAYLOAD_LEN]) {
     for (Client& c : clients_) {
         if (c.id && nowMs - c.lastPingMs >= PING_MS) {
             c.lastPingMs = nowMs;
+            c.awaitingPong = true;
+            c.nonce = nonce;
+            if (payload) putNonce(nonce, payload);
             return c.id;
         }
     }

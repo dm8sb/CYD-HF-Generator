@@ -109,10 +109,10 @@ The same command set and the same line rules apply over USB, TCP 5025 and VXI-11
 | `SYSTem:STEP <Hz>` | Hz | Step of `+`/`−` at the device: 1 Hz … 1 MHz in powers of ten; units allowed |
 | `SYSTem:BACKlight <%>` | % | Display brightness 10–100 %, rounded to 10 % (55 → 60); unit `PCT` allowed |
 | `SYSTem:SI5351?` | `CONN` / `NFO` / `BLOC` / `UNKN` | SI5351 link: connected, not found, line held low, foreign device |
-| `SYSTem:HEAP?` | `<free>,<minimum>,<largest block>` | Memory in bytes |
+| `SYSTem:HEAP?` | `<free>,<minimum>,<largest block>` | Memory in bytes (at most 0.1 s old) |
 | `SYSTem:IDENtify` | – | Backlight and RGB LED blink for 5 s |
 | `SYSTem:LOG?` | `"<line>"` | Oldest buffered log line, `""` when empty; USB only (TCP and VXI-11 always `""`) |
-| `SYSTem:SAVE` | – | Save all settings at once |
+| `SYSTem:SAVE` | – | Save the changed settings at once; at most once per 10 s per interface, a further request within 10 s is merged silently and saved 10 s after the previous save |
 | `SYSTem:ERRor[:NEXT]?` | `<code>,"<text>"` | Next entry of the error queue (16 entries), `0,"No error"` when empty |
 | `SYSTem:ERRor:COUNt?` | `<n>` | Number of queued errors |
 | `SYSTem:VERSion?` | `1999.0` | SCPI version |
@@ -252,14 +252,14 @@ gen.close()
 - Base URL `http://<ip>` or `http://<name>.local`; in the own access point `http://192.168.4.1`. The `Host` header must be the device address, `<name>` or `<name>.local` (else 421).
 - Every `POST` needs `Content-Type: application/json`, a `Content-Length` and the header **`X-CYD-Token: <token>`**. The token is new with every restart; read it from `<meta name="cyd-token" content="…">` of `GET /` (or `GET /api/token` from a same-origin page). A stale token gives 403 `Invalid token: reload the page`.
 - Limits: body ≤ 1 KB, path ≤ 256 bytes, headers ≤ 2 KB, at most 4 HTTP connections, 20 writes/s.
-- Settings written over REST are saved 5 s after the last change; `POST /api/save` saves at once.
+- Settings written over REST are saved 5 s after the last change; `POST /api/save` saves the changed values at once, at most once per 10 s (a further request within 10 s answers 200 and is saved 10 s after the previous save).
 
 ### 4.2 Login
 
 Only when a web password is set at the device:
 
 - `POST /api/login` with `{"password":"…"}` → 204 and a session cookie (`HttpOnly`, `SameSite=Strict`, 12 h). Send the cookie with every following request.
-- Without a valid session every `POST` (except login/logout) and `GET /api/wifi*` answer 401 `Login required`. `GET /api/state` and the WebSocket stay readable without login.
+- Without a valid session every `POST` (except login/logout), `GET /api/wifi*`, `GET /api/state`, `GET /api/token` and the WebSocket upgrade answer 401 `Login required` (reading needs the login as well). Only the page and `GET /lxi/identification` stay readable without login. Setting, changing or removing the password ends every session and closes every WebSocket.
 - 5 wrong passwords lock the login for 30 s, every further lock doubles (up to 16 min): 429 with `retryAfter`.
 - `POST /api/logout` with `{}` → 204, ends the session.
 - Over an open access point any body with a password field is refused (403).
@@ -273,6 +273,7 @@ Only when a web password is set at the device:
  "ch":[{"n":1,"enabled":true,"frequency":10000000,"actual":10000000.0,"status":"ON","modes":["SSC -0.5%"]},
        {"n":2,"enabled":false,"frequency":14000000,"actual":14000000.0,"status":"OFF","modes":[]}],
  "ch3":{"enabled":false,"master":1,"phase":90,"status":"OFF","frequency":10000000,"actual":10000000.0,"iqMin":4730000,"iqMax":100000000},
+ "limits":{"fmin":8000,"fmax":160000000,"steps":[1,10,100,1000,10000,100000,1000000]},
  "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"remoteOutputs":"allowed"},
  "wifi":{"mode":"client","connected":true,"ssid":"Lab","rssi":-60,"ip":"192.168.1.50","name":"cyd-hf-1a2b",
          "ap":{"active":false,"ssid":"CYD-HF-1A2B","open":false,"stations":0},"confirmWithin":0},
@@ -295,6 +296,7 @@ Only when a web password is set at the device:
 | `remoteOutputs` | `allowed`, `local` |
 | `wifi.mode` | `off`, `client`, `ap` |
 | `confirmWithin` | seconds left to confirm a network change, 0 = none |
+| `limits` | fixed limits of the firmware: `fmin`/`fmax` frequency range of CH1/CH2 in Hz, `steps` the allowed values of `step` (ascending) |
 
 ### 4.4 Endpoints
 
@@ -314,9 +316,9 @@ Only when a web password is set at the device:
 | `GET /api/wifi/scan` | – | `{"state":"running\|done\|failed","networks":[{"ssid","rssi","secure"}]}` (start at most every 10 s) |
 | `GET /api/token` | – | `{"token":"…"}` (same-origin only) |
 | `GET /lxi/identification` | – | LXI identification XML |
-| WebSocket `/ws?t=<token>` | – | state on connect and on every change (push only, at most 3 clients) |
+| WebSocket `/ws?t=<token>` | – | state on connect and on every change, at most every 100 ms (push only, at most 3 clients; with a web password the session cookie is needed; only a PONG with the payload of the device's PING counts, more than 3 PINGs in 10 s close with 1008) |
 
-**Network changes** (`POST /api/wifi`) only stay after a confirmation, so nobody locks themselves out: the WiFi restarts with the new data, then `POST /api/wifi/confirm` must arrive within 120 s at the new address; without a web password the touch screen asks `Network change` as well (`Keep`). Otherwise the previous settings return. `slot` is 0 or 1 (network 1 and 2); `password` is `""` (open network), 8–63 characters or 64 hex digits; passwords are write-only. `{"mode":"off"}` applies at once without confirmation and must come alone (any other key → 400 `-108`); WiFi can then only be switched on at the device.
+**Network changes** (`POST /api/wifi`) only stay after a confirmation, so nobody locks themselves out: the WiFi restarts with the new data, then `POST /api/wifi/confirm` must arrive within 120 s at the new address; without a web password the touch screen asks `Network change` as well (`Keep`). Otherwise the previous settings return. Only the confirmed state is saved (a power loss meanwhile brings back the previous settings), and while the change is open the touch screen changes no network settings; it offers `Revert` (`Web change pending`), also with a web password. `slot` is 0 or 1 (network 1 and 2); `password` is `""` (open network), 8–63 characters or 64 hex digits; passwords are write-only. `{"mode":"off"}` applies at once without confirmation and must come alone (any other key → 400 `-108`); WiFi can then only be switched on at the device.
 
 ### 4.5 Errors
 

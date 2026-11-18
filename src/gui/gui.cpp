@@ -4,6 +4,8 @@
 #include "gui.h"
 #include "gui_layout.h"
 #include <drivers/status_led.h>
+#include <net/web_state.h>
+#include <net/wifi_policy.h>
 #include <utils/frequency_utils.h>
 #include <utils/logger.h>
 #include <utils/sanitize.h>
@@ -59,6 +61,7 @@ Gui* Gui::from_(lv_obj_t* obj) {
 
 void Gui::flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p) {
     Gui* g = static_cast<Gui*>(disp->user_data);
+    ++g->flushCount_;
     const int16_t w = area->x2 - area->x1 + 1;
     const int16_t h = area->y2 - area->y1 + 1;
     g->display_->flush(area->x1, area->y1, w, h, (uint16_t*)&color_p->full);
@@ -81,7 +84,7 @@ void Gui::handleLockEvent_(InputLogic::ScreenLock::Event e) {
     if (e == Ev::None) return;
     if (!lockHint_) {
         lockHint_ = lv_label_create(lv_layer_top());
-        lv_label_set_text(lockHint_, "Locked: hold 2 s to unlock");
+        Ui::setText(lockHint_, "Locked: hold 2 s to unlock");
         lv_obj_set_style_text_font(lockHint_, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(lockHint_, Colors::textDark(), 0);
         lv_obj_set_style_bg_color(lockHint_, Colors::warn(), 0);
@@ -111,7 +114,7 @@ void Gui::on_(lv_obj_t* obj, lv_event_code_t code, Action action, uint8_t arg) {
 
 lv_obj_t* Gui::addLabel_(lv_obj_t* parent, const char* txt, const lv_font_t* font, lv_color_t color, int x, int y) {
     lv_obj_t* l = lv_label_create(parent);
-    lv_label_set_text(l, txt);
+    Ui::setText(l, txt);
     lv_obj_set_style_text_font(l, font, 0);
     lv_obj_set_style_text_color(l, color, 0);
     lv_obj_set_pos(l, x, y);
@@ -147,7 +150,7 @@ lv_obj_t* Gui::addButton_(lv_obj_t* parent, const char* txt, int x, int y, int w
     lv_obj_set_style_shadow_width(b, 0, 0);
     lv_obj_set_style_pad_all(b, 0, 0);
     lv_obj_t* l = lv_label_create(b);
-    lv_label_set_text(l, txt);
+    Ui::setText(l, txt);
     lv_obj_set_style_text_font(l, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l, Colors::textOn(color), 0);
     lv_obj_center(l);
@@ -184,7 +187,7 @@ lv_obj_t* Gui::addChip_(lv_obj_t* parent, const char* txt, int x, int y, int w, 
     lv_obj_set_style_text_color(b, Colors::text(), 0);
     lv_obj_set_style_text_color(b, Colors::textOn(color), LV_STATE_CHECKED);
     lv_obj_t* l = lv_label_create(b);
-    lv_label_set_text(l, txt);
+    Ui::setText(l, txt);
     lv_obj_center(l);
     reachEdges(b);
     on_(b, LV_EVENT_CLICKED, action, arg);
@@ -270,11 +273,11 @@ void Gui::styleState_(lv_obj_t* label) {
 // OFF as gray text, every other state filled with its tone and dark text: a filled label marks
 // an active or faulty output also for color-blind users and from a distance (audit U-19).
 void Gui::showState_(lv_obj_t* label, const StatusText::Text& state) {
-    lv_label_set_text(label, state.text);
+    Ui::setText(label, state.text);
     const bool filled = state.tone != StatusText::Tone::Muted;
-    lv_obj_set_style_bg_opa(label, filled ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    lv_obj_set_style_bg_color(label, Colors::forTone(state.tone), 0);
-    lv_obj_set_style_text_color(label, filled ? Colors::textDark() : Colors::muted(), 0);
+    Ui::setBgOpa(label, filled ? LV_OPA_COVER : LV_OPA_TRANSP);
+    Ui::setBgColor(label, Colors::forTone(state.tone));
+    Ui::setTextColor(label, filled ? Colors::textDark() : Colors::muted());
 }
 
 // Includes SI5351 rounding, the Integer raster and spread spectrum; assumes a correct
@@ -283,9 +286,9 @@ void Gui::showOutput_(uint8_t ch, uint64_t requested, const char* prefix) {
     char out[64], buf[72];
     const double dev = FrequencyUtils::formatOutput(app_->actualHz(ch), requested, app_->spreadOf(ch), out, sizeof(out));
     snprintf(buf, sizeof(buf), "%s%s", prefix, out);
-    lv_label_set_text(w_.info, buf);
+    Ui::setText(w_.info, buf);
     const bool warn = fabs(dev) >= FrequencyUtils::DEVIATION_WARN_HZ;
-    lv_obj_set_style_text_color(w_.info, warn ? Colors::warn() : Colors::muted(), 0);
+    Ui::setTextColor(w_.info, warn ? Colors::warn() : Colors::muted());
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +368,11 @@ void Gui::refresh_() {
         case PageId::WifiAp: refreshWifiAp_(); break;
         case PageId::WifiDevice: refreshWifiDevice_(); break;
     }
+    // A redraw right after an action is the redraw of this state: update() must not repeat it
+    // (AF12, every touch action redrew twice).
+    lastRevision_ = app_->revision();
+    lastView_ = statusView_();
+    ++refreshCount_;
 }
 
 void Gui::update() {
@@ -389,6 +397,18 @@ void Gui::update() {
         if (netConfirmAsked_) dropConfirm_(Confirm::WebNetwork);
         netConfirmAsked_ = false;
     }
+    // AF16: with a web password the touch need not confirm, but the device shows the open change
+    // with Revert (concept 2). The question also comes when a touch change is refused.
+    const bool pending = netPendingS_ && netPendingS_() > 0;
+    if (pending && wifi_ && NetConfig::webPasswordSet(wifi_->settings())) {
+        if (!netPendingAsked_ && currentPage_ != PageId::TouchCal) {
+            netPendingAsked_ = true;
+            confirm_(Confirm::WebPending);
+        }
+    } else if (!pending) {
+        if (netPendingAsked_) netPendingAsked_ = false;
+        dropConfirm_(Confirm::WebPending); // no-op when it is not queued
+    }
     pollWebPassword_();
     if (app_->identifying()) {
         if (!ledIdentify_ || app_->identifyLit() != ledLit_) {
@@ -408,17 +428,21 @@ void Gui::update() {
     // output errors (cleared by the periodic retry) change.
     if (millis() - lastUpdateMs_ < GUI_UPDATE_INTERVAL_MS) return;
     lastUpdateMs_ = millis();
+    if (LOG_DEBUG && lastUpdateMs_ - countLogMs_ >= 60000) {
+        Logger::debugValue("GUI", "Redraws per min", refreshCount_);
+        Logger::debugValue("GUI", "Flushes per min", flushCount_);
+        refreshCount_ = flushCount_ = 0;
+        countLogMs_ = lastUpdateMs_;
+    }
     // SI5351 reconnected (possibly between two samples): connection dialogs are outdated.
     if (app_->connectionCount() != lastConnections_) {
         lastConnections_ = app_->connectionCount();
         if (app_->hardwareReady()) dismissLinkMessages_();
     }
-    // Any change in the controller (also from the supervision and remote commands), the WiFi
-    // state or the REMOTE indicator: redraw (V-2).
-    const uint32_t sig = statusSignature_();
-    if (app_->revision() != lastRevision_ || sig != lastStatusSig_) {
-        lastRevision_ = app_->revision();
-        lastStatusSig_ = sig;
+    // Any change in the controller (also from the supervision and remote commands) or in what
+    // the page shows of WiFi, heap and the REMOTE indicator: redraw (V-2, AF12). The setters
+    // touch only widgets whose content changes.
+    if (app_->revision() != lastRevision_ || statusView_() != lastView_) {
         refresh_();
     } else {
         refreshSaveState_(); // MAIN status bar and CONFIG header; no-op on the other pages
@@ -448,6 +472,10 @@ void Gui::eventCb_(lv_event_t* e) {
     }
     g->handleAction_((Action)((packed >> 8) & 0xFF), (uint8_t)(packed & 0xFF), obj);
 }
+
+// The confirmation texts name these times.
+static_assert(WifiPolicy::OPEN_AP_IDLE_OFF_MS == 15 * 60000, "ApOpen text says 15 min");
+static_assert(NetChange::CONFIRM_MS == 120000, "WebNetwork/WebPending texts say 120 s");
 
 // CONFIG dropdowns (page_config.cpp) list their options in enum order; the index is the value.
 static_assert((uint8_t)TuningMode::Fractional == 0 && (uint8_t)TuningMode::LowNoise == 1 &&
@@ -503,9 +531,9 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             app.stepBacklight(1);
             break;
         case Action::Drive:
-            app.setGlobalDriveStrength((lv_dropdown_get_selected(obj) + 1) * 2);
+            app.setGlobalDriveStrength(DRIVE_MA_MIN + lv_dropdown_get_selected(obj) * DRIVE_MA_STEP);
             break;
-        // The dropdown options are in enum order (checked below). refresh_() shows the resulting state, e.g.
+        // The dropdown options are in enum order (checked above). refresh_() shows the resulting state, e.g.
         // spread spectrum turned off by the Integer mode.
         case Action::Tuning:
             app.setTuningMode((TuningMode)lv_dropdown_get_selected(obj));
@@ -549,12 +577,11 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             return;
         case Action::WifiMode: {
             if (!wifi_) break;
-            NetSettings s = wifi_->settings();
             const WifiMode mode = (WifiMode)lv_dropdown_get_selected(obj);
-            if (mode == s.mode) break;
+            if (mode == wifi_->settings().mode) break;
+            NetSettings s = wifi_->settings();
             s.mode = mode;
-            if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
-            wifi_->apply(s);
+            commitNet_(s, NetApply::Restart);
             break;
         }
         case Action::RemoteOutputs:
@@ -674,8 +701,8 @@ void Gui::showModes_(lv_obj_t* label, uint8_t ch, const char* extra, const char*
     char buf[160];
     snprintf(buf, sizeof(buf), "%s%s%s%s%s", modes, (modes[0] && extra[0]) ? " | " : "", extra,
              ((modes[0] || extra[0]) && note[0]) ? " | " : "", note);
-    lv_label_set_text(label, buf);
-    lv_obj_set_style_text_color(label, Colors::forTone(tone), 0);
+    Ui::setText(label, buf);
+    Ui::setTextColor(label, Colors::forTone(tone));
 }
 
 void Gui::confirm_(Confirm what, uint8_t payload) {
@@ -756,6 +783,12 @@ void Gui::showConfirm_() {
         text = "The network settings were changed from the web. Keep them? Without Keep here and "
                "Confirm in the browser, the previous settings return after 120 s.";
         buttons = keepButtons;
+    } else if (what == Confirm::WebPending) {
+        title = "Web change pending";
+        text = "Network settings were changed from the web and wait for Confirm in the browser "
+               "(at most 120 s). Settings here can be changed after that. Revert restores the "
+               "previous settings now.";
+        buttons = keepButtons;
     } else if (what == Confirm::RemoveWebPassword) {
         title = "Remove web password";
         text = "Everyone who can reach the device over the network can then operate it in the "
@@ -797,9 +830,7 @@ void Gui::confirmEventCb_(lv_event_t* e) {
     if (yes && what == Confirm::DeleteNetwork && g->wifi_) {
         NetSettings s = g->wifi_->settings();
         NetConfig::clearNetwork(s, a.payload);
-        if (g->saveNet_ && !g->saveNet_(s)) g->showMessage("WiFi", "Saving the WiFi settings failed.");
-        g->wifi_->apply(s);
-        memset(&s, 0, sizeof(s));
+        g->commitNet_(s, NetApply::Restart);
     }
     if (yes && what == Confirm::ApOpen && g->wifi_) {
         g->storeAp_(g->wifi_->settings().apPassword, true);
@@ -810,7 +841,7 @@ void Gui::confirmEventCb_(lv_event_t* e) {
         Logger::info("GUI", "Web password removed");
         g->requestNavigate_(PageId::WifiDevice);
     }
-    if (what == Confirm::WebNetwork && g->netConfirmAnswer_) g->netConfirmAnswer_(yes);
+    if ((what == Confirm::WebNetwork || what == Confirm::WebPending) && g->netConfirmAnswer_) g->netConfirmAnswer_(yes);
     if (yes && what == Confirm::OpenNetwork && g->storeNetwork_(g->entrySsid_, "")) {
         g->requestNavigate_(PageId::Wifi);
     }

@@ -38,9 +38,15 @@ public:
     // remote). A failed save keeps the keys and is retried every SETTINGS_RETRY_MS; Failed is
     // returned only for the first failure of a series.
     void markDirty(uint16_t keys = SettingKey::All, uint32_t quietMs = SETTINGS_AUTOSAVE_MS);
-    // Forgets pending changes (*RST: the defaults are not saved until saveNow()).
-    void clearDirty() { dirtyKeys_ = 0; retryPending_ = false; }
-    // Writes every key at once (SYSTem:SAVE).
+    // Forgets pending changes (*RST: the defaults are not saved until saveNow()); every key may
+    // differ from NVS then, so saveNow() writes all of them.
+    void clearDirty() {
+        dirtyKeys_ = 0;
+        retryPending_ = false;
+        unsavedKeys_ = SettingKey::All;
+    }
+    // Writes the keys that differ from NVS at once (SYSTem:SAVE): the ones marked since their
+    // last save, all after clearDirty(); nothing when NVS is up to date (AF17).
     bool saveNow(const PersistentState& state);
     SaveResult update(const PersistentState& state);
     bool isDirty() const { return dirtyKeys_ != 0; }
@@ -67,6 +73,7 @@ private:
     Storage storage_;
     bool available_ = false;
     uint16_t dirtyKeys_ = 0;
+    uint16_t unsavedKeys_ = 0; // dirtyKeys_ plus the keys a *RST changed without saving
     uint32_t quietMs_ = SETTINGS_AUTOSAVE_MS;
     bool saveFailed_ = false;
     bool retryPending_ = false;

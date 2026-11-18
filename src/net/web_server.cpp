@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <esp_heap_caps.h>
 #include <esp_random.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
@@ -22,6 +23,7 @@
 #include <remote/rest_wifi.h>
 #include <config.h>
 #include <utils/logger.h>
+#include "ip_address.h"
 #include "request_guard.h"
 #include "web_limits.h"
 #include "web_state.h"
@@ -33,19 +35,24 @@ constexpr const char* CSP = "default-src 'none'; script-src 'self'; style-src 's
 constexpr const char* JSON = "application/json";
 constexpr uint32_t JOB_WAIT_MS = 100;        // a job taken by loop() finishes within this
 constexpr uint32_t LOGIN_TIMEOUT_MS = 5000;  // a password check that never ends answers 503
-constexpr uint8_t PING_PAYLOAD[3] = {'c', 'y', 'd'};
 constexpr uint32_t CLEANUP_MS = 1000;
 constexpr uint32_t STACK_LOG_MS = 60000; // debug log of the task stack reserves (W-S23)
 constexpr uint16_t WS_TOO_BIG = 1009;
 constexpr uint16_t WS_POLICY = 1008;
 constexpr uint16_t WS_GOING_AWAY = 1001;
+// Placeholder in index.html replaced by the per-boot token (tools/embed_www.py keeps it).
+constexpr char TOKEN_MARKER[] = "{{TOKEN}}";
+constexpr size_t TOKEN_MARKER_LEN = sizeof(TOKEN_MARKER) - 1;
+// Refusal text for a fourth client; the number is WsClients::MAX.
+#define TOO_MANY_CLIENTS "Too many clients (max. 3)"
+static_assert(WsClients::MAX == 3, "TOO_MANY_CLIENTS names WsClients::MAX");
+static_assert(NetChange::CONFIRM_MS == 120000, "the network change log line says 120 s");
 
 uint32_t hwRandom() { return esp_random(); }
 
 // 64-bit monotonic ms for the request guard (no 49.7-day wrap of millis()).
 uint64_t guardNow() { return (uint64_t)(esp_timer_get_time() / 1000); }
 
-uint32_t ipv4(const IPAddress& a) { return (uint32_t)a[0] << 24 | (uint32_t)a[1] << 16 | (uint32_t)a[2] << 8 | a[3]; }
 
 struct Lock {
     explicit Lock(SemaphoreHandle_t m) : m_(m) { xSemaphoreTake(m_, portMAX_DELAY); }
@@ -200,6 +207,7 @@ struct WebHmiServer::Impl {
     LoginQueue login;
     Job job {};
     RestJson::DeviceInfo info {};
+    uint32_t infoRev = 0; // counts changes of info
     char wifiJson[RestWifi::SETTINGS_SIZE] {};
     char record[WebPassword::RECORD_SIZE] {};
     bool passwordSet = false;
@@ -219,12 +227,24 @@ struct WebHmiServer::Impl {
     ScanSession scan;
     RestJson::PushKey lastPush {};
     bool pushedOnce = false;
+    PushPacer pacer;          // at most one push per 100 ms (AF19)
+    uint32_t lowMemLogMs = 0; // a skipped push is logged at most once per minute
+    // What the last push looked at: unchanged inputs skip the key and the hash (AF11, PERF-12).
+    uint32_t pushedRevision = 0;
+    uint8_t pushedSave = 0;
+    uint32_t pushedRemoteMs = 0;
+    uint32_t pushedInfoRev = 0;
+    // updateShared() runs only when the WiFi manager or the confirmation countdown changed.
+    bool sharedKnown = false;
+    uint32_t sharedWifiRev = 0;
+    uint16_t sharedConfirmS = 0;
     uint32_t lastCleanupMs = 0;
     uint32_t lastStackLogMs = 0;
     NetSettings lastSettings {};
     bool settingsKnown = false;
     bool listening = false;
     bool disconnectRequested = false; // set and served in loop() (GUI)
+    bool closeWs = false;             // the web password changed: WebSockets close (loop)
 
     Impl(CommandQueue& c, StateSnapshot& s, WifiManager& w, bool (*sv)(const NetSettings&))
         : commands(c), snapshot(s), wifi(w), save(sv) {
@@ -236,17 +256,16 @@ struct WebHmiServer::Impl {
         RequestGuard::makeToken(hwRandom, token); // the radio runs: esp_random() is a true RNG
         // The page with the token, built once (the token is per boot).
         const WwwAsset& page = WWW_ASSETS[0];
-        const char* marker = "{{TOKEN}}";
         const char* src = (const char*)page.data;
         const char* at = nullptr;
-        for (size_t i = 0; i + 9 <= page.size; ++i) {
-            if (memcmp(src + i, marker, 9) == 0) {
+        for (size_t i = 0; i + TOKEN_MARKER_LEN <= page.size; ++i) {
+            if (memcmp(src + i, TOKEN_MARKER, TOKEN_MARKER_LEN) == 0) {
                 at = src + i;
                 break;
             }
         }
         if (!at) return false;
-        indexLen = page.size - 9 + RequestGuard::TOKEN_LEN;
+        indexLen = page.size - TOKEN_MARKER_LEN + RequestGuard::TOKEN_LEN;
         indexHtml = (char*)malloc(indexLen + 1);
         server = new (std::nothrow) Server(this);
         ws = new (std::nothrow) AsyncWebSocket("/ws");
@@ -255,10 +274,10 @@ struct WebHmiServer::Impl {
         const size_t pre = (size_t)(at - src);
         memcpy(indexHtml, src, pre);
         memcpy(indexHtml + pre, token, RequestGuard::TOKEN_LEN);
-        memcpy(indexHtml + pre + RequestGuard::TOKEN_LEN, at + 9, page.size - pre - 9);
+        memcpy(indexHtml + pre + RequestGuard::TOKEN_LEN, at + TOKEN_MARKER_LEN, page.size - pre - TOKEN_MARKER_LEN);
         indexHtml[indexLen] = '\0';
-        ws->onEvent([this](AsyncWebSocket*, AsyncWebSocketClient* c, AwsEventType t, void* arg, uint8_t*, size_t) {
-            wsEvent(c, t, arg);
+        ws->onEvent([this](AsyncWebSocket*, AsyncWebSocketClient* c, AwsEventType t, void* arg, uint8_t* data, size_t len) {
+            wsEvent(c, t, arg, data, len);
         });
         // The WebSocket is not registered as a handler: Handler checks every request first and
         // passes allowed upgrades of /ws to it.
@@ -296,7 +315,8 @@ struct WebHmiServer::Impl {
         const uint32_t now = millis();
         int slot = -1;
         uint32_t gen = 0;
-        const bool heapOk = ESP.getFreeHeap() >= RequestGuard::MIN_FREE_HEAP; // W-S10: < 24 KB -> 503
+        // W-S10: < 24 KB free -> 503; AF19: also without a block for the request.
+        const bool heapOk = HeapLimits::acceptOk(ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
         if (heapOk) {
             Lock l(mutex);
             slot = conns.acquire(now);
@@ -417,8 +437,8 @@ struct WebHmiServer::Impl {
         g.authorization = header(req, "Authorization");
         g.upgrade = header(req, "Upgrade");
         g.headerBytes = headerBytes;
-        g.clientIp = ipv4(req->client()->remoteIP());
-        g.localIp = ipv4(req->client()->localIP());
+        g.clientIp = fromIpAddress(req->client()->remoteIP());
+        g.localIp = fromIpAddress(req->client()->localIP());
         g.freeHeap = ESP.getFreeHeap();
 
         GuardDecision d;
@@ -473,7 +493,7 @@ struct WebHmiServer::Impl {
                     Lock l(mutex);
                     if (wsc.count() >= WsClients::MAX) {
                         // Released like any HTTP connection; the WebSocket would not get a place.
-                        return sendRefusal(req, 503, "Too many clients (max. 3)");
+                        return sendRefusal(req, 503, TOO_MANY_CLIENTS);
                     }
                 }
                 ws->handleRequest(req);
@@ -527,7 +547,7 @@ struct WebHmiServer::Impl {
             if (wsc.count() >= WsClients::MAX) {
                 AsyncWebServerResponse* r = req->beginResponse(
                     503, "text/html; charset=utf-8",
-                    "<!DOCTYPE html><title>CYD HF Generator</title><p>Too many clients (max. 3)</p>");
+                    "<!DOCTYPE html><title>CYD HF Generator</title><p>" TOO_MANY_CLIENTS "</p>");
                 secure(r, Cache::NoStore);
                 req->send(r);
                 return;
@@ -820,7 +840,7 @@ struct WebHmiServer::Impl {
     }
 
     // ---------------------------------------------------------------- WebSocket (async_tcp)
-    void wsEvent(AsyncWebSocketClient* c, AwsEventType t, void* arg) {
+    void wsEvent(AsyncWebSocketClient* c, AwsEventType t, void* arg, const uint8_t* data, size_t len) {
         const uint32_t now = millis();
         switch (t) {
             case WS_EVT_CONNECT: {
@@ -836,7 +856,7 @@ struct WebHmiServer::Impl {
                 }
                 c->client()->onPacket(nullptr, nullptr);
                 c->setCloseClientOnQueueFull(false);
-                if (!ok) c->close(WS_POLICY, "Too many clients (max. 3)");
+                if (!ok) c->close(WS_POLICY, TOO_MANY_CLIENTS);
                 break;
             }
             case WS_EVT_DISCONNECT: {
@@ -845,8 +865,23 @@ struct WebHmiServer::Impl {
                 break;
             }
             case WS_EVT_PONG: {
+                // Only the answer to our PING (its random payload) counts (AF18).
                 Lock l(mutex);
-                wsc.pong(c->id(), now);
+                wsc.pong(c->id(), now, data, len);
+                break;
+            }
+            case WS_EVT_PING: {
+                // The library queues a PONG for every PING in an unbounded queue; the UI never
+                // pings, so a flood closes the client (AF18, SEC-V-2).
+                bool ok;
+                {
+                    Lock l(mutex);
+                    ok = wsc.clientPing(c->id(), now);
+                }
+                if (!ok) {
+                    Logger::info("WEB", "WebSocket closed: ping flood");
+                    c->close(WS_POLICY, "Ping flood");
+                }
                 break;
             }
             case WS_EVT_DATA: {
@@ -964,14 +999,19 @@ struct WebHmiServer::Impl {
                 Logger::info("WEB", "Network change confirmed");
                 break;
             case NetChange::Action::Revert:
+                // Nothing was saved while the change was open (AF16): NVS still has these.
                 Logger::info("WEB", "Network change not confirmed: previous settings restored");
                 wifi.apply(netChange.previous());
-                if (save && !save(netChange.previous())) Logger::error("WEB", "Saving the network settings failed");
                 break;
         }
     }
 
     void updateShared(uint32_t now) {
+        const uint16_t confirmS = netChange.confirmWithinS(now);
+        if (sharedKnown && wifi.revision() == sharedWifiRev && confirmS == sharedConfirmS) return;
+        sharedKnown = true;
+        sharedWifiRev = wifi.revision();
+        sharedConfirmS = confirmS;
         const WifiManager::Status& st = wifi.status();
         const NetSettings& ns = wifi.settings();
         RestJson::DeviceInfo d {};
@@ -986,7 +1026,7 @@ struct WebHmiServer::Impl {
         d.apOpen = st.apOpen;
         d.apStations = st.apStations;
         d.version = nullptr;
-        d.confirmWithin = netChange.confirmWithinS(now);
+        d.confirmWithin = confirmS;
         d.passwordSet = NetConfig::webPasswordSet(ns);
 
         GuardConfig cfg {};
@@ -997,14 +1037,19 @@ struct WebHmiServer::Impl {
         cfg.deviceName = ns.deviceName;
         cfg.token = token;
         cfg.passwordSet = d.passwordSet;
-        cfg.loginForReads = false; // ARBEITSPLAN 3.6 point 7: state and /ws readable without login
+        // D25 (AF18): with a web password the state, the token and the WebSocket need a session as
+        // well; /lxi/identification stays open (D33, not under /api/).
+        cfg.loginForReads = d.passwordSet;
 
         const bool settingsChanged = !settingsKnown || memcmp(&lastSettings, &ns, sizeof(ns)) != 0;
         char json[RestWifi::SETTINGS_SIZE];
         if (settingsChanged && !RestWifi::buildSettings(ns, st.apSsid, json, sizeof(json))) json[0] = '\0';
 
         Lock l(mutex);
-        info = d;
+        if (memcmp(&info, &d, sizeof(d)) != 0) {
+            info = d; // both zero-initialized: memcmp compares the padding as well
+            ++infoRev;
+        }
         lxiNet.staIp = st.staConnected ? st.staIp : 0;
         lxiNet.staMask = st.staMask;
         lxiNet.staGateway = st.staGateway;
@@ -1020,39 +1065,61 @@ struct WebHmiServer::Impl {
             snprintf(guardName, sizeof(guardName), "%s", ns.deviceName);
         }
         if (settingsChanged) {
-            if (strcmp(record, ns.webPassword) != 0) guard.endAllSessions(); // password changed or removed
+            if (strcmp(record, ns.webPassword) != 0) {
+                // Password set, changed or removed: every session ends, and the open WebSockets
+                // close so that they come back under the new rule (D25).
+                guard.endAllSessions();
+                if (settingsKnown) closeWs = true;
+            }
             snprintf(record, sizeof(record), "%s", ns.webPassword);
             passwordSet = d.passwordSet;
             memcpy(wifiJson, json, sizeof(wifiJson));
             memcpy(&lastSettings, &ns, sizeof(lastSettings)); // with padding, for memcmp
             settingsKnown = true;
+            wipe(json, sizeof(json));
         }
-        wipe(json, sizeof(json));
     }
 
     void push(uint32_t now) {
         uint8_t clients;
-        RestJson::DeviceInfo d;
+        uint32_t rev;
         {
             Lock l(mutex);
             clients = wsc.count();
-            d = info;
+            rev = infoRev;
         }
         if (clients == 0) {
             pushedOnce = false;
+            pacer.reset();
             return;
         }
         Snapshot s;
         if (!snapshot.read(&s)) return;
-        const RestJson::PushKey k = RestJson::pushKey(s, d, now);
+        RestJson::DeviceInfo d;
+        const bool inputsChanged = !pushedOnce || s.revision != pushedRevision || (uint8_t)s.saveState != pushedSave ||
+                                   s.lastRemoteMs != pushedRemoteMs || rev != pushedInfoRev ||
+                                   lastPush.remote; // the REMOTE indicator ends by time
         uint32_t ids[WsClients::MAX];
         {
             Lock l(mutex);
-            if (!pushedOnce || k != lastPush) wsc.markAll();
+            d = info;
+            bool changed = false;
+            if (inputsChanged) {
+                const RestJson::PushKey k = RestJson::pushKey(s, d, now);
+                changed = !pushedOnce || k != lastPush;
+                lastPush = k;
+            }
+            // Merged to one push per 100 ms; a new client gets the state at once (needsState).
+            if (pacer.due(changed, now)) wsc.markAll();
             for (uint8_t i = 0; i < WsClients::MAX; ++i) ids[i] = wsc.needingState(i);
         }
-        lastPush = k;
-        pushedOnce = true;
+        if (inputsChanged) {
+            pushedOnce = true;
+            pushedRevision = s.revision;
+            pushedSave = (uint8_t)s.saveState;
+            pushedRemoteMs = s.lastRemoteMs;
+            pushedInfoRev = rev;
+        }
         AsyncWebSocketSharedBuffer buf;
         for (uint8_t i = 0; i < WsClients::MAX; ++i) {
             if (!ids[i] || !ws->availableForWrite(ids[i])) continue;
@@ -1060,6 +1127,15 @@ struct WebHmiServer::Impl {
                 char text[RestJson::STATE_SIZE];
                 const size_t n = RestJson::buildState(s, d, now, text, sizeof(text));
                 if (!n) return;
+                // AF19: make_shared throws bad_alloc on a fragmented heap (terminate, restart);
+                // skipped instead, the clients keep waiting for the state.
+                if (!HeapLimits::pushOk(n, heap_caps_get_largest_free_block(MALLOC_CAP_8BIT))) {
+                    if (lowMemLogMs == 0 || now - lowMemLogMs >= 60000) {
+                        lowMemLogMs = now ? now : 1;
+                        Logger::error("WEB", "Low memory; WebSocket push skipped");
+                    }
+                    return;
+                }
                 buf = std::make_shared<std::vector<uint8_t>>((const uint8_t*)text, (const uint8_t*)text + n);
             }
             if (ws->text(ids[i], buf)) {
@@ -1070,6 +1146,10 @@ struct WebHmiServer::Impl {
     }
 
     void serveDisconnect() {
+        if (closeWs) {
+            closeWs = false;
+            ws->closeAll(WS_GOING_AWAY);
+        }
         if (!disconnectRequested) return;
         disconnectRequested = false;
         uint8_t n;
@@ -1083,12 +1163,13 @@ struct WebHmiServer::Impl {
 
     void keepAlive(uint32_t now) {
         uint32_t ping, dead;
+        uint8_t payload[WsClients::PING_PAYLOAD_LEN];
         {
             Lock l(mutex);
-            ping = wsc.duePing(now);
+            ping = wsc.duePing(now, esp_random(), payload);
             dead = wsc.expired(now);
         }
-        if (ping) ws->ping(ping, PING_PAYLOAD, sizeof(PING_PAYLOAD));
+        if (ping) ws->ping(ping, payload, sizeof(payload));
         if (dead) {
             Logger::info("WEB", "WebSocket closed: no pong");
             ws->close(dead, 1001);
@@ -1138,6 +1219,8 @@ void WebHmiServer::loop() {
 }
 
 bool WebHmiServer::touchConfirmNeeded() const { return impl_ && impl_->netChange.waitingForTouch(); }
+
+uint16_t WebHmiServer::netChangePendingS() const { return impl_ ? impl_->netChange.pendingS(millis()) : 0; }
 
 void WebHmiServer::touchConfirm(bool keep) {
     if (impl_) impl_->netChange.confirmTouch(keep);

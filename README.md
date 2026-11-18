@@ -60,10 +60,20 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - CONFIG in five tabs instead of a scrolled list (`Signal`, `Freq`, `Net`, `Device`, `Info`; tab bar at the bottom, at most three rows each, nothing scrolls); `Reconnect all` moved to `Net`, the touch calibration next to `Lock` in `Device` (E-42)
 - One header for every page except MAIN: `◀` at the top left goes one level back (replaces the `MAIN` button of the channel pages and CONFIG), page actions at the right; the WiFi scan list pages with `▲`/`▼` (E-43)
 - The device no longer shows `Saved` / `Saving...`; only save errors appear in red (E-44)
+- WiFi without power save and at full TX power: the device answers in the network within milliseconds instead of up to 0.4 s, at about 80–100 mA more current (E-45)
+- The WiFi status is cached: addresses and network name once per connection, signal strength and AP stations at most once per second, instead of several driver calls in every loop; the web server rebuilds its shared state only on a change
+- The display redraws only what changes: labels, colors and the AP QR code are set only for a new value, a touch action redraws once, the RSSI on the info card follows changes of 3 dB or more, the heap line is sampled every 5 s; `SYSTem:HEAP?` answers from a cache of at most 100 ms
+- WiFi search with backoff: no background scan without a stored network, 15 s doubling to 5 min while no stored network is seen, at most every 2 min with devices on the fallback AP (E-46)
+- One owner of the network settings during a web change: only the confirmed state is saved (a power loss brings back the previous settings), the device refuses network changes meanwhile with `Web change pending` (`Revert` / `Keep`), also with a web password (E-47)
+- `SYSTem:SAVE` and `POST /api/save` write only the changed keys and at most once per 10 s per source; further requests are merged silently (no flash wear from a save loop)
+- With a web password reading needs the login as well: the page asks for the password when it opens, state, token and WebSocket answer 401 without a session; `/lxi/identification` stays open. WebSocket: only the PONG to the device's random PING counts, a PING flood closes the client, a hidden tab frees its slot after 60 s (E-48)
+- WebSocket pushes at most every 100 ms (the first change at once, then the latest state); pushes and new connections check the largest free heap block, so a fragmented heap skips a push or answers 503 instead of restarting
 - Manual: new section 17 "Updating the firmware" (web flasher, first installation or update, checking the download, esptool, building from source)
 - Manual: new section 18 "Mixer experiments" (settings, typical levels per drive strength, harmonics and low-pass filters, diode ring mixer, NE612/SA612, Tayloe detector with CH3 IQ, cable lengths, phase error and image rejection, two worked examples); levels are calculated or datasheet values until the measurements
 - Log lines go into a 1 KB serial transmit buffer instead of waiting for the UART; without an SI5351 the search slows down from every 2 s to every 10 s after one minute (log line `[APP] SI5351 search every 10 s`)
 - The numpad rounds half a hertz exactly like SCPI and REST (integer arithmetic instead of `double`; e.g. `1.0079105 MHz` gave 1 007 910 Hz instead of 1 007 911 Hz)
+- REST and WebSocket state: new `limits` (frequency range and step list of the firmware); the web UI takes its range checks and step buttons from it, the mock and the fake SCPI device read `include/constants.h`
+- The web UI refuses static addresses with leading zeros (`192.168.001.5`) itself, like the device; the host tools parse `host:port` in one place (`[v6]:port`, a bad port is reported)
 
 ### 2.0.0
 

@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Fuzz target net_settings: NetConfig::parseIpv4/formatIpv4, checkStaticIp, setNetwork,
+// Fuzz target net_settings: Ipv4::parse/format, checkStaticIp, setNetwork,
 // wifiQrText and the name/passphrase checks (W-S12, W-S14, W-S16, W-E3).
 // Input: byte 0 selects the function, the rest is its input (C strings cut at NUL).
 // Invariants:
-// - parseIpv4 accepts exactly the canonical dotted quads: formatIpv4 gives the text back, and
-//   parseIpv4(formatIpv4(x)) == x for any x.
+// - Ipv4::parse accepts exactly the canonical dotted quads: Ipv4::format gives the text back, and
+//   parse(format(x)) == x for any x.
 // - checkStaticIp Ok only for a contiguous /1../30 mask, address and gateway different, in one
 //   subnet, neither network nor broadcast address.
 // - setNetwork stores exactly what it accepted (SSID 1..32 bytes; key empty, 8..63 printable
@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <net/net_settings.h>
+#include <utils/ipv4.h>
 
 namespace fuzz_net_settings {
 
@@ -35,21 +36,21 @@ uint32_t u32(const uint8_t* d) { return (uint32_t)d[0] << 24 | (uint32_t)d[1] <<
 void ipv4(const uint8_t* d, size_t n) {
     const std::string text = cstr(d, n);
     uint32_t v = 0xDEADBEEF;
-    if (NetConfig::parseIpv4(text.c_str(), &v)) {
+    if (Ipv4::parse(text.c_str(), &v)) {
         char back[16];
-        NetConfig::formatIpv4(v, back, sizeof(back));
+        Ipv4::format(v, back, sizeof(back));
         FUZZ_CHECK(text == back);
     } else {
         FUZZ_CHECK(v == 0xDEADBEEF);
     }
     if (n >= 4) {
         char t[16];
-        NetConfig::formatIpv4(u32(d), t, sizeof(t));
+        Ipv4::format(u32(d), t, sizeof(t));
         uint32_t w = 0;
-        FUZZ_CHECK(NetConfig::parseIpv4(t, &w) && w == u32(d));
+        FUZZ_CHECK(Ipv4::parse(t, &w) && w == u32(d));
     }
-    FUZZ_CHECK(!NetConfig::parseIpv4(nullptr, &v));
-    FUZZ_CHECK(!NetConfig::parseIpv4(text.c_str(), nullptr));
+    FUZZ_CHECK(!Ipv4::parse(nullptr, &v));
+    FUZZ_CHECK(!Ipv4::parse(text.c_str(), nullptr));
 }
 
 void staticIp(const uint8_t* d, size_t n) {

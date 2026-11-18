@@ -824,9 +824,9 @@ void state(const uint8_t* d, size_t n) {
         FUZZ_CHECK(again.is<JsonObjectConst>() && again.as<JsonObjectConst>().size() == doc.keys.size());
     }
     checkStrings(doc);
-    static const char* const ORDER[] = {"rev", "hw", "save", "remote", "ch", "ch3", "config", "wifi", "device"};
-    FUZZ_CHECK(doc.keys.size() == 9);
-    for (size_t i = 0; i < 9; ++i) FUZZ_CHECK(doc.keys[i] == ORDER[i]);
+    static const char* const ORDER[] = {"rev", "hw", "save", "remote", "ch", "ch3", "limits", "config", "wifi", "device"};
+    FUZZ_CHECK(doc.keys.size() == 10);
+    for (size_t i = 0; i < 10; ++i) FUZZ_CHECK(doc.keys[i] == ORDER[i]);
 
     needNum(doc, "rev", u64s(s.revision));
     static const char* const HW[] = {"CONN", "BLOC", "UNKN", "NFO"};
@@ -864,6 +864,16 @@ void state(const uint8_t* d, size_t n) {
     needNum(ch3, "actual", actualOf(s.actualHz[2]));
     needNum(ch3, "iqMin", u64s(s.iqMinHz));
     needNum(ch3, "iqMax", u64s(s.iqMaxHz));
+
+    const JV& lim = need(doc, "limits", JV::Obj);
+    FUZZ_CHECK(lim.keys.size() == 3);
+    needNum(lim, "fmin", u64s(FREQ_MIN_HZ));
+    needNum(lim, "fmax", u64s(FREQ_MAX_HZ));
+    const JV& steps = need(lim, "steps", JV::Arr);
+    FUZZ_CHECK(steps.vals.size() == DELTA_STEP_COUNT);
+    for (size_t i = 0; i < steps.vals.size() && i < DELTA_STEP_COUNT; ++i) {
+        FUZZ_CHECK(steps.vals[i].k == JV::Num && steps.vals[i].s == u64s(DELTA_STEPS[i]));
+    }
 
     const JV& cfg = need(doc, "config", JV::Obj);
     needNum(cfg, "drive", u64s(s.state.sys.drive_ma));

@@ -33,7 +33,9 @@ import struct
 import threading
 import time
 
-FREQ_MIN, FREQ_MAX = 8000, 160000000
+import device_constants as dc
+
+FREQ_MIN, FREQ_MAX = dc.FREQ_MIN, dc.FREQ_MAX  # include/constants.h (AF48)
 
 
 def kw_match(tok, spec):
@@ -45,9 +47,9 @@ def kw_match(tok, spec):
 class Device:
     def __init__(self):
         self.lock = threading.Lock()
-        self.freq = {1: 10000000, 2: 14000000}
+        self.freq = dict(dc.DEFAULT_FREQ)
         self.out = {1: 0, 2: 0, 3: 0}
-        self.step, self.corr, self.drive = 1000, 0.0, 4
+        self.step, self.corr, self.drive = dc.DEFAULT_STEP, 0.0, dc.DEFAULT_DRIVE
         self.tuning, self.ssc, self.off = "FRAC", "OFF", "LOW"
         self.master, self.phase = 1, 90
         self.errors = []
@@ -89,96 +91,116 @@ class Device:
         return v
 
     # -- one command -------------------------------------------------------
+    # Constant answers (a set form is accepted silently, as before).
+    FIXED = {
+        "*IDN": "CYD,HF-Generator,AA:BB:CC:DD:EE:FF,2.0.0",
+        "*ESR": "0", "*STB": "0", "*TST": "0",
+        "SYST:VERS": "1999.0",
+        "SYST:SI5351": "CONN",
+        "SYST:HEAP": "150000,120000,60000",
+        "OUTP:REM": "ALLOWED",
+        "SOUR3:IQ:RANG": "%d,%d" % (dc.IQ_MIN, dc.IQ_MAX),
+    }
+    NO_PARAM = ("*CLS", "*OPC", "SYST:SAVE")  # set forms without a parameter
+    ENUMS = ("SYST:TUN", "SSC", "OUTP:OFFS", "SOUR3:IQ:MAST", "SOUR3:PHAS")
+
     def execute(self, segs, ch, params):
         """segs: canonical-matched list of names; returns answer or None."""
         path = ":".join(segs)
         query = path.endswith("?")
         path = path.rstrip("?")
-        p = params[0] if len(params) == 1 else None
-        if len(params) > 1 or (not query and not params and path not in ("*CLS", "*OPC", "SYST:SAVE")):
-            self.err(-108 if len(params) > 1 else -109,
-                     "Parameter not allowed" if len(params) > 1 else "Missing parameter")
+        if len(params) > 1:
+            self.err(-108, "Parameter not allowed")
             return None
-        if path == "*IDN":
-            return "CYD,HF-Generator,AA:BB:CC:DD:EE:FF,2.0.0"
-        if path == "*OPC":
-            return "1" if query else None
-        if path == "*CLS":
-            self.errors.clear()
+        if not query and not params and path not in self.NO_PARAM:
+            self.err(-109, "Missing parameter")
             return None
-        if path in ("*ESR", "*STB"):
-            return "0"
-        if path == "*TST":
-            return "0"
-        if path == "SYST:VERS":
-            return "1999.0"
-        if path == "SYST:SI5351":
-            return "CONN"
-        if path == "SYST:HEAP":
-            return "150000,120000,60000"
-        if path == "SYST:LOG":
-            return '""' if not self.log else '"%s"' % self.log.pop(0)
-        if path == "SYST:ERR:COUN":
-            return str(len(self.errors))
-        if path in ("SYST:ERR", "SYST:ERR:NEXT"):
-            return self.errors.pop(0) if self.errors else '0,"No error"'
-        if path == "SYST:SAVE":
-            self.saved = True
-            print("SAVE RECEIVED")
-            return None
-        if path == "OUTP:REM":
-            return "ALLOWED"
-        if path in ("OUTP", "OUTP:STAT"):
-            if query:
-                return str(self.out[ch])
-            v = p.upper()
-            if v not in ("ON", "OFF", "1", "0"):
-                self.err(-224, "Illegal parameter value")
-            else:
-                self.out[ch] = 1 if v in ("ON", "1") else 0
-            return None
-        if path == "OUTP:COND":
-            return "ON" if self.out[ch] else "OFF"
-        if path in ("FREQ", "FREQ:CW"):
-            if query:
-                return str(self.freq.get(ch, self.freq[1]))
-            v = self.number(p, FREQ_MIN, FREQ_MAX, 10000000)
-            if v is not None:
-                self.freq[ch] = int(round(v))
-            return None
-        if path == "FREQ:ACT":
-            return "%.1f" % self.freq.get(ch, self.freq[1])
-        if path == "SYST:STEP":
-            if query:
-                return str(self.step)
-            v = self.number(p, 1, 1000000, 1000)
-            if v is not None:
-                if v in (1, 10, 100, 1000, 10000, 100000, 1000000):
-                    self.step = int(v)
-                else:
-                    self.err(-224, "Illegal parameter value")
-            return None
-        if path == "SYST:CORR":
-            if query:
-                return "%.2f" % self.corr
-            v = self.number(p, -50, 50, 0)
-            if v is not None:
-                self.corr = round(v, 2)
-            return None
-        if path == "OUTP:DRIV":
-            if query:
-                return str(self.drive)
-            if p in ("2", "4", "6", "8"):
-                self.drive = int(p)
-            else:
-                self.err(-224, "Illegal parameter value")
-            return None
-        if path in ("SYST:TUN", "SSC", "OUTP:OFFS", "SOUR3:IQ:MAST", "SOUR3:PHAS"):
+        p = params[0] if params else None
+        if path in self.FIXED:
+            return self.FIXED[path]
+        handler = self.HANDLERS.get(path)
+        if handler:
+            return handler(self, query, p, ch)
+        if path in self.ENUMS:
             return self.enum_setting(path, query, p)
-        if path == "SOUR3:IQ:RANG":
-            return "4730000,160000000"
         self.err(-113, "Undefined header")
         return None
+
+    def _opc(self, query, p, ch):
+        return "1" if query else None
+
+    def _cls(self, query, p, ch):
+        self.errors.clear()
+
+    def _log(self, query, p, ch):
+        return '""' if not self.log else '"%s"' % self.log.pop(0)
+
+    def _err_count(self, query, p, ch):
+        return str(len(self.errors))
+
+    def _err_next(self, query, p, ch):
+        return self.errors.pop(0) if self.errors else '0,"No error"'
+
+    def _save(self, query, p, ch):
+        self.saved = True
+        print("SAVE RECEIVED")
+
+    def _output(self, query, p, ch):
+        if query:
+            return str(self.out[ch])
+        v = p.upper()
+        if v not in ("ON", "OFF", "1", "0"):
+            self.err(-224, "Illegal parameter value")
+        else:
+            self.out[ch] = 1 if v in ("ON", "1") else 0
+
+    def _condition(self, query, p, ch):
+        return "ON" if self.out[ch] else "OFF"
+
+    def _freq(self, query, p, ch):
+        if query:
+            return str(self.freq.get(ch, self.freq[1]))
+        v = self.number(p, FREQ_MIN, FREQ_MAX, dc.DEFAULT_FREQ[1])
+        if v is not None:
+            self.freq[ch] = int(round(v))
+
+    def _actual(self, query, p, ch):
+        return "%.1f" % self.freq.get(ch, self.freq[1])
+
+    def _step(self, query, p, ch):
+        if query:
+            return str(self.step)
+        v = self.number(p, dc.STEPS[0], dc.STEPS[-1], dc.DEFAULT_STEP)
+        if v is None:
+            return
+        if v in dc.STEPS:
+            self.step = int(v)
+        else:
+            self.err(-224, "Illegal parameter value")
+
+    def _corr(self, query, p, ch):
+        if query:
+            return "%.2f" % self.corr
+        v = self.number(p, -dc.CORRECTION_MAX / 100, dc.CORRECTION_MAX / 100, 0)
+        if v is not None:
+            self.corr = round(v, 2)
+
+    def _drive(self, query, p, ch):
+        if query:
+            return str(self.drive)
+        if p in tuple(str(d) for d in dc.DRIVES):
+            self.drive = int(p)
+        else:
+            self.err(-224, "Illegal parameter value")
+
+    HANDLERS = {
+        "*OPC": _opc, "*CLS": _cls,
+        "SYST:LOG": _log, "SYST:ERR:COUN": _err_count, "SYST:ERR": _err_next, "SYST:ERR:NEXT": _err_next,
+        "SYST:SAVE": _save,
+        "OUTP": _output, "OUTP:STAT": _output, "OUTP:COND": _condition,
+        "FREQ": _freq, "FREQ:CW": _freq, "FREQ:ACT": _actual,
+        "SYST:STEP": _step, "SYST:CORR": _corr, "OUTP:DRIV": _drive,
+    }
 
     def enum_setting(self, path, query, p):
         attr, short, choices = {

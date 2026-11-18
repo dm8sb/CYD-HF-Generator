@@ -15,6 +15,7 @@
 #include <utils/input_logic.h>
 #include <utils/message_queue.h>
 #include <utils/status_text.h>
+#include <utils/status_view.h>
 
 // Part and state of a style: LVGL 8 keeps them in two unnamed enums, and C++20 deprecates `|`
 // between those (GCC 14 on Arduino 3.x warns).
@@ -48,9 +49,12 @@ public:
     // the network settings (set by main). Without it the WiFi rows show Off.
     // Web network change without web password (W-S12, S55): needed() asks whether the touch
     // must confirm now, answer(true) keeps the new settings, answer(false) restores the old ones.
-    void setNetConfirm(bool (*needed)(), void (*answer)(bool keep)) {
+    // pendingS(): seconds an open web change still waits (0 = none, AF16): network settings are
+    // not changed at the touch screen meanwhile ("Web change pending" with Revert and Keep).
+    void setNetConfirm(bool (*needed)(), void (*answer)(bool keep), uint16_t (*pendingS)()) {
         netConfirmNeeded_ = needed;
         netConfirmAnswer_ = answer;
+        netPendingS_ = pendingS;
     }
     void setWifi(WifiManager& wifi, bool (*save)(const NetSettings&)) {
         wifi_ = &wifi;
@@ -138,7 +142,7 @@ private:
         lv_obj_t* spreadDd;
         lv_obj_t* offStateDd;
         lv_obj_t* si5351Info;
-        lv_obj_t* saveState;   // CONFIG header, MAIN status bar
+        lv_obj_t* saveState;   // CONFIG header, MAIN status bar: save errors only (E-44)
         lv_obj_t* ta;
         lv_obj_t* calCross[2]; // touch calibration: horizontal and vertical line
         lv_obj_t* calText;
@@ -192,8 +196,14 @@ private:
     void storeWebPassword_(const char* record);
     // In update(): collects a finished hash.
     void pollWebPassword_();
-    // Saves and applies network settings (restarts the WiFi).
-    void storeNet_(NetSettings& s);
+    // The only touch path for network settings (AF15, CQ-5): saves s, reports a failed save,
+    // applies it (Restart: the WiFi restarts; Ap: only the access point; WebPassword: nothing
+    // restarts, the web server ends its sessions) and wipes s (keys and passwords).
+    enum class NetApply : uint8_t { Restart, Ap, WebPassword };
+    // Refused while a web change is open (AF16): asks "Web change pending" and returns false.
+    bool commitNet_(NetSettings& s, NetApply how);
+    // A web network change is open: shows "Web change pending" (Revert / Keep) and returns true.
+    bool netChangeBlocked_();
     void createWifiAp_();
     void refreshWifiAp_();
     // Stores AP password / open flag (saved, running AP restarts).
@@ -221,8 +231,10 @@ private:
     void refreshSaveState_();
     // MAIN status bar: WiFi and REMOTE (W-E26).
     void refreshStatusBar_();
-    // Changes when the status bar or the WiFi/heap lines of the info card need a redraw.
-    uint32_t statusSignature_() const;
+    // What the current page shows besides the controller state (AF12): a redraw happens only
+    // when it differs from the view of the last redraw. Samples the heap for the info card.
+    StatusView statusView_();
+    void sampleHeap_();
     bool remoteShown_() const;
 
     // Returns the header bar for page-specific additions.
@@ -279,7 +291,8 @@ private:
         ApOpen,
         OpenFallback,
         WebNetwork,
-        RemoveWebPassword
+        RemoveWebPassword,
+        WebPending
     };
     // Queues the question (ConfirmQueue: one open, the rest waits) and shows it when it is its
     // turn; payload: the network slot for DeleteNetwork.
@@ -307,7 +320,15 @@ private:
     uint32_t lastUpdateMs_ = 0;
     uint32_t lastRevision_ = 0;   // AppController::revision() of the last redraw
     uint16_t lastConnections_ = 0;
-    uint32_t lastStatusSig_ = 0;
+    StatusView lastView_ {};
+    int8_t rssiShown_ = 0;          // CONFIG info card, with hysteresis
+    bool heapSampled_ = false;      // info card heap line, sampled every 5 s (AF12)
+    uint32_t heapSampleMs_ = 0;
+    uint32_t heapFree_ = 0, heapMin_ = 0, heapBlock_ = 0, lvglFree_ = 0;
+    uint32_t apQrHash_ = 0;         // QR text shown on the AP page (0 = none yet)
+    uint32_t refreshCount_ = 0;     // debug build: redraws and flushes per minute
+    uint32_t flushCount_ = 0;
+    uint32_t countLogMs_ = 0;
     WifiManager* wifi_ = nullptr;
     bool (*saveNet_)(const NetSettings&) = nullptr;
     // WIFI pages (RAM only)
@@ -318,6 +339,8 @@ private:
     bool (*netConfirmNeeded_)() = nullptr;
     void (*netConfirmAnswer_)(bool keep) = nullptr;
     bool netConfirmAsked_ = false;   // W-S12 question shown for the current web change
+    uint16_t (*netPendingS_)() = nullptr;
+    bool netPendingAsked_ = false;   // AF16 hint shown for the current web change (with web password)
     bool (*webPwStart_)(const char*, size_t) = nullptr;
     WebPasswordJob::Poll (*webPwPoll_)(char*) = nullptr;
     bool webPwHashing_ = false;      // the device page shows "Saving..."

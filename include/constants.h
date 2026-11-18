@@ -98,14 +98,21 @@ static constexpr uint8_t DISPLAY_PROBE_ATTEMPTS = 3;
 static constexpr uint32_t TEST_TRIGGER_MS = 20000;
 static constexpr const char* SETTINGS_NAMESPACE = "hfgen";
 
-// Touch calibration is fixed; there is no runtime calibration UI.
+// Touch calibration until the wizard (utils/touch_cal.*, CONFIG > Device) stored one for this board.
 static constexpr TouchCalibration TOUCH_CAL_DEFAULT = {300, 3800, 300, 3800};
 
 static constexpr uint8_t CLK_CH1 = 0;
 static constexpr uint8_t CLK_CH2 = 1;
 static constexpr uint8_t CLK_CH3 = 2;
 
-inline bool isValidDrive(uint8_t ma) { return ma == 2 || ma == 4 || ma == 6 || ma == 8; }
+// Drive strength of the outputs: DRIVE_MA_MIN..DRIVE_MA_MAX in steps of DRIVE_MA_STEP (2, 4, 6, 8 mA).
+static constexpr uint8_t DRIVE_MA_MIN = 2;
+static constexpr uint8_t DRIVE_MA_MAX = 8;
+static constexpr uint8_t DRIVE_MA_STEP = 2;
+static constexpr uint8_t DRIVE_OPTION_COUNT = (DRIVE_MA_MAX - DRIVE_MA_MIN) / DRIVE_MA_STEP + 1;
+inline bool isValidDrive(uint8_t ma) {
+    return ma >= DRIVE_MA_MIN && ma <= DRIVE_MA_MAX && (ma - DRIVE_MA_MIN) % DRIVE_MA_STEP == 0;
+}
 inline bool isValidPhase(uint16_t deg) { return deg == 0 || deg == 90 || deg == 180 || deg == 270; }
 // Nearest backlight step within BACKLIGHT_MIN_PERCENT..100.
 inline uint8_t snapBacklight(int percent) {

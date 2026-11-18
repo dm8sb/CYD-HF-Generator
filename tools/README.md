@@ -11,6 +11,8 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | `lxi_example.py` | LXI / VXI-11 example (standard library): discovery by portmapper broadcast like `lxi discover`, `*IDN?` and commands over VXI-11, optionally through PyVISA (`TCPIP::<ip>::INSTR`). |
 | `fake_scpi_device.py` | Fake device (local TCP server, subset of the manual) to try the scripts without hardware; `--vxi11` adds a reduced VXI-11 server (portmapper and core channel 9009). |
 | `size_report.py` | Flash/RAM of the firmware env from the ELF as `size.json` and a Markdown table with the difference to a baseline (CI job summary, G7). Local: `python tools/size_report.py measure -e esp32-2432S028R` after `pio run`; `--self-test` runs its tests. |
+| `hostport.py` | The one `host[:port]` parser of the tools (`web_check.py`, `device_check.py`, `scpi_example.py`, the Host check of `web_mock.py`): `[v6]:port` with brackets, a bad port is an error instead of a guess; `python tools/hostport.py` runs its self-test. |
+| `device_constants.py` | Frequency limits, step list, correction range and defaults read from `include/constants.h`, for `web_mock.py`, `fake_scpi_device.py` and `web_check.py` (no copies of firmware constants in the tools). |
 | `web_mock.py` | Mock of the web server (standard library): serves `data/www` with the REST API, WebSocket and request guard on a simulated device, to try the web UI and `web_check.py` without hardware (see below). |
 | `flasher_site.py` | Release helper: collects the flash parts and offsets from PlatformIO, the license notices and LGPL sources, downloads ESP Web Tools by hash and assembles and checks the web flasher site (used by `release.yml`; `--help` per subcommand). |
 | `prefix_map.py` | PlatformIO build script (not a host tool): maps the build paths in `__FILE__` to neutral prefixes, so no local path ends up in the image. |
@@ -91,5 +93,5 @@ python tools/web_check.py cyd-hf-1a2b.local --password secret123   # ... against
 
 The mock gives the firmware's answers (S55); where they differ, the firmware is the reference.
 
-Further flags: `--login-all`, `--local-only`, `--open-ap`, `--hw`, `--no-ws`, `--confirm-timeout`, `--token`
+Further flags: `--local-only`, `--open-ap`, `--hw`, `--no-ws`, `--confirm-timeout`, `--token` (`--login-all` has no effect any more: with `--password` the state, token and `/ws` always need the login, D25)
 (`--help` explains them).

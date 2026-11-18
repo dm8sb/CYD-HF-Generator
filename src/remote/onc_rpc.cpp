@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <utils/ipv4.h>
 #include <utils/logger.h>
 
 // ---------------------------------------------------------------------------
@@ -174,9 +175,10 @@ RpcTcpLink::RpcTcpLink(RpcProgram& program, ScpiTcpSocket& socket, uint8_t* in, 
 
 void RpcTcpLink::log_(uint32_t ip, const char* what) const {
     if (!logName_) return;
+    char quad[Ipv4::TEXT_SIZE];
+    Ipv4::format(ip, quad, sizeof(quad));
     char line[80];
-    snprintf(line, sizeof(line), "%s client %u.%u.%u.%u %s", logName_, (unsigned)(ip >> 24),
-             (unsigned)((ip >> 16) & 0xFF), (unsigned)((ip >> 8) & 0xFF), (unsigned)(ip & 0xFF), what);
+    snprintf(line, sizeof(line), "%s client %s %s", logName_, quad, what);
     Logger::info("SCPI", line);
 }
 

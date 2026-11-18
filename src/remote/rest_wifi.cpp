@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "rest_json_detail.h"
+#include <utils/ipv4.h>
 #include <utils/sanitize.h>
 
 namespace RestWifi {
@@ -189,7 +190,7 @@ const char* keyKind(const WifiNetwork& n) {
 
 void ipText(uint32_t ip, char* out, size_t outSize) {
     if (ip == 0) out[0] = '\0';
-    else NetConfig::formatIpv4(ip, out, outSize);
+    else Ipv4::format(ip, out, outSize);
 }
 
 void clean(const char* in, size_t maxIn, char* out, size_t outSize) {
@@ -248,7 +249,7 @@ Reply merge(const Change& c, const NetSettings& cur, NetSettings* next) {
             if (!c.sipHas[i]) continue;
             uint32_t v = 0;
             if (c.sip[i][0] == '\0') *fields[i] = 0;
-            else if (NetConfig::parseIpv4(c.sip[i], &v)) *fields[i] = v;
+            else if (Ipv4::parse(c.sip[i], &v)) *fields[i] = v;
             else r = bad(RestJson::ILLEGAL_PARAMETER_VALUE, "Static IP: enter addresses as a.b.c.d");
         }
         if (r.ok() && ip.enabled) {

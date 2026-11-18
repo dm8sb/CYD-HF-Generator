@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "request_guard.h"
 
 // Byte and connection limits of the web server (S55, W-S6, W-S10). Pure and host-tested; the
 // device glue (net/web_server.*) feeds them from the async_tcp task. Not thread-safe.
@@ -82,17 +83,27 @@ private:
 
 // WebSocket clients (W-E10, W-S6): at most MAX, push only, ping every PING_MS, closed after
 // PONG_TIMEOUT_MS without an answer; needsState marks a client that has not got the current state.
+// AF18: only a PONG that answers our PING counts: it must echo the PING's random payload
+// (PING_PAYLOAD_LEN bytes from duePing), so unsolicited PONGs cannot keep a client that reads
+// nothing (a hidden tab, a dead peer, a slot hog) in its slot, and more than PING_BUDGET PINGs from a client within PING_WINDOW_MS close it (the
+// web UI never pings; the library queues a PONG for every PING without a limit).
 class WsClients {
 public:
     static constexpr uint8_t MAX = 3;
     static constexpr uint32_t PING_MS = 15000;
     static constexpr uint32_t PONG_TIMEOUT_MS = 30000;
     static constexpr size_t MAX_FRAME = 512; // inbound frames (W-S6); the state goes out at ~800 B
+    static constexpr uint8_t PING_BUDGET = 3;
+    static constexpr size_t PING_PAYLOAD_LEN = 4;
+    static constexpr uint32_t PING_WINDOW_MS = 10000;
 
     // false when MAX clients are registered (the caller closes the new one).
     bool add(uint32_t id, uint32_t nowMs);
     void remove(uint32_t id);
-    void pong(uint32_t id, uint32_t nowMs);
+    // A PONG from the client: counts only while our PING waits for it and with its payload.
+    void pong(uint32_t id, uint32_t nowMs, const uint8_t* data, size_t len);
+    // A PING from the client; false = flood (or unknown client): the caller closes it.
+    bool clientPing(uint32_t id, uint32_t nowMs);
     uint8_t count() const;
     // Every client gets the next state.
     void markAll();
@@ -100,8 +111,9 @@ public:
     // got it.
     uint32_t needingState(uint8_t index) const;
     void sent(uint32_t id);
-    // A client due for a ping (0 = none); marks it pinged.
-    uint32_t duePing(uint32_t nowMs);
+    // A client due for a ping (0 = none); marks it pinged with nonce (random) as the payload,
+    // written to payload[PING_PAYLOAD_LEN].
+    uint32_t duePing(uint32_t nowMs, uint32_t nonce, uint8_t payload[PING_PAYLOAD_LEN]);
     // A client silent for longer than PONG_TIMEOUT_MS (0 = none); removes it.
     uint32_t expired(uint32_t nowMs);
     // An inbound frame of this total length is acceptable (push only: anything else is ignored).
@@ -113,6 +125,49 @@ private:
         uint32_t lastPongMs;
         uint32_t lastPingMs;
         bool needsState;
+        bool awaitingPong;    // our PING is unanswered
+        uint32_t nonce;       // its payload
+        uint8_t pingsIn;      // PINGs from the client in the current window
+        uint32_t pingWindowMs;
     };
     Client clients_[MAX] {};
 };
+
+// WebSocket push pacing (AF19, PERF-6): at most one push per MIN_INTERVAL_MS. The first change
+// after a quiet interval goes at once; changes within the interval are merged and the state as
+// it is then goes out at its end (a SCPI flood changed the state up to ~80 times per second,
+// each a JSON build and a send to every client).
+class PushPacer {
+public:
+    static constexpr uint32_t MIN_INTERVAL_MS = 100;
+    // changed: the state differs from the last one pushed. True: push the current state now.
+    bool due(bool changed, uint32_t nowMs) {
+        if (changed) pending_ = true;
+        if (!pending_) return false;
+        if (sent_ && nowMs - lastMs_ < MIN_INTERVAL_MS) return false;
+        pending_ = false;
+        sent_ = true;
+        lastMs_ = nowMs;
+        return true;
+    }
+    void reset() { *this = PushPacer {}; }
+
+private:
+    bool pending_ = false;
+    bool sent_ = false;
+    uint32_t lastMs_ = 0;
+};
+
+// Heap checks before allocations of the web server (AF19, PERF-8): a fragmented heap can have
+// enough free bytes but no block for the next allocation; std::make_shared then throws
+// bad_alloc, which ends in terminate() and a restart with all outputs off.
+namespace HeapLimits {
+static constexpr uint32_t MIN_BLOCK_ACCEPT = 8 * 1024; // a new connection: request, parser, answer
+static constexpr uint32_t PUSH_RESERVE = 4 * 1024;     // beyond the state text: message objects, lwIP
+// A new HTTP connection is taken (else 503): W-S10 free heap and the largest block.
+inline bool acceptOk(uint32_t freeHeap, uint32_t largestBlock) {
+    return freeHeap >= RequestGuard::MIN_FREE_HEAP && largestBlock >= MIN_BLOCK_ACCEPT;
+}
+// A push of stateBytes is built (else skipped, the clients keep waiting for the state).
+inline bool pushOk(size_t stateBytes, uint32_t largestBlock) { return largestBlock >= stateBytes + PUSH_RESERVE; }
+}

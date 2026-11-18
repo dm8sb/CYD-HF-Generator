@@ -10,6 +10,7 @@
 #include <string.h>
 #include <string>
 #include <net/net_settings.h>
+#include <utils/ipv4.h>
 #include <net/pbkdf2.h>
 #include <net/request_guard.h>
 
@@ -168,7 +169,7 @@ static void test_network_key_rule() {
 
 static uint32_t ip(const char* t) {
     uint32_t v = 0;
-    TEST_ASSERT_TRUE_MESSAGE(NetConfig::parseIpv4(t, &v), t);
+    TEST_ASSERT_TRUE_MESSAGE(Ipv4::parse(t, &v), t);
     return v;
 }
 
@@ -214,14 +215,14 @@ static void test_static_ip_plausibility() {
 
 static void test_ipv4_text() {
     uint32_t v = 0;
-    TEST_ASSERT_TRUE(NetConfig::parseIpv4("0.0.0.0", &v));
+    TEST_ASSERT_TRUE(Ipv4::parse("0.0.0.0", &v));
     TEST_ASSERT_EQUAL_HEX32(0xC0A80132, ip("192.168.1.50"));
     const char* bad[] = {"192.168.1", "192.168.1.50.1", "256.1.1.1", "01.2.3.4", "1.2.3.4 ", " 1.2.3.4", "1..2.3", "a.b.c.d", ""};
-    for (const char* b : bad) TEST_ASSERT_FALSE_MESSAGE(NetConfig::parseIpv4(b, &v), b);
+    for (const char* b : bad) TEST_ASSERT_FALSE_MESSAGE(Ipv4::parse(b, &v), b);
     char buf[16];
-    NetConfig::formatIpv4(0xC0A80132, buf, sizeof(buf));
+    Ipv4::format(0xC0A80132, buf, sizeof(buf));
     TEST_ASSERT_EQUAL_STRING("192.168.1.50", buf);
-    NetConfig::formatIpv4(0xFFFFFFFF, buf, sizeof(buf));
+    Ipv4::format(0xFFFFFFFF, buf, sizeof(buf));
     TEST_ASSERT_EQUAL_STRING("255.255.255.255", buf);
 }
 

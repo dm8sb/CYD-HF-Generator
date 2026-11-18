@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <constants.h>
+#include <utils/ipv4.h>
 #include <utils/logger.h>
 
 namespace {
@@ -22,9 +23,10 @@ const char* closeText(ScpiTcpLink::Close why) {
 }
 
 void logClient(uint32_t ip, const char* what) {
+    char quad[Ipv4::TEXT_SIZE];
+    Ipv4::format(ip, quad, sizeof(quad));
     char line[64];
-    snprintf(line, sizeof(line), "TCP client %u.%u.%u.%u %s", (unsigned)(ip >> 24), (unsigned)((ip >> 16) & 0xFF),
-             (unsigned)((ip >> 8) & 0xFF), (unsigned)(ip & 0xFF), what);
+    snprintf(line, sizeof(line), "TCP client %s %s", quad, what);
     Logger::info("SCPI", line);
 }
 }

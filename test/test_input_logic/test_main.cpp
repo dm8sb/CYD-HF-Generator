@@ -413,6 +413,32 @@ static void test_range_note() {
     TEST_ASSERT_EQUAL_STRING("<1MHz: harmonics", rangeNote(999999ULL));
 }
 
+// Status line of the CH3 page (AF48): limits rounded towards the inside, tone per state.
+static void test_ch3_info_texts() {
+    using namespace StatusText;
+    char buf[64];
+    TEST_ASSERT_EQUAL(Tone::Muted, ch3Info(Ch3Status::Off, 2, IQ_MIN_HZ, IQ_MAX_HZ, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("Off  |  follows CH2", buf);
+    TEST_ASSERT_EQUAL(Tone::Muted, ch3Info(Ch3Status::Active, 1, IQ_MIN_HZ, IQ_MAX_HZ, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("", buf);
+    TEST_ASSERT_EQUAL(Tone::Warn, ch3Info(Ch3Status::MasterOff, 1, IQ_MIN_HZ, IQ_MAX_HZ, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("Master CH1 is off: tap to switch on", buf);
+    TEST_ASSERT_EQUAL(Tone::Warn, ch3Info(Ch3Status::FreqTooLow, 1, IQ_MIN_HZ, IQ_MAX_HZ, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("Waiting: CH1 below 4.730 MHz", buf);
+    TEST_ASSERT_EQUAL(Tone::Warn, ch3Info(Ch3Status::FreqTooHigh, 2, IQ_MIN_HZ, IQ_MAX_HZ, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("Waiting: CH2 above 100.000 MHz", buf);
+    // Narrower with spread spectrum: 4 753 768 Hz rounds up, 99 502 487 Hz down.
+    ch3Info(Ch3Status::FreqTooLow, 1, 4753768ULL, 99502487ULL, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("Waiting: CH1 below 4.754 MHz", buf);
+    ch3Info(Ch3Status::FreqTooHigh, 1, 4753768ULL, 99502487ULL, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("Waiting: CH1 above 99.502 MHz", buf);
+    TEST_ASSERT_EQUAL(Tone::Error, ch3Info(Ch3Status::Error, 1, IQ_MIN_HZ, IQ_MAX_HZ, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("IQ setup failed, retrying", buf);
+    TEST_ASSERT_EQUAL(Tone::Error, ch3Info(Ch3Status::NoDevice, 1, IQ_MIN_HZ, IQ_MAX_HZ, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("SI5351 not found", buf);
+    TEST_ASSERT_EQUAL(Tone::Muted, ch3Info(Ch3Status::Off, 1, IQ_MIN_HZ, IQ_MAX_HZ, nullptr, 0));
+}
+
 // Screen lock (audit U-13): while locked no touch reaches LVGL; holding 2 s unlocks, and
 // that touch is swallowed until it is released.
 static void test_screen_lock() {
@@ -516,6 +542,7 @@ int main(int, char**) {
     RUN_TEST(test_tap_index_assigns_separators_to_neighbors);
     RUN_TEST(test_output_error_texts_name_channel_and_retry);
     RUN_TEST(test_range_note);
+    RUN_TEST(test_ch3_info_texts);
     RUN_TEST(test_screen_lock);
     RUN_TEST(test_numpad_ppm_entry);
     RUN_TEST(test_repeat_speeds_up);

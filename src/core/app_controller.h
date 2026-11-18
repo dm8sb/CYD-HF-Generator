@@ -7,6 +7,7 @@
 #include <constants.h>
 #include <types.h>
 #include <services/settings.h>
+#include <services/save_limiter.h>
 #include <drivers/si5351_manager.h>
 #include <drivers/backlight.h>
 
@@ -48,7 +49,8 @@ public:
     // Up to MAX_LISTENERS receivers; false if full.
     static constexpr uint8_t MAX_LISTENERS = 3;
     bool addListener(EventListener fn, void* ctx);
-    // Source of the following commands (Touch by default; remote servers set theirs).
+    // Source of the following commands (Touch by default; remote servers set theirs). Prefer
+    // SourceScope, which restores the previous source when it goes out of scope.
     void setSource(Source s) {
         source_ = s;
         if (isRemote(s)) {
@@ -56,6 +58,19 @@ public:
             lastRemoteMs_ = millis();
         }
     }
+    // Runs the commands of one scope under the given source and restores the previous one at
+    // the end, also on an early return (CQ-21: no setter runs as Touch by accident).
+    class SourceScope {
+    public:
+        SourceScope(AppController& app, Source s) : app_(app), previous_(app.source_) { app.setSource(s); }
+        ~SourceScope() { app_.source_ = previous_; }
+        SourceScope(const SourceScope&) = delete;
+        SourceScope& operator=(const SourceScope&) = delete;
+
+    private:
+        AppController& app_;
+        const Source previous_;
+    };
     // Last remote source and when it sent a command (status bar REMOTE <source>, W-E14);
     // Source::Touch while none did.
     Source lastRemote() const { return lastRemote_; }
@@ -93,8 +108,10 @@ public:
     bool identifying() const { return identifying_; }
     // Blink phase while identifying: true = lit.
     bool identifyLit() const { return identifyLit_; }
-    // SYSTem:SAVE: writes every key at once.
-    bool saveNow() { return settings_.saveNow(state_); }
+    // SYSTem:SAVE / POST /api/save: writes the changed keys at once, at most once per 10 s per
+    // source (AF17, D26); a request within that time is merged and saved by update() 10 s after
+    // the previous save. true unless the immediate save failed.
+    bool saveNow();
     // CONFIG options; each reconfigures the outputs as needed. Spread is ignored (stays Off)
     // in TuningMode::Integer; switching to Integer turns it off.
     Result setTuningMode(TuningMode mode);
@@ -157,6 +174,11 @@ private:
     void configureMasterGroup_();
     void configureChannel_(uint8_t ch);
     void reconfigureOutputs_();
+    // Reconfigures all outputs after a global setting and marks keys changed; HwError if the
+    // SI5351 was ready and the connection got lost.
+    Result reconfigureReport_(uint16_t keys);
+    // Defaults in state_ and the SI5351 (correction kept), shared by resetToDefaults() and *RST.
+    void applyDefaults_();
     // HwError if the SI5351 was ready and the setup of clk failed or lost the connection.
     Result outcome_(bool wasReady, uint8_t clk) const;
     bool masterEnabled_() const;
@@ -172,6 +194,7 @@ private:
     };
     Listener listeners_[MAX_LISTENERS] {};
     Source source_ = Source::Touch;
+    SaveLimiter saveLimiter_;
     Source lastRemote_ = Source::Touch;
     uint32_t lastRemoteMs_ = 0;
     bool remoteOutputsAllowed_ = true;

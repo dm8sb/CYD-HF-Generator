@@ -471,7 +471,8 @@ def esp_image_header(data, what):
     return FLASH_SIZES.get(data[3] >> 4)
 
 
-def check_site(site, partitions_csv=None):
+def _site_file(site):
+    """path_in_site(rel): the file rel of the site; fails for paths leaving the site or missing files."""
     def path_in_site(rel):
         if not rel or rel.startswith(("/", "\\")) or ".." in rel.split("/") or "\\" in rel or ":" in rel:
             fail("path %r must be relative inside the site" % rel)
@@ -479,8 +480,11 @@ def check_site(site, partitions_csv=None):
         if not os.path.isfile(p):
             fail("missing file %s" % rel)
         return p
+    return path_in_site
 
-    manifest = read_json(path_in_site("manifest.json"))
+
+def _check_manifest(manifest):
+    """The manifest fields ESP Web Tools needs; returns the parts of the one ESP32 build."""
     for key in ("name", "version", "builds"):
         if key not in manifest:
             fail("manifest: no %s" % key)
@@ -493,7 +497,11 @@ def check_site(site, partitions_csv=None):
     parts = manifest["builds"][0].get("parts") or []
     if len(parts) < 2:
         fail("manifest: too few parts")
+    return parts
 
+
+def _load_parts(parts, path_in_site):
+    """[(offset, path, data)] in manifest order; offsets non-negative integers, ascending."""
     loaded = []
     for p in parts:
         off = p.get("offset")
@@ -507,8 +515,11 @@ def check_site(site, partitions_csv=None):
     offsets = [o for o, _, _ in loaded]
     if offsets != sorted(offsets):
         fail("manifest: offsets not ascending")
+    return loaded
 
-    # Partition table: the part at 0x8000.
+
+def _partition_table(loaded):
+    """The parsed table of the part at 0x8000."""
     pt = [d for o, _, d in loaded if o == PT_OFFSET]
     if not pt:
         fail("no partition table at 0x8000")
@@ -517,11 +528,36 @@ def check_site(site, partitions_csv=None):
     table = parse_partition_table(pt[0])
     if not table:
         fail("partition table is empty")
-    flash_end = max(e["offset"] + e["size"] for e in table)
+    return table
 
-    def describe(e):
-        return "%s (0x%X..0x%X)" % (e["label"], e["offset"], e["offset"] + e["size"])
 
+def _describe(e):
+    return "%s (0x%X..0x%X)" % (e["label"], e["offset"], e["offset"] + e["size"])
+
+
+def _check_partition_part(off, rel, data, erase_end, table):
+    """A part outside bootloader and table: the start of an app or otadata partition, fitting
+    it. Returns (region text, is an app)."""
+    hosts = [e for e in table if e["offset"] <= off < e["offset"] + e["size"]]
+    if not hosts:
+        fail("%s at 0x%X lies in no partition" % (rel, off))
+    e = hosts[0]
+    is_app = e["type"] == 0x00
+    is_otadata = e["type"] == 0x01 and e["subtype"] == 0x00
+    if not (is_app or is_otadata):
+        fail("%s at 0x%X would overwrite data partition %s" % (rel, off, _describe(e)))
+    if off != e["offset"]:
+        fail("%s does not start at partition %s" % (rel, _describe(e)))
+    if erase_end > e["offset"] + e["size"]:
+        fail("%s (%d B) does not fit partition %s" % (rel, len(data), _describe(e)))
+    if is_app:
+        esp_image_header(data, rel)
+    return "partition " + _describe(e), is_app
+
+
+def _check_layout(loaded, table):
+    """Every part sector-aligned, without overlap (erase granularity), in its region; a
+    bootloader, an application, and the table inside the flash size of the bootloader header."""
     prev_end = 0
     bootloader_flash = None
     app_seen = False
@@ -544,47 +580,37 @@ def check_site(site, partitions_csv=None):
                 fail("%s: erase up to 0x%X reaches the first partition at 0x%X" % (rel, erase_end, first))
             region = "partition table sector"
         else:
-            hosts = [e for e in table if e["offset"] <= off < e["offset"] + e["size"]]
-            if not hosts:
-                fail("%s at 0x%X lies in no partition" % (rel, off))
-            e = hosts[0]
-            is_app = e["type"] == 0x00
-            is_otadata = e["type"] == 0x01 and e["subtype"] == 0x00
-            if not (is_app or is_otadata):
-                fail("%s at 0x%X would overwrite data partition %s" % (rel, off, describe(e)))
-            if off != e["offset"]:
-                fail("%s does not start at partition %s" % (rel, describe(e)))
-            if erase_end > e["offset"] + e["size"]:
-                fail("%s (%d B) does not fit partition %s" % (rel, len(data), describe(e)))
-            if is_app:
-                esp_image_header(data, rel)
-                app_seen = True
-            region = "partition " + describe(e)
+            region, is_app = _check_partition_part(off, rel, data, erase_end, table)
+            app_seen = app_seen or is_app
         print("  0x%06X  %-34s %8d B  erase to 0x%06X  in %s" % (off, rel, len(data), erase_end, region))
     if bootloader_flash is None:
         fail("no bootloader at 0x%X" % BOOTLOADER_OFFSET)
     if not app_seen:
         fail("no application image")
+    flash_end = max(e["offset"] + e["size"] for e in table)
     if flash_end > bootloader_flash:
         fail("partition table ends at 0x%X, beyond the flash size 0x%X of the bootloader header"
              % (flash_end, bootloader_flash))
-    nvs = [describe(e) for e in table if e["type"] == 0x01 and e["subtype"] == 0x02]
+    nvs = [_describe(e) for e in table if e["type"] == 0x01 and e["subtype"] == 0x02]
     print("  NVS untouched: %s" % (", ".join(nvs) or "(no NVS partition)"))
 
-    if partitions_csv:
-        rows = []
-        with open(partitions_csv, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.split("#", 1)[0].strip()
-                if line:
-                    c = [x.strip() for x in line.split(",")]
-                    rows.append((c[0], int(c[3], 0), int(c[4], 0)))
-        got = [(e["label"], e["offset"], e["size"]) for e in table]
-        if rows != got:
-            fail("partition table differs from %s: %s vs %s" % (partitions_csv, got, rows))
-        print("  partition table matches %s" % os.path.basename(partitions_csv))
 
-    # Checksums next to the parts.
+def _check_partitions_csv(table, partitions_csv):
+    rows = []
+    with open(partitions_csv, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.split("#", 1)[0].strip()
+            if line:
+                c = [x.strip() for x in line.split(",")]
+                rows.append((c[0], int(c[3], 0), int(c[4], 0)))
+    got = [(e["label"], e["offset"], e["size"]) for e in table]
+    if rows != got:
+        fail("partition table differs from %s: %s vs %s" % (partitions_csv, got, rows))
+    print("  partition table matches %s" % os.path.basename(partitions_csv))
+
+
+def _check_sums(loaded, path_in_site):
+    """SHA256SUMS next to the parts lists each of them with its hash."""
     dirs = sorted({os.path.dirname(rel) for _, rel, _ in loaded})
     for d in dirs:
         sums_rel = (d + "/" if d else "") + "SHA256SUMS"
@@ -599,13 +625,8 @@ def check_site(site, partitions_csv=None):
                 if listed.get(name) != hashlib.sha256(data).hexdigest():
                     fail("%s: SHA256SUMS entry missing or wrong" % rel)
 
-    # Page.
-    with open(path_in_site("index.html"), "r", encoding="utf-8") as f:
-        page = f.read()
-    if re.search(r"\{\{[A-Z_]+\}\}", page):
-        fail("index.html: unfilled template field")
-    if '<esp-web-install-button manifest="manifest.json">' not in page:
-        fail("index.html: no install button for manifest.json")
+
+def _check_csp(page):
     csp = re.search(r'http-equiv="Content-Security-Policy" content="([^"]*)"', page)
     if not csp:
         fail("index.html: no CSP")
@@ -618,18 +639,24 @@ def check_site(site, partitions_csv=None):
         fail("index.html: CSP allows another origin")
     if page.index("Content-Security-Policy") > page.lower().index("<script"):
         fail("index.html: CSP must come before the first script")
-    # Scripts: only the pinned entry module, no inline code. Case-insensitive and also
-    # "</script >" or "</script x>" (browsers accept both), so no script slips past the check
-    # (CodeQL py/bad-tag-filter).
+
+
+def _check_scripts(page, lock, ewt_rel):
+    """Only the pinned entry module, no inline code. Case-insensitive and also "</script >" or
+    "</script x>" (browsers accept both), so no script slips past the check (CodeQL
+    py/bad-tag-filter)."""
     scripts = re.findall(r"<script\b([^>]*)>(.*?)</script\b[^>]*>", page, re.S | re.I)
     if len(re.findall(r"<script\b", page, re.I)) != len(scripts):
         fail("index.html: a <script> tag without a matching end tag")
-    lock = read_json(LOCK_FILE)
-    ewt_rel = EWT_SITE_DIR.format(v=lock["version"])
     entry_src = ewt_rel + lock["entry"]
     want = ' type="module" src="%s" integrity="%s"' % (entry_src, lock["integrity"][lock["entry"]])
     if [s for s in scripts] != [(want, "")]:
         fail("index.html: expected exactly <script%s></script>, got %s" % (want, scripts))
+
+
+def _check_links(page, lock, ewt_rel, path_in_site):
+    """Resources only from the site, ESP Web Tools and all notices as pinned and linked, the
+    source link to a tag or commit."""
     # Resources (src, link href) only from the site; links to other sites are plain <a>.
     for tag, attr, ref in re.findall(r'<(\w+)\b[^>]*?\b(href|src)="([^"]*)"', page):
         if tag.lower() == "a" and re.match(r"^(https://|#)", ref):
@@ -653,8 +680,34 @@ def check_site(site, partitions_csv=None):
     # Source links point to the tag or commit of this build, not to a moving branch (E-39).
     if not re.search(r'href="https://github\.com/[^"/]+/[^"/]+/tree/(v[0-9A-Za-z.+-]+|[0-9a-f]{7,40})"', page):
         fail("index.html: no source link to a tag or commit")
+
+
+def _check_page(path_in_site):
+    with open(path_in_site("index.html"), "r", encoding="utf-8") as f:
+        page = f.read()
+    if re.search(r"\{\{[A-Z_]+\}\}", page):
+        fail("index.html: unfilled template field")
+    if '<esp-web-install-button manifest="manifest.json">' not in page:
+        fail("index.html: no install button for manifest.json")
+    _check_csp(page)
+    lock = read_json(LOCK_FILE)
+    ewt_rel = EWT_SITE_DIR.format(v=lock["version"])
+    _check_scripts(page, lock, ewt_rel)
+    _check_links(page, lock, ewt_rel, path_in_site)
     print("  ESP Web Tools %s self-hosted: %d modules and %d notices match their pins"
           % (lock["version"], len(lock["integrity"]), len(lock.get("notices", {}))))
+
+
+def check_site(site, partitions_csv=None):
+    path_in_site = _site_file(site)
+    manifest = read_json(path_in_site("manifest.json"))
+    loaded = _load_parts(_check_manifest(manifest), path_in_site)
+    table = _partition_table(loaded)
+    _check_layout(loaded, table)
+    if partitions_csv:
+        _check_partitions_csv(table, partitions_csv)
+    _check_sums(loaded, path_in_site)
+    _check_page(path_in_site)
     print("site %s OK: version %s, %d parts" % (site, manifest["version"], len(loaded)))
 
 

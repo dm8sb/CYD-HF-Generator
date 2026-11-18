@@ -31,6 +31,8 @@ import argparse
 import socket
 import sys
 
+import hostport  # tools/hostport.py
+
 
 class UsbLink:
     """SCPI over the USB serial port (115200 baud, lines end with LF)."""
@@ -63,8 +65,7 @@ class TcpLink:
     """SCPI over a plain TCP socket (default port 5025, lines end with LF)."""
 
     def __init__(self, target):
-        host, _, port = target.partition(":")
-        self.sock = socket.create_connection((host, int(port or 5025)), timeout=2)
+        self.sock = socket.create_connection(hostport.split(target, 5025), timeout=2)
         self.buf = b""
 
     def write(self, cmd):

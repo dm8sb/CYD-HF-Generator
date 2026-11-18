@@ -713,6 +713,7 @@ Auswahlliste `Off` (Standard), `Client`, `Access point`. Die Einstellung wird so
 
 - `Off`: Der Funk ist aus (für die sauberste HF).
 - `Client`: Das Gerät sucht die gespeicherten WLANs und verbindet sich mit dem stärksten. Findet es 60 s lang keines, öffnet es zusätzlich einen eigenen Access Point (Rückfall) und sucht weiter; sobald es verbunden ist, geht der Access Point aus.
+  Gesucht wird zuerst alle 15 s; solange keines der gespeicherten Netze zu sehen ist, verdoppelt sich der Abstand bis auf 5 min (15 s, 30 s, 1 min, 2 min, 4 min, 5 min). Ein verstecktes Netz wird im selben Takt angewählt. Sind Geräte mit dem Rückfall-Access-Point verbunden, sucht es höchstens alle 2 min, weil der Access Point dafür jedes Mal kurz seinen Kanal verlässt. Ohne gespeichertes Netz sucht es gar nicht. Nach einem Ausfall des Routers kann das Wiederverbinden daher bis zu 5 min dauern; `Change` auf der Seite WIFI oder ein neu gespeichertes Netz startet die Suche sofort wieder mit 15 s.
 - `Access point`: Das Gerät öffnet ein eigenes WLAN `CYD-HF-<4 Stellen>` mit Passwort.
 
 Netze, Passwörter und die Daten des Access Points werden auf der Seite WIFI eingerichtet (Taste `Setup` rechts in der Zeile). Statusleiste und Info-Karte zeigen den Zustand.
@@ -728,7 +729,7 @@ Oben links führt `◀` zurück zu CONFIG. Darunter stehen die beiden Netzplätz
 
 Die Tastatur hat Buchstaben, Ziffern und Sonderzeichen, aber keine Umlaute, `ß` und `€`. Netznamen werden bereinigt angezeigt (Steuerzeichen und ungültige Zeichen als `?`). Ein gespeichertes Passwort wird nie wieder angezeigt.
 
-Unten zeigt eine Zeile, was das WLAN gerade tut: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, grün `Connected <Netz>` mit Adresse und `<Gerätename>.local`, rot `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <Name> active`, `Access point <Name> active`, `No network stored. Tap Change.`
+Unten zeigt eine Zeile, was das WLAN gerade tut: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, grün `Connected <Netz>` mit Adresse und `<Gerätename>.local`, rot `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <Name> active`, `Access point <Name> active`, `No network stored. Tap Change.`, orange `Web change pending (<Sekunden> s)` (eine Änderung aus dem Browser wartet auf die Bestätigung, Abschnitt 16)
 
 Nach einem Speichern startet das WLAN mit den neuen Daten neu. Sind beide Plätze belegt, verbindet sich das Gerät mit dem stärkeren Netz; scheitert es dort (z. B. falsches Passwort), versucht es beim nächsten Mal das andere.
 
@@ -826,9 +827,11 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Display` | Display-Controller (`ILI9341` oder `ST7789`) und Herkunft: `detected` (erkannt), `default` (nichts erkannt, ILI9341 angenommen), `build flag` (beim Bauen festgelegt) |
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
-| `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke; `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
+| `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke (neu angezeigt erst bei einer Änderung um mindestens 3 dB, abgefragt etwa einmal pro Sekunde); `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
 | `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-Client über TCP 5025 oder, wenn dort keiner verbunden ist, über VXI-11. Die Taste `Reconnect all` (Register `Net`, Zeile `Clients`) trennt alle Browser-Verbindungen, beendet die Web-Anmeldungen, die SCPI-TCP- und die VXI-11-Verbindung. Die Gegenstellen verbinden sich danach von selbst neu (ein Browser ohne Web-Passwort nach wenigen Sekunden, ein SCPI-Programm sofort). Aussperren lässt sich niemand damit. Ein Web-Passwort sperrt nur Weboberfläche und REST; SCPI über TCP 5025 und VXI-11 bleiben ohne Anmeldung (Abschnitt 15). Gegen das Einschalten der Ausgänge aus dem Netz `Remote out.` auf `local only` stellen, gegen fremde Clients ein eigenes, gesichertes Netz verwenden oder das WLAN abschalten (Abschnitt 14). |
-| `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB |
+| `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB; alle 5 s gemessen, neu angezeigt, wenn sich der freie Speicher um mindestens 4 KB ändert oder die Seite ohnehin neu gezeichnet wird |
+
+Das Display zeichnet nur, was sich ändert: Ohne Bedienung und ohne Änderung von außen bleibt der Bildschirm unverändert (keine SPI-Übertragung zum Display neben dem SI5351).
 
 ---
 
@@ -1122,12 +1125,14 @@ Wichtige Meldungen:
 | `[WEB] Server stopped (WiFi off)` | WLAN `Off`: der Webserver nimmt nichts mehr an, offene Seiten werden getrennt |
 | `[WEB] Network change from the web; confirm within 120 s` / `Network change from the web: WiFi off` | Netzänderung aus dem Browser angenommen; sie wird gleich angewendet (`WiFi off`: endgültig, Abschnitt 16) |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Netzänderung aus dem Browser (Abschnitt 16) |
+| `[GUI] Network change refused: web change pending` | Eine Netzeinstellung am Gerät wurde abgelehnt, weil eine Änderung aus dem Browser auf die Bestätigung wartet (Abschnitt 16) |
 | `[WEB] WebSocket closed: no pong` | Browser antwortet nicht mehr |
+| `[WEB] WebSocket closed: ping flood` | Ein Client hat mehr als 3 WebSocket-Pings in 10 s geschickt (die Weboberfläche schickt keine) und wurde getrennt |
 | `[APP] Remote outputs: allowed` / `Remote outputs: local only` | CONFIG `Remote out.` geändert (sofort gespeichert) |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
 | `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WLAN-Betriebsart beim Start bzw. nach einer Änderung und Gerätename; Standard `Off` (Funk aus) |
-| `[WIFI] Seen <Netz>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Ergebnis der Netzsuche für die gespeicherten Netze |
+| `[WIFI] Seen <Netz>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen; next scan in 30 s` | Ergebnis der Netzsuche für die gespeicherten Netze; ohne Treffer mit dem Abstand bis zur nächsten Suche (Abschnitt 8, `WiFi`) |
 | `[WIFI] Connecting to <Netz>`, `[WIFI] Connected to <Netz>, 192.168.1.50, RSSI -60 dBm` | Verbindungsaufbau und Verbindung mit Adresse |
 | `[WIFI] Network not reached (reason 201)` | Nach 15 s keine Verbindung; Grund des WLAN-Treibers (201 = Netz nicht gefunden, 2/15/202 = Anmeldung bzw. Passwort abgelehnt) |
 | `[WIFI] Connection lost; searching` | Verbindung verloren, die Suche läuft weiter |
@@ -1153,8 +1158,8 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | `[ERROR][BOOT] NVS unavailable; using defaults, changes will not be saved` | Flash-Speicher (NVS) beim Start nicht verfügbar: Werkseinstellungen, nichts wird gespeichert (CONFIG `Not saved`) |
 | `[ERROR][BOOT] SI5351 init failed`, `[ERROR][BOOT] Touch init failed`, `[ERROR][TOUCH] XPT2046 init failed` | Beim Start antwortet der SI5351 bzw. der Touch-Controller nicht; der SI5351 wird weiter gesucht |
 | `[ERROR][BOOT] No memory for SCPI over TCP` / `No memory for VXI-11` / `No memory for the web server` | Zu wenig Speicher beim Start: SCPI über TCP, VXI-11 bzw. die Weboberfläche bleibt aus |
-| `[ERROR][WEB] No memory for the web server`, `[ERROR][WEB] Saving the network settings failed` | Weboberfläche: zu wenig Speicher beim Start des Servers; Netzeinstellungen aus dem Browser nicht gespeichert |
-| `[ERROR][WIFI] Saving the AP password failed`, `[ERROR][WIFI] AP DHCP server start failed`, `[ERROR][WIFI] mDNS start failed` | WLAN: Zufallspasswort nicht gespeichert; Access Point ohne DHCP-Server; `<Gerätename>.local` nicht erreichbar (die Adresse geht weiter) |
+| `[ERROR][WEB] No memory for the web server`, `[ERROR][WEB] Saving the network settings failed`, `[ERROR][WEB] Low memory; WebSocket push skipped` | Weboberfläche: zu wenig Speicher beim Start des Servers; Netzeinstellungen aus dem Browser nicht gespeichert; kein zusammenhängender Speicher für eine Aktualisierung der offenen Seiten (sie kommt, sobald wieder Platz ist; höchstens einmal pro Minute geloggt) |
+| `[ERROR][WIFI] Saving the AP password failed`, `[ERROR][WIFI] AP DHCP server start failed`, `[ERROR][WIFI] mDNS start failed`, `[ERROR][WIFI] Power save off failed` / `TX power not set` | WLAN: Zufallspasswort nicht gespeichert; Access Point ohne DHCP-Server; `<Gerätename>.local` nicht erreichbar (die Adresse geht weiter); der Treiber hat Energiesparen aus bzw. volle Sendeleistung nicht angenommen (das WLAN läuft trotzdem, antwortet aber womöglich langsamer, Abschnitt 16) |
 | `[ERROR][FATAL] LVGL assert; restarting` | Speicher der Bedienoberfläche erschöpft o. Ä.; das Gerät startet neu |
 | `task_wdt: Task watchdog got triggered … loopTask` | Firmware hing 5 s; das Gerät startet neu |
 
@@ -1213,6 +1218,7 @@ Zum Betrieb:
 - **Netz ohne Anmeldung:** Mit WLAN kann jeder, der das Gerät im Netz erreicht, es über SCPI (TCP 5025 und VXI-11) ohne Passwort steuern: Frequenzen und Einstellungen ändern, `*RST` und `SYST:SAVE` ausführen, Ausgänge ausschalten und bei `Remote out.` `allowed` auch einschalten. Das Web-Passwort schützt nur Weboberfläche und REST (Abschnitt 16). Weder SCPI noch die Weboberfläche sind verschlüsselt (kein HTTPS).
 - **Empfehlung für das Netz:** Das Gerät nur in einem vertrauenswürdigen Netz betreiben, am besten in einem eigenen Gast- oder IoT-WLAN, das vom übrigen Heimnetz getrennt ist, oder im eigenen Access Point mit Passwort (nie offen). `Remote out.` auf `local only` stellen, wenn aus dem Netz nichts eingeschaltet werden darf; WLAN `Off`, wenn das Gerät nicht aus dem Netz bedient werden soll.
 - **Fremdgerät an 0x60:** Antwortet auf der I2C-Adresse 0x60 ein anderes Gerät, liest die Firmware seine Kennung und schreibt höchstens ein Testbyte in dessen Register 3, bevor sie es als „kein SI5351“ erkennt (Abschnitt 11). Andere Geräte an CN1 mit dieser Adresse nicht anschließen.
+- **Stromaufnahme mit WLAN:** Mit WLAN `Client` oder `Access point` bleibt der Funk dauernd empfangsbereit (kein Energiesparen) und sendet mit voller Leistung, damit das Gerät im Netz sofort antwortet (Abschnitt 16). Das Board braucht dann etwa 80–100 mA mehr als mit WLAN `Off` (Datenblattwert, typisch, nicht gemessen); das USB-Netzteil bzw. der USB-Port muss das liefern. Mit `Off` ist der Funk ganz aus.
 
 Funk und Konformität:
 
@@ -1324,10 +1330,10 @@ Kurzform groß geschrieben, Groß-/Kleinschreibung beliebig (`FREQ`, `freq`, `FR
 | `SYSTem:STEP <Hz>` | Hz | Frequenzschritt (1 Hz … 1 MHz, Zehnerpotenzen); Einheiten `HZ`, `KHZ`, `MHZ` erlaubt (`STEP 1KHZ`) |
 | `SYSTem:BACKlight <%>` | % | Helligkeit (10–100 %), auf 10 % gerundet (`55` → 60); Einheit `PCT` erlaubt |
 | `SYSTem:SI5351?` | `CONN`, `NFO`, `BLOC`, `UNKN` | Verbindung: verbunden, nicht gefunden, Leitung auf LOW, fremdes Gerät |
-| `SYSTem:HEAP?` | `<frei>,<Minimum>,<größter Block>` | Speicher in Byte |
+| `SYSTem:HEAP?` | `<frei>,<Minimum>,<größter Block>` | Speicher in Byte (höchstens 0,1 s alt) |
 | `SYSTem:IDENtify` | – | Backlight und RGB-LED blinken 5 s |
 | `SYSTem:LOG?` | `"<Zeile>"` | Älteste gepufferte Logzeile, `""` wenn keine mehr da ist; nur über USB, über TCP und VXI-11 immer `""` (der Puffer bleibt der USB-Sitzung) |
-| `SYSTem:SAVE` | – | Alle Einstellungen sofort speichern |
+| `SYSTem:SAVE` | – | Geänderte Einstellungen sofort speichern (höchstens einmal je 10 s, siehe unten) |
 | `SYSTem:ERRor[:NEXT]?`, `SYSTem:ERRor:COUNt?` | `<Code>,"<Text>"` | Fehlerwarteschlange (16 Einträge), `0,"No error"` wenn leer |
 | `SYSTem:VERSion?` | `1999.0` | SCPI-Version |
 
@@ -1339,7 +1345,7 @@ Mehrere Befehle in einer Zeile: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` beginnt wieder an 
 
 ### Speichern, Grundzustand und Fehler
 
-- Über SCPI geänderte Einstellungen werden nach 30 s ohne weitere Änderung gespeichert (am Touch nach 5 s). `SYST:SAVE` speichert sofort.
+- Über SCPI geänderte Einstellungen werden nach 30 s ohne weitere Änderung gespeichert (am Touch nach 5 s). `SYST:SAVE` speichert sofort, aber nur die geänderten Werte (ohne Änderung schreibt es nichts) und höchstens einmal je 10 s je Schnittstelle (USB, Netz-SCPI, Weboberfläche/REST). Ein weiteres `SYST:SAVE` innerhalb dieser 10 s wird ohne Fehler angenommen und mit dem vorigen zusammengefasst: Gespeichert wird dann 10 s nach dem vorigen Speichern. So kann kein Programm den Flash-Speicher durch Dauer-Speichern abnutzen.
 - Fehler, die ein SCPI-Befehl auslöst (z. B. Ausgangsfehler), öffnen keinen Dialog auf dem Display; sie stehen in der Fehlerwarteschlange (`-240,"Hardware error;SI5351"`) und im Log.
 - `Remote outputs`: Steht die Option auf `local only`, lehnt das Gerät `OUTP<n> ON` und `OUTP:OFFS HIGH` mit `-221,"Settings conflict;Remote outputs: local only"` ab; Ausschalten sowie `OUTP:OFFS LOW` und `HIZ` bleiben erlaubt. Die Option lässt sich nur am Gerät ändern (CONFIG-Zeile `Remote out.`).
 
@@ -1380,20 +1386,22 @@ Weitere Skripte liegen im Ordner `tools/` (Anleitung in `tools/README.md`):
 
 Mit WLAN (Abschnitt 8, Seite WIFI) lässt sich der Generator auch im Browser bedienen: `http://<Gerätename>.local/` oder die Adresse aus der Statuszeile der Seite WIFI; im eigenen Access Point `http://192.168.4.1/` (ein Handy öffnet die Seite beim Verbinden meist von selbst). Die Seite liegt im Gerät, es braucht keine Internetverbindung. Kein HTTPS: nur in einem vertrauenswürdigen Netz (am besten einem eigenen Gast- oder IoT-WLAN) oder im eigenen Access Point mit Passwort benutzen (Abschnitt 14).
 
+Das WLAN läuft ohne Energiesparen und mit voller Sendeleistung: Das Gerät antwortet im Netz (Weboberfläche, REST, SCPI über TCP, VXI-11, `ping`) meist nach wenigen Millisekunden, mit Energiesparen wären es bis zu etwa 0,4 s gewesen. Dafür braucht es mehr Strom (Abschnitt 14).
+
 ### Bedienen
 
 - Oben Name, Version und Verbindung (`Live`, `Polling`, `Offline`), Speicherzustand, `REMOTE <Quelle>`, `Identify`, `Save`, `?` (Hilfe) und die Links MAIN/CH1/CH2/CH3/CONFIG/WiFi; diese Kopfzeile bleibt beim Scrollen stehen, auch auf dem Handy. Darunter die Bereiche MAIN, CH1, CH2, CH3 IQ, CONFIG und WiFi wie am Gerät. Auf dem Handy liegen die Bereiche untereinander, die Ein/Aus-Schalter der Kanäle stehen fest am unteren Rand.
 - Frequenzen: Ziffer antippen bzw. anklicken wählt den Schritt, Mausrad über einer Ziffer ändert sie, die Einheit öffnet ein Eingabefeld (`10.7M`, `455k`, `7 100 000`, `10,7 MHz`; ein Fehler bleibt neben dem Feld stehen).
 - Tastatur: `↑`/`↓` (auch `+`/`−`) Frequenz im Schritt, `←`/`→` Schritt größer/kleiner, `Bild↑`/`Bild↓` Frequenz × 10 / ÷ 10, `1`/`2`/`3` Kanal, `F` oder `Enter` Eingabefeld, `O` Ausgang ein/aus, `?` Hilfe.
-- Änderungen am Gerät oder per SCPI erscheinen nach etwa 1 s und werden kurz hervorgehoben; ein Feld mit Fokus wird nicht überschrieben. Ohne Verbindung ist alles grau.
+- Änderungen am Gerät oder per SCPI erscheinen nach etwa 1 s und werden kurz hervorgehoben; ein Feld mit Fokus wird nicht überschrieben. Ohne Verbindung ist alles grau. Bei sehr schnellen Änderungen (z. B. eine SCPI-Schleife) schickt das Gerät höchstens 10 Zustände pro Sekunde; der letzte Stand kommt immer an. Ist der Speicher des Geräts knapp, lässt es einzelne Aktualisierungen aus bzw. nimmt neue Verbindungen nicht an (`Low memory`), statt neu zu starten.
 - Die Statusleiste am Gerät zeigt nach einer Änderung aus dem Browser 10 s lang `REMOTE WEB`. `Remote out.` `local only` (Abschnitt 8) gilt auch hier: Einschalten und `Off state` `High` werden abgelehnt (dann ohne Rückfrage, die Meldung steht neben der Auswahl).
-- Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`.
+- Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`. Ein Tab im Hintergrund (verdeckt oder minimiert) gibt seinen Platz nach 60 s frei und verbindet sich wieder, sobald er sichtbar wird. Eine Verbindung, die auf die Prüfanfragen des Geräts (alle 15 s) nicht antwortet, trennt das Gerät nach 30 s; eine, die das Gerät selbst mit Prüfanfragen (WebSocket-Ping) überflutet, sofort.
 - Nur am Gerät: Grundzustand und Werksreset, Touch-Abgleich, Bildschirmsperre, neues Access-Point-Passwort, Web-Passwort (WIFI → `Device`, Zeile `Web pw.`).
 - Die Fußzeile am Ende der Seite zeigt `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` und `licenses` öffnen das Repository bzw. `THIRD_PARTY_NOTICES.md` auf GitHub im Stand des Release-Tags der Firmware (z. B. `v2.0.0`) in einem neuen Tab (dafür braucht der Browser Internet, Abschnitt 1, „Lizenzen“).
 
 ### Web-Passwort
 
-Ist ein Web-Passwort gesetzt, fragt die Seite vor dem ersten Ändern danach (Lesen geht ohne). Die Anmeldung dauert etwa 1,5 s und gilt 12 h. Nach 5 falschen Versuchen ist die Anmeldung 30 s gesperrt, jede weitere Sperre dauert doppelt so lang (bis 16 min). `Log out` in der Kopfzeile (nur mit Web-Passwort und Anmeldung) beendet die Anmeldung; die nächste Änderung fragt wieder nach dem Passwort. Das Web-Passwort wird am Gerät auf der Seite Device festgelegt (Abschnitt 8); ohne Web-Passwort kann jeder im Netz das Gerät bedienen. Es schützt **nur Weboberfläche und REST**: SCPI über TCP 5025 und VXI-11 fragen nach keinem Passwort und bleiben auch mit Web-Passwort für jeden im Netz bedienbar (Abschnitt 15). Über einen offenen Access Point (ohne Passwort) ist die Anmeldung gesperrt, weil das Passwort dort unverschlüsselt über Funk ginge: Die Seite schickt es nicht ab und zeigt `Passwords cannot be sent over the open access point`, das Gerät lehnt `POST /api/login` ebenso ab (403). Mit Web-Passwort lässt sich das Gerät über einen offenen Access Point daher nur ansehen, nicht bedienen.
+Ist ein Web-Passwort gesetzt, fragt die Seite schon beim Öffnen danach: Ohne Anmeldung zeigt sie keine Werte, auch Zustand (`GET /api/state`), Token und Live-Werte (WebSocket) gibt das Gerät nur mit Anmeldung heraus. Wird die Abfrage abgebrochen, steht in der Kopfzeile `Login required` und die Taste `Log in` fragt erneut. Ohne Anmeldung lesbar bleibt nur die LXI-Kennung `/lxi/identification` (Hersteller, Modell, Seriennummer, Version, Adresse; dasselbe, was `*IDN?` über SCPI ohnehin liefert). Die Anmeldung dauert etwa 1,5 s und gilt 12 h. Nach 5 falschen Versuchen ist die Anmeldung 30 s gesperrt, jede weitere Sperre dauert doppelt so lang (bis 16 min). `Log out` in der Kopfzeile (nur mit Web-Passwort und Anmeldung) beendet die Anmeldung; die Seite fragt danach wieder nach dem Passwort. Setzen, Ändern oder Entfernen des Web-Passworts am Gerät beendet alle Anmeldungen und trennt die offenen Seiten; sie verbinden sich neu (mit Passwort nach erneuter Anmeldung). Das Web-Passwort wird am Gerät auf der Seite Device festgelegt (Abschnitt 8); ohne Web-Passwort kann jeder im Netz das Gerät bedienen. Es schützt **nur Weboberfläche und REST**: SCPI über TCP 5025 und VXI-11 fragen nach keinem Passwort und bleiben auch mit Web-Passwort für jeden im Netz bedienbar (Abschnitt 15). Über einen offenen Access Point (ohne Passwort) ist die Anmeldung gesperrt, weil das Passwort dort unverschlüsselt über Funk ginge: Die Seite schickt es nicht ab und zeigt `Passwords cannot be sent over the open access point`, das Gerät lehnt `POST /api/login` ebenso ab (403). Mit Web-Passwort lässt sich das Gerät über einen offenen Access Point daher weder ansehen noch bedienen.
 
 ### Netzeinstellungen aus dem Browser
 
@@ -1404,6 +1412,12 @@ Betriebsart, Gerätename, Netze, statische IP und Access Point lassen sich auch 
 3. Ohne Web-Passwort fragt zusätzlich das Gerät `Network change` (`Revert`/`Keep`); erst `Keep` am Gerät und `Confirm` im Browser zusammen behalten die Änderung.
 4. Ohne Bestätigung innerhalb von 120 s oder mit `Revert` kehren die vorherigen Einstellungen zurück.
 
+Solange eine Änderung aus dem Browser auf die Bestätigung wartet, gehören die Netzeinstellungen ihr allein:
+
+- Gespeichert wird erst der bestätigte Stand. Fällt in dieser Zeit der Strom aus, gelten nach dem Einschalten die vorherigen Einstellungen. Auch ein in dieser Zeit erzeugtes Access-Point-Passwort wird erst mit der Bestätigung gespeichert.
+- Am Gerät lassen sich Netzeinstellungen (Betriebsart, Netze, Access Point, Gerätename, IP, Web-Passwort) dann nicht ändern. Jeder Versuch öffnet die Frage `Web change pending` mit `Revert` (die vorherigen Einstellungen sofort zurück) und `Keep` (die Änderung bleibt offen; ohne Web-Passwort zählt `Keep` als Bestätigung am Gerät wie bei `Network change`). Die Statuszeile der Seite WIFI zeigt orange `Web change pending (<Sekunden> s)`.
+- Mit Web-Passwort muss das Gerät nicht bestätigen, zeigt die offene Änderung aber trotzdem mit derselben Frage an, damit sie sich am Gerät mit `Revert` zurücknehmen lässt.
+
 `Off` aus dem Browser gilt sofort und ohne Bestätigung (über eine neue Verbindung ließe sie sich nicht bestätigen); einschalten lässt sich das WLAN danach nur am Gerät. `Off` übernimmt nur die Betriebsart: Wer zugleich Netze, Gerätenamen, statische IP oder Access Point ändert, bekommt `WiFi off takes no other changes: apply them first` und es ändert sich nichts. Solche Änderungen erst mit `Apply` übernehmen und bestätigen, danach `Off` wählen (REST: `{"mode":"off"}` allein, sonst `-108,Parameter not allowed`). Passwortfelder sind über einen offenen Access Point gesperrt.
 
 ### Fernsteuerung über REST
@@ -1412,14 +1426,14 @@ Programme können dieselben Funktionen über HTTP und JSON nutzen; Beispiel in `
 
 | Aufruf | Inhalt |
 |---|---|
-| `GET /api/state` | Zustand als JSON (Kanäle, CH3, CONFIG, WLAN, Speichern, `REMOTE`) |
+| `GET /api/state` | Zustand als JSON (Kanäle, CH3, Frequenzbereich und Schrittliste, CONFIG, WLAN, Speichern, `REMOTE`); mit Web-Passwort nur mit Anmeldung |
 | `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` oder `{"frequencyText":"7.1M"}` |
 | `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
 | `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` bei `local only` 403), `correction` (0,01 ppm), `step`, `backlight` |
-| `POST /api/save`, `/api/identify` | `{}` |
+| `POST /api/save`, `/api/identify` | `{}`; Speichern wie `SYST:SAVE` höchstens einmal je 10 s (Abschnitt 15) |
 | `POST /api/login`, `POST /api/logout` | `{"password":"…"}` bzw. `{}`, Antwort mit Sitzungs-Cookie bzw. abgelaufenem Cookie |
 | `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Netzeinstellungen (Passwörter nur schreibend; `slot` 0 und 1 = Netz 1 und 2 am Gerät; Netzpasswort 8–63 Zeichen oder 64 Hex-Zeichen), Bestätigung, Netzsuche (höchstens alle 10 s) |
-| WebSocket `/ws?t=<Token>` | Zustand bei jeder Änderung |
+| WebSocket `/ws?t=<Token>` | Zustand bei jeder Änderung; mit Web-Passwort nur mit Anmeldung |
 
 Jeder `POST` braucht `Content-Type: application/json` und den Kopf `X-CYD-Token` mit dem Token aus der Seite (neu bei jedem Neustart, `GET /api/token`). Fehler kommen wie bei SCPI als `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` (Einschalten, `offState` `high`) 403, zu viele Befehle 429, Gerät beschäftigt 503, nicht angemeldet 401. Grenzen: Anfrage höchstens 1 KB, Adresse 256 Zeichen, 20 Schreibbefehle pro Sekunde. `backlight` nimmt jeden Wert von 10 bis 100 und rundet auf 10 % (55 → 60). Alle Fehlercodes und HTTP-Statuscodes stehen in `data/www/README.md`.
 

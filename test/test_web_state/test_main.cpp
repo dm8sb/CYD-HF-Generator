@@ -113,13 +113,88 @@ static void test_change_without_password_needs_the_touch() {
         TEST_ASSERT_EQUAL(NetChange::Action::Revert, c.update(1000));
     }
     {
-        // With a password the touch has no say.
+        // With a password the touch need not confirm, Keep changes nothing, but Revert works
+        // (AF16, concept 2: the device shows a hint with Revert).
         NetChange c;
         c.request(a, b, false, false, 0);
         c.update(NetChange::APPLY_DELAY_MS);
-        c.confirmTouch(false);
+        c.confirmTouch(true);
         TEST_ASSERT_EQUAL(NetChange::Action::None, c.update(1000));
+        TEST_ASSERT_TRUE(c.busy());
+        c.confirmTouch(false);
+        TEST_ASSERT_EQUAL(NetChange::Action::Revert, c.update(1100));
     }
+}
+
+// --- AF16: one owner of the network settings (concept 2) ----------------------------------
+
+// While a web change is open the touch screen may not change the network settings ("Web change
+// pending"); afterwards it may again.
+static void test_touch_change_refused_while_pending() {
+    const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::Client, "new");
+    NetChange c;
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+    c.request(a, b, false, false, 0);
+    TEST_ASSERT_FALSE(c.acceptsTouchChange()); // scheduled
+    TEST_ASSERT_EQUAL_UINT16(121, c.pendingS(0));
+    c.update(NetChange::APPLY_DELAY_MS);
+    TEST_ASSERT_FALSE(c.acceptsTouchChange()); // waiting for the confirmation
+    TEST_ASSERT_EQUAL(NetChange::Confirm::Committed, c.confirmWeb());
+    TEST_ASSERT_FALSE(c.acceptsTouchChange()); // until the save is done
+    TEST_ASSERT_TRUE(c.pendingS(1000) >= 1);
+    TEST_ASSERT_EQUAL(NetChange::Action::Save, c.update(1000));
+    c.update(1001);
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+    TEST_ASSERT_EQUAL_UINT16(0, c.pendingS(1001));
+    // After a timeout as well.
+    c.request(a, b, false, false, 2000);
+    c.update(2000 + NetChange::APPLY_DELAY_MS);
+    TEST_ASSERT_EQUAL(NetChange::Action::Revert, c.update(2000 + NetChange::APPLY_DELAY_MS + NetChange::CONFIRM_MS));
+    c.update(2000 + NetChange::APPLY_DELAY_MS + NetChange::CONFIRM_MS + 1);
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+}
+
+// Revert at the touch before the change was even applied: nothing is applied, nothing saved.
+static void test_touch_revert_before_apply() {
+    const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::Client, "new");
+    NetChange c;
+    c.request(a, b, false, false, 0);
+    c.confirmTouch(false);
+    TEST_ASSERT_FALSE(c.busy());
+    TEST_ASSERT_EQUAL(NetChange::Action::None, c.update(NetChange::APPLY_DELAY_MS));
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+}
+
+// The NVS model: only a confirmed state is ever saved (W-S12). A power loss at any moment of
+// the window finds the previous settings; the manager's own saves (AP password) wait.
+static void test_power_loss_finds_the_previous_settings() {
+    const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::AccessPoint, "new");
+    for (int ending = 0; ending < 3; ++ending) { // 0 timeout, 1 touch revert, 2 web confirm
+        NetSettings nvs = a;
+        NetChange c;
+        c.request(a, b, false, false, 0);
+        uint32_t t = 0;
+        bool sawApply = false;
+        while (t <= NetChange::APPLY_DELAY_MS + NetChange::CONFIRM_MS + 300) {
+            if (t == 5000) {
+                TEST_ASSERT_FALSE(c.managerMaySave()); // an AP password created now is not saved yet
+                if (ending == 1) c.confirmTouch(false);
+                if (ending == 2) TEST_ASSERT_EQUAL(NetChange::Confirm::Committed, c.confirmWeb());
+            }
+            const NetChange::Action act = c.update(t);
+            if (act == NetChange::Action::Apply) sawApply = true;
+            if (NetChange::saves(act)) nvs = c.next();
+            // "Power loss" here: NVS holds the previous settings until the confirmation.
+            if (ending != 2 || t < 5000) TEST_ASSERT_EQUAL_STRING("old", nvs.deviceName);
+            t += 100;
+        }
+        TEST_ASSERT_TRUE(sawApply);
+        TEST_ASSERT_TRUE(c.managerMaySave());
+        TEST_ASSERT_EQUAL_STRING(ending == 2 ? "new" : "old", nvs.deviceName);
+    }
+    TEST_ASSERT_FALSE(NetChange::saves(NetChange::Action::Revert)); // NVS still has prev
+    TEST_ASSERT_FALSE(NetChange::saves(NetChange::Action::Apply));
+    TEST_ASSERT_TRUE(NetChange::saves(NetChange::Action::ApplyAndSave));
 }
 
 // Mode Off over the web (ARBEITSPLAN 3.6 point 2): final, applied and saved, nothing to confirm.
@@ -311,6 +386,85 @@ static void test_web_password_job() {
 
 // --- Limits --------------------------------------------------------------------------------
 
+// AF18 (SEC-V-2, PERF-18): unsolicited PONGs do not keep a dead client alive, so its slot is
+// freed (displaced) after PONG_TIMEOUT_MS; a PING flood closes the client (the web UI never
+// pings; every PING queues a PONG in the library's unbounded control queue).
+static void test_ws_unsolicited_pongs_do_not_hold_a_slot() {
+    WsClients w;
+    TEST_ASSERT_TRUE(w.add(1, 0));
+    TEST_ASSERT_TRUE(w.add(2, 0));
+    TEST_ASSERT_TRUE(w.add(3, 0));
+    TEST_ASSERT_FALSE(w.add(4, 0)); // full
+    // Client 3 sends a PONG every second on its own and never answers a PING.
+    const uint8_t junk[4] = {'c', 'y', 'd', 0};
+    uint8_t answer[3][4] {};
+    uint32_t t = 0;
+    for (; t <= WsClients::PONG_TIMEOUT_MS + 1000; t += 1000) {
+        w.pong(3, t, junk, sizeof(junk)); // unsolicited: not the payload of our PING
+        uint32_t id = 0;
+        uint8_t payload[WsClients::PING_PAYLOAD_LEN];
+        while ((id = w.duePing(t, 0x5A000000u + t + id, payload)) != 0) {
+            if (id != 3) memcpy(answer[id - 1], payload, sizeof(payload));
+        }
+        w.pong(1, t, answer[0], 4); // 1 and 2 answer (repeating an answer changes nothing)
+        w.pong(2, t, answer[1], 4);
+        if (w.expired(t) == 3) break;
+    }
+    TEST_ASSERT_TRUE(t <= WsClients::PONG_TIMEOUT_MS + 1000);
+    TEST_ASSERT_EQUAL_UINT8(2, w.count());
+    TEST_ASSERT_TRUE(w.add(4, t)); // the freed slot takes a new client
+    TEST_ASSERT_EQUAL_UINT32(0, w.expired(t));
+}
+
+static void test_ws_ping_flood_closes() {
+    WsClients w;
+    w.add(7, 0);
+    for (uint8_t i = 0; i < WsClients::PING_BUDGET; ++i) TEST_ASSERT_TRUE(w.clientPing(7, 100 * i));
+    TEST_ASSERT_FALSE(w.clientPing(7, 1000)); // one more within the window
+    // Slow PINGs (a proxy keeping the link) stay allowed.
+    WsClients s;
+    s.add(8, 0);
+    for (uint32_t t = 0; t < 10 * WsClients::PING_WINDOW_MS; t += WsClients::PING_WINDOW_MS / 2) {
+        TEST_ASSERT_TRUE(s.clientPing(8, t));
+    }
+    TEST_ASSERT_FALSE(s.clientPing(99, 0)); // unknown client
+}
+
+// AF19 (PERF-6): WebSocket pushes at most every 100 ms; the first change goes at once, changes
+// in between are merged and the latest state follows at the end of the interval.
+static void test_push_pacer() {
+    PushPacer p;
+    TEST_ASSERT_FALSE(p.due(false, 0));      // nothing changed
+    TEST_ASSERT_TRUE(p.due(true, 1000));     // first change at once
+    TEST_ASSERT_FALSE(p.due(true, 1010));    // within 100 ms: merged
+    TEST_ASSERT_FALSE(p.due(true, 1050));
+    TEST_ASSERT_FALSE(p.due(false, 1099));
+    TEST_ASSERT_TRUE(p.due(false, 1100));    // the latest state at the end of the interval
+    TEST_ASSERT_FALSE(p.due(false, 1200));   // nothing left
+    TEST_ASSERT_TRUE(p.due(true, 1500));     // quiet before: at once again
+    // A flood of 80 changes/s gives at most 10 pushes/s.
+    int pushes = 0;
+    for (uint32_t t = 2000; t < 3000; t += 12) pushes += p.due(true, t) ? 1 : 0;
+    TEST_ASSERT_TRUE(pushes <= 10);
+    TEST_ASSERT_TRUE(pushes >= 9);
+    // Across the millis() wrap.
+    PushPacer w;
+    TEST_ASSERT_TRUE(w.due(true, 0xFFFFFFC0u));
+    TEST_ASSERT_FALSE(w.due(true, 0xFFFFFFF0u));
+    TEST_ASSERT_TRUE(w.due(false, 0xFFFFFFC0u + PushPacer::MIN_INTERVAL_MS));
+    p.reset();
+    TEST_ASSERT_FALSE(p.due(false, 5000));
+}
+
+// AF19 (PERF-8): allocations depend on the largest free block, not on the free heap.
+static void test_heap_block_limits() {
+    TEST_ASSERT_FALSE(HeapLimits::acceptOk(200000, HeapLimits::MIN_BLOCK_ACCEPT - 1));
+    TEST_ASSERT_TRUE(HeapLimits::acceptOk(200000, HeapLimits::MIN_BLOCK_ACCEPT));
+    TEST_ASSERT_FALSE(HeapLimits::acceptOk(RequestGuard::MIN_FREE_HEAP - 1, 100000)); // W-S10 stays
+    TEST_ASSERT_FALSE(HeapLimits::pushOk(1000, 1000 + HeapLimits::PUSH_RESERVE - 1));
+    TEST_ASSERT_TRUE(HeapLimits::pushOk(1000, 1000 + HeapLimits::PUSH_RESERVE));
+}
+
 static HttpPreFilter::Verdict feedAll(HttpPreFilter& f, const std::string& s, uint32_t now = 0) {
     return f.feed((const uint8_t*)s.data(), s.size(), now);
 }
@@ -399,13 +553,15 @@ static void test_connection_tables() {
     TEST_ASSERT_EQUAL_UINT32(13, w.needingState(2));
     TEST_ASSERT_EQUAL_UINT32(0, w.needingState(3));
     // Ping every 15 s, closed after 30 s without pong.
-    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS - 1));
-    TEST_ASSERT_EQUAL_UINT32(11, w.duePing(WsClients::PING_MS));
-    TEST_ASSERT_EQUAL_UINT32(12, w.duePing(WsClients::PING_MS));
-    TEST_ASSERT_EQUAL_UINT32(13, w.duePing(WsClients::PING_MS));
-    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS));
-    w.pong(11, 20000);
-    w.pong(12, 20000);
+    uint8_t p11[4], p12[4], p13[4];
+    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS - 1, 1, p11));
+    TEST_ASSERT_EQUAL_UINT32(11, w.duePing(WsClients::PING_MS, 0x11111111u, p11));
+    TEST_ASSERT_EQUAL_UINT32(12, w.duePing(WsClients::PING_MS, 0x22222222u, p12));
+    TEST_ASSERT_EQUAL_UINT32(13, w.duePing(WsClients::PING_MS, 0x33333333u, p13));
+    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS, 4, p13));
+    w.pong(11, 20000, p11, 4);
+    w.pong(12, 20000, p12, 4);
+    w.pong(13, 20000, p11, 4); // the payload of another client's PING: ignored
     TEST_ASSERT_EQUAL_UINT32(0, w.expired(WsClients::PONG_TIMEOUT_MS));
     TEST_ASSERT_EQUAL_UINT32(13, w.expired(WsClients::PONG_TIMEOUT_MS + 1));
     TEST_ASSERT_EQUAL_UINT8(2, w.count());
@@ -424,11 +580,18 @@ int main(int, char**) {
     RUN_TEST(test_change_confirmed_over_the_web);
     RUN_TEST(test_change_without_password_needs_the_touch);
     RUN_TEST(test_final_change);
+    RUN_TEST(test_touch_change_refused_while_pending);
+    RUN_TEST(test_touch_revert_before_apply);
+    RUN_TEST(test_power_loss_finds_the_previous_settings);
     RUN_TEST(test_change_across_the_millis_wrap);
     RUN_TEST(test_scan_semantics);
     RUN_TEST(test_login_queue);
     RUN_TEST(test_web_password_job);
     RUN_TEST(test_prefilter_limits);
     RUN_TEST(test_connection_tables);
+    RUN_TEST(test_ws_unsolicited_pongs_do_not_hold_a_slot);
+    RUN_TEST(test_ws_ping_flood_closes);
+    RUN_TEST(test_push_pacer);
+    RUN_TEST(test_heap_block_limits);
     return UNITY_END();
 }

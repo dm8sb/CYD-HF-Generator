@@ -10,6 +10,7 @@
 #include <string.h>
 #include <string>
 #include <net/net_settings.h>
+#include <utils/ipv4.h>
 #include <remote/rest_wifi.h>
 
 using RestJson::Reply;
@@ -22,7 +23,7 @@ void tearDown() {}
 
 static uint32_t ip(const char* t) {
     uint32_t v = 0;
-    TEST_ASSERT_TRUE(NetConfig::parseIpv4(t, &v));
+    TEST_ASSERT_TRUE(Ipv4::parse(t, &v));
     return v;
 }
 

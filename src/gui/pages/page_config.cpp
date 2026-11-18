@@ -5,6 +5,7 @@
 #include "../gui_layout.h"
 #include <utils/build_info.h>
 #include <utils/frequency_utils.h>
+#include <utils/ipv4.h>
 #include <utils/sanitize.h>
 #include <esp_heap_caps.h>
 
@@ -39,6 +40,19 @@ static constexpr int TAB_X0 = (SCREEN_WIDTH - Gui::CONFIG_TAB_COUNT * TAB_W - (G
 static_assert(CONTENT_Y + ROWS_PER_TAB * ROW_PITCH <= TAB_Y, "3 rows fit above the tab bar");
 static_assert(CONTENT_Y + INFO_H + 4 <= TAB_Y, "the info card fits above the tab bar");
 static_assert(TAB_X0 >= 0, "the tabs fit the screen width");
+
+// Dropdown options. Gui::handleAction_ takes the selected index as the value: enum order for
+// tuning, spread and off state (checked in gui.cpp), DRIVE_MA_MIN + index * DRIVE_MA_STEP for
+// the drive strength.
+constexpr const char* DRIVE_OPTIONS = "2 mA\n4 mA\n6 mA\n8 mA";
+constexpr const char* OFFSTATE_OPTIONS = "Low\nHigh\nHigh-Z";
+constexpr const char* TUNING_OPTIONS = "Fractional\nLow noise\nInteger";
+constexpr const char* SPREAD_OPTIONS = "Off\n-0.5 %\n-1.5 %\n+/-0.5 %";
+constexpr uint8_t optionCount(const char* s) { return *s == '\0' ? 1 : (uint8_t)((*s == '\n') + optionCount(s + 1)); }
+static_assert(optionCount(DRIVE_OPTIONS) == DRIVE_OPTION_COUNT, "one option per drive strength");
+static_assert(optionCount(OFFSTATE_OPTIONS) == (uint8_t)OffState::HighZ + 1, "one option per OffState");
+static_assert(optionCount(TUNING_OPTIONS) == (uint8_t)TuningMode::Integer + 1, "one option per TuningMode");
+static_assert(optionCount(SPREAD_OPTIONS) == (uint8_t)Spread::Center05 + 1, "one option per Spread");
 
 static void setSelected(lv_obj_t* dd, uint16_t index) {
     if (lv_dropdown_get_selected(dd) != index) lv_dropdown_set_selected(dd, index);
@@ -92,12 +106,12 @@ void Gui::createConfig_() {
     lv_obj_t* row;
     switch (configTab_) {
         case 0: // Signal; the dropdown entries are in the order of the enum values.
-            w_.driveDd = addOptionRow_(root_, 0, "Drive all", "2 mA\n4 mA\n6 mA\n8 mA", Action::Drive);
-            w_.offStateDd = addOptionRow_(root_, 1, "Off state", "Low\nHigh\nHigh-Z", Action::OffState);
-            w_.tuningDd = addOptionRow_(root_, 2, "Tuning", "Fractional\nLow noise\nInteger", Action::Tuning);
+            w_.driveDd = addOptionRow_(root_, 0, "Drive all", DRIVE_OPTIONS, Action::Drive);
+            w_.offStateDd = addOptionRow_(root_, 1, "Off state", OFFSTATE_OPTIONS, Action::OffState);
+            w_.tuningDd = addOptionRow_(root_, 2, "Tuning", TUNING_OPTIONS, Action::Tuning);
             break;
         case 1: // Freq: spread spectrum and the crystal correction.
-            w_.spreadDd = addOptionRow_(root_, 0, "Spread CH1", "Off\n-0.5 %\n-1.5 %\n+/-0.5 %", Action::Spread);
+            w_.spreadDd = addOptionRow_(root_, 0, "Spread CH1", SPREAD_OPTIONS, Action::Spread);
             // Frequency correction in ppm; the step chip cycles 0.01 / 0.1 / 1 ppm.
             row = addConfigRow_(root_, 1, ROW_H, "Corr.");
             // 14 px: with the frame the widest value ("+48.44 ppm", 96 px) ends 8 px before the chip.
@@ -153,12 +167,12 @@ void Gui::createConfig_() {
             char buf[96];
             snprintf(buf, sizeof(buf), "Firmware %s | %s %s", BuildInfo::version(), BuildInfo::branch(),
                      BuildInfo::commit());
-            lv_label_set_text(info[0], buf);
+            Ui::setText(info[0], buf);
             snprintf(buf, sizeof(buf), "Build %s", BuildInfo::time());
-            lv_label_set_text(info[1], buf);
+            Ui::setText(info[1], buf);
             snprintf(buf, sizeof(buf), "Display %s (%s)", DisplayDetect::name(display_->panel()),
                      DisplayDetect::sourceName(display_->source()));
-            lv_label_set_text(info[2], buf);
+            Ui::setText(info[2], buf);
             w_.touchInfo = info[3];
             w_.si5351Info = info[4];
             w_.wifiInfo = info[5];
@@ -178,15 +192,15 @@ void Gui::refreshConfig_() {
     // Only the widgets of the shown tab exist (the others are null).
     if (w_.blValue) {
         snprintf(buf, sizeof(buf), "%u %%", sys.backlight);
-        lv_label_set_text(w_.blValue, buf);
+        Ui::setText(w_.blValue, buf);
     }
     if (w_.corrValue) {
         FrequencyUtils::formatPpm(sys.freq_correction, buf, sizeof(buf));
-        lv_label_set_text(w_.corrValue, buf);
+        Ui::setText(w_.corrValue, buf);
         static const char* corrStepLabels[CORRECTION_STEP_COUNT] = {"0.01", "0.1", "1"};
-        lv_label_set_text(lv_obj_get_child(w_.corrStep, 0), corrStepLabels[corrStepIdx_]);
+        Ui::setText(lv_obj_get_child(w_.corrStep, 0), corrStepLabels[corrStepIdx_]);
     }
-    if (w_.driveDd) setSelected(w_.driveDd, sys.drive_ma / 2 - 1);
+    if (w_.driveDd) setSelected(w_.driveDd, (sys.drive_ma - DRIVE_MA_MIN) / DRIVE_MA_STEP);
     if (w_.tuningDd) setSelected(w_.tuningDd, (uint16_t)sys.tuning_mode);
     if (w_.spreadDd) {
         // Spread spectrum needs a fractional PLL A; the controller keeps it Off in Integer mode.
@@ -212,16 +226,16 @@ void Gui::refreshConfig_() {
     } else {
         snprintf(buf, sizeof(buf), "Touch not calibrated (default)");
     }
-    lv_label_set_text(w_.touchInfo, buf);
+    Ui::setText(w_.touchInfo, buf);
 
     if (app.hardwareReady()) {
         snprintf(buf, sizeof(buf), "SI5351 SDA %d SCL %d%s%s", app.i2cSdaPin(), app.i2cSclPin(),
                  app.i2cSwapped() ? " (swapped)" : "", app.si5351IdUnverified() ? " (clone?)" : "");
-        lv_label_set_text(w_.si5351Info, buf);
-        lv_obj_set_style_text_color(w_.si5351Info, Colors::muted(), 0);
+        Ui::setText(w_.si5351Info, buf);
+        Ui::setTextColor(w_.si5351Info, Colors::muted());
     } else {
-        lv_label_set_text(w_.si5351Info, "SI5351 not found");
-        lv_obj_set_style_text_color(w_.si5351Info, Colors::error(), 0);
+        Ui::setText(w_.si5351Info, "SI5351 not found");
+        Ui::setTextColor(w_.si5351Info, Colors::error());
     }
 
     // WiFi line; a foreign SSID only through sanitize (W-S9).
@@ -232,15 +246,16 @@ void Gui::refreshConfig_() {
         const WifiManager::Status& w = wifi_->status();
         char ip[16];
         if (w.apActive) {
-            NetConfig::formatIpv4(w.apIp, ip, sizeof(ip));
+            Ipv4::format(w.apIp, ip, sizeof(ip));
             snprintf(buf, sizeof(buf), "%s %s %s, %u connected", w.fallback ? "Fallback AP" : "AP", w.apSsid, ip,
                      (unsigned)w.apStations);
             if (w.apOpen) wifiColor = Colors::warn();
         } else if (w.staConnected) {
             char ssid[33];
             Sanitize::text(w.ssid, strlen(w.ssid), ssid, sizeof(ssid));
-            NetConfig::formatIpv4(w.staIp, ip, sizeof(ip));
-            snprintf(buf, sizeof(buf), "WiFi %s %s %d dBm", ssid, ip, (int)w.rssi);
+            Ipv4::format(w.staIp, ip, sizeof(ip));
+            rssiShown_ = StatusViewRules::rssiShown(rssiShown_, w.rssi);
+            snprintf(buf, sizeof(buf), "WiFi %s %s %d dBm", ssid, ip, (int)rssiShown_);
         } else if (w.needsOpenConfirmation) {
             snprintf(buf, sizeof(buf), "WiFi searching; open fallback AP needs confirmation");
             wifiColor = Colors::warn();
@@ -248,22 +263,32 @@ void Gui::refreshConfig_() {
             snprintf(buf, sizeof(buf), "WiFi searching (%s)", wifi_->settings().deviceName);
         }
     }
-    lv_label_set_text(w_.wifiInfo, buf);
-    lv_obj_set_style_text_color(w_.wifiInfo, wifiColor, 0);
+    Ui::setText(w_.wifiInfo, buf);
+    Ui::setTextColor(w_.wifiInfo, wifiColor);
     // Remote clients: open web pages (WebSockets) and the SCPI TCP client (W-S20).
     const unsigned web = webClients_ ? webClients_() : 0;
     const uint32_t scpi = scpiClient_ ? scpiClient_() : 0;
     char scpiText[16] = "-";
-    if (scpi) NetConfig::formatIpv4(scpi, scpiText, sizeof(scpiText));
+    if (scpi) Ipv4::format(scpi, scpiText, sizeof(scpiText));
     snprintf(buf, sizeof(buf), "Remote: web %u, SCPI %s", web, scpiText);
-    lv_label_set_text(w_.remoteInfo, buf);
-    // Heap (V-8): free, minimum since boot, largest block; LVGL pool free.
+    Ui::setText(w_.remoteInfo, buf);
+    // Heap (V-8): free, minimum since boot, largest block; LVGL pool free. Sampled every 5 s
+    // (AF12: the walks run under the heap lock).
+    if (!heapSampled_) sampleHeap_();
+    snprintf(buf, sizeof(buf), "Heap %u/%u KB, block %u KB, LVGL %u KB", (unsigned)(heapFree_ / 1024),
+             (unsigned)(heapMin_ / 1024), (unsigned)(heapBlock_ / 1024), (unsigned)(lvglFree_ / 1024));
+    Ui::setText(w_.heapInfo, buf);
+}
+
+void Gui::sampleHeap_() {
     lv_mem_monitor_t mon;
     lv_mem_monitor(&mon);
-    snprintf(buf, sizeof(buf), "Heap %u/%u KB, block %u KB, LVGL %u KB", (unsigned)(ESP.getFreeHeap() / 1024),
-             (unsigned)(ESP.getMinFreeHeap() / 1024), (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024),
-             (unsigned)(mon.free_size / 1024));
-    lv_label_set_text(w_.heapInfo, buf);
+    heapFree_ = ESP.getFreeHeap();
+    heapMin_ = ESP.getMinFreeHeap();
+    heapBlock_ = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    lvglFree_ = mon.free_size;
+    heapSampleMs_ = millis();
+    heapSampled_ = true;
 }
 
 void Gui::refreshSaveState_() {
@@ -278,6 +303,6 @@ void Gui::refreshSaveState_() {
         case SaveState::Failed: text = "Save failed"; color = Colors::error(); break;
         case SaveState::Unavailable: text = "Not saved"; color = Colors::error(); break;
     }
-    lv_label_set_text(w_.saveState, text);
-    lv_obj_set_style_text_color(w_.saveState, color, 0);
+    Ui::setText(w_.saveState, text);
+    Ui::setTextColor(w_.saveState, color);
 }
