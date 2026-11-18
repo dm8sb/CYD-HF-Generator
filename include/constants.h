@@ -63,8 +63,15 @@ static constexpr uint16_t VXI11_CORE_PORT = 9009;
 static constexpr uint32_t PORTMAP_TCP_IDLE_MS = 10000;
 // MAIN status bar: REMOTE <source> stays this long after the last remote command (W-E14).
 static constexpr uint32_t REMOTE_INDICATOR_MS = 10000;
+// Serial TX buffer of the logger (AF53): lines are queued instead of waiting for the UART.
+static constexpr uint32_t SERIAL_TX_BUFFER_BYTES = 1024;
 // SI5351 health check / reconnect interval.
 static constexpr uint32_t HW_CHECK_INTERVAL_MS = 2000;
+// Search without a chip (AF53, PERF-11): every 2 s during the first minute after boot or after
+// losing the chip, then every 10 s (each attempt reopens the I2C driver for both wirings).
+static constexpr uint32_t SI5351_SEARCH_FAST_INTERVAL_MS = HW_CHECK_INTERVAL_MS;
+static constexpr uint32_t SI5351_SEARCH_FAST_PHASE_MS = 60000;
+static constexpr uint32_t SI5351_SEARCH_SLOW_INTERVAL_MS = 10000;
 // Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).
 static constexpr uint32_t MEM_LOG_INTERVAL_MS = 30000;
 // GUI and touch timing.

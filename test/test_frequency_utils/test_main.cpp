@@ -282,6 +282,38 @@ static void test_decimal_exponent_and_power_of_ten() {
     for (uint8_t e = 0; e <= 9; ++e) TEST_ASSERT_EQUAL_UINT8(e, decimalExponent(powerOfTen(e)));
 }
 
+// AF46: the shared integer rounding core of numpad, REST and SCPI.
+static void test_scale_decimal_rounds_half_up() {
+    TEST_ASSERT_EQUAL_UINT64(1ULL, pow10u(0));
+    TEST_ASSERT_EQUAL_UINT64(10000000000000000000ULL, pow10u(19));
+    uint64_t v = 99;
+    TEST_ASSERT_TRUE(scaleDecimal(0, 25, &v));
+    TEST_ASSERT_EQUAL_UINT64(0, v);
+    TEST_ASSERT_TRUE(scaleDecimal(71000005ULL, -1, &v));
+    TEST_ASSERT_EQUAL_UINT64(7100001ULL, v);
+    TEST_ASSERT_TRUE(scaleDecimal(710000049ULL, -2, &v));
+    TEST_ASSERT_EQUAL_UINT64(7100000ULL, v);
+    TEST_ASSERT_TRUE(scaleDecimal(4550005ULL, -1, &v));
+    TEST_ASSERT_EQUAL_UINT64(455001ULL, v);
+    TEST_ASSERT_TRUE(scaleDecimal(5ULL, -1, &v));
+    TEST_ASSERT_EQUAL_UINT64(1ULL, v);
+    TEST_ASSERT_TRUE(scaleDecimal(4ULL, -1, &v));
+    TEST_ASSERT_EQUAL_UINT64(0ULL, v);
+    TEST_ASSERT_TRUE(scaleDecimal(71ULL, 5, &v));
+    TEST_ASSERT_EQUAL_UINT64(7100000ULL, v);
+    // Extremes: no overflow in the rounding, nothing below 10^-19 survives.
+    TEST_ASSERT_TRUE(scaleDecimal(UINT64_MAX, -1, &v));
+    TEST_ASSERT_EQUAL_UINT64(UINT64_MAX / 10 + 1, v);
+    TEST_ASSERT_TRUE(scaleDecimal(UINT64_MAX, -19, &v));
+    TEST_ASSERT_EQUAL_UINT64(2ULL, v);
+    TEST_ASSERT_TRUE(scaleDecimal(UINT64_MAX, -20, &v));
+    TEST_ASSERT_EQUAL_UINT64(0ULL, v);
+    TEST_ASSERT_TRUE(scaleDecimal(1ULL, 19, &v));
+    TEST_ASSERT_FALSE(scaleDecimal(1ULL, 20, &v));
+    TEST_ASSERT_FALSE(scaleDecimal(2ULL, 19, &v));
+    TEST_ASSERT_FALSE(scaleDecimal(1ULL, 0, nullptr));
+}
+
 // V-11: remote input (REST, SCPI, web field): integer Hz or a decimal number with a unit,
 // comma and digit-group spaces accepted, nothing else; computed in integers.
 static void assertRemote(const char* text, uint64_t expected) {
@@ -364,5 +396,6 @@ int main() {
     RUN_TEST(test_remote_parser_range_flag);
     RUN_TEST(test_digit_exponent_matches_step_digits);
     RUN_TEST(test_decimal_exponent_and_power_of_ten);
+    RUN_TEST(test_scale_decimal_rounds_half_up);
     return UNITY_END();
 }

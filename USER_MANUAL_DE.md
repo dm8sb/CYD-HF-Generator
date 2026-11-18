@@ -312,6 +312,8 @@ Mit der Taste `◀` oben links geht es **ohne Änderung** zurück zur Kanalseite
 
 Maximal 10 Zeichen sind erlaubt (z. B. `150.000001`); ein elftes zeigt `Max. 10 characters`.
 
+Die Frequenz wird auf ganze Hz gerundet, ab einem halben Hz aufwärts, genau wie bei SCPI und REST: `7.1000005` `MHz` ergibt 7 100 001 Hz, `7.10000049` `MHz` 7 100 000 Hz.
+
 ### Ungültige Eingabe
 
 Liegt der Wert außerhalb von 8 kHz – 160 MHz oder ist die Eingabe leer bzw. ungültig, wird sie **nicht übernommen**. Die Eingabe bleibt stehen, der Rahmen wird rot und rechts unter dem Feld erscheint der Grund in Rot:
@@ -984,7 +986,7 @@ Für Rückfragen mit zwei Tasten (z. B. `Delete network`, `Open fallback AP`, `N
 
 Wird der SI5351 beim Start nicht gefunden, erscheint **eine** Meldung. Danach zeigen die Kanäle auf der Hauptseite `! NO HW`, die Kanalseiten `SI5351 not found`. Einstellungen lassen sich trotzdem ändern und werden gespeichert.
 
-Die Firmware prüft alle 2 Sekunden, ob der SI5351 antwortet. Wird er nachträglich angeschlossen oder ist ein Wackelkontakt behoben, verbindet sie automatisch neu, stellt die eingestellten Frequenzen und ON/OFF-Zustände wieder her und schließt die Verbindungsmeldung. Geht die Verbindung im Betrieb verloren (oder verliert der SI5351 kurz die Versorgung), erscheint die Meldung `Connection lost` und die Kanäle zeigen `! NO HW`, bis die Verbindung wieder steht. Die Firmware versucht sofort nach dem Erkennen neu zu verbinden; nach einem kurzen Versorgungsausfall laufen die Ausgänge daher spätestens nach etwa 2 s wieder.
+Die Firmware prüft alle 2 Sekunden, ob der SI5351 antwortet. Ohne SI5351 sucht sie in der ersten Minute nach dem Start bzw. nach dem Verbindungsverlust alle 2 s, danach alle 10 s (jeder Suchschritt baut den I2C-Treiber für beide Zuordnungen neu auf); ein später angeschlossenes Modul wird dann nach spätestens etwa 10 s gefunden. Wird er nachträglich angeschlossen oder ist ein Wackelkontakt behoben, verbindet sie automatisch neu, stellt die eingestellten Frequenzen und ON/OFF-Zustände wieder her und schließt die Verbindungsmeldung. Geht die Verbindung im Betrieb verloren (oder verliert der SI5351 kurz die Versorgung), erscheint die Meldung `Connection lost` und die Kanäle zeigen `! NO HW`, bis die Verbindung wieder steht. Die Firmware versucht sofort nach dem Erkennen neu zu verbinden; nach einem kurzen Versorgungsausfall laufen die Ausgänge daher spätestens nach etwa 2 s wieder.
 
 SDA und SCL dürfen an CN1 beliebig angeschlossen sein (GPIO22/GPIO27). Die Firmware probiert beide Zuordnungen, auch nach dem Umstecken im Betrieb. Die Info-Karte auf CONFIG und der Serial Monitor zeigen die gefundene Zuordnung, bei vertauschten Adern mit dem Zusatz `(swapped)`.
 
@@ -1080,6 +1082,8 @@ Serial Monitor:
 pio device monitor -b 115200
 ```
 
+Die Firmware schreibt Log-Zeilen in einen Sendepuffer von 1 KB und wartet nicht auf die serielle Schnittstelle. Kommen mehr Zeilen, als bei 115 200 Bd hinausgehen (etwa 11 KB/s), wartet sie erst, wenn der Puffer voll ist.
+
 Wichtige Meldungen:
 
 | Meldung | Bedeutung |
@@ -1091,6 +1095,7 @@ Wichtige Meldungen:
 | `[SI5351] Init OK; all outputs off` | SI5351 initialisiert, alle Ausgänge aus |
 | `[APP] SI5351 at 0x60, SDA=22 SCL=27` | Verbunden; bei vertauschten Adern `SDA=27 SCL=22 (swapped)` |
 | `[APP] SI5351 not found` | Kein SI5351 gefunden, die Suche läuft weiter |
+| `[APP] SI5351 search every 10 s` | Eine Minute ohne SI5351: die Suche läuft nur noch alle 10 s (Abschnitt 11) |
 | `[TOUCH] XPT2046 init OK on VSPI` | Touch bereit |
 | `[TOUCH] Calibration started` | Touch-Abgleich beginnt |
 | `[TOUCH] Calibrated: x 161..3778, y 245..3830, check -2/+2 px` | Abgleich gespeichert: Rohwerte der Bildränder, Abweichung des Prüfkreuzes |
@@ -1140,7 +1145,7 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | Meldung | Bedeutung |
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Überwachung: SI5351 antwortet nicht oder hat seine Einstellung verloren |
-| `[ERROR][SI5351] I2C transfer failed; device lost` | Eine I2C-Übertragung zum SI5351 ist gescheitert; die Suche nach dem SI5351 beginnt (alle 2 s) |
+| `[ERROR][SI5351] I2C transfer failed; device lost` | Eine I2C-Übertragung zum SI5351 ist gescheitert; die Suche nach dem SI5351 beginnt (eine Minute alle 2 s, dann alle 10 s) |
 | `[E][esp32-hal-i2c-ng.c:372] i2cWriteReadNonStop(): i2c_master_transmit_receive failed: [259] ESP_ERR_INVALID_STATE`, danach `[E][Wire.cpp:532] requestFrom(): i2cWriteReadNonStop returned Error 259` | Meldung des Arduino-Cores (I2C-Treiber) zum selben Ausfall, zusammen mit `[ERROR][SI5351] I2C transfer failed; device lost` |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Ungewöhnliches Register 183, z. B. Nachbau; das Modul wird trotzdem verwendet |
 | `[ERROR][APP] I2C fails at 400 kHz; staying at 100 kHz` | Bus läuft nur mit 100 kHz (z. B. schwache Pull-ups) |

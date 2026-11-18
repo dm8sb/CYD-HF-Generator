@@ -50,8 +50,13 @@ struct SerialLog {
     char last[256];
     unsigned errors;
     unsigned lines;
+    unsigned printfCalls; // formatted output (blocks without a TX buffer on the device, AF53)
+    unsigned writeCalls;
     std::string all; // every line since the last clear()
-    void clear() { last[0] = '\0'; errors = lines = 0; all.clear(); }
+    // Serial setup: TX buffer size set before begin() (0 = none), begin() called.
+    size_t txBufferSize;
+    bool begun;
+    void clear() { last[0] = '\0'; errors = lines = printfCalls = writeCalls = 0; all.clear(); }
     bool contains(const char* text) const { return all.find(text) != std::string::npos; }
 };
 inline SerialLog& serialLog() {
@@ -96,11 +101,28 @@ inline void digitalWrite(int pin, uint8_t level) {
 
 class FakeSerial {
 public:
-    void begin(unsigned long) {}
+    void begin(unsigned long) { Fake::serialLog().begun = true; }
+    size_t setTxBufferSize(size_t n) {
+        if (Fake::serialLog().begun) return 0; // like arduino-esp32: only before begin()
+        Fake::serialLog().txBufferSize = n;
+        return n;
+    }
     explicit operator bool() const { return true; }
     size_t println(const char* s = "") { return printf("%s\n", s); }
+    size_t write(const uint8_t* data, size_t len) {
+        Fake::SerialLog& log = Fake::serialLog();
+        const size_t n = len < sizeof(log.last) - 1 ? len : sizeof(log.last) - 1;
+        memcpy(log.last, data, n);
+        log.last[n] = '\0';
+        ++log.writeCalls;
+        ++log.lines;
+        log.all.append((const char*)data, len);
+        if (strncmp(log.last, "[ERROR]", 7) == 0) ++log.errors;
+        return len;
+    }
     size_t printf(const char* fmt, ...) {
         Fake::SerialLog& log = Fake::serialLog();
+        ++log.printfCalls;
         va_list args;
         va_start(args, fmt);
         const int n = vsnprintf(log.last, sizeof(log.last), fmt, args);

@@ -115,17 +115,27 @@ static bool isPlainDecimal(const char* text) {
 
 bool parseFrequency(const char* text, const char* unit, uint64_t* outHz) {
     if (!text || !outHz || !isPlainDecimal(text)) return false;
-    double scale = 1.0;
+    int exp10 = 0;
     if (unit) {
-        if (strcmp(unit, "kHz") == 0) scale = 1000.0;
-        else if (strcmp(unit, "MHz") == 0) scale = 1000000.0;
+        if (strcmp(unit, "kHz") == 0) exp10 = 3;
+        else if (strcmp(unit, "MHz") == 0) exp10 = 6;
         else if (strcmp(unit, "Hz") != 0) return false;
     }
-    const double v = strtod(text, nullptr);
-    if (!isfinite(v) || v <= 0) return false;
-    double hz = v * scale + 0.5;
-    if (hz < (double)FREQ_MIN_HZ || hz >= (double)FREQ_MAX_HZ + 1.0) return false;
-    *outHz = (uint64_t)hz;
+    // At most 16 digits (isPlainDecimal), so the mantissa fits into uint64.
+    uint64_t mantissa = 0;
+    bool fraction = false;
+    for (const char* p = text; *p; ++p) {
+        if (*p == '.') {
+            fraction = true;
+            continue;
+        }
+        mantissa = mantissa * 10 + (uint64_t)(*p - '0');
+        if (fraction) --exp10;
+    }
+    uint64_t hz = 0;
+    if (!scaleDecimal(mantissa, exp10, &hz)) return false;
+    if (hz < FREQ_MIN_HZ || hz > FREQ_MAX_HZ) return false;
+    *outHz = hz;
     return true;
 }
 
@@ -188,8 +198,10 @@ bool parseRemoteFrequency(const char* text, uint64_t* outHz, bool* outOfRange) {
     else if (!strcmp(unit, "mhz") || !strcmp(unit, "m")) scale = 1000000;
     else return false;
     if (u == 0 && fracDigits > 0) return false; // a decimal number needs its unit
-    const uint64_t pow10 = powerOfTen((uint8_t)fracDigits);
-    const uint64_t hz = whole * scale + (frac * scale * 2 + pow10) / (2 * pow10);
+    // At most 12 + 6 digits before the point: whole * scale fits; the fraction is rounded alone.
+    uint64_t fracHz = 0;
+    scaleDecimal(frac, (int)decimalExponent((uint32_t)scale) - fracDigits, &fracHz);
+    const uint64_t hz = whole * scale + fracHz;
     if (hz < FREQ_MIN_HZ || hz > FREQ_MAX_HZ) {
         if (outOfRange) *outOfRange = true;
         return false;
@@ -233,10 +245,33 @@ uint8_t decimalExponent(uint32_t value) {
     return exponent;
 }
 
-uint32_t powerOfTen(uint8_t exponent) {
-    uint32_t v = 1;
+uint32_t powerOfTen(uint8_t exponent) { return (uint32_t)pow10u(exponent); }
+
+uint64_t pow10u(uint8_t exponent) {
+    uint64_t v = 1;
     while (exponent--) v *= 10;
     return v;
+}
+
+bool scaleDecimal(uint64_t mantissa, int exp10, uint64_t* out) {
+    if (!out) return false;
+    if (mantissa == 0) {
+        *out = 0;
+        return true;
+    }
+    if (exp10 >= 0) {
+        if (exp10 > 19) return false;
+        const uint64_t p = pow10u((uint8_t)exp10);
+        if (mantissa > UINT64_MAX / p) return false;
+        *out = mantissa * p;
+    } else if (exp10 < -19) {
+        *out = 0; // below half a unit (mantissa < 2 * 10^19)
+    } else {
+        const uint64_t p = pow10u((uint8_t)-exp10);
+        const uint64_t rest = mantissa % p;
+        *out = mantissa / p + (rest >= p - rest ? 1 : 0); // half up, without overflow
+    }
+    return true;
 }
 
 }
