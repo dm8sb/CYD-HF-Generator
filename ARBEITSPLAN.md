@@ -10,8 +10,8 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 
 1. **Ein Schritt = ein Commit.** Jeder Schritt der Aufgabenliste (Abschnitt 4) endet mit genau einem Commit. Größere Schritte werden vorher geteilt (S25a/S25b); kein Sammel-Commit.
 2. **Erst das Gate, dann der Commit:**
-   - Host-Tests grün in `native-win` und `native-win-fault` (CI: `native`, `native-fault`);
-   - 0 Warnungen in `src/` (`-Wall -Wextra`);
+   - Host-Tests grün in `native-win` und `native-win-fault` (CI: `native`, `native-fault` und `native-cpp20` mit `-Werror`);
+   - 0 Warnungen in `src/` (`-Wall -Wextra`, Host-Tests ebenso); die CI scheitert an Warnungen in `src/`/`include/` der Firmware-Builds und an jeder Warnung in `native-cpp20` (AF24);
    - neue Logik nur mit Host-Test; der Test scheitert vor dem Fix (Gegenprobe);
    - Handbuch DE **und** EN, Spezifikation (A-n / E-n), README und diese Datei im **selben** Commit;
    - bei Netzcode Review gegen die Sicherheitsanforderungen W-S (Abschnitt 3.7).
@@ -158,11 +158,11 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 | P-5 | TFT_eSPI | 2.5.43 (letztes Release) | bleibt; mit Core 3.x im Spike unverändert lauffähig (Flush 35 ms je Vollbild wie unter 2.x); Fork oder LovyanGFX nur als Ausweg (eigene Display-Erkennung bleibt, LovyanGFX erwartet ST7789-ID 0x85, der CYD2USB meldet `8181B3`) |
 | P-6, P-8 | LVGL, Unity | 8.4.0 (E-28, LVGL 9 ausgeschlossen, D13), 2.6.1 | Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 → N11 |
 | P-9 | Web-Bibliotheken | scpi-parser `8866159` (v2.3 + `strings.h`- und `-Wdouble-promotion`-Fix, seit S51, E-29) | ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, ArduinoJson 7.4.3, alle exakt gepinnt |
-| S-20 | Prüfung | XPT2046 auf Commit gepinnt | Plattform-Prüfsumme in der CI, Advisory-Check je Release (W-S24); Framework-Pakete exakt gepinnt (AF22), Advisory-Workflow (AF26); Actions-Policy mit SHA-Zwang gesetzt (D41) |
+| S-20 | Prüfung | XPT2046 auf Commit gepinnt | Plattform-Prüfsumme in der CI, Advisory-Check je Release (W-S24); Framework-Pakete exakt gepinnt (AF22), Advisory-Workflow wöchentlich und vor dem Release (AF26); Actions-Policy mit SHA-Zwang gesetzt (D41) |
 
-- [ ] **Framework nur per Tilde gepinnt** (OPS-3 = LIC-4, OPS-10, OPS-17): Arduino-Framework und `-esp32-libs` als Bereich; Release-Image hängt am CI-Cache; Notices behaupten exakte Pakete. → AF22
+- [x] **Framework nur per Tilde gepinnt** (OPS-3 = LIC-4, OPS-10, OPS-17): Arduino-Framework und `-esp32-libs` als Bereich; Release-Image hängt am CI-Cache; Notices behaupten exakte Pakete. → AF22
 - [ ] **CI-Workflows** (OPS-1, OPS-2, OPS-6, OPS-11, OPS-12, OPS-13, OPS-18 = CQ-20 = TEST-13, OPS-19): CodeQL-Alerts auf `main` fälschlich „fixed“, CI auf `main` abgebrochen, Release-Pfad vor dem Tag ungeprüft, Warnungs-Gate nicht erzwungen, Stempel nicht reproduzierbar. → AF21, AF23, AF24, AF25
-- [ ] **Advisory-Prüfung und Rest Repo-Einstellungen** (OPS-8, OPS-16): keine automatische Schwachstellenprüfung der Firmware-Abhängigkeiten (ESPAsyncWebServer, AsyncTCP, ArduinoJson, scpi-parser, Arduino-ESP32/IDF, LVGL, ESP Web Tools; Dependabot sieht kein Manifest); aus OPS-16 offen: Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot`, Topics (OPS-7 gesetzt, D41). → AF26, AF28
+- [ ] **Advisory-Prüfung und Rest Repo-Einstellungen** (OPS-8, OPS-16): keine automatische Schwachstellenprüfung der Firmware-Abhängigkeiten (ESPAsyncWebServer, AsyncTCP, ArduinoJson, scpi-parser, Arduino-ESP32/IDF, LVGL, ESP Web Tools; Dependabot sieht kein Manifest); aus OPS-16 offen: Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot`, Topics (OPS-7 gesetzt, D41). → AF26 (erledigt), AF28
 
 ### 2.5 Dokumentation
 
@@ -290,9 +290,9 @@ Entwürfe zu größeren Audit-Befunden für offene Schritte in Phase 10. Entfern
 
 - **Erledigt bzw. in AF7:** Tag-Ruleset `refs/tags/v*` und Immutable Releases (D29); kein öffentlicher Deploy aus einem manuellen Lauf (D30); AF7 prüft Herkunft (`merge-base --is-ancestor … origin/main`) und Host-Tests des Tag-Commits, bricht bei vorhandenem Release ab, deployt erst nach dem Release (Concurrency `pages`) und attestiert `SHA256SUMS`.
 - **Offen:**
-  - Build hermetisch ohne Cache mit exakt gepinnten Paketen, `pio pkg list` in den Notes (OPS-3, OPS-10; AF22).
-  - Probelauf des Release-Pfads in PRs ohne Veröffentlichung (OPS-6; AF23).
-  - Reproduzierbare Stempel, damit sich ein unabhängiger Nachbau gegen die Attestation prüfen lässt (OPS-13; AF25).
+  - ~~Build hermetisch ohne Cache mit exakt gepinnten Paketen, `pio pkg list` in den Notes (OPS-3, OPS-10; AF22).~~ Erledigt mit AF22.
+  - ~~Probelauf des Release-Pfads in PRs ohne Veröffentlichung (OPS-6; AF23).~~ Erledigt mit AF23.
+  - ~~Reproduzierbare Stempel, damit sich ein unabhängiger Nachbau gegen die Attestation prüfen lässt (OPS-13; AF25).~~ Erledigt mit AF25 (E-49).
 - **Folgen:** Release-Abschnitt im README (Prüfung mit `gh attestation verify` für alle Assets), `SECURITY.md` (Lieferkette). Prüfung per `workflow_dispatch` ohne Deploy; ein Probe-Tag nur auf Anweisung.
 
 #### Konzept 6 · Geräte-Glue testen
@@ -350,7 +350,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N7 · TCXO-Option** nach C7, C8.
 - [ ] **N9 · Sticky-Bit und „PLL locked“** (Abschnitt 2.1).
 - [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
-- [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release (AF26).
+- [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 (behebt GHSA-ch63, AF26); Advisory-Check je Release läuft (AF26).
 - [ ] **N13 · DMA und Doppelpuffer** (Abschnitt 2.3, nach der Migration).
 - [ ] **N14 · Gekoppelter Betrieb CH2 = CH1 ± Offset (D18).** CH2 folgt CH1 mit festem Offset (positiv oder negativ, z. B. Überlagerungsempfänger mit fester ZF): Einstellung und Anzeige auf der CH2-Seite, Grenzen 8 kHz–160 MHz für beide, CH3-IQ und Spread berücksichtigen, SCPI/REST und Weboberfläche; Planung vor der Umsetzung. *Commit:* `N14: Add CH2 coupled to CH1 with offset`
 
@@ -360,13 +360,7 @@ Jeder Schritt nennt Befund-IDs, Ort, Problem und Richtung selbst. „Konzept n�
 
 #### Priorität 3 – Lieferkette und CI
 
-- [ ] **AF21 · CI-Trigger und Concurrency (S).** OPS-1, OPS-2, OPS-11, OPS-12, OPS-19. `push`/`pull_request` auf `[main, dev]`, Tags ausgenommen; Concurrency mit `event_name` und PR-Nummer, auf `main`/Tags kein Abbruch; CodeQL-PR-Läufe ohne `refs/pull/` abbrechen; Kommentar „Pflicht-Check im Ruleset main“ an den betroffenen `name:`; `gh run list --event push`. Danach einmal CodeQL auf `main` starten. Prüfung: Läufe auf `dev` und PR sehen, Alerts auf `main` wieder offen. *Commit:* `AF21: Narrow CI triggers and stop cancelling runs on main`
-- [ ] **AF22 · Framework exakt pinnen, Release ohne Cache (M).** OPS-3 = LIC-4, OPS-10, OPS-17. `platform_packages` mit `framework-arduinoespressif32@4.30312.261024`, `-esp32-libs@3.3.12`, `toolchain-xtensa-esp-elf@14.2.0+20260121`, `native@<x.y.z>`; `pio pkg list` in die Job-Summary und die Release-Notes; CI-Schritt vergleicht aufgelöste Versionen und IDF-Commit mit `THIRD_PARTY_NOTICES.md`; Release ohne `~/.platformio`-Cache, CI speichert Cache nur auf `main`/`dev`; `tools/requirements-ci.txt` mit Hashes + Dependabot `pip`. Notices-Zeile 21 anpassen. Prüfung: kalter Build ergibt dieselben Paketversionen; Größe unverändert. *Commit:* `AF22: Pin the Arduino framework packages exactly`
-- [ ] **AF23 · Release-Pfad vor dem Tag prüfen (M).** OPS-6. Benennung der Release-Dateien in ein Skript; Release-Workflow (ohne `release`/`deploy`) bei PRs nach `main` und bei Änderungen an `release.yml`, `tools/flasher_site.py`, `flasher/**`. Prüfung: PR-Lauf grün, absichtlich falscher Pfad schlägt im PR fehl. *Commit:* `AF23: Dry-run the release path on pull requests`
-- [ ] **AF24 · Warnungs-Gate und Lint in der CI (S).** OPS-18 = CQ-20 = TEST-13. Firmware-Log auf `src/.*warning:` prüfen (oder `-Werror` in einer CI-Env), `-Wextra` in `[native_test]`, `-Werror` in `native-cpp20`; optional `ruff`, `node --check`, `lizard -C 30 -L 120` mit Ausnahmeliste; nicht verpflichtender Job für `touchlog`/`screens`. Regel 0.2: `native-cpp20` als CI-Gate nennen. Prüfung: absichtliche Warnung lässt die CI scheitern. *Commit:* `AF24: Enforce the zero-warning gate in CI`
-- [ ] **AF25 · Reproduzierbare Stempel (S–M).** OPS-13. Heute meldet das Image eines Release-Kandidaten `<Version> | HEAD` (kein rc-Suffix, Branch `HEAD`, Lokalzeit ohne Zone; `tools/build_info.py`), die Tarballs sind nicht deterministisch. Version aus dem Tag (`GITHUB_REF_NAME`/`git describe`), Branch bei detached HEAD = Tag, Zeit aus `SOURCE_DATE_EPOCH` (Commit-Zeit, UTC); Tarballs sortiert, feste mtime, `gzip -n`. Handbuch (Info-Karte zeigt rc-Suffix), README. Prüfung: zwei Builds desselben Commits ergeben identische Tarballs; `build_info`-Check in der CI. *Commit:* `AF25: Stamp builds with the tag and commit time`
-- [ ] **AF26 · Advisory-Prüfung der Abhängigkeiten (M).** OPS-8, S-20, W-S24, N11. Workflow wöchentlich und vor Tags: gepinnte Versionen aus `platformio.ini`/`esp-web-tools.json` gegen GHSA/OSV der Upstream-Repos; Fund → Job rot und Summary. Prüfung: Testlauf mit einer bekannten alten Version. *Commit:* `AF26: Check pinned dependencies against advisories`
-- [ ] **AF27 · Werkzeug-Hygiene (S).** OPS-9, SEC-7, SEC-8. `flasher_site.py:509` und `web_check.py:154` mit `re.I` bzw. HTML-Parser, `tools/screens/main.cpp` mit eingeschränkten Rechten; `git rm --cached tools/__pycache__/…pyc`, `.gitignore` um `__pycache__/`, `*.pyc`, `.codegraph/`; `getpass` bzw. `CYD_WEB_PASSWORD` in `rest_example.py`/`web_check.py`. `[Nutzer]` Fehlalarme in GitHub begründet schließen. Prüfung: CodeQL-Lauf, `git status` sauber. *Commit:* `AF27: Fix tool CodeQL findings and ignore caches`
+Erledigt (AF21–AF28, D49; Details im Git-Verlauf).
 
 #### Priorität 4 – Tests
 

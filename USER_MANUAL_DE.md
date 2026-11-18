@@ -812,7 +812,7 @@ Das Register `Info` zeigt Angaben für die Fehlersuche ohne seriellen Monitor, z
 
 ```text
 Firmware 2.0.0 | main 1a2b3c4
-Build 2026-11-05 15:00
+Build 2026-11-05 14:00 UTC
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
@@ -822,8 +822,8 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 
 | Zeile | Inhalt |
 |---|---|
-| `Firmware` | Version, Branch und Commit, aus dem die Firmware gebaut wurde. `+` hinter dem Commit: mit nicht eingecheckten Änderungen gebaut. Ohne git steht `unknown` |
-| `Build` | Datum und Uhrzeit des Builds |
+| `Firmware` | Version, Branch und Commit, aus dem die Firmware gebaut wurde. Ein Release-Kandidat zeigt die Version seines Tags mit Zusatz, z. B. `Firmware 2.0.0-rc1 | v2.0.0-rc1 1a2b3c4` (statt des Branches steht bei Release-Builds der Tag). `+` hinter dem Commit: mit nicht eingecheckten Änderungen gebaut. Ohne git steht `unknown` |
+| `Build` | Datum und Uhrzeit des Commits in UTC, nicht des Bauens: zwei Builds desselben Commits sind gleich, und die Firmware eines Releases lässt sich Byte für Byte nachbauen. Nur ein Build mit `+` zeigt die Zeit des Bauens |
 | `Display` | Display-Controller (`ILI9341` oder `ST7789`) und Herkunft: `detected` (erkannt), `default` (nichts erkannt, ILI9341 angenommen), `build flag` (beim Bauen festgelegt) |
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
@@ -1091,7 +1091,7 @@ Wichtige Meldungen:
 
 | Meldung | Bedeutung |
 |---|---|
-| `[BOOT] CYD HF Generator 2.0.0 (main 1a2b3c4, 2026-11-10 12:00)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
+| `[BOOT] CYD HF Generator 2.0.0 (main 1a2b3c4, 2026-11-10 11:00 UTC)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
 | `[I2C] Line held low; releasing bus` | Eine I2C-Leitung lag beim Start auf LOW und wurde freigegeben |
 | `[SETTINGS] Loaded from NVS` | Einstellungen geladen |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Einmalig nach dem Update von 1.3.0/1.3.1: die Wahl der früheren Boot-Geste wurde gelöscht (Abschnitt 13) |

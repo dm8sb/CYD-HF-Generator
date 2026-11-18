@@ -8,3 +8,8 @@
 messungen/*/
 # Local WiFi credentials for test builds (main.cpp, -DTEST_WIFI=1); never commit.
 include/test_wifi_local.h
+
+# Python bytecode and the local code index of the editor tooling (AF27)
+__pycache__/
+*.pyc
+.codegraph/

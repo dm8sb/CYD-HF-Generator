@@ -82,7 +82,8 @@ the host tests: `pio test -e native-win -f test_fuzz_random`.
 
 `.github/workflows/fuzz.yml`:
 
-- Every push and pull request: each target 60 s under libFuzzer (`-max_total_time=60`, one
+- Every push to `main`, `dev` or an `agent/**` branch and every pull request to `main` or `dev`
+  (D49): each target 60 s under libFuzzer (`-max_total_time=60`, one
   matrix job per target), plus the standalone driver built with gcc in C++11 with ASan/UBSan
   (seed corpus and 100 000 inputs per target). The job summary lists the executions.
 - Release (W-S25): start the workflow by hand (`workflow_dispatch`) with `runs` ≥ 10 000 000
