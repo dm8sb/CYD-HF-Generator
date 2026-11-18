@@ -39,6 +39,7 @@ from the site itself, no resource from another origin, and every local link pres
 """
 import argparse
 import base64
+import gzip
 import hashlib
 import html
 import io
@@ -47,6 +48,7 @@ import os
 import re
 import shutil
 import struct
+import subprocess
 import sys
 import tarfile
 import urllib.request
@@ -95,6 +97,61 @@ def read_json(path):
 def write_text(path, text):
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
+
+
+def source_date_epoch():
+    """Timestamp for reproducible archives (AF25): SOURCE_DATE_EPOCH, else the commit time of
+    HEAD, else 0."""
+    env = os.environ.get("SOURCE_DATE_EPOCH", "").strip()
+    if env.isdigit():
+        return int(env)
+    try:
+        out = subprocess.check_output(["git", "log", "-1", "--format=%ct"], cwd=ROOT, stderr=subprocess.DEVNULL)
+        return int(out.decode().strip())
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        return 0
+
+
+def write_tar_gz(path, entries, exclude=(), skip_names=()):
+    """Deterministic .tar.gz (AF25): entries [(arcname, file, directory or bytes)] with their trees
+    in sorted order, mtime SOURCE_DATE_EPOCH (or the commit time), owner 0/0 without names, mode
+    0644/0755, gzip header without file name and time. Two builds of the same commit give the
+    same bytes. exclude: arcnames to leave out; skip_names: file or folder names to leave out."""
+    mtime = source_date_epoch()
+    raw = open(path, "wb")
+    try:
+        gz = gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0, compresslevel=9)
+        with tarfile.open(fileobj=gz, mode="w", format=tarfile.GNU_FORMAT) as t:
+            def info(name, kind, size=0, mode=0o644):
+                i = tarfile.TarInfo(name)
+                i.type, i.size, i.mtime, i.mode = kind, size, mtime, mode
+                i.uid = i.gid = 0
+                i.uname = i.gname = ""
+                return i
+
+            def add(arc, src):
+                if arc in exclude or arc.rsplit("/", 1)[-1] in skip_names:
+                    return
+                if isinstance(src, bytes):
+                    t.addfile(info(arc, tarfile.REGTYPE, len(src)), io.BytesIO(src))
+                elif os.path.islink(src):
+                    i = info(arc, tarfile.SYMTYPE, mode=0o777)
+                    i.linkname = os.readlink(src)
+                    t.addfile(i)
+                elif os.path.isdir(src):
+                    t.addfile(info(arc, tarfile.DIRTYPE, mode=0o755))
+                    for name in sorted(os.listdir(src)):
+                        add(arc + "/" + name, os.path.join(src, name))
+                else:
+                    mode = 0o755 if os.stat(src).st_mode & 0o111 else 0o644
+                    with open(src, "rb") as f:
+                        t.addfile(info(arc, tarfile.REGTYPE, os.path.getsize(src), mode), f)
+
+            for arc, src in entries:
+                add(arc, src)
+        gz.close()
+    finally:
+        raw.close()
 
 
 def fetch(url):
@@ -214,25 +271,17 @@ def cmd_notices(args):
     # section 4): the Arduino-ESP32 core and libraries with the board variant and the build
     # scripts that compile them, AsyncTCP, ESPAsyncWebServer, the license texts and a README
     # naming the upstream versions (AF29, LIC-5).
-    def skip(info):
-        return None if info.name.rsplit("/", 1)[-1] in (".git", ".piopm", "__pycache__") else info
-
+    # Deterministic archive (AF25): the same commit gives the same bytes.
     readme = _lgpl_readme(framework, _idf_versions(meta[args.env]), lib).encode("utf-8")
     tar_path = os.path.join(out, "lgpl-sources.tar.gz")
-    with tarfile.open(tar_path, "w:gz") as t:
-        info = tarfile.TarInfo("README.txt")
-        info.size = len(readme)
-        info.mode = 0o644
-        t.addfile(info, io.BytesIO(readme))
-        for rel in LGPL_FRAMEWORK_PARTS:
-            t.add(_need(os.path.join(framework, *rel.split("/"))),
-                  arcname="framework-arduinoespressif32/" + rel, filter=skip)
-        for name in ("AsyncTCP", "ESPAsyncWebServer"):
-            t.add(_need(os.path.join(lib, name)), arcname=name, filter=skip)
-        for arc, src in (("LICENSES/LGPL-2.1-or-later.txt", os.path.join(ROOT, "LICENSES", "LGPL-2.1-or-later.txt")),
-                         ("LICENSES/LGPL-3.0-or-later.txt", os.path.join(ROOT, "LICENSES", "LGPL-3.0-or-later.txt")),
-                         ("LICENSES/GPL-3.0.txt", os.path.join(ROOT, "LICENSE"))):
-            t.add(_need(src), arcname=arc)
+    entries = [("README.txt", readme)]
+    entries += [("framework-arduinoespressif32/" + rel, _need(os.path.join(framework, *rel.split("/"))))
+                for rel in LGPL_FRAMEWORK_PARTS]
+    entries += [(name, _need(os.path.join(lib, name))) for name in ("AsyncTCP", "ESPAsyncWebServer")]
+    entries += [("LICENSES/LGPL-2.1-or-later.txt", _need(os.path.join(ROOT, "LICENSES", "LGPL-2.1-or-later.txt"))),
+                ("LICENSES/LGPL-3.0-or-later.txt", _need(os.path.join(ROOT, "LICENSES", "LGPL-3.0-or-later.txt"))),
+                ("LICENSES/GPL-3.0.txt", _need(os.path.join(ROOT, "LICENSE")))]
+    write_tar_gz(tar_path, entries, skip_names=(".git", ".piopm", "__pycache__"))
     print("notices in %s: %d upstream files, lgpl-sources.tar.gz %d B (framework %s)"
           % (out, len(copies) + len(headers), os.path.getsize(tar_path), framework))
 

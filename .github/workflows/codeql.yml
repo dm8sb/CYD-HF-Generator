@@ -11,8 +11,13 @@
 name: CodeQL
 
 on:
+  # Pushes only on the working branches (D49): main, dev and the agent branches; tags run only
+  # in release.yml. Pull requests to main always (the ruleset requires the checks), to dev for
+  # Dependabot.
   push:
+    branches: [main, dev, "agent/**"]
   pull_request:
+    branches: [main, dev]
   schedule:
     # Weekly, Monday 04:23 UTC: new queries find old code. Runs only on the default branch.
     - cron: "23 4 * * 1"
@@ -21,12 +26,16 @@ on:
 permissions:
   contents: read
 
+# A pull request run is grouped by its number (not refs/pull/...) and cancelled by the next push to
+# it; runs on main (push, schedule) are never cancelled, so the alerts of main always come from a
+# complete analysis and are not shown as "fixed" by a cancelled one (AF21, OPS-1).
 concurrency:
-  group: codeql-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: codeql-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   analyze:
+    # Required checks in the ruleset of main (one per language): keep the name and the languages.
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30

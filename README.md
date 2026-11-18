@@ -80,7 +80,14 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - GUI callbacks of main (touch calibration store, factory reset, WiFi manager and save, web change confirmation, web password worker, remote clients) are passed as one `GuiServices` struct instead of six setters; no visible change
 - The status LED is driven by `main` in every loop (color of the shown channel page, or Identify blinking with the backlight) instead of by the GUI; the GUI reads the heap line through a callback; no visible change
 - Web server code grouped by task: connection gate (async_tcp), login service (async_tcp and its worker task), pusher (loop), shared data under one lock; the job mailbox for WiFi changes and scans is a host-tested `JobSlot`; no change of the API
-- REST writes and WiFi jobs no longer block the network task for up to 80/180 ms with 1-ms polling: they wait at most 20 ms, woken by the main loop, and a slow loop answers them from the connection's poll callback; the state JSON and error bodies are written into a fixed buffer without heap allocations (byte-identical output, E-49)
+- REST writes and WiFi jobs no longer block the network task for up to 80/180 ms with 1-ms polling: they wait at most 20 ms, woken by the main loop, and a slow loop answers them from the connection's poll callback; the state JSON and error bodies are written into a fixed buffer without heap allocations (byte-identical output, E-50)
+- Host tools: `rest_example.py` and `web_check.py` ask for the web password (`--password` without a value) or take `CYD_WEB_PASSWORD`; a password on the command line still works with a warning. CI fails if `include/test_wifi_local.h` or Python bytecode is tracked
+- Advisory check: weekly and before every release, the pinned dependencies (libraries, Arduino-ESP32, ESP-IDF, ESP Web Tools with its npm packages) are checked against the GitHub advisories of their upstream repositories and OSV; a finding fails the run and opens an issue (`tools/dep_check.py advisories`, accepted exceptions with reason in `tools/advisories_accepted.json`)
+- Release dry run: pull requests to `main` run the release workflow without release and deploy; asset names, licenses archive, `SHA256SUMS` and notes come from `tools/release_files.py` for the dry run and the release alike
+- Reproducible stamps: the info card and boot line show the commit time in UTC instead of the local build time, a release candidate shows its tag version (`2.0.0-rc1`) and the tag instead of `HEAD`; the license and LGPL archives of a release are deterministic (sorted, commit time, no owner, gzip without name and time), so an independent rebuild can be compared with the attested assets
+- Framework pinned exactly: `platform_packages` fixes the Arduino-ESP32 packages, the toolchain and esptool (the platform only asked for tilde ranges); CI and the release check the resolved packages against the pins and `THIRD_PARTY_NOTICES.md` (`tools/dep_check.py`), the release build runs without a package cache and its notes list every package; PlatformIO Core in CI is installed with hashes (`tools/requirements-ci.txt`, kept current by Dependabot); the package cache of CI is written only on `main` and `dev`
+- Zero-warning gate in CI: a compiler warning in `src/` or `include/` of the firmware builds fails the job `Firmware build`; host tests with `-Wall -Wextra`, `native-cpp20` with `-Werror`; a further job builds the touch log firmware and the host screen renderer
+- CI, fuzzing and CodeQL run on pushes to `main`, `dev` and `agent/**` and on pull requests (no longer on tags or other branches); runs on `main` are never cancelled by a later push, so the CodeQL alerts of `main` always come from a complete analysis
 
 ### 2.0.0
 
@@ -166,7 +173,7 @@ Pinned in `platformio.ini`:
 
 | Library | Version | License |
 |---|---|---|
-| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, Hash) with ESP-IDF 5.5.5 | 3.3.12 via `espressif32@8.0.0` | LGPL-2.1-or-later, Apache-2.0, MIT |
+| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, Hash) with ESP-IDF 5.5.5 | 3.3.12 via `espressif32@8.0.0`, package `framework-arduinoespressif32@4.30312.261116` (exact, with `-esp32-libs@3.3.12`, toolchain and esptool) | LGPL-2.1-or-later, Apache-2.0, MIT |
 | `bodmer/TFT_eSPI` (exact: the ST7789 init sequence is derived from it) | 2.5.43 | FreeBSD (BSD-2-Clause-Views), MIT |
 | `lvgl/lvgl` | 8.4.0 | MIT |
 | XPT2046_Touchscreen | commit `d57f64c` (tag v1.4) | MIT |
@@ -189,9 +196,9 @@ pio run -t upload            # both boards
 pio device monitor -b 115200
 ```
 
-Releases (`.github/workflows/release.yml`): a `v*` tag is built only if its commit is on `main` and passes the host tests; the release is never overwritten (tag ruleset and immutable releases on GitHub), and the web flasher goes live only after the release exists. Every release asset is covered by the build provenance; check one with `gh attestation verify <file> --repo dm8sb/CYD-HF-Generator` and the checksums with `sha256sum -c SHA256SUMS`. A manual run of the workflow builds and assembles the flasher site as an artifact but never deploys it.
+Releases (`.github/workflows/release.yml`): a `v*` tag is built only if its commit is on `main` and passes the host tests; the release is never overwritten (tag ruleset and immutable releases on GitHub), and the web flasher goes live only after the release exists. Every release asset is covered by the build provenance; check one with `gh attestation verify <file> --repo dm8sb/CYD-HF-Generator` and the checksums with `sha256sum -c SHA256SUMS`. A manual run of the workflow builds and assembles the flasher site as an artifact but never deploys it. Every pull request to `main` (and every push to `dev` or `agent/**` that changes the release path) runs the same workflow as a dry run: tests, build without cache, flasher site and the job `Release dry run`, which names the assets and writes the notes with the same script as the release (`tools/release_files.py`) without publishing anything.
 
-The controller is read over SPI before the display init at every boot; nothing is stored. For an unrecognized board (display shows only noise), build with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789). `tools/build_info.py` passes branch, commit (`+` = uncommitted changes) and build time to `src/utils/build_info.cpp` only. Partition table `huge_app.csv`; a standard 4 MB module is sufficient.
+The controller is read over SPI before the display init at every boot; nothing is stored. For an unrecognized board (display shows only noise), build with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789). `tools/build_info.py` passes branch, commit (`+` = uncommitted changes), the commit time in UTC (`SOURCE_DATE_EPOCH` if set) and, for a tag build, the tag version (e.g. `2.0.0-rc1`) to `src/utils/build_info.cpp` only, so two builds of the same commit give the same image. Partition table `huge_app.csv`; a standard 4 MB module is sufficient.
 
 ## Tests
 

@@ -18,7 +18,7 @@
 // through a one-slot job mailbox that loop() serves. The handler waits at most 20 ms (woken by
 // loop(), no polling) for the commands to show in the snapshot or the job to finish; a slower
 // loop() gets the request paused and answered from the connection's poll callback, a write after
-// at most REPLY_WAIT_MS with the state as it is (AF54, E-49). The password check goes through
+// at most REPLY_WAIT_MS with the state as it is (AF54, E-50). The password check goes through
 // LoginQueue to a low-priority worker task (W-S23: PBKDF2 takes about 1.3 s); its answer is also
 // sent from the poll callback. Every answer leaves in the async_tcp task. loop() runs the
 // two-stage network change, the WebSocket push and the guard configuration. Shared data is

@@ -15,6 +15,10 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | `device_constants.py` | Frequency limits, step list, correction range and defaults read from `include/constants.h`, for `web_mock.py`, `fake_scpi_device.py` and `web_check.py` (no copies of firmware constants in the tools). |
 | `web_mock.py` | Mock of the web server (standard library): serves `data/www` with the REST API, WebSocket and request guard on a simulated device, to try the web UI and `web_check.py` without hardware (see below). |
 | `flasher_site.py` | Release helper: collects the flash parts and offsets from PlatformIO, the license notices and LGPL sources, downloads ESP Web Tools by hash and assembles and checks the web flasher site (used by `release.yml`; `--help` per subcommand). |
+| `release_files.py` | Release helper (AF23): `name` turns the build artifact into the release assets (`cyd-hf-generator-<version>-…`, deterministic licenses archive, LGPL sources, `SHA256SUMS`), `notes` writes the release notes with offsets, esptool command and package list; a missing file or part fails. `release.yml` runs it for a tag and in the dry run of pull requests to `main`. |
+| `dep_check.py` | Pinned dependencies (AF22): `packages` compares `pio pkg list` and the build metadata with the exact pins in `platformio.ini` (`platform_packages`, registry libraries) and with the versions in `THIRD_PARTY_NOTICES.md` (Arduino-ESP32, ESP-IDF tag and commit, GCC runtime, libraries); CI and `release.yml` run it, `--summary` writes the package table. `advisories` (AF26) checks the pinned versions (libraries, Arduino-ESP32 and ESP-IDF from the notices, ESP Web Tools and its npm packages) against the GitHub advisories of the upstream repositories and OSV; a finding fails (`advisories.yml` weekly with an issue, `release.yml` before every release). Advisories that do not apply go with their reason into `advisories_accepted.json`; `--override NAME=VERSION` tests with an old version (`--override ESPAsyncWebServer=3.11.0` finds two advisories); token from `GITHUB_TOKEN`/`GH_TOKEN`. |
+| `advisories_accepted.json` | Advisories of pinned dependencies that do not apply to this firmware, each with the reason (read by `dep_check.py advisories`). |
+| `requirements-ci.txt` | PlatformIO Core and its Python dependencies with hashes for the workflows (`pip install --require-hashes -r tools/requirements-ci.txt`); Dependabot keeps it current. |
 | `prefix_map.py` | PlatformIO build script (not a host tool): maps the build paths in `__FILE__` to neutral prefixes, so no local path ends up in the image. |
 | `render_images.py` | Renders the images in `docs/img/`: device screens from the real GUI code (host renderer `screens/`, env `screens-win`/`screens`), the case (OpenSCAD), the web UI on `web_mock.py` and the social preview; sample values only. Paths can be set with `PIO`, `OPENSCAD`, `CHROME`, `NODE`. Screens: `pio run -e screens-win` (`screens` on Linux/macOS) builds a host program from `src/gui` with LVGL 8.4 and the fakes of `test/fakes`, RGB565 frames are scaled 2× into a bezel; case: OpenSCAD 2025 (`--backend=Manifold`), headless Chrome or Edge scales down; web: `web_mock.py` on a free port of 127.0.0.1 set over REST. |
 | `cdp_shot.mjs` | Node 22+ helper of `render_images.py`: screenshots over the Chrome DevTools protocol (viewport and phone emulation, clip to an element). |
@@ -45,7 +49,7 @@ Open the USB port with DTR and RTS off, otherwise the board restarts (the script
 python tools/scpi_example.py --usb COM5
 python tools/scpi_example.py --tcp cyd-hf-1a2b.local            # port 5025
 python tools/scpi_example.py --visa "TCPIP0::cyd-hf-1a2b.local::5025::SOCKET"   # needs pyvisa
-python tools/rest_example.py cyd-hf-1a2b.local --password secret123   # web password: 8 to 64 characters
+python tools/rest_example.py cyd-hf-1a2b.local --password      # asks for the web password (8 to 64 characters)
 python tools/lxi_example.py --discover                          # VXI-11 broadcast, *IDN? of every device
 python tools/lxi_example.py --address 192.168.1.50 --command "FREQ?"
 python tools/lxi_example.py --address 192.168.1.50 --pyvisa     # TCPIP::<ip>::INSTR, needs pyvisa pyvisa-py
@@ -59,6 +63,12 @@ python tools/device_check.py --usb COM5 --outputs --json > report.json
 1 = at least one FAIL, 2 = no connection. `--json` writes the report to stdout (text lines go to stderr).
 The expected values (IDN pattern, limits, error texts, round-trip table, rejected inputs with their error
 codes) are in the tables at the top of the script; adjust them when firmware or manual change.
+
+**Web password** (`rest_example.py`, `web_check.py`): `--password` without a value asks for it without
+echo (`getpass`); without `--password` the tools take the environment variable `CYD_WEB_PASSWORD`, if set.
+`--password <value>` still works but prints a warning: the value lands in the shell history and in the
+process list of the machine. The mock's own `--password` (below) is the password of the simulated
+device, a test value.
 
 ### Offline try-out
 
@@ -88,7 +98,7 @@ python tools/web_mock.py --port 8080                 # then open http://127.0.0.
 python tools/web_mock.py --password secret123 --demo # with login and changing values
 python tools/rest_example.py 127.0.0.1:8080          # the REST example against the mock
 python tools/web_check.py 127.0.0.1:8080             # the contract check against the mock
-python tools/web_check.py cyd-hf-1a2b.local --password secret123   # ... against the device
+python tools/web_check.py cyd-hf-1a2b.local --password    # ... against the device, asks for the password
 ```
 
 The mock gives the firmware's answers (S55); where they differ, the firmware is the reference.

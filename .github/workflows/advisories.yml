@@ -1,0 +1,69 @@
+# SPDX-FileCopyrightText: 2026 DM8SB
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Advisory check of the pinned dependencies (ARBEITSPLAN AF26, D49, W-S24, OPS-8): the versions in
+# platformio.ini, THIRD_PARTY_NOTICES.md (Arduino-ESP32, ESP-IDF) and flasher/esp-web-tools.json
+# against the GitHub advisories of their upstream repositories and OSV (tools/dep_check.py
+# advisories). Weekly and by hand: a finding fails the run and opens (or updates) one issue.
+# Pushes that change the pins or the check run it too, without an issue. release.yml runs the
+# same check before every release.
+# Actions are pinned by commit SHA (W-S24, audit S-20, S-27); the token reads, and writes issues
+# only in the scheduled and manual runs.
+name: Advisories
+
+on:
+  schedule:
+    # Weekly, Monday 05:41 UTC (runs only on the default branch).
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+  push:
+    branches: [main, dev, "agent/**"]
+    paths:
+      - .github/workflows/advisories.yml
+      - tools/dep_check.py
+      - tools/advisories_accepted.json
+      - platformio.ini
+      - THIRD_PARTY_NOTICES.md
+      - flasher/esp-web-tools.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: advisories-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Advisory check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check pinned dependencies against advisories
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/dep_check.py advisories --summary "$GITHUB_STEP_SUMMARY" --issue-body issue.md
+      # One open issue with the current report; a later finding updates its text.
+      - name: Open or update the issue
+        if: failure() && github.event_name != 'push' && hashFiles('issue.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Dependency advisories need review"
+          printf '\nFound by the advisory check, run %s.\n' "$RUN_URL" >> issue.md
+          num="$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
+          if [ -n "$num" ]; then
+            gh issue edit "$num" --body-file issue.md
+            echo "updated issue #$num" >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh issue create --title "$title" --body-file issue.md
+          fi

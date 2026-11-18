@@ -33,7 +33,7 @@ namespace {
 constexpr const char* CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
                             "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 constexpr const char* JSON = "application/json";
-// REST writes and WiFi jobs (AF54, E-49): async_tcp waits at most FAST_REPLY_MS, woken by loop()
+// REST writes and WiFi jobs (AF54, E-50): async_tcp waits at most FAST_REPLY_MS, woken by loop()
 // instead of polling; a slower loop() answers from the connection's poll callback.
 constexpr uint32_t FAST_REPLY_MS = 20;
 constexpr uint32_t JOB_WAIT_MS = 100;        // a job taken by loop() finishes within this

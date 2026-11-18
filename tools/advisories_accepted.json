@@ -1,0 +1,26 @@
+{
+  "GHSA-49x8-xqjg-2pjg": {
+    "dependency": "ESP-IDF 5.5.5",
+    "reason": "ESP-TEE exists only on the RISC-V chips with a TEE (ESP32-C6, -H2, -C5); it is not part of an ESP32 build"
+  },
+  "GHSA-9w88-r2vm-qfc4": {
+    "dependency": "ESP-IDF",
+    "reason": "BluFi example application, not linked into the firmware (no Bluetooth)"
+  },
+  "GHSA-h52q-xhg2-6jw8": {
+    "dependency": "Arduino-ESP32",
+    "reason": "upstream GitHub workflows of arduino-esp32 (CI pipeline), not code in the firmware"
+  },
+  "GHSA-rhcj-7qrh-rrwh": {
+    "dependency": "Arduino-ESP32",
+    "reason": "upstream DangerJS workflow of arduino-esp32 (CI pipeline), not code in the firmware"
+  },
+  "GHSA-rjvf-fxv5-x87j": {
+    "dependency": "ESP-IDF 5.5.5",
+    "reason": "ESP-BLE-MESH: the firmware never starts Bluetooth (no BLE mesh, no GATT server)"
+  },
+  "GHSA-xcpr-5mqp-9qvv": {
+    "dependency": "ESP-IDF 5.5.5",
+    "reason": "Bluedroid A2DP sink: the firmware never starts Bluetooth (no Classic BT, no A2DP)"
+  }
+}

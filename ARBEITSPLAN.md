@@ -10,8 +10,8 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 
 1. **Ein Schritt = ein Commit.** Jeder Schritt der Aufgabenliste (Abschnitt 4) endet mit genau einem Commit. Größere Schritte werden vorher geteilt (S25a/S25b); kein Sammel-Commit.
 2. **Erst das Gate, dann der Commit:**
-   - Host-Tests grün in `native-win` und `native-win-fault` (CI: `native`, `native-fault`);
-   - 0 Warnungen in `src/` (`-Wall -Wextra`);
+   - Host-Tests grün in `native-win` und `native-win-fault` (CI: `native`, `native-fault` und `native-cpp20` mit `-Werror`);
+   - 0 Warnungen in `src/` (`-Wall -Wextra`, Host-Tests ebenso); die CI scheitert an Warnungen in `src/`/`include/` der Firmware-Builds und an jeder Warnung in `native-cpp20` (AF24);
    - neue Logik nur mit Host-Test; der Test scheitert vor dem Fix (Gegenprobe);
    - Handbuch DE **und** EN, Spezifikation (A-n / E-n), README und diese Datei im **selben** Commit;
    - bei Netzcode Review gegen die Sicherheitsanforderungen W-S (Abschnitt 3.7).
@@ -99,9 +99,9 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 | D31 | Der WLAN-Schlüssel darf überall auch ein 64-stelliger Hex-PMK sein: Touch-Tastatur (Seite WIFI), REST und Weboberfläche nehmen 8–63 Zeichen Passphrase oder genau 64 Hex-Zeichen an; E-30, Vertrag und Handbuch werden angeglichen (DOC-13, AF8; Nutzer) |
 | D32 | WLAN-Suche ohne Verbindung: ohne gespeichertes Netz kein Scan; sonst Backoff 15 s → 5 min, solange kein gespeichertes Netz gesehen wird; mit Stationen am Rückfall-AP höchstens alle 2–5 min. `WiFi.begin()` für ein ungesehenes gespeichertes Netz (versteckte SSID) nur noch im selben Takt. Wiederverbinden nach Router-Ausfall dauert damit bis zu 5 min (PERF-5, AF14; Nutzer) |
 | D33 | `GET /lxi/identification` liefert der Web-Server auf Port 80 (Host-/Origin-Prüfung wie die übrige Seite) und bleibt auch mit Web-Passwort ohne Anmeldung lesbar, wie bei Laborgeräten üblich: es enthält nur, was `*IDN?` über Netz-SCPI ohne Login ohnehin liefert (D24). Ausnahme zu D25 (W-E12, LX1, AF18; Nutzer) |
-| D34 | Einzeltasten-Kürzel der Weboberfläche sind standardmäßig **aus**; Schalter „Single-key shortcuts“ im Hilfedialog (im Browser gespeichert); eingeschaltet wirken sie nur im Kanalbereich, nie in Eingabefeldern (A11Y-3, AF41; Nutzer) |
-| D35 | CH1-Schrift in Kanalfarbe auch am Gerät `#F4615D` (5,6 : 1 auf den Karten statt 4,1 : 1), Flächen und Rahmen bleiben `#E53935`; Web und Gerät gleich (A11Y-21, AF43; Nutzer) |
-| D36 | Graue Info- und Modus-Zeilen am Gerät auf Montserrat 14, wo es ohne Abschneiden passt; eng bemessene Stellen (Statusleiste, festes Zeilenraster) behalten 12; Prüfung am Host-Rendering und am Gerät (A11Y-21, AF43; Nutzer) |
+| D34 | Einzeltasten-Kürzel der Weboberfläche sind standardmäßig **aus**; Schalter „Single-key shortcuts“ im Hilfedialog (im Browser gespeichert); eingeschaltet wirken sie nur im Kanalbereich, nie in Eingabefeldern (A11Y-3, AF41; Nutzer) — entfällt mit D48 |
+| D35 | CH1-Schrift in Kanalfarbe auch am Gerät `#F4615D` (5,6 : 1 auf den Karten statt 4,1 : 1), Flächen und Rahmen bleiben `#E53935`; Web und Gerät gleich (A11Y-21, AF43; Nutzer) — entfällt mit D48 |
+| D36 | Graue Info- und Modus-Zeilen am Gerät auf Montserrat 14, wo es ohne Abschneiden passt; eng bemessene Stellen (Statusleiste, festes Zeilenraster) behalten 12; Prüfung am Host-Rendering und am Gerät (A11Y-21, AF43; Nutzer) — entfällt mit D48 |
 | D37 | Umfang vor der Freigabe (S64): AF1–AF10, AF28 (Einstellungen) und zusätzlich AF11/AF12 (HF-Ruhe), damit S59/S60 den endgültigen Stand messen (Nutzer) |
 | D38 | WLAN vorerst ohne Energiesparen (`WIFI_PS_NONE`) und mit voller Sendeleistung: Reaktionszeit zuerst. Messungen und daraus abgeleitete Änderungen kommen zuletzt, die Hardware ist fest. Anlass: im LX1-Gerätetest 220–390 ms Ping mit Modem-Sleep, pyvisa-py scheiterte am Standard-Verbindungs-Timeout (PERF-15, S49; Nutzer) |
 | D39 | Strukturarbeiten (CQ-3, CQ-6; AF49, AF50) erst nach der Freigabe: sie erscheint mit dem geprüften Stand (Nutzer) |
@@ -113,6 +113,9 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 | D45 | `v2.0.0-rc1` vom Nutzer getestet und für gut befunden; **2.0.0** erscheint ohne AF11, AF12 und AF55 und vor den Messungen. Diese folgen in 2.0.x; S64 bleibt die Freigabe nach den Messungen (Nutzer) |
 | D46 | CONFIG in Registern statt Scrollliste (Nutzertests am resistiven Touch: Scrollen schlecht und uneinheitlich, Blättern besser bewertet): Registerleiste unten mit `Signal`, `Freq`, `Net`, `Device`, `Info`, je höchstens drei Zeilen; `Reconnect all` nach `Net`, Touch-Abgleich neben `Lock` in `Device` (E-42). Dazu eine Kopfzeile für alle Seiten außer MAIN: `◀` oben links eine Ebene zurück statt `MAIN` rechts, Seitentasten rechts, Netzliste blättert mit `▲`/`▼` (E-43). Am Gerät keine Anzeige `Saved`/`Saving...` mehr, nur Speicherfehler in Rot; das Handbuch nennt das Speichern nach einigen Sekunden (E-44, Nutzer) |
 | D47 | Nächster Block selbständig: AF55, AF11, AF12, AF13–AF19, G2 und N8. N8 jetzt mit Rechen- und Datenblattwerten, Pegel als „typisch, nicht gemessen“ markiert, nach S63 durch Messwerte ersetzt. UI-Schritte (AF12, AF16, AF18) gesammelt am Ende am Gerät testen. Release erst danach, zusammen mit U27 und der API-Seite (Nutzer) |
+| D48 | Priorität 5 (Barrierefreiheit, AF40–AF43) wird nicht umgesetzt: Gerät und Weboberfläche lassen sich für den Anwendungsfall gut genug bedienen. D34–D36 entfallen damit; die A11Y-Befunde bleiben nur als Namen (Nutzer) |
+| D49 | Priorität 3: CI, Fuzz und CodeQL bei Push nur auf `main`, `dev` und `agent/**` (PRs nach `main` immer), Tags nur im Release-Workflow, auf `main` kein Abbruch (AF21); Framework exakt pinnen, Release ohne Cache, Probelauf des Release-Pfads in PRs nach `main` (AF22, AF23); Warnungen in `src/` lassen die CI scheitern, kein zusätzlicher Lint (AF24); Stempel aus Tag und Commit-Zeit (UTC), rc-Suffix auf der Info-Karte (AF25); wöchentliche Advisory-Prüfung, Fund = roter Lauf und Issue, auch vor Tags (AF26); Werkzeug-Hygiene mit CI-Schutz gegen eine versionierte `include/test_wifi_local.h` (AF27); Repo-Einstellungen per API (AF28) (Nutzer) |
+| D50 | N15 (Flash sparen) wird vorerst nicht umgesetzt; Flash ist mit ≈ 48 % ausreichend frei (Nutzer) |
 
 **Nicht umsetzen:** neue Funktionen außer N14 vorerst (D18); RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); Kanalwahl im Header (Rest von U-16: kein Platz neben Zustand und `MAIN`, über MAIN und die Karten 2 Tipps); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
 
@@ -145,7 +148,7 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 - [ ] **Fakes:** Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln (mehrere Namespaces und Strings im Preferences-Fake). Dazu NVS-Grenzen im Fake (Schlüssel und Namespaces > 15 Zeichen, Strings > 4000 B) und ein Upgrade-Test mit alten Schlüsseln (TEST-11). → AF38
 - [ ] **Geräte-Glue ohne Test** (TEST-1, CQ-6): `web_server.cpp`, `wifi_manager.cpp`, `scpi_tcp_server.cpp` nicht host-kompiliert; `web_check` prüft nur den Mock. → AF32, AF33, AF34, S61
 - [ ] **Testlücken** (TEST-4 bis TEST-8, TEST-10, TEST-12, TEST-14): überlebende Mutanten, Identify ungetestet, keine Sanitizer für die Unit-Tests, keine Fuzz-Ziele für Vorfilter und `RestWifi`, Python-Werkzeuge nicht in der CI. → AF34–AF38, AF47
-- [ ] **Struktur** (CQ-3, CQ-4, CQ-6, CQ-7, CQ-8 und Niedrig-Punkte CQ-9 bis CQ-23): `Gui`- und `WebHmiServer::Impl`-Größe, Texteingabe an LVGL gebunden, Texte zwischen Firmware/JS/Mocks dupliziert, Farbe außerhalb der Palette. → AF43–AF52
+- [ ] **Struktur** (CQ-3, CQ-4, CQ-6, CQ-7, CQ-8 und Niedrig-Punkte CQ-9 bis CQ-23): `Gui`- und `WebHmiServer::Impl`-Größe, Texteingabe an LVGL gebunden, Texte zwischen Firmware/JS/Mocks dupliziert, Farbe außerhalb der Palette. → AF47, AF49–AF51 (CH1-Farbe in der Palette entfällt mit D48)
 
 ### 2.4 Plattform und Lieferkette
 
@@ -155,24 +158,17 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 | P-5 | TFT_eSPI | 2.5.43 (letztes Release) | bleibt; mit Core 3.x im Spike unverändert lauffähig (Flush 35 ms je Vollbild wie unter 2.x); Fork oder LovyanGFX nur als Ausweg (eigene Display-Erkennung bleibt, LovyanGFX erwartet ST7789-ID 0x85, der CYD2USB meldet `8181B3`) |
 | P-6, P-8 | LVGL, Unity | 8.4.0 (E-28, LVGL 9 ausgeschlossen, D13), 2.6.1 | Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 → N11 |
 | P-9 | Web-Bibliotheken | scpi-parser `8866159` (v2.3 + `strings.h`- und `-Wdouble-promotion`-Fix, seit S51, E-29) | ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, ArduinoJson 7.4.3, alle exakt gepinnt |
-| S-20 | Prüfung | XPT2046 auf Commit gepinnt | Plattform-Prüfsumme in der CI, Advisory-Check je Release (W-S24); Framework-Pakete exakt gepinnt (AF22), Advisory-Workflow (AF26); Actions-Policy mit SHA-Zwang gesetzt (D41) |
+| S-20 | Prüfung | XPT2046 auf Commit gepinnt | Plattform-Prüfsumme in der CI, Advisory-Check je Release (W-S24); Framework-Pakete exakt gepinnt (AF22), Advisory-Workflow wöchentlich und vor dem Release (AF26); Actions-Policy mit SHA-Zwang gesetzt (D41) |
 
-- [ ] **Framework nur per Tilde gepinnt** (OPS-3 = LIC-4, OPS-10, OPS-17): Arduino-Framework und `-esp32-libs` als Bereich; Release-Image hängt am CI-Cache; Notices behaupten exakte Pakete. → AF22
+- [x] **Framework nur per Tilde gepinnt** (OPS-3 = LIC-4, OPS-10, OPS-17): Arduino-Framework und `-esp32-libs` als Bereich; Release-Image hängt am CI-Cache; Notices behaupten exakte Pakete. → AF22
 - [ ] **CI-Workflows** (OPS-1, OPS-2, OPS-6, OPS-11, OPS-12, OPS-13, OPS-18 = CQ-20 = TEST-13, OPS-19): CodeQL-Alerts auf `main` fälschlich „fixed“, CI auf `main` abgebrochen, Release-Pfad vor dem Tag ungeprüft, Warnungs-Gate nicht erzwungen, Stempel nicht reproduzierbar. → AF21, AF23, AF24, AF25
-- [ ] **Advisory-Prüfung und Rest Repo-Einstellungen** (OPS-8, OPS-16): keine automatische Schwachstellenprüfung der Firmware-Abhängigkeiten (ESPAsyncWebServer, AsyncTCP, ArduinoJson, scpi-parser, Arduino-ESP32/IDF, LVGL, ESP Web Tools; Dependabot sieht kein Manifest); aus OPS-16 offen: Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot`, Topics (OPS-7 gesetzt, D41). → AF26, AF28
+- [ ] **Advisory-Prüfung und Rest Repo-Einstellungen** (OPS-8, OPS-16): keine automatische Schwachstellenprüfung der Firmware-Abhängigkeiten (ESPAsyncWebServer, AsyncTCP, ArduinoJson, scpi-parser, Arduino-ESP32/IDF, LVGL, ESP Web Tools; Dependabot sieht kein Manifest); aus OPS-16 offen: Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot`, Topics (OPS-7 gesetzt, D41). → AF26 (erledigt), AF28
 
 ### 2.5 Dokumentation
 
 - [M] **„50 % Tastverhältnis“** (Handbuch §1) ist nicht belegt (E5). → S72
 
 ### 2.6 Sicherheit und Netz (Audit)
-
-
-### 2.7 Barrierefreiheit (Web-UI, WCAG 2.2 AA)
-
-- [ ] **Reflow bei Zoom** (A11Y-1 + A11Y-20): Kopfzeile und Ausgangsleiste belegen bei 400 % Zoom 222 von 256 px; Navigation scrollt bei 320 px. **Kontrast CH1-Rot** 4,13:1 (A11Y-2, Gerät A11Y-21). → AF40, AF43
-- [ ] **Tastenkürzel** (A11Y-3, A11Y-4, A11Y-10, A11Y-15, A11Y-16): Einzeltasten ohne Abschaltung, `PgUp`/Pfeile global umbelegt, Zielkanal nur visuell. → AF41
-- [ ] **Statusmeldungen und Beschriftungen** (A11Y-5 bis A11Y-9, A11Y-11, A11Y-12, A11Y-14, A11Y-17; A11Y-13, A11Y-18, A11Y-19): Toast, Speicher-/HW-Status, Login-Fehler und WLAN-Frist ohne Ansage; Gruppen und Dialogtext ohne Zuordnung. → AF40, AF42
 
 ---
 
@@ -294,9 +290,9 @@ Entwürfe zu größeren Audit-Befunden für offene Schritte in Phase 10. Entfern
 
 - **Erledigt bzw. in AF7:** Tag-Ruleset `refs/tags/v*` und Immutable Releases (D29); kein öffentlicher Deploy aus einem manuellen Lauf (D30); AF7 prüft Herkunft (`merge-base --is-ancestor … origin/main`) und Host-Tests des Tag-Commits, bricht bei vorhandenem Release ab, deployt erst nach dem Release (Concurrency `pages`) und attestiert `SHA256SUMS`.
 - **Offen:**
-  - Build hermetisch ohne Cache mit exakt gepinnten Paketen, `pio pkg list` in den Notes (OPS-3, OPS-10; AF22).
-  - Probelauf des Release-Pfads in PRs ohne Veröffentlichung (OPS-6; AF23).
-  - Reproduzierbare Stempel, damit sich ein unabhängiger Nachbau gegen die Attestation prüfen lässt (OPS-13; AF25).
+  - ~~Build hermetisch ohne Cache mit exakt gepinnten Paketen, `pio pkg list` in den Notes (OPS-3, OPS-10; AF22).~~ Erledigt mit AF22.
+  - ~~Probelauf des Release-Pfads in PRs ohne Veröffentlichung (OPS-6; AF23).~~ Erledigt mit AF23.
+  - ~~Reproduzierbare Stempel, damit sich ein unabhängiger Nachbau gegen die Attestation prüfen lässt (OPS-13; AF25).~~ Erledigt mit AF25 (E-49).
 - **Folgen:** Release-Abschnitt im README (Prüfung mit `gh attestation verify` für alle Assets), `SECURITY.md` (Lieferkette). Prüfung per `workflow_dispatch` ohne Deploy; ein Probe-Tag nur auf Anweisung.
 
 #### Konzept 6 · Geräte-Glue testen
@@ -308,22 +304,6 @@ Entwürfe zu größeren Audit-Befunden für offene Schritte in Phase 10. Entfern
 - **Option d – ASan/UBSan-Env für alle Unit-Tests (AF36):** Fuzz-Ziele für Vorfilter und `RestWifi` (AF37).
 - **Empfehlung:** b + c + d. Option a nur für einen schmalen `WiFi`-Fake, falls nach AF13 noch Logik in `wifi_manager.cpp` übrig ist. Optional `screens-win` als Compile-Check der GUI in der CI.
 - **Folgen:** `build_src_filter` und die Liste in CLAUDE.md, README-Tests, `test/fuzz/README.md`, MESSPLAN (S61 mit `web_check`-Protokoll).
-
-#### Konzept 7 · Barrierefreiheit der Weboberfläche (und Kontrast am Gerät)
-
-- **Problem:**
-  - Reflow bei Zoom (A11Y-1), CH1-Rot unter 4,5:1 (A11Y-2/21).
-  - Globale Einzeltasten und umbelegte Scroll-Tasten, die HF-Ausgänge schalten bzw. verstellen (A11Y-3/4).
-  - Statusmeldungen ohne Ansage (A11Y-5/6/7/9/12), fehlende Zuordnungen (A11Y-8/10/11/14).
-- **Entwurf:**
-  - **CSS:** Kopfzeile und Leiste nur bei ausreichender Höhe fixieren (`max-height`-Query), `nav` umbrechen.
-  - **Farbe:** Textfarbe CH1 `#f4615d` im Web und `Palette::CH1_TEXT` am Gerät. Rahmen und Schalter bleiben im Kanalrot (Non-Text 3:1 erfüllt).
-  - **Tastatur:** Schalter „Single-key shortcuts“ im Hilfedialog. Kürzel wirken nur bei Fokus auf `body` bzw. im Kanalbereich. Frequenzanzeige als `spinbutton`, Pfeile und `PgUp` nur dort.
-  - **Ansagen:** Zwei dauerhaft vorhandene Live-Regionen (`status`, `alert`) als einzige Ansagewege. Fehler in `alert`, Werte nach eigenen Änderungen verzögert in `status`.
-  - **Struktur:** `<main>`, `h1`, Gruppen mit `aria-labelledby`, Dialoge mit `aria-describedby`.
-  - **Bewegung:** `prefers-reduced-motion`.
-- **Empfehlung:** AF40, AF41, AF42, AF43 in dieser Reihenfolge. Kürzel standardmäßig aus, einschaltbar, nur im Kanalbereich wirksam (D34).
-- **Folgen:** `data/www/README.md` (Tastatur, Rollen, keine `hidden`-Live-Regionen), Handbuch §16 (Tabelle der Tasten, Schalter), `test_contrast` (neue Paare), `render_images.py`. Optional ein axe-Lauf über `tools/cdp_shot.mjs` als nicht verpflichtender CI-Job.
 
 ---
 
@@ -344,7 +324,7 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 
 Stand: G1, G4–G9a, G11, G13 erledigt (Abschnitt 1.1), Workflows und Ruleset auf `main`; Pages (Quelle GitHub Actions) mit Umgebung `github-pages` (Regeln `main`, `v*`) sowie Secret Scanning und Push-Schutz sind eingerichtet.
 
-- [ ] **G5 · Rest Repo-Einstellungen (`[Nutzer]`, kein Commit).** PING-Flut-Befund (AF18) an ESPAsyncWebServer melden (optional). Topics speichern, Vorschaubild `docs/img/social-preview.png` hochladen; aus OPS-16 Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot` (AF28).
+- [ ] **G5 · Vorschaubild (`[Nutzer]`, kein Commit).** `docs/img/social-preview.png` unter Settings → General → Social preview hochladen (geht nur im Browser); optional den PING-Flut-Befund (AF18) an ESPAsyncWebServer melden. Per API gesetzt (AF28, D49): Topics, Dependabot-Sicherheitsupdates, Environment `copilot` entfernt.
 - [ ] **G9 · Projektseite (Rest).** `[Nutzer]` Beschreibung, Website `https://dm8sb.github.io/CYD-HF-Generator/`, Topics, Vorschaubild 1280 × 640; CN1-Steckerraster (1,25 mm) und Pinfolge am Board bestätigen; Handbuch als Pages-Seite (nach G2). *Commit:* `G9b: Add manual page`
 - [ ] **G10 · Fotos (später, `[Nutzer]`).** Nach der Liste in `docs/hardware.md`: `board-cyd-front.jpg` und `board-cyd2usb-front.jpg` (MAIN-Seite, CH1 an), `si5351-wiring.jpg` (Modul mit den 4 Leitungen zu CN1 und CLK0–2), `cn1-connector.jpg` (Rückseite, Beschriftung lesbar), `setup-bench.jpg` (Aufbau mit Koax zum Messgerät), je ≤ 500 KB, kein WLAN-Name auf dem Display; ablegen unter `docs/img/`. Danach Platzhalter in `docs/hardware.md` aktivieren. Vorschaubild `social-preview.png` 1280 × 640 (< 1 MB) lädt der Nutzer unter Settings → General → Social preview hoch. Zwischenstand (G13): gerenderte Bilder in `docs/img/` stehen bis dahin in README, `docs/hardware.md`, `case/README.md` und Handbuch Anhang A, darunter eine gerenderte `social-preview.png` (liegt jetzt doch im Repo; durch eine Version mit Foto ersetzbar). *Commit:* `G10: Add hardware photos`
 
@@ -361,6 +341,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 
 ### Phase 9 – Folgearbeiten (je ein Commit, nach Messergebnis oder Rückfrage)
 
+- [ ] **DK1 · Doku konsolidieren (nach dem Merge von Priorität 3 und 6, vom Hauptagenten selbst).** README („Next release“ zu einer Release-Liste zusammenfassen, Doppelungen mit Handbuch und API-Seite entfernen), Handbuch DE/EN (neue Abschnitte §8, §17, §18 und die Änderungen aus AF11–AF19 auf Doppelungen und Querverweise prüfen, Inhaltsverzeichnis, Glossar), `docs/REMOTE_API.md` gegen §15/§16 und den REST-Vertrag abgleichen, CLAUDE.md, SECURITY.md, `tools/README.md`, Plan (Erledigtes entfernen); Linkprüfung und Parität DE/EN. *Commit:* `DK1: Consolidate the documentation`
 - [ ] **N1 · Standard-Tuning** ändern, wenn die Stufe-2-Messungen es tragen (Rückfrage 1, E-19).
 - [ ] **N2 · IQ-Abstimmen ohne Aussetzer** (Abschnitt 2.1).
 - [ ] **N3 · Ungerade IQ-Teiler bei 180°/270°**, wenn E4 einen Fehler > 1° zeigt.
@@ -369,10 +350,9 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N7 · TCXO-Option** nach C7, C8.
 - [ ] **N9 · Sticky-Bit und „PLL locked“** (Abschnitt 2.1).
 - [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
-- [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release (AF26).
+- [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 (behebt GHSA-ch63, AF26); Advisory-Check je Release läuft (AF26).
 - [ ] **N13 · DMA und Doppelpuffer** (Abschnitt 2.3, nach der Migration).
 - [ ] **N14 · Gekoppelter Betrieb CH2 = CH1 ± Offset (D18).** CH2 folgt CH1 mit festem Offset (positiv oder negativ, z. B. Überlagerungsempfänger mit fester ZF): Einstellung und Anzeige auf der CH2-Seite, Grenzen 8 kHz–160 MHz für beide, CH3-IQ und Spread berücksichtigen, SCPI/REST und Weboberfläche; Planung vor der Umsetzung. *Commit:* `N14: Add CH2 coupled to CH1 with offset`
-- [ ] **N15 · Flash sparen (bei Bedarf).** Teilschriften mit `lv_font_conv` aus denselben Quellen (Montserrat, Font Awesome, OFL): Montserrat 28 (37 KB, nur die Frequenz auf CH1/CH2/CH3: Ziffern, `.`, Leerzeichen, `~`, `kHz`/`MHz`) auf ≈ 5 KB → ≈ 30 KB; Montserrat 20 (22 KB) ohne ungenutzte Symbole (genutzt: BACKSPACE, LEFT, RIGHT, MINUS, PLUS, TRASH, WIFI) → einige KB. Vorher alle Texte dieser Schriften prüfen, danach Bedientest. Nur mit eigenem IDF-Build (D14 ausgeschlossen): Bluetooth-Reste ≈ 6 KB, Core-Dump ≈ 13 KB, IPv6 ≈ 11 KB, Fehlertexte ≈ 8 KB. Schon erledigt: TFT_eSPI-Schriften −27,6 KB, Build-Pfade −0,9 KB (Stand 1 507 650 B, 47,9 %). Beim Subsetting `--no-kern` (Kerning ≈ 16,5 KB) und `-fno-exceptions` für `src/` testen (≈ 12,5 KB `.eh_frame`), PERF-13. *Commit:* `N15: Subset the large LVGL fonts`
 
 ### Phase 10 – Audit-Folgearbeiten (je ein Commit)
 
@@ -380,14 +360,7 @@ Jeder Schritt nennt Befund-IDs, Ort, Problem und Richtung selbst. „Konzept n�
 
 #### Priorität 3 – Lieferkette und CI
 
-- [ ] **AF21 · CI-Trigger und Concurrency (S).** OPS-1, OPS-2, OPS-11, OPS-12, OPS-19. `push`/`pull_request` auf `[main, dev]`, Tags ausgenommen; Concurrency mit `event_name` und PR-Nummer, auf `main`/Tags kein Abbruch; CodeQL-PR-Läufe ohne `refs/pull/` abbrechen; Kommentar „Pflicht-Check im Ruleset main“ an den betroffenen `name:`; `gh run list --event push`. Danach einmal CodeQL auf `main` starten. Prüfung: Läufe auf `dev` und PR sehen, Alerts auf `main` wieder offen. *Commit:* `AF21: Narrow CI triggers and stop cancelling runs on main`
-- [ ] **AF22 · Framework exakt pinnen, Release ohne Cache (M).** OPS-3 = LIC-4, OPS-10, OPS-17. `platform_packages` mit `framework-arduinoespressif32@4.30312.261024`, `-esp32-libs@3.3.12`, `toolchain-xtensa-esp-elf@14.2.0+20260121`, `native@<x.y.z>`; `pio pkg list` in die Job-Summary und die Release-Notes; CI-Schritt vergleicht aufgelöste Versionen und IDF-Commit mit `THIRD_PARTY_NOTICES.md`; Release ohne `~/.platformio`-Cache, CI speichert Cache nur auf `main`/`dev`; `tools/requirements-ci.txt` mit Hashes + Dependabot `pip`. Notices-Zeile 21 anpassen. Prüfung: kalter Build ergibt dieselben Paketversionen; Größe unverändert. *Commit:* `AF22: Pin the Arduino framework packages exactly`
-- [ ] **AF23 · Release-Pfad vor dem Tag prüfen (M).** OPS-6. Benennung der Release-Dateien in ein Skript; Release-Workflow (ohne `release`/`deploy`) bei PRs nach `main` und bei Änderungen an `release.yml`, `tools/flasher_site.py`, `flasher/**`. Prüfung: PR-Lauf grün, absichtlich falscher Pfad schlägt im PR fehl. *Commit:* `AF23: Dry-run the release path on pull requests`
-- [ ] **AF24 · Warnungs-Gate und Lint in der CI (S).** OPS-18 = CQ-20 = TEST-13. Firmware-Log auf `src/.*warning:` prüfen (oder `-Werror` in einer CI-Env), `-Wextra` in `[native_test]`, `-Werror` in `native-cpp20`; optional `ruff`, `node --check`, `lizard -C 30 -L 120` mit Ausnahmeliste; nicht verpflichtender Job für `touchlog`/`screens`. Regel 0.2: `native-cpp20` als CI-Gate nennen. Prüfung: absichtliche Warnung lässt die CI scheitern. *Commit:* `AF24: Enforce the zero-warning gate in CI`
-- [ ] **AF25 · Reproduzierbare Stempel (S–M).** OPS-13. Heute meldet das Image eines Release-Kandidaten `<Version> | HEAD` (kein rc-Suffix, Branch `HEAD`, Lokalzeit ohne Zone; `tools/build_info.py`), die Tarballs sind nicht deterministisch. Version aus dem Tag (`GITHUB_REF_NAME`/`git describe`), Branch bei detached HEAD = Tag, Zeit aus `SOURCE_DATE_EPOCH` (Commit-Zeit, UTC); Tarballs sortiert, feste mtime, `gzip -n`. Handbuch (Info-Karte zeigt rc-Suffix), README. Prüfung: zwei Builds desselben Commits ergeben identische Tarballs; `build_info`-Check in der CI. *Commit:* `AF25: Stamp builds with the tag and commit time`
-- [ ] **AF26 · Advisory-Prüfung der Abhängigkeiten (M).** OPS-8, S-20, W-S24, N11. Workflow wöchentlich und vor Tags: gepinnte Versionen aus `platformio.ini`/`esp-web-tools.json` gegen GHSA/OSV der Upstream-Repos; Fund → Job rot und Summary. Prüfung: Testlauf mit einer bekannten alten Version. *Commit:* `AF26: Check pinned dependencies against advisories`
-- [ ] **AF27 · Werkzeug-Hygiene (S).** OPS-9, SEC-7, SEC-8. `flasher_site.py:509` und `web_check.py:154` mit `re.I` bzw. HTML-Parser, `tools/screens/main.cpp` mit eingeschränkten Rechten; `git rm --cached tools/__pycache__/…pyc`, `.gitignore` um `__pycache__/`, `*.pyc`, `.codegraph/`; `getpass` bzw. `CYD_WEB_PASSWORD` in `rest_example.py`/`web_check.py`. `[Nutzer]` Fehlalarme in GitHub begründet schließen. Prüfung: CodeQL-Lauf, `git status` sauber. *Commit:* `AF27: Fix tool CodeQL findings and ignore caches`
-- [ ] **AF28 · Rest Repo-Einstellungen (`[Nutzer]`, kein Commit).** Siehe G5; Tag-Ruleset, Immutable Releases, Actions-Policy, Merge-Methode und Wiki sind gesetzt (D29, D41).
+Erledigt (AF21–AF28, D49; Details im Git-Verlauf).
 
 #### Priorität 4 – Tests
 
@@ -400,13 +373,6 @@ Jeder Schritt nennt Befund-IDs, Ort, Problem und Richtung selbst. „Konzept n�
 - [ ] **AF38 · NVS-Grenzen im Fake, Upgrade-Test (S–M).** TEST-11 (Abschnitt 2.3 „Fakes“). Fake lehnt Schlüssel/Namespaces > 15 Zeichen und Strings > 4000 B ab; `test_upgrade_from_old_keys` mit dem vollständigen Schlüsselsatz des letzten Release. Prüfung: Test scheitert mit einem absichtlich zu langen Schlüssel. *Commit:* `AF38: Model NVS limits in the fake and test the upgrade`
 - [ ] **AF39 · Messhelfer für S61 (M).** TEST-2. `tools/slowloris.py` (L-S5: 30 offene Anfragen, Abschluss nach 10 s), fehlende Helfer aus dem MESSPLAN-Anhang anlegen oder dort streichen (`lsec_check.py`, `scpi_selftest.py`, `touchstat.py`, `counter_log.py`), Firmware-Env mit `TEST_FAULT_IQ=1` für die Mess-ID A8 (MESSPLAN), `device_check.py`-Profile für L6/L22. `tools/README.md`, MESSPLAN-Anhang. Prüfung: Helfer gegen Mock/Fake. *Commit:* `AF39: Add the measurement helpers for tier 1W`
 
-#### Priorität 5 – Barrierefreiheit
-
-- [ ] **AF40 · Web-UI: Reflow, Kontrast, Struktur, Bewegung (S–M).** A11Y-1 + A11Y-20, A11Y-2, A11Y-13, A11Y-18, A11Y-19. `@media (max-height:500px)` ohne sticky/fixed, `nav{flex-wrap:wrap}`, flachere Kopfzeile; `--c1` für Text `#f4615d`; `<main>`, `h1`, Sections mit `aria-labelledby`; `prefers-reduced-motion`; Hilfe-Button-Name, `thead`. `data/www/README.md`, Handbuch §16 (falls Bilder/Text betroffen), `render_images.py web`. Prüfung: axe-core-Lauf (320 × 256 CSS-px = 400 % Zoom, 1280 × 720 bei 200 %; heute belegen Kopfzeile und Leiste 222 von 256 bzw. 198 von 360 px, „WiFi“ liegt bei 320 px außerhalb, CH1-Text 4,13 : 1) ohne `color-contrast`-/Landmark-Verstöße, 400-%-Probe; Sichtprüfung im Browser. *Commit:* `AF40: Make the web UI reflow at high zoom and fix CH1 text contrast`
-- [ ] **AF41 · Tastenkürzel abschaltbar und lokal (M).** A11Y-3, A11Y-4, A11Y-10, A11Y-15, A11Y-16. Schalter „Single-key shortcuts“ im Hilfedialog, Standard aus (D34; `localStorage` mit try/catch); Buchstaben-/Ziffernkürzel nur bei Fokus auf `body`/Kanalbereich; Frequenzanzeige als `role="spinbutton"` mit `aria-valuetext`, Pfeile/`PgUp` nur dort; `aria-current` für den gewählten Kanal; Leerzeichen in der Ziffernanzeige; Selects erst bei Enter/Blur bzw. entprellt. Tastaturtabelle in `data/www/README.md`, Handbuch §16. Heute wirken `1`/`2`/`3`, `f`, `o`, `?`, `+`, `-` überall außerhalb von Eingabefeldern (`app.js` `onKey`), dreimal `PgUp` nach dem Laden hob CH1 von 10 auf 100 MHz, der Zielkanal ist nur am Rahmen erkennbar, jede Pfeiltaste in einer Auswahlliste schreibt sofort. Prüfung: Tab-Durchlauf, `PgUp` auf `body` scrollt; Bedientest. *Commit:* `AF41: Scope keyboard shortcuts and let users turn them off`
-- [ ] **AF42 · Statusmeldungen und Beschriftungen (M).** A11Y-5 bis A11Y-9, A11Y-11, A11Y-12, A11Y-14, A11Y-17. Dauerhafte `status`-/`alert`-Regionen; `#save`/`#hw`; `aria-describedby`/`aria-invalid`; Dialog `aria-describedby`; Fokus auf `Confirm` der WLAN-Frist mit Ansage; Gruppen für Master/Phase, Korrekturschritt; Wertansage nach −/+ und Enter, Fokus bleibt im Feld; eindeutige Labels WiFi/CONFIG; `#conn` nur bei Änderung. Prüfung: Accessibility-Tree-Dump, axe; optional Stichprobe mit NVDA. *Commit:* `AF42: Announce status changes and label grouped controls in the web UI`
-- [ ] **AF43 · Gerät: CH1-Textfarbe und Aktionsfarbe in der Palette (S).** A11Y-21, CQ-8. `Palette::CH1_TEXT = 0xF4615D` für Text in Kanalfarbe, `Palette::ACTION_AMBER`/`Colors::action()` statt `0xF9A825`; Paare in `test_contrast` (≥ 4,5 für Text); Modus-/Infozeilen, wo Platz ist, auf Montserrat 14 (D36). Prüfung: `test_contrast` scheitert vor dem Fix; `render_images.py screens`; Bedientest. *Commit:* `AF43: Use a readable CH1 text color and keep all colors in the palette`
-
 #### Priorität 6 – Struktur und Kleinkram
 
 - [x] **AF47 · Texteingabe und WLAN-Texte als reine Logik (M).** CQ-4, TEST-12. Heute liegen die sechs `EntryPurpose`-Zweige (Name, IP-Feld, Web-Passwort mit „leer = entfernen“, AP-Passwort, SSID → Passwort, verstecktes offenes Netz) im LVGL-Handler von `page_wifi.cpp`, „Zweck setzen und navigieren“ steht 7-mal dort; WLAN-Statustext und Seitenaufteilung der Scan-Liste ebenso. `openEntry_()`, `InputLogic::submitEntry()`, `StatusText::wifiLine()`, Seitenaufteilung der Scan-Liste in `InputLogic`. Prüfung: Host-Tests je Eingabezweck und Zustand, Textbreite; Bedientest WIFI-Seiten. *Commit:* `AF47: Move text entry validation and WiFi status texts into tested logic` *Erledigt auf `agent/prio6c`; Bedientest am Gerät offen.*
@@ -415,7 +381,7 @@ Jeder Schritt nennt Befund-IDs, Ort, Problem und Richtung selbst. „Konzept n�
 - [x] **AF51b · LED/Heap-Schichtung (S, Aufräumen, nach AF12).** CQ-13/CQ-17, Teil LED. Heute steuert die GUI die Status-LED und liest den Heap direkt (`gui.cpp`, `page_config.cpp`, `page_main.cpp`; Identify hat zwei Besitzer, die LED bleibt dunkel, wenn die GUI nicht aktualisiert). `StatusLed` aus `AppController`/`main`, Heap per Callback. Prüfung: Identify am Gerät. *Commit:* `AF51b: Move the status LED out of the GUI` *Erledigt auf `agent/prio6c`; Bedientest am Gerät offen.*
 - [x] **AF54 · Asynchrone REST-Antworten, JSON ohne Allokation (M–L).** PERF-7, PERF-9. Heute blockieren REST-Schreibvorgänge und WLAN-Jobs `async_tcp` bis 80/180 ms mit 1-ms-Polling (laut W-S23 akzeptiert), der ArduinoJson-Zustandsaufbau allokiert je Aufruf ≈ 20–30-mal. `req->pause()` + Antwort aus `onPoll` für Schreibvorgänge und Jobs; Writer mit festem Puffer (bzw. Arena) für Zustand und Fehler. Prüfung: Host-Test des Writers gegen ArduinoJson-Ausgabe; Gerät: WS-Latenz während Halten-Wiederholen in einem zweiten Tab. *Commit:* `AF54: Answer REST writes asynchronously and build JSON without allocations` *Erledigt auf `agent/prio6c`; Prüfung WS-Latenz und web_check am Gerät offen.*
 
-In bestehende Schritte eingeordnet (kein eigener AF-Schritt): PERF-13 → N15, PERF-14 und der PERF-8-Worst-Case → S57, PERF-15 → AF55 (D38) und S49, TEST-2 → S41c/S59/S61 (+ AF39), DOC-14 → AF4.
+In bestehende Schritte eingeordnet (kein eigener AF-Schritt): PERF-13 → entfällt (D50), PERF-14 und der PERF-8-Worst-Case → S57, PERF-15 → AF55 (D38) und S49, TEST-2 → S41c/S59/S61 (+ AF39), DOC-14 → AF4.
 
 ---
 

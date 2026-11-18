@@ -812,7 +812,7 @@ At the end of the page, a card shows information for troubleshooting without a s
 
 ```text
 Firmware 2.0.0 | main 1a2b3c4
-Build 2026-11-05 15:00
+Build 2026-11-05 14:00 UTC
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
@@ -822,8 +822,8 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 
 | Line | Content |
 |---|---|
-| `Firmware` | Version, branch and commit the firmware was built from. `+` after the commit: built with uncommitted changes. Without git, `unknown` is shown |
-| `Build` | Date and time of the build |
+| `Firmware` | Version, branch and commit the firmware was built from. A release candidate shows the version of its tag with the suffix, e.g. `Firmware 2.0.0-rc1 | v2.0.0-rc1 1a2b3c4` (release builds show the tag instead of the branch). `+` after the commit: built with uncommitted changes. Without git, `unknown` is shown |
+| `Build` | Date and time of the commit in UTC, not of the build: two builds of the same commit are equal, and the firmware of a release can be rebuilt byte for byte. Only a build with `+` shows the time of the build |
 | `Display` | Display controller (`ILI9341` or `ST7789`) and source: `detected` (detected automatically), `default` (nothing detected, ILI9341 assumed), `build flag` (set at build time) |
 | `Touch` | `Touch calibrated x … y …`: stored calibration with the raw values of the screen edges; `Touch not calibrated (default)`: fixed values |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
@@ -1091,7 +1091,7 @@ Important messages:
 
 | Message | Meaning |
 |---|---|
-| `[BOOT] CYD HF Generator 2.0.0 (main 1a2b3c4, 2026-11-10 12:00)` | Startup: version, branch, commit and build time as on the info card |
+| `[BOOT] CYD HF Generator 2.0.0 (main 1a2b3c4, 2026-11-10 11:00 UTC)` | Startup: version, branch, commit and build time as on the info card |
 | `[I2C] Line held low; releasing bus` | An I2C line was LOW at startup and was released |
 | `[SETTINGS] Loaded from NVS` | Settings loaded |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Once after updating from 1.3.0/1.3.1: the choice of the former boot gesture was deleted (section 13) |
