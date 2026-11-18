@@ -127,6 +127,29 @@ const rangeText = () => fmtLimit(L.fmin) + ' - ' + fmtLimit(L.fmax);
 const stepLabel = (s) => (s >= 1e6 ? s / 1e6 + 'M' : s >= 1e3 ? s / 1e3 + 'k' : String(s));
 const clampF = (v) => Math.min(L.fmax, Math.max(L.fmin, v));
 const snap = (s) => L.steps.find((x) => x <= s) || 1;
+// CH2 coupled to CH1 (E-52): offset -offsetMax..+offsetMax, shown with its sign.
+const oMax = () => L.offsetMax || 160000000;
+const clampO = (v) => Math.min(oMax(), Math.max(-oMax(), v));
+const fmtO = (v) => (v < 0 ? '-' : '+') + fmtF(Math.abs(v));
+// Compact as on the MAIN card: +455 kHz, -10.7 MHz, +25 Hz.
+function fmtOc(v) {
+  const a = Math.abs(v), s = v < 0 ? '-' : '+';
+  if (a >= 1e6) return s + String(a / 1e6) + ' MHz';
+  if (a >= 1e3) return s + String(a / 1e3) + ' kHz';
+  return s + a + ' Hz';
+}
+// "+455k", "-10.7 MHz", "-455000": an integer in Hz, a decimal needs its unit; null otherwise.
+function parseOff(text) {
+  const m = /^([+-]?)\s*(\d{1,9})(?:[.,](\d{1,6}))?\s*(hz|k|khz|m|mhz)?$/i.exec(text.trim());
+  if (!m || (m[3] && !m[4])) return null;
+  const u = (m[4] || 'hz').toLowerCase(), e = u[0] === 'm' ? 6 : u[0] === 'k' ? 3 : 0;
+  const d = (m[3] || '').padEnd(e + 1, '0');
+  if (m[3] && m[3].length > e + 1) return null;
+  const v = +m[2] * 10 ** e + (+d.slice(0, e) || 0) + (d[e] >= '5' ? 1 : 0);
+  return m[1] === '-' ? -v : v;
+}
+const waitText = (t) => (t < L.fmin ? 'Waiting: CH1 + offset below ' + fmtLimit(L.fmin)
+  : t > L.fmax ? 'Waiting: CH1 + offset above ' + fmtLimit(L.fmax) : '');
 
 // ---- State access
 const chOf = (n) => S.ch.find((c) => c.n === n) || S.ch[n - 1];
@@ -136,6 +159,9 @@ const spreadOf = (n) => ((n === 1 || (n === 3 && S.ch3.master === 1)) && SSC[S.c
 // The channel whose frequency n shows: CH3 follows its master. Only 1 or 2, whatever the state
 // holds (the result goes into a REST path).
 const master = (n) => ((n === 3 ? S.ch3.master : n) === 2 ? 2 : 1);
+const coupledM = (m) => m === 2 && !!chOf(2).coupled;
+// The offset of a coupled CH2 with a pending change.
+const offset = () => pend('o2', chOf(2).offset || 0);
 // Request paths are fixed strings, never built from state or page input (CodeQL js/request-forgery).
 const CH_PATH = {1: '/api/channel/1', 2: '/api/channel/2', 3: '/api/ch3'};
 const chPath = (n) => CH_PATH[n === 3 ? 3 : n === 2 ? 2 : 1];
@@ -210,16 +236,24 @@ async function pump(q, send) {
 }
 
 // ---- Actions
+// fn(base, isOffset) gives the new value (clamped here) or null; a coupled CH2 (also as the master
+// of CH3) changes its offset (E-52).
 function tune(n, fn) {
   if (!S) return;
   const m = master(n);
-  queue('f' + m, chOf(m).frequency, fn, (v) => api(chPath(m), {frequency: v}));
+  if (coupledM(m)) {
+    queue('o2', chOf(2).offset || 0, (b) => { const v = fn(b, true); return v == null ? v : clampO(v); },
+      (v) => api(CH_PATH[2], {offset: v}));
+  } else {
+    queue('f' + m, chOf(m).frequency, (b) => { const v = fn(b, false); return v == null ? v : clampF(v); },
+      (v) => api(chPath(m), {frequency: v}));
+  }
 }
-const stepF = (n, k) => tune(n, (b) => clampF(b + k * step()));
+const stepF = (n, k) => tune(n, (b) => b + k * step());
 function decade(up) {
-  tune(sel, (b) => {
+  tune(sel, (b, o) => {
     const v = up ? b * 10 : Math.round(b / 10);
-    if (v < L.fmin || v > L.fmax) { toast(rangeText()); return null; }
+    if (o ? Math.abs(v) > oMax() : v < L.fmin || v > L.fmax) { toast(o ? 'Offset ±' + fmtLimit(oMax()) : rangeText()); return null; }
     return v;
   });
 }
@@ -242,8 +276,15 @@ async function applyText(n) {
   const w = U.ch[n], v = w.in.value.trim();
   if (!S) return;
   if (!v) { line(w.err, 'Enter a number', 'err'); return; }
+  const off = coupledM(master(n));
+  const o = off ? parseOff(v) : 0;
+  if (off && (o == null || Math.abs(o) > oMax())) {
+    line(w.err, o == null ? 'Offset e.g. +455k, -10.7M' : 'Offset ±' + fmtLimit(oMax()), 'err');
+    w.in.classList.add('bad');
+    return;
+  }
   try {
-    await api(chPath(master(n)), {frequencyText: v});
+    await api(chPath(master(n)), off ? {offset: o} : {frequencyText: v});
     discard(n);
     w.in.blur();
   } catch (e) {
@@ -442,12 +483,13 @@ async function heartbeat() {
 function modeLine(el, modes, ...extra) {
   line(el, modes.concat(extra).filter(Boolean).join(' | '), modes.includes('OFF=High') ? 'warn' : '');
 }
-function showDigits(el, hz, st) {
-  const k = hz + '/' + st;
+// signed: the offset of a coupled CH2 with its sign (E-52).
+function showDigits(el, hz, st, signed) {
+  const k = (signed ? 'o' : '') + hz + '/' + st;
   if (el.dataset.k === k) return;
-  const chg = el.dataset.k && el.dataset.k.split('/')[0] !== String(hz);
+  const chg = el.dataset.k && el.dataset.k.split('/')[0] !== k.split('/')[0];
   el.dataset.k = k;
-  const t = fmtF(hz), se = Math.round(Math.log10(st));
+  const t = signed ? fmtO(hz) : fmtF(hz), se = Math.round(Math.log10(st));
   let left = t.replace(/\D/g, '').length;
   const kids = [];
   for (const c of t.slice(0, -4)) {
@@ -491,22 +533,33 @@ function renderHeader(wf) {
 
 // CH1/CH2: MAIN card and channel page.
 function renderChannel(n, st) {
-  const c3 = S.ch3, c = chOf(n), f = pend('f' + n, c.frequency), card = U.card[n], w = U.ch[n], modes = c.modes || [];
+  const c3 = S.ch3, c = chOf(n), card = U.card[n], w = U.ch[n], modes = c.modes || [];
   const iq = c3.master === n && c3.status !== 'OFF';
+  // Coupled CH2 (E-52): the digits show the offset, card and Out line the CH2 frequency.
+  const cpl = coupledM(n), o = cpl ? offset() : 0, t = chOf(1).frequency + o;
+  const f = cpl ? Math.max(0, pend('f1', chOf(1).frequency) + o) : pend('f' + n, c.frequency);
   badge(card.st, c.status);
   badge(w.st, c.status);
   setSw(card.sw, c.enabled);
   setSw(w.sw, c.enabled);
   set(card.f, (approx(c.actual, c.frequency) && f === c.frequency ? '~' : '') + fmtF(f));
-  modeLine(card.d, modes, iq ? (modes.length ? 'IQ master' : 'IQ master of CH3') : '');
-  showDigits(w.f, f, st);
+  if (cpl) modeLine(card.d, modes, 'CH1 ' + fmtOc(o), iq ? 'IQ master' : '');
+  else modeLine(card.d, modes, iq ? (modes.length ? 'IQ master' : 'IQ master of CH3') : '');
+  showDigits(w.f, cpl ? o : f, st, cpl);
+  if (n === 2) {
+    w.cpl.forEach((b, i) => press(b, (i === 1) === cpl));
+    set(w.flbl, cpl ? 'Offset' : 'Frequency');
+    w.in.placeholder = cpl ? '+455k, -10.7M, -455000' : '10.7M, 455k, 7 100 000';
+  }
   if (c.status === 'NOHW' || c.status === 'ERR') {
     line(w.out, c.status === 'NOHW' ? 'SI5351 not found' : 'Output error, retrying', 'err');
+  } else if (cpl && waitText(t)) {
+    line(w.out, waitText(t), 'warn');
   } else {
     const o = outLine(c.actual, c.frequency, spreadOf(n));
     line(w.out, (c.status === 'OFF' ? 'Off | ' : '') + o[0], o[1] ? 'warn' : '');
   }
-  modeLine(w.m, modes, iq ? 'IQ master (' + c3.phase + '°)' : '', rangeNote(f));
+  modeLine(w.m, modes, iq ? 'IQ master (' + c3.phase + '°)' : '', cpl && waitText(t) ? '' : rangeNote(f));
   syncSteps(w);
   w.steps.forEach((b, i) => press(b, L.steps[i] === snap(st)));
 }
@@ -533,7 +586,9 @@ function ch3Info(c3, m, mc) {
 }
 
 function renderCh3(st) {
-  const c3 = S.ch3, m = c3.master, mc = chOf(m), w = U.ch[3], card = U.card[3], f3 = pend('f' + m, c3.frequency);
+  const c3 = S.ch3, m = c3.master, mc = chOf(m), w = U.ch[3], card = U.card[3];
+  // A coupled master CH2 moves with its offset (E-52).
+  const f3 = coupledM(m) ? Math.max(0, c3.frequency + offset() - (mc.offset || 0)) : pend('f' + m, c3.frequency);
   const s = ch3Info(c3, m, mc);
   badge(card.st, c3.status);
   badge(w.st, c3.status);
@@ -635,13 +690,13 @@ function digits(n) {
     if (Math.abs(acc) < 50) return;
     const dir = acc < 0 ? 1 : -1;
     acc = 0;
-    tune(n, (b) => clampF(b + dir * 10 ** +d.dataset.e));
+    tune(n, (b) => b + dir * 10 ** +d.dataset.e);
   }, {passive: false});
   return el;
 }
 function freqForm(n, w) {
   return h('form', {class: 'fin', autocomplete: 'off', onsubmit: (e) => { e.preventDefault(); applyText(n); }},
-    h('label', {for: 'f' + n, text: n === 3 ? 'Master frequency' : 'Frequency'}),
+    w.flbl = h('label', {for: 'f' + n, text: n === 3 ? 'Master frequency' : 'Frequency'}),
     h('div', {class: 'row'},
       w.in = h('input', {id: 'f' + n, type: 'text', class: 'fi', 'data-ch': n, maxlength: 32, spellcheck: 'false',
         autocapitalize: 'off', enterkeyhint: 'done', placeholder: '10.7M, 455k, 7 100 000'}),
@@ -687,6 +742,10 @@ function buildCh(n) {
           h('div', {class: 'chips'}, w.ph = [0, 90, 180, 270].map((p) => h('button', {type: 'button', class: 'chip', text: String(p), onclick: () => post3({phase: p})}))))),
       w.note = h('p', {class: 'mu sm'})
     ] : [
+      // CH2: free or coupled to CH1 (E-52).
+      n === 2 && h('div', {class: 'chips cpl', role: 'group', 'aria-label': 'Coupling'},
+        w.cpl = ['Free', 'CH1 + offset'].map((t, i) => h('button', {type: 'button', class: 'chip', text: t,
+          onclick: () => act(api(CH_PATH[2], {coupled: i === 1}))}))),
       w.stepBox = h('div', {class: 'chips steps', role: 'group', 'aria-label': 'Step'}),
       h('div', {class: 'pm'}, rep('−', (k) => stepF(n, -k), 'Frequency down'), rep('+', (k) => stepF(n, k), 'Frequency up'))
     ],

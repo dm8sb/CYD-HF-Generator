@@ -67,6 +67,8 @@ const char* channelStatusName(ChannelStatus s) {
         case ChannelStatus::On: return "ON";
         case ChannelStatus::Error: return "ERR";
         case ChannelStatus::NoDevice: return "NOHW";
+        case ChannelStatus::FreqTooLow:
+        case ChannelStatus::FreqTooHigh: return "WAIT";
         case ChannelStatus::Off: break;
     }
     return "OFF";
@@ -164,6 +166,10 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
         o["status"] = channelStatusName(s.status[n - 1]);
         // Spread spectrum is on PLL A: CH1 only (AppController::spreadOf).
         addModes(o["modes"].to<JsonArray>(), sys, n == 1 ? sys.spread : Spread::Off);
+        if (n == 2) {
+            o["coupled"] = s.state.ch2c.coupled;
+            o["offset"] = s.state.ch2c.offset;
+        }
     }
 
     JsonObject ch3 = doc["ch3"].to<JsonObject>();
@@ -183,6 +189,7 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
     limits["fmax"] = FREQ_MAX_HZ;
     JsonArray steps = limits["steps"].to<JsonArray>();
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) steps.add(DELTA_STEPS[i]);
+    limits["offsetMax"] = CH2_OFFSET_MAX_HZ;
 
     JsonObject cfg = doc["config"].to<JsonObject>();
     cfg["drive"] = (unsigned)sys.drive_ma;

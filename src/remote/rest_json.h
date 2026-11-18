@@ -66,7 +66,9 @@ struct Commands {
     uint8_t count;
 };
 
-// POST /api/channel/<1|2>: {"enabled":bool,"frequency":int,"frequencyText":string}.
+// POST /api/channel/<1|2>: {"enabled":bool,"frequency":int,"frequencyText":string}; channel 2
+// also {"coupled":bool,"offset":int} (E-52; order: offset, coupled, frequency, enabled).
+// A CH2 frequency while coupled: 400/-221 "CH2 is coupled to CH1" (Result::Coupled).
 Reply parseChannel(uint8_t channel, const char* body, size_t len, Commands* out);
 // POST /api/ch3: {"enabled":bool,"master":int,"phase":int}.
 Reply parseCh3(const char* body, size_t len, Commands* out);

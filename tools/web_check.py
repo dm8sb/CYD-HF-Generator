@@ -5,8 +5,9 @@
 """Contract check of the web server (S55, S56): REST, guard answers, WebSocket push, scan, login, logout.
 
 Python 3 standard library only. Runs against the device or tools/web_mock.py and prints one
-PASS/FAIL line per check, like device_check.py does for SCPI. It changes the step and the CH2
-frequency briefly and restores them; it never switches an output on and never changes WiFi.
+PASS/FAIL line per check, like device_check.py does for SCPI. It changes the step, the CH2
+frequency and the CH2 coupling (E-52) briefly and restores them; it never switches an output on
+and never changes WiFi.
 
     python tools/web_check.py cyd-hf-1a2b.local            # the device (port 80)
     python tools/web_check.py 127.0.0.1:8080               # the mock
@@ -32,7 +33,7 @@ import hostport
 TOKEN_RE = re.compile(r'<meta\s+name="cyd-token"\s+content="([0-9a-f]{32})"', re.I)
 STATE_KEYS = {"rev", "hw", "save", "remote", "ch", "ch3", "limits", "config", "wifi", "device"}
 # state.limits must match include/constants.h (AF48): the web UI takes range and steps from it.
-LIMITS = {"fmin": dc.FREQ_MIN, "fmax": dc.FREQ_MAX, "steps": list(dc.STEPS)}
+LIMITS = {"fmin": dc.FREQ_MIN, "fmax": dc.FREQ_MAX, "steps": list(dc.STEPS), "offsetMax": dc.OFFSET_MAX}
 
 results = []
 
@@ -211,6 +212,9 @@ def check_state(api):
     check("wifi.confirmWithin and device.passwordSet",
           isinstance(s0["wifi"].get("confirmWithin"), int) and isinstance(s0["device"].get("passwordSet"), bool))
     check("state.limits as in include/constants.h", s0["limits"] == LIMITS, str(s0["limits"]))
+    c2 = s0["ch"][1]
+    check("ch[1].coupled and ch[1].offset (E-52)", isinstance(c2.get("coupled"), bool) and type(c2.get("offset")) is int
+          and "coupled" not in s0["ch"][0], str({k: c2.get(k) for k in ("coupled", "offset")}))
     check("state has no MAC/commit", "mac" not in json.dumps(s0).lower() and "commit" not in json.dumps(s0).lower())
     st, _, j = api.call("GET", "/api/token")
     check("GET /api/token", st == 200 and isinstance(j, dict) and j.get("token") == api.token, "%d %s" % (st, j))
@@ -237,6 +241,9 @@ ERROR_CASES = [
     ("/api/channel/1", {"frequency": 1}, "-222"), ("/api/channel/1", {"frequency": 7000000, "frequencyText": "7M"}, "-108"),
     ("/api/channel/1", {"frequencyText": "abc"}, "-224"), ("/api/ch3", {"phase": 45}, "-224"), ("/api/ch3", {"master": 3}, "-224"),
     ("/api/config", {}, "-109"),
+    ("/api/channel/1", {"coupled": True}, "-108"), ("/api/channel/1", {"offset": 0}, "-108"),
+    ("/api/channel/2", {"coupled": 1}, "-104"), ("/api/channel/2", {"offset": "455k"}, "-104"),
+    ("/api/channel/2", {"offset": 160000001}, "-222"),
 ]
 
 
@@ -281,6 +288,18 @@ def check_writes(api, s0):
         check("REMOTE web after a write", j.get("remote") == "web", str(j.get("remote")))
     api.call("POST", "/api/channel/2", {"frequency": f0})
     api.call("POST", "/api/config", {"step": step0})
+    # CH2 coupled to CH1 (E-52): CH1 + offset, the CH2 frequency refused, then restored.
+    c2 = s0["ch"][1]
+    st, _, j = api.call("POST", "/api/channel/2", {"coupled": True, "offset": -455000})
+    want = max(0, s0["ch"][0]["frequency"] - 455000)
+    check("POST CH2 coupled, offset -455000 -> state CH1 + offset",
+          st == 200 and isinstance(j, dict) and j["ch"][1]["coupled"] is True and j["ch"][1]["offset"] == -455000
+          and j["ch"][1]["frequency"] == want, "%d %s" % (st, j["ch"][1] if isinstance(j, dict) and "ch" in j else j))
+    st, _, j = api.call("POST", "/api/channel/2", {"frequency": f0})
+    check("POST CH2 frequency while coupled -> 400 -221", st == 400 and err(j) == "-221,CH2 is coupled to CH1", "%d %s" % (st, j))
+    st, _, j = api.call("POST", "/api/channel/2", {"coupled": c2.get("coupled", False), "offset": c2.get("offset", 0)})
+    if not c2.get("coupled", False):
+        api.call("POST", "/api/channel/2", {"frequency": f0})
     time.sleep(1.1)
     # Over WiFi one write takes ~100 ms, so a sequential client rarely exceeds 20/s; the limit
     # itself is host-tested (test_command). Only judge it when the rate was really above 20/s.

@@ -297,6 +297,8 @@ void Gui::navigate(PageId page) {
     if (page == PageId::Numpad) {
         numpadPpm_ = currentPage_ == PageId::Config;
         if (!numpadPpm_) numpadReturn_ = currentPage_; // CH1, CH2 or CH3 (master frequency)
+        // A coupled CH2 (also as master from CH3) takes its offset (E-52).
+        numpadOffset_ = !numpadPpm_ && channel_ == 2 && app_->ch2Coupled();
     }
     currentPage_ = page;
     if (page == PageId::CH1) channel_ = 1;
@@ -452,11 +454,17 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::ChannelSwitch:
             app.setChannelEnabled(arg, lv_obj_has_state(obj, LV_STATE_CHECKED));
             break;
+        // A coupled CH2 changes its offset (E-52).
         case Action::FreqUp:
-            app.adjustChannelFrequency(channel_, steps * sys.delta_step);
+            if (channel_ == 2 && app.ch2Coupled()) app.adjustCh2Offset(steps * sys.delta_step);
+            else app.adjustChannelFrequency(channel_, steps * sys.delta_step);
             break;
         case Action::FreqDown:
-            app.adjustChannelFrequency(channel_, -steps * (int64_t)sys.delta_step);
+            if (channel_ == 2 && app.ch2Coupled()) app.adjustCh2Offset(-steps * (int64_t)sys.delta_step);
+            else app.adjustChannelFrequency(channel_, -steps * (int64_t)sys.delta_step);
+            break;
+        case Action::Ch2Couple:
+            app.setCh2Coupled(arg == 1);
             break;
         case Action::FreqTap:
             handleFreqTap_(obj);

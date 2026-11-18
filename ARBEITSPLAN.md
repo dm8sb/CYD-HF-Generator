@@ -353,7 +353,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N9 · Sticky-Bit und „PLL locked“** (Abschnitt 2.1).
 - [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
 - [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 (behebt GHSA-ch63, AF26); Advisory-Check je Release läuft (AF26).
-- [ ] **N14 · Gekoppelter Betrieb CH2 = CH1 ± Offset (D18).** CH2 folgt CH1 mit festem Offset (positiv oder negativ, z. B. Überlagerungsempfänger mit fester ZF): Einstellung und Anzeige auf der CH2-Seite, Grenzen 8 kHz–160 MHz für beide, CH3-IQ und Spread berücksichtigen, SCPI/REST und Weboberfläche; Planung vor der Umsetzung. *Commit:* `N14: Add CH2 coupled to CH1 with offset`
+- [x] **N14 · Gekoppelter Betrieb CH2 = CH1 ± Offset (D18, D52).** CH2 folgt CH1 mit festem Offset (positiv oder negativ, z. B. Überlagerungsempfänger mit fester ZF): Einstellung und Anzeige auf der CH2-Seite, Grenzen 8 kHz–160 MHz für beide, CH3-IQ und Spread berücksichtigen, SCPI/REST und Weboberfläche; Planung vor der Umsetzung. *Commit:* `N14: Add the coupled CH2 mode (CH1 + offset)` *Erledigt auf `agent/n14` (A-79, E-52; CH2-Chips `Free` / `CH1 + offset`, Offset ±160 MHz, `WAIT` mit Neustart, SCPI `SOUR2:COUP`/`SOUR2:FREQ:OFFS`, REST `coupled`/`offset`); Bedientest am Gerät offen.*
 
 ### Phase 10 – Audit-Folgearbeiten (je ein Commit)
 

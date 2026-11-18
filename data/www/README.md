@@ -24,6 +24,7 @@ This README is not embedded and not served.
 - **Header:** device name and version, connection (`Live` = WebSocket, `Polling`, `Offline`), save state (`Saved`, `Saving...`, `Save failed`, `Not saved`), `REMOTE <source>`, SI5351 problem, `Identify`, `Save`, `Log out` (only while a web password is set and this browser is logged in), `Log in` (after a cancelled login while reads need it, D25), `?`, and the links MAIN, CH1, CH2, CH3, CONFIG, WiFi. It stays at the top on every width (on a phone as well, like the output bar at the bottom); anchors stop below it (`--toph` follows its height). On a phone `MAIN` scrolls to the top, the cards are the output bar.
 - **MAIN:** three cards as on the device: state (`ON`, `OFF`, `! ERR`, `WAIT`, `! NO HW`), frequency (`~` in Integer mode from 1 Hz deviation, below 100 MHz), mode line (`IQ master` / `IQ master of CH3`; CH3: `CH1 / 90°` with the reason for `WAIT`), switch. On a phone (< 700 px) the cards form a fixed output bar at the bottom and the areas are stacked.
 - **CH1, CH2:** switch and state, frequency digits (the digit of the step in the channel color; click = step, wheel = change that digit, click on the unit = input field), `Out` line, mode line with `IQ master (90°)` and the range hint, step chips `1M` … `1`, `−`/`+` with hold-to-repeat as on the device, frequency field.
+- **CH2 coupled (E-52):** chips `Free` / `CH1 + offset` above the step chips (`{"coupled":bool}`). Coupled, the digits show `offset` with its sign (`+455.000 kHz`), `−`/`+`, wheel, keys and the field (label `Offset`, input `+455k`, `-10.7M`, `-455000`: sign, digits, one `.`/`,` with unit `Hz`/`k`/`kHz`/`M`/`MHz`, parsed by the UI into `{"offset":int}`) change the offset within ±`limits.offsetMax`; the MAIN card shows `frequency` (CH1 + offset) and `CH1 +455 kHz`; with CH1 + offset outside `fmin`..`fmax` the `Out` line says `Waiting: CH1 + offset below 8 kHz` / `above 160 MHz`. On CH3 with a coupled master CH2 the frequency keys change the offset.
 - **CH3 IQ:** switch, state, frequency, status line (`Off  |  follows CHx`, `Out …`, `Master CHx is off: click to switch on` as a button, `Waiting: CHx below 4.730 MHz`, …), master and phase chips, IQ range note, field for the master frequency.
 - **CONFIG:** `Drive all`, `Off state` (`High` asks first, as on the device; under `remoteOutputs` `local` the device refuses it with 403, so the UI sends it without asking and shows the error), `Tuning`, `Spread CH1` (locked as `Off (Integer)`), `Corr.` (field in ppm, step `0.01`/`0.1`/`1`, `−`/`+`), `Backlight` (`−`/`+` in 10 %), `Remote outputs` read-only, info (firmware, SI5351, device name).
 - **WiFi:** status; form with mode, device name, two networks (password fields write-only, never pre-filled, empty = keep), `Delete`, scan list (≤ 15, `→ 1`/`→ 2` fills a slot), static IP, access point (`Open (not recommended)`, new password). `Apply` sends only what changed; then the countdown "Confirm within N s, otherwise the previous settings return" with `Confirm` and the address to open if the page loses the connection.
@@ -69,9 +70,9 @@ State (`GET /api/state`, every WebSocket text message, body of every successful 
 ```json
 {"rev":123,"hw":"CONN","save":"saved","remote":null,
  "ch":[{"n":1,"enabled":true,"frequency":10000000,"actual":10000000.0,"status":"ON","modes":["SSC -0.5%"]},
-       {"n":2,"enabled":false,"frequency":14000000,"actual":14000000.0,"status":"OFF","modes":[]}],
+       {"n":2,"enabled":false,"frequency":14000000,"actual":14000000.0,"status":"OFF","modes":[],"coupled":false,"offset":0}],
  "ch3":{"enabled":false,"master":1,"phase":90,"status":"OFF","frequency":10000000,"actual":10000000.0,"iqMin":4730000,"iqMax":100000000},
- "limits":{"fmin":8000,"fmax":160000000,"steps":[1,10,100,1000,10000,100000,1000000]},
+ "limits":{"fmin":8000,"fmax":160000000,"steps":[1,10,100,1000,10000,100000,1000000],"offsetMax":160000000},
  "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"remoteOutputs":"allowed"},
  "wifi":{"mode":"client","connected":true,"ssid":"Lab","rssi":-60,"ip":"192.168.1.50","name":"cyd-hf-1a2b",
          "ap":{"active":false,"ssid":"CYD-HF-1A2B","open":false,"stations":0},"confirmWithin":0},
@@ -84,11 +85,12 @@ How the UI reads it:
 - `modes` holds only the CONFIG entries of the device mode line, in device order (`OFF=High`/`OFF=High-Z`, `SSC -0.5%`/`SSC -1.5%`/`SSC +/-0.5%`, `Low noise`/`Integer`, `2mA`/`6mA`/`8mA`). The UI adds `IQ master …` and the range hint itself and shows the line orange when it contains `OFF=High`. CH3 shows the modes of its master.
 - `actual` is what the `Out` line shows: with spread on CH1 (and CH3 with master CH1) the mean frequency, like `FREQ:ACT?`; 0 = no output (`Out -`). `ch3.actual` is 0 unless CH3 runs.
 - `ch3.iqMin`/`iqMax` are the effective limits (narrower with spread); the reason for `WAIT` is derived: master off → `master off`, master below `iqMin` → `below`, else `above`.
-- `limits` are the fixed limits of the firmware (`include/constants.h`): frequency range `fmin`..`fmax` in Hz and the step list `steps` (ascending). The UI takes the range of its checks and messages (`8 kHz - 160 MHz`) and the step chips from it; `tools/web_mock.py` reads the same constants (`tools/device_constants.py`), `tools/web_check.py` compares them.
+- `ch[1].coupled` / `ch[1].offset` (CH2 only, E-52): CH2 = CH1 + `offset` (Hz, signed) while `coupled`; `ch[1].frequency` is then CH1 + offset (0 below 0 Hz, up to 320 MHz while waiting above the range), `status` `WAIT` while switched on and outside `fmin`..`fmax`, `actual` 0.0 meanwhile; `ch3.frequency` with master 2 follows it.
+- `limits` are the fixed limits of the firmware (`include/constants.h`): frequency range `fmin`..`fmax` in Hz, the step list `steps` (ascending) and `offsetMax` (CH2 offset ±, `CH2_OFFSET_MAX_HZ`). The UI takes the range of its checks and messages (`8 kHz - 160 MHz`) and the step chips from it; `tools/web_mock.py` reads the same constants (`tools/device_constants.py`), `tools/web_check.py` compares them.
 
 | Request | Body | Success |
 |---|---|---|
-| `POST /api/channel/<1\|2>` | subset of `{"enabled":bool,"frequency":int,"frequencyText":str}`, at most one of the two frequency keys | 200 state |
+| `POST /api/channel/<1\|2>` | subset of `{"enabled":bool,"frequency":int,"frequencyText":str}`, at most one of the two frequency keys; channel 2 also `"coupled":bool` and `"offset":int` (Hz, ±160 MHz), executed in the order offset, coupled, frequency, enabled; a frequency while coupled → 400 `-221,CH2 is coupled to CH1` | 200 state |
 | `POST /api/ch3` | subset of `{"enabled":bool,"master":1\|2,"phase":0\|90\|180\|270}` | 200 state |
 | `POST /api/config` | subset of `drive`, `tuning`, `spread`, `offState`, `correction`, `step`, `backlight`; `offState` `high` under `remoteOutputs` `local` → 403 `-221,Remote outputs: local only` (D22) | 200 state |
 | `POST /api/save`, `POST /api/identify` | `{}` | 200 state; save: only the changed keys, at most once per 10 s per source, a further request within 10 s is merged silently (still 200) and saved 10 s after the previous save (D26) |
@@ -114,10 +116,10 @@ Every error body is `{"error":"<code>,<text>"}` (the login lock adds `"retryAfte
 |---|---|
 | `-102,Syntax error` | invalid JSON, a duplicate key (`Duplicate key`) |
 | `-104,Data type error` | wrong JSON type: `"4"`, `4.5`, `4.0` or `true` for an integer, a number for a string, an array for an object, a body that is no JSON object |
-| `-108,Parameter not allowed` | unknown key; `frequency` and `frequencyText` together (`frequency or frequencyText, not both`); WiFi `mode` `off` with any other key (D23); `{}` bodies (`save`, `identify`, `logout`, `wifi/confirm`) with a key |
+| `-108,Parameter not allowed` | unknown key (also `coupled`/`offset` on channel 1); `frequency` and `frequencyText` together (`frequency or frequencyText, not both`); WiFi `mode` `off` with any other key (D23); `{}` bodies (`save`, `identify`, `logout`, `wifi/confirm`) with a key |
 | `-109,Missing parameter` | `{}` where at least one key is needed |
-| `-221,Settings conflict` | spread in `Integer` tuning (`Spread spectrum is not possible in Integer tuning`); static IP = gateway, outside the subnet, network or broadcast address; `A network change waits for confirmation`; `Nothing to confirm`; `Confirm at the device as well` |
-| `-222,Data out of range` | frequency outside 8 kHz–160 MHz (also as `frequencyText`), correction beyond ±5000, backlight outside 10–100, more than two `networks` or `delete` entries, an integer beyond 64 bits |
+| `-221,Settings conflict` | spread in `Integer` tuning (`Spread spectrum is not possible in Integer tuning`); CH2 frequency while CH2 is coupled (`CH2 is coupled to CH1`); static IP = gateway, outside the subnet, network or broadcast address; `A network change waits for confirmation`; `Nothing to confirm`; `Confirm at the device as well` |
+| `-222,Data out of range` | frequency outside 8 kHz–160 MHz (also as `frequencyText`), CH2 offset beyond ±160 MHz, correction beyond ±5000, backlight outside 10–100, more than two `networks` or `delete` entries, an integer beyond 64 bits |
 | `-224,Illegal parameter value` | a value outside its list (master, phase, drive, step, `tuning`, `spread`, `offState`, `mode`, `slot` other than 0/1), `frequencyText` that is no frequency, SSID not 1–32 bytes, a network key that is neither `""`, 8–63 characters nor 64 hex digits, AP password not 8–63, bad device name or address text, `"\u0000"` in a string |
 
 Backlight takes every integer from 10 to 100 and rounds it to 10 % (half up: 55 → 60); it is never refused for not being a multiple of 10.

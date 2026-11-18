@@ -61,6 +61,7 @@ private:
         lv_obj_t* modes;       // special modes of the channel (U-2)
         lv_obj_t* chips[DELTA_STEP_COUNT];
         lv_obj_t* masterChips[2];
+        lv_obj_t* cplChips[2]; // CH2 page: Free / CH1 + offset (E-52)
         lv_obj_t* cardFreq[3];
         lv_obj_t* cardState[3];
         lv_obj_t* cardDetail[3];
@@ -239,6 +240,7 @@ private:
     TouchCal::Wizard calWizard_; // touch calibration (host-tested)
     bool calFirstStart_ = false;
     bool numpadPpm_ = false;     // numpad opened from CONFIG: correction entry (U-11)
+    bool numpadOffset_ = false;  // numpad for a coupled CH2: offset entry with sign (E-52)
     PageId numpadReturn_ = PageId::CH1; // page the frequency numpad returns to
     uint32_t pressStartMs_ = 0;  // start of the current press of a repeat button (U-20)
     uint32_t lastStepMs_ = 0;    // last step of the current hold (slow phase, U-20)

@@ -41,7 +41,7 @@ Für den Laborplatz; Einzelheiten in den genannten Abschnitten, Bilder der Seite
 6. **Vor dem Messen:** Steht unter einer Frequenz eine Moduszeile (z. B. `OFF=High`, `SSC -0.5%`, `Integer`), weicht CONFIG von den Werkseinstellungen ab (Abschnitt 2).
 7. **Bei Fehlern:** `! NO HW` = SI5351 nicht verbunden; `! ERR` = Einstellen fehlgeschlagen, die Firmware versucht es alle 2 s erneut (Abschnitt 11, Anhang C).
 
-Werkseinstellungen in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; Frequenzen 10 MHz (CH1) und 14 MHz (CH2), Schritt 1 kHz. Für die nächste Gruppe: CONFIG `Device` → `Reset` → `Defaults` (die Kalibrierung bleibt); gegen Verstellen: CONFIG `Device` → `Screen` → `Lock`.
+Werkseinstellungen in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; Frequenzen 10 MHz (CH1) und 14 MHz (CH2), CH2 `Free` (Offset 0), Schritt 1 kHz. Für die nächste Gruppe: CONFIG `Device` → `Reset` → `Defaults` (die Kalibrierung bleibt); gegen Verstellen: CONFIG `Device` → `Screen` → `Lock`.
 
 ---
 
@@ -87,7 +87,7 @@ Die Hauptseite zeigt für jeden Kanal eine Karte mit:
 - Kanalname und Status
 - eingestellter Frequenz (Sollfrequenz)
 - eigenem ON/OFF-Schalter
-- Zusatzzeile: bei CH1/CH2 die Moduszeile (siehe unten) und `IQ master of CH3`, wenn CH3 eingeschaltet ist und diesem Kanal folgt (mit Moduszeile kurz `| IQ master`); bei CH3 Master und Phase, z. B. `CH1 / 90°`, bei `WAIT` und `! ERR` mit dem Grund (z. B. `CH1 / 90° / master off`)
+- Zusatzzeile: bei CH1/CH2 die Moduszeile (siehe unten) und `IQ master of CH3`, wenn CH3 eingeschaltet ist und diesem Kanal folgt (mit Moduszeile kurz `| IQ master`); bei gekoppeltem CH2 der Offset kurz, z. B. `CH1 +455 kHz` (Abschnitt 4); bei CH3 Master und Phase, z. B. `CH1 / 90°`, bei `WAIT` und `! ERR` mit dem Grund (z. B. `CH1 / 90° / master off`)
 
 Im Modus `Tuning` = `Integer` steht vor der Frequenz ein `~`, wenn die tatsächliche Frequenz um 1 Hz oder mehr von der Sollfrequenz abweicht (Abschnitt 8). Ab 100 MHz passt das `~` nicht mehr in die Karte und entfällt; die Moduszeile zeigt dann `Integer`.
 
@@ -122,12 +122,12 @@ Statusanzeige unter dem Kanalnamen (in der Titelzeile der Kanalseiten ebenso). J
 | `ON` (grünes Feld) | Ausgang aktiv |
 | `OFF` (graue Schrift, kein Feld) | Ausgang aus |
 | `! ERR` (rotes Feld) | Einstellen des Ausgangs ist fehlgeschlagen, obwohl der SI5351 antwortet; die Firmware versucht es alle 2 s erneut. Der Schalter zeigt weiter die gewünschte Einstellung |
-| `WAIT` (oranges Feld) | CH3 ist eingeschaltet, kann aber gerade nicht laufen (Master aus oder Masterfrequenz außerhalb des IQ-Bereichs: unter 4,730 MHz, mit `Spread CH1` auf Master CH1 etwas enger, Abschnitt 8) |
+| `WAIT` (oranges Feld) | CH3 ist eingeschaltet, kann aber gerade nicht laufen (Master aus oder Masterfrequenz außerhalb des IQ-Bereichs: unter 4,730 MHz, mit `Spread CH1` auf Master CH1 etwas enger, Abschnitt 8); oder CH2 ist an CH1 gekoppelt und eingeschaltet, CH1 + Offset liegt aber außerhalb 8 kHz – 160 MHz (Abschnitt 4) |
 | `! NO HW` (rotes Feld) | SI5351 nicht gefunden oder Verbindung verloren; die Firmware verbindet automatisch neu |
 
 Die Farben der Kanäle: CH1 rot, CH2 grün, CH3 blau, CONFIG gelb.
 
-Alle Seiten außer der Hauptseite haben dieselbe Titelzeile: links oben `◀` geht eine Ebene zurück (von CH1, CH2, CH3 und CONFIG zur Hauptseite, von den WIFI-Seiten zu CONFIG bzw. zur WIFI-Übersicht, vom NUMPAD ohne Änderung zur Seite davor), dahinter steht der Titel, rechts gegebenenfalls eine Taste der Seite (z. B. `Device`, `Scan`). Auf den Kanalseiten enthält die Titelzeile zusätzlich den ON/OFF-Schalter und daneben den tatsächlichen Zustand wie auf der Hauptseite: `ON`, `OFF`, `WAIT` (nur CH3), `! ERR` oder `! NO HW`. Der Schalter zeigt, was eingestellt ist, der Text, was der Ausgang gerade tut; bei CH3 kann der Schalter also auf ON stehen, während der Text `WAIT` zeigt. Das NUMPAD hat stattdessen die Taste `◀` (Abschnitt 6).
+Alle Seiten außer der Hauptseite haben dieselbe Titelzeile: links oben `◀` geht eine Ebene zurück (von CH1, CH2, CH3 und CONFIG zur Hauptseite, von den WIFI-Seiten zu CONFIG bzw. zur WIFI-Übersicht, vom NUMPAD ohne Änderung zur Seite davor), dahinter steht der Titel, rechts gegebenenfalls eine Taste der Seite (z. B. `Device`, `Scan`). Auf den Kanalseiten enthält die Titelzeile zusätzlich den ON/OFF-Schalter und daneben den tatsächlichen Zustand wie auf der Hauptseite: `ON`, `OFF`, `WAIT` (CH3 und gekoppelter CH2), `! ERR` oder `! NO HW`. Der Schalter zeigt, was eingestellt ist, der Text, was der Ausgang gerade tut; bei CH3 und gekoppeltem CH2 kann der Schalter also auf ON stehen, während der Text `WAIT` zeigt. Das NUMPAD hat stattdessen die Taste `◀` (Abschnitt 6).
 
 Die RGB-LED zeigt auf den Kanal-Seiten ebenfalls die Kanal-Farbe:
 
@@ -194,6 +194,29 @@ Alternativ kann der Kanal direkt mit dem Schalter auf seiner Karte der Hauptseit
 2. ON/OFF-Schalter ausschalten.
 3. Die Anzeige wechselt auf `OFF`.
 4. Der Ausgang wird abgeschaltet und nimmt den unter `Off state` gewählten Zustand an (Standard `Low`, Abschnitt 8).
+
+### CH2 an CH1 koppeln (`CH1 + offset`)
+
+CH2 kann CH1 mit festem Abstand (Offset) folgen, z. B. als LO oder Testsignal eines Überlagerungsempfängers mit fester ZF (Abschnitt 18). Auf der CH2-Seite stehen unter der Frequenzkarte zwei Chips; die übrigen Zeilen rücken dafür etwas zusammen:
+
+| Chip | Wirkung |
+|---|---|
+| `Free` | CH2 ist frei einstellbar (Standard) |
+| `CH1 + offset` | CH2 läuft auf CH1 + Offset |
+
+Gekoppelt gilt:
+
+- Die Frequenzkarte zeigt den Offset, immer mit Vorzeichen, z. B. `+455.000 kHz` oder `-10.700 000 MHz`. `+`/`−`, die Schritt-Chips, ein Tipp auf eine Ziffer und das NUMPAD (Abschnitt 6) ändern den Offset. Die Zeile `Out` zeigt die tatsächliche Frequenz von CH2.
+- Offset −160 MHz bis +160 MHz in 1-Hz-Schritten; `+`/`−` halten an diesen Grenzen an.
+- CH1 bleibt frei einstellbar. Jede Änderung von CH1 stellt CH2 mit (eigene PLL B; im Modus `Fractional` ohne Aussetzer, Abschnitt 5).
+- Liegt CH1 + Offset außerhalb von 8 kHz – 160 MHz, **wartet** CH2: Der Ausgang CLK1 bleibt aus, der Status zeigt `WAIT` (bei eingeschaltetem CH2), die Zeile unter dem Offset `Waiting: CH1 + offset below 8 kHz` bzw. `Waiting: CH1 + offset above 160 MHz` (auch bei ausgeschaltetem CH2). Kommt CH1 + Offset wieder in den Bereich, startet CH2 **von selbst**; es erscheint keine Fehlermeldung.
+- Die Hauptseite zeigt auf der CH2-Karte die Frequenz CH1 + Offset (unter 0 Hz `0.000 kHz`) und in der Zusatzzeile den Offset kurz, z. B. `CH1 +455 kHz` oder `CH1 -10.7 MHz`.
+- `Free` antippen: CH2 bleibt auf der Frequenz, auf der er zuletzt lief (wartete er, auf der letzten gültigen), und ist wieder frei einstellbar. Der Offset bleibt erhalten und gilt beim nächsten `CH1 + offset` wieder; er lässt sich über SCPI und REST auch im Modus `Free` vorab setzen.
+- Mit CH3: Ist CH2 Master von CH3, folgt CH3 der gekoppelten CH2-Frequenz, der IQ-Bereich (4,730 – 100 MHz) gilt dann für CH1 + Offset. Wartet CH2, wartet auch CH3 (`Waiting: CH2 below 4.730 MHz` bzw. `above 100 MHz`). Jede CH1-Änderung stellt dann das IQ-Paar neu ein, mit dem kurzen Aussetzer aus Abschnitt 7. Ein Tipp auf die Frequenz der CH3-Seite öffnet in diesem Fall das NUMPAD für den Offset.
+- `Spread CH1` wirkt nicht auf CH2 (PLL B), auch nicht gekoppelt.
+- Kopplung und Offset werden gespeichert (Abschnitt 9); `Defaults` und `*RST` setzen `Free` und Offset 0. Fernsteuerung: SCPI `SOUR2:COUP` und `SOUR2:FREQ:OFFS` (Abschnitt 15), REST `coupled` und `offset` (Abschnitt 16). Solange CH2 gekoppelt ist, lehnt das Gerät eine CH2-Frequenz von außen mit −221 `CH2 is coupled to CH1` ab.
+
+Beispiel: CH1 7,100 MHz, CH2 `CH1 + offset` mit Offset `+455.000 kHz` → CH2 läuft auf 7,555 MHz; CH1 auf 7,200 MHz verstellen → CH2 7,655 MHz. Mit Offset `-7.100 000 MHz` wartet CH2 (0 Hz liegt unter 8 kHz), bis CH1 über 7,108 MHz steht.
 
 ---
 
@@ -290,6 +313,15 @@ Die Einheit bestätigt die Eingabe direkt und kehrt zur Kanalseite zurück.
 
 Mit der Taste `◀` oben links geht es **ohne Änderung** zurück zur Kanalseite.
 
+Bei gekoppeltem CH2 (Abschnitt 4) gibt das NUMPAD den **Offset** ein: Titel `Offs.`, darunter `Now +455.000 kHz`, in der unteren Reihe zusätzlich `+/-` für das Vorzeichen (das Feld zeigt dann ein `-`). `0` ist erlaubt, `C` löscht auch das Vorzeichen. Außerhalb von ±160 MHz erscheint `-160 to +160 MHz`.
+
+```text
+ 7    8   9   MHz
+ 4    5   6   kHz
+ 1    2   3   Hz
++/-   .   0   ⌫   C
+```
+
 ### Tastenfeld
 
 ```text
@@ -323,6 +355,7 @@ Liegt der Wert außerhalb von 8 kHz – 160 MHz oder ist die Eingabe leer bzw. u
 | `8 kHz - 160 MHz` | Wert außerhalb des Bereichs, z. B. `500` `MHz` |
 | `Enter a number` | keine Ziffer eingegeben (leer oder nur `.`) |
 | `Max. 10 characters` | Feld voll |
+| `-160 to +160 MHz` | Offset eines gekoppelten CH2 außerhalb von ±160 MHz |
 
 Die Eingabe lässt sich mit `⌫` korrigieren oder mit `C` löschen; die nächste Taste löscht den Hinweis.
 
@@ -450,6 +483,8 @@ Genauigkeit: In den Modi `Fractional` und `Low noise` weicht die IQ-Frequenz hö
 Master und CH3 teilen sich eine PLL. Jede Änderung der Masterfrequenz oder der Frequenzkorrektur und jeder Phasenwechsel von 0°/180° auf 90°/270° (oder umgekehrt) schaltet beide Ausgänge kurz ab, stellt sie neu ein und richtet die Phasenlage über einen Neustart der PLL neu aus. Ein Wechsel zwischen 0° und 180° bzw. 90° und 270° und eine Änderung der Drive-Strength kommen ohne Aussetzer aus.
 
 Spread Spectrum (`Spread CH1`) wirkt auch auf CH3, wenn CH1 sein Master ist; mit Master CH2 ist CH3 nicht betroffen.
+
+Ist der Master CH2 an CH1 gekoppelt (Abschnitt 4), folgt CH3 der Frequenz CH1 + Offset; jede Änderung von CH1 oder des Offsets ist dann eine Änderung der Masterfrequenz.
 
 ### Beispiel: CH3 folgt CH1 mit 90° Phase
 
@@ -861,11 +896,12 @@ Gespeichert werden:
 - Frequenzkorrektur
 - globale Drive-Strength
 - `Tuning`, `Spread CH1` und `Off state`
+- CH2-Kopplung (`Free` / `CH1 + offset`) und Offset
 - der Touch-Abgleich (sofort nach dem Abgleich, nicht über Autosave)
 - `Remote out.` (sofort beim Ändern, nicht über Autosave)
 - die WLAN-Einstellungen: Betriebsart, Netze mit Passwort, Access Point, Gerätename, statische IP und das Web-Passwort (als Hash); sofort beim Ändern in einem eigenen Speicherbereich, nicht über Autosave (Änderungen aus dem Browser erst nach der Bestätigung, Abschnitt 16)
 
-Fehlen die drei neuen Optionen im Speicher (Einstellungen aus Firmware 1.2.0), gelten die Standardwerte `Fractional`, `Off` und `Low`, also das Verhalten von 1.2.0. Ungültige gespeicherte Werte werden beim Start durch den Standardwert ersetzt.
+Fehlen die drei neuen Optionen im Speicher (Einstellungen aus Firmware 1.2.0), gelten die Standardwerte `Fractional`, `Off` und `Low`, also das Verhalten von 1.2.0. Fehlen Kopplung und Offset (Einstellungen aus einer Firmware ohne Kopplung), bleibt CH2 `Free` mit seiner gespeicherten Frequenz, Offset 0. Ungültige gespeicherte Werte werden beim Start durch den Standardwert ersetzt.
 
 Der Display-Controller wird nicht gespeichert, sondern bei jedem Start erkannt (Abschnitt 13).
 
@@ -1069,6 +1105,12 @@ Lösung:
 
 CH3 startet dann automatisch; der Schalter muss nicht erneut betätigt werden.
 
+### CH2 zeigt WAIT bzw. „Waiting: CH1 + offset …“
+
+CH2 ist an CH1 gekoppelt (Abschnitt 4), und CH1 + Offset liegt unter 8 kHz oder über 160 MHz.
+
+Lösung: CH1 oder den Offset so ändern, dass CH1 + Offset im Bereich liegt, oder `Free` wählen. CH2 startet dann automatisch.
+
 ### Grenzen
 
 - Der Touch-Abgleich ist linear je Achse (Versatz und Steigung); eine Verdrehung des Touch-Panels gegen das Display gleicht er nicht aus.
@@ -1131,6 +1173,7 @@ Wichtige Meldungen:
 | `[APP] Remote outputs: allowed` / `Remote outputs: local only` | CONFIG `Remote out.` geändert (sofort gespeichert) |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
 | `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
+| `[APP] CH2 coupled to CH1` / `CH2 free` | CH2-Chip `CH1 + offset` bzw. `Free` (auch über SCPI und REST) |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WLAN-Betriebsart beim Start bzw. nach einer Änderung und Gerätename; Standard `Off` (Funk aus) |
 | `[WIFI] Seen <Netz>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen; next scan in 30 s` | Ergebnis der Netzsuche für die gespeicherten Netze; ohne Treffer mit dem Abstand bis zur nächsten Suche (Abschnitt 8, `WiFi`) |
 | `[WIFI] Connecting to <Netz>`, `[WIFI] Connected to <Netz>, 192.168.1.50, RSSI -60 dBm` | Verbindungsaufbau und Verbindung mit Adresse |
@@ -1315,8 +1358,10 @@ Kurzform groß geschrieben, Groß-/Kleinschreibung beliebig (`FREQ`, `freq`, `FR
 | `*CLS`, `*ESE`, `*ESE?`, `*ESR?`, `*SRE`, `*SRE?`, `*STB?`, `*OPC`, `*OPC?`, `*WAI` | | Statusregister nach IEEE 488.2; Befehle laufen sofort, `*OPC?` antwortet `1` |
 | `*TST?` | `0` / `1` | `1`: kein SI5351 verbunden |
 | `OUTPut<n>[:STATe] ON\|OFF\|1\|0` | `1` / `0` | Ausgang ein/aus (CH3: Anforderung wie der Schalter) |
-| `OUTPut<n>:CONDition?` | `ON`, `OFF`, `ERR`, `WAIT`, `NOHW` | Tatsächlicher Zustand wie die Anzeige (`WAIT`: CH3 wartet, `NOHW`: kein SI5351) |
-| `[SOURce<n>:]FREQuency[:CW] <f>` | Hz | Frequenz CH1/CH2; CH3 nur Abfrage (Frequenz des Masters), Setzen auf CH3 ergibt −221 `CH3 follows its master` |
+| `OUTPut<n>:CONDition?` | `ON`, `OFF`, `ERR`, `WAIT`, `NOHW` | Tatsächlicher Zustand wie die Anzeige (`WAIT`: CH3 oder gekoppelter CH2 wartet, `NOHW`: kein SI5351) |
+| `[SOURce<n>:]FREQuency[:CW] <f>` | Hz | Frequenz CH1/CH2; CH3 nur Abfrage (Frequenz des Masters), Setzen auf CH3 ergibt −221 `CH3 follows its master`. Gekoppelter CH2: Abfrage CH1 + Offset (unter 0 Hz `0`), Setzen ergibt −221 `CH2 is coupled to CH1` |
+| `SOURce2:COUPle OFF\|CH1` | `OFF` / `CH1` | CH2 frei bzw. an CH1 gekoppelt (Abschnitt 4) |
+| `SOURce2:FREQuency:OFFSet <f>` | Hz mit Vorzeichen | Offset von CH2 zu CH1, −160 MHz bis +160 MHz; Vorzeichen, Einheiten `HZ`, `KHZ`, `MHZ`, Exponent und `MIN`/`MAX`/`DEF` (0) wie bei der Frequenz; auch im Modus `OFF` setzbar |
 | `[SOURce<n>:]FREQuency:ACTual?` | Hz mit 0,1 Hz | Tatsächliche Frequenz wie die Zeile `Out` |
 | `SOURce3:IQ:MASTer 1\|2` | `1` / `2` | Master von CH3 |
 | `SOURce3:PHASe 0\|90\|180\|270` | Grad | Phase von CH3; Einheit `DEG` erlaubt |
@@ -1339,7 +1384,7 @@ Kurzform groß geschrieben, Groß-/Kleinschreibung beliebig (`FREQ`, `freq`, `FR
 
 Zahlen: ganze Hz (`7100000`), Dezimalzahl mit oder ohne Einheit `HZ`, `KHZ`, `MHZ` (`7.1 MHZ`, `455khz`) oder mit Exponent (`7.1E6`); gerundet auf 1 Hz. `MIN`, `MAX` und `DEF` setzen Grenze bzw. Standardwert. Nichts wird abgeschnitten: Werte außerhalb des Bereichs ergeben −222, `NAN`, `INF`, Hex-Zahlen, unbekannte Einheiten und nicht erlaubte Werte −224, Zeichenketten −104. Ungültige Zeichen, z. B. zwei Werte ohne Komma (`FREQ 7MHZ 8MHZ`) oder `0x10`, ergeben einmal −101 für diesen Befehl; Befehle nach dem nächsten `;` laufen weiter. Ein abgelehnter Befehl ändert nichts.
 
-Weitere Fehler: −113 unbekannter Befehl; −114 Kanal-Suffix außerhalb des Bereichs (`OUTP4`, `SOUR2:PHAS`); −108 ein Parameter zu viel (`FREQ 7MHZ,1`); −109 fehlender Parameter (`FREQ`); −221 Einstellungskonflikt (`CH3 follows its master`, `Not in Integer tuning`, `Remote outputs: local only`); −240 `Hardware error;SI5351` (der SI5351 hat die Einstellung nicht angenommen); −200 `Execution error;Too many commands` (mehr als 20 einstellende Befehle pro Sekunde) bzw. `Execution error;Busy` (die Befehlswarteschlange ist voll, gleich noch einmal senden).
+Weitere Fehler: −113 unbekannter Befehl; −114 Kanal-Suffix außerhalb des Bereichs (`OUTP4`, `SOUR2:PHAS`); −108 ein Parameter zu viel (`FREQ 7MHZ,1`); −109 fehlender Parameter (`FREQ`); −221 Einstellungskonflikt (`CH3 follows its master`, `CH2 is coupled to CH1`, `Not in Integer tuning`, `Remote outputs: local only`); −240 `Hardware error;SI5351` (der SI5351 hat die Einstellung nicht angenommen); −200 `Execution error;Too many commands` (mehr als 20 einstellende Befehle pro Sekunde) bzw. `Execution error;Busy` (die Befehlswarteschlange ist voll, gleich noch einmal senden).
 
 Mehrere Befehle in einer Zeile: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` beginnt wieder an der Wurzel), Abfragen antworten in einer Zeile, getrennt durch `;`: `FREQ?;:OUTP1?` → `7100000;1`.
 
@@ -1392,6 +1437,7 @@ Das WLAN läuft ohne Energiesparen und mit voller Sendeleistung: Das Gerät antw
 
 - Oben Name, Version und Verbindung (`Live`, `Polling`, `Offline`), Speicherzustand, `REMOTE <Quelle>`, `Identify`, `Save`, `?` (Hilfe) und die Links MAIN/CH1/CH2/CH3/CONFIG/WiFi; diese Kopfzeile bleibt beim Scrollen stehen, auch auf dem Handy. Darunter die Bereiche MAIN, CH1, CH2, CH3 IQ, CONFIG und WiFi wie am Gerät. Auf dem Handy liegen die Bereiche untereinander, die Ein/Aus-Schalter der Kanäle stehen fest am unteren Rand.
 - Frequenzen: Ziffer antippen bzw. anklicken wählt den Schritt, Mausrad über einer Ziffer ändert sie, die Einheit öffnet ein Eingabefeld (`10.7M`, `455k`, `7 100 000`, `10,7 MHz`; ein Fehler bleibt neben dem Feld stehen).
+- CH2 hat die Chips `Free` und `CH1 + offset` wie am Gerät (Abschnitt 4). Gekoppelt zeigen die Ziffern den Offset mit Vorzeichen, Tasten, Mausrad und Eingabefeld (`Offset`, z. B. `+455k`, `-10.7M`, `-455000`) ändern ihn; die MAIN-Karte zeigt CH1 + Offset und `CH1 +455 kHz`, wartet CH2, steht `Waiting: CH1 + offset below 8 kHz` bzw. `above 160 MHz` unter den Ziffern. Auf CH3 mit gekoppeltem Master CH2 ändern die Frequenztasten den Offset.
 - Tastatur: `↑`/`↓` (auch `+`/`−`) Frequenz im Schritt, `←`/`→` Schritt größer/kleiner, `Bild↑`/`Bild↓` Frequenz × 10 / ÷ 10, `1`/`2`/`3` Kanal, `F` oder `Enter` Eingabefeld, `O` Ausgang ein/aus, `?` Hilfe.
 - Änderungen am Gerät oder per SCPI erscheinen nach etwa 1 s und werden kurz hervorgehoben; ein Feld mit Fokus wird nicht überschrieben. Ohne Verbindung ist alles grau. Bei sehr schnellen Änderungen (z. B. eine SCPI-Schleife) schickt das Gerät höchstens 10 Zustände pro Sekunde; der letzte Stand kommt immer an. Ist der Speicher des Geräts knapp, lässt es einzelne Aktualisierungen aus bzw. nimmt neue Verbindungen nicht an (`Low memory`), statt neu zu starten.
 - Die Statusleiste am Gerät zeigt nach einer Änderung aus dem Browser 10 s lang `REMOTE WEB`. `Remote out.` `local only` (Abschnitt 8) gilt auch hier: Einschalten und `Off state` `High` werden abgelehnt (dann ohne Rückfrage, die Meldung steht neben der Auswahl).
@@ -1427,7 +1473,7 @@ Programme können dieselben Funktionen über HTTP und JSON nutzen; Beispiel in `
 | Aufruf | Inhalt |
 |---|---|
 | `GET /api/state` | Zustand als JSON (Kanäle, CH3, Frequenzbereich und Schrittliste, CONFIG, WLAN, Speichern, `REMOTE`); mit Web-Passwort nur mit Anmeldung |
-| `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` oder `{"frequencyText":"7.1M"}` |
+| `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` oder `{"frequencyText":"7.1M"}`; CH2 zusätzlich `{"coupled":true,"offset":-455000}` (Offset in Hz, ±160 MHz; Reihenfolge Offset, Kopplung, Frequenz, Ein/Aus). Gekoppelt ergibt eine CH2-Frequenz 400 `-221,CH2 is coupled to CH1`; im Zustand stehen `coupled` und `offset` bei CH2, `frequency` ist dann CH1 + Offset |
 | `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
 | `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` bei `local only` 403), `correction` (0,01 ppm), `step`, `backlight` |
 | `POST /api/save`, `/api/identify` | `{}`; Speichern wie `SYST:SAVE` höchstens einmal je 10 s (Abschnitt 15) |
@@ -1698,7 +1744,7 @@ CH1 7,555 MHz ── 3 dB ── 100 nF ─► LO ┘
 
 1. CONFIG `Signal`: `Drive all` `8 mA`, `Off state` `Low`, `Tuning` `Low noise`; Register `Freq`: `Spread CH1` `Off`.
 2. CH1 auf 7,555 MHz stellen (LO oberhalb: 7,100 + 0,455 MHz) und einschalten.
-3. CH2 auf 7,100 MHz stellen und einschalten.
+3. CH2 auf 7,100 MHz stellen und einschalten. Alternativ CH2 auf `CH1 + offset` mit Offset `-455.000 kHz` stellen (Abschnitt 4): Dann folgt das Testsignal jeder Änderung des LO, die ZF bleibt 455 kHz.
 4. LO über 3 dB und 100 nF an das LO-Tor: ≈ +7 dBm (typisch, nicht gemessen; am Analysator prüfen).
 5. Testsignal über 30 dB an das HF-Tor: ≈ −20 dBm (typisch, nicht gemessen).
 6. Am ZF-Tor erscheinen die Mischprodukte:
@@ -1763,6 +1809,24 @@ Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt v
 | Out 10.000 000 MHz (+0.3 Hz)               |
 | SSC -0.5% | IQ master (90°)                |
 +--------------------------------------------+
+| [1M][100k][10k][ 1k ][100][ 10][  1]       |
+| [   −   ]  [   +   ]  [  NUMPAD  ]         |
++--------------------------------------------+
+```
+
+### CH2 gekoppelt
+
+![CH2: an CH1 gekoppelt, Offset +455.000 kHz, Out 7,555 MHz](docs/img/screen-ch2-coupled.png)
+
+```text
++--------------------------------------------+
+| [◀] CH2  [==o]  ON                         |
++--------------------------------------------+
+| +455.000 kHz                               |
+| Out 7.555 000 MHz (+0.3 Hz)                |
+|                                            |
++--------------------------------------------+
+| [  Free  ]  [      CH1 + offset       ]    |
 | [1M][100k][10k][ 1k ][100][ 10][  1]       |
 | [   −   ]  [   +   ]  [  NUMPAD  ]         |
 +--------------------------------------------+
@@ -1851,7 +1915,7 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 |---|---|---|
 | `ON` (grünes Feld) | Ausgang läuft | 2 |
 | `OFF` (graue Schrift) | Ausgang aus | 2 |
-| `WAIT` (oranges Feld) | CH3 eingeschaltet, wartet auf Master oder IQ-Bereich | 2, 7 |
+| `WAIT` (oranges Feld) | CH3 eingeschaltet, wartet auf Master oder IQ-Bereich; gekoppelter CH2 wartet, bis CH1 + Offset im Bereich liegt | 2, 4, 7 |
 | `! ERR` (rotes Feld) | Einstellen fehlgeschlagen, Wiederholung alle 2 s | 11 |
 | `! NO HW` (rotes Feld) | SI5351 nicht gefunden oder Verbindung verloren | 11 |
 | `~` vor der Frequenz | tatsächliche Frequenz weicht um 1 Hz oder mehr ab (`Integer`) | 2, 8 |
@@ -1860,6 +1924,8 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 | `Off \| Out …` | Kanal aus; so läuft er nach dem Einschalten | 5 |
 | `IQ master (90°)` | CH3 folgt diesem Kanal mit der angegebenen Phase | 2, 5 |
 | `CH1 / 90° / master off` | CH3: Master, Phase und Grund des Wartens | 2, 7 |
+| `CH1 +455 kHz`, `+455.000 kHz` | CH2 an CH1 gekoppelt: Offset (MAIN bzw. CH2-Seite) | 2, 4 |
+| `Waiting: CH1 + offset below 8 kHz` | gekoppelter CH2: CH1 + Offset außerhalb von 8 kHz – 160 MHz | 4 |
 | Moduszeile | Einstellungen, die vom Werkszustand abweichen | 2 |
 | `OFF=High` / `OFF=High-Z` | ausgeschaltete Ausgänge führen HIGH (Gleichspannung) bzw. sind hochohmig | 8 |
 | `SSC -0.5 %` usw. | Spread Spectrum: Frequenz wird absichtlich verteilt | 8 |
@@ -1871,6 +1937,7 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 | `Now …` | NUMPAD: aktuelle Frequenz | 6 |
 | `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: Grund einer abgelehnten Eingabe | 6 |
 | `-50.00 to +50.00 ppm` | NUMPAD der Korrektur: Wert außerhalb des Bereichs | 8 |
+| `-160 to +160 MHz` | NUMPAD des Offsets: Wert außerhalb des Bereichs | 4, 6 |
 | `>100MHz: low level` / `<1MHz: harmonics` | Kanalseite: Hinweis außerhalb von 1–100 MHz | 1, 5 |
 | `Touch calibrated …` / `Touch not calibrated (default)` | Info-Karte: Touch-Abgleich | 8 |
 | `detected` / `default` / `build flag` | Info-Karte: Herkunft des Display-Controllers | 8, 13 |
@@ -1889,6 +1956,7 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 | Starke Oberwellen unter 1 MHz | Rechteck mit steilen Flanken | Tiefpass am Ausgang | 1 |
 | Frequenzzähler zeigt einige Hz Abweichung bei allen Frequenzen | Quarztoleranz | `Corr.` abgleichen | 8 |
 | CH3 bleibt bei `WAIT` | Master aus oder Masterfrequenz außerhalb des IQ-Bereichs | Master einschalten, Frequenz ≥ 4,730 MHz | 7, 11 |
+| CH2 bleibt bei `WAIT`, CH2-Frequenz von außen abgelehnt (−221) | CH2 an CH1 gekoppelt (`CH1 + offset`) | CH1 oder Offset ändern bzw. `Free` wählen | 4, 11 |
 | `! NO HW` auf allen Karten | Kabel, 3,3 V oder GND an CN1 | Verbindung prüfen; SDA/SCL dürfen vertauscht sein | 11 |
 | Tipps landen neben der Taste, Rand schwer zu treffen | Touch-Abgleich fehlt oder passt nicht | CONFIG `Device` → `Touch cal.` | 8 |
 | Display zeigt nur Rauschen | Controller nicht erkannt | Firmware mit `DISPLAY_FORCE_PANEL` bauen | 13 |

@@ -76,11 +76,16 @@ public:
             case CommandType::Backlight:
             case CommandType::Step:
             case CommandType::Correction: break; // any int64: the controller checks the range
+            case CommandType::Ch2Couple:
+                FUZZ_CHECK(c.channel == 2);
+                FUZZ_CHECK(c.value == 0 || c.value == 1);
+                break;
+            case CommandType::Ch2Offset: FUZZ_CHECK(c.channel == 2); break;
         }
         Outcome o;
         const uint32_t r = rng.next();
         o.push = (r & 15) == 0 ? PushResult::Full : (r & 15) == 1 ? PushResult::RateLimited : PushResult::Queued;
-        o.result = (Result)((r >> 4) % 7);
+        o.result = (Result)((r >> 4) % 8);
         return o;
     }
     bool snapshot(Snapshot* out) override {

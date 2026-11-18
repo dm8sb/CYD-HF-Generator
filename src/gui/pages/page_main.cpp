@@ -140,11 +140,20 @@ void Gui::refreshMain_() {
     for (uint8_t ch = 1; ch <= 2; ++ch) {
         const uint8_t i = ch - 1;
         const Channel& c = app.channel(ch);
-        setCardFrequency(w_.cardFreq[i], app, ch, c.frequency);
+        // A coupled CH2 shows the frequency it is set to (CH1 + offset, E-52).
+        setCardFrequency(w_.cardFreq[i], app, ch, app.frequency(ch));
         showState_(w_.cardState[i], StatusText::channel(app.channelStatus(ch)));
         // Special modes first (they change the signal); a long line ends in "...".
         const bool iqMaster = app.ch3().master == ch && app.ch3Status() != Ch3Status::Off;
-        showModes_(w_.cardDetail[i], ch, iqMaster ? "IQ master" : "", "IQ master of CH3");
+        char extra[40] = "";
+        if (ch == 2 && app.ch2Coupled()) {
+            char off[20];
+            FrequencyUtils::formatOffsetCompact(app.ch2Coupling().offset, off, sizeof(off));
+            snprintf(extra, sizeof(extra), "CH1 %s%s", off, iqMaster ? " | IQ master" : "");
+        } else if (iqMaster) {
+            snprintf(extra, sizeof(extra), "IQ master");
+        }
+        showModes_(w_.cardDetail[i], ch, extra, iqMaster && !(ch == 2 && app.ch2Coupled()) ? "IQ master of CH3" : nullptr);
         placeDetail(w_.cardDetail[i], w_.cardState[i]);
         if (c.enabled) lv_obj_add_state(w_.cardSwitch[i], LV_STATE_CHECKED);
         else lv_obj_clear_state(w_.cardSwitch[i], LV_STATE_CHECKED);

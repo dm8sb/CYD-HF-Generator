@@ -15,6 +15,9 @@ static constexpr uint64_t FREQ_MIN_HZ = 8000ULL;
 static constexpr uint64_t FREQ_MAX_HZ = 160000000ULL;
 static constexpr uint64_t DEFAULT_FREQ_CH1 = 10000000ULL;
 static constexpr uint64_t DEFAULT_FREQ_CH2 = 14000000ULL;
+// CH2 coupled to CH1 (E-52): offset range in Hz; CH2 = CH1 + offset must lie in the range above,
+// otherwise CH2 waits.
+static constexpr int32_t CH2_OFFSET_MAX_HZ = 160000000;
 
 // CH3 IQ range: the phase offset register limits the MultiSynth divider to 127, so the VCO
 // stays >= 600 MHz (SI5351 spec) only from 600 MHz / 127 upwards. The fractional-mode divider

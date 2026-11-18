@@ -41,6 +41,10 @@ void SettingsService::load(PersistentState& s) {
     if (s.sys.tuning_mode == TuningMode::Integer) s.sys.spread = Spread::Off;
     const uint8_t off = storage_.getU8("off_st", 0);
     s.sys.off_state = off <= (uint8_t)OffState::HighZ ? (OffState)off : OffState::Low;
+    // CH2 coupled to CH1 (E-52); NVS from before has neither key: Free, offset 0.
+    s.ch2c.coupled = storage_.getU8("ch2_cpl", 0) == 1;
+    const int32_t offset = storage_.getI32("ch2_off", 0);
+    s.ch2c.offset = (offset < -CH2_OFFSET_MAX_HZ || offset > CH2_OFFSET_MAX_HZ) ? 0 : offset;
     Logger::info("SETTINGS", available_ ? "Loaded from NVS" : "NVS unavailable; defaults loaded");
 }
 
@@ -58,6 +62,8 @@ bool SettingsService::save_(const PersistentState& s, uint16_t keys) {
     if (keys & Tune) ok &= storage_.putU8("tune", (uint8_t)s.sys.tuning_mode);
     if (keys & Ssc) ok &= storage_.putU8("ssc", (uint8_t)s.sys.spread);
     if (keys & OffSt) ok &= storage_.putU8("off_st", (uint8_t)s.sys.off_state);
+    if (keys & Ch2Cpl) ok &= storage_.putU8("ch2_cpl", s.ch2c.coupled ? 1 : 0);
+    if (keys & Ch2Off) ok &= storage_.putI32("ch2_off", s.ch2c.offset);
     if (ok) Logger::info("SETTINGS", "Saved to NVS");
     else Logger::error("SETTINGS", "Saving to NVS failed");
     return ok;
@@ -91,6 +97,7 @@ void SettingsService::defaults(PersistentState& s) {
     s.sys.tuning_mode = TuningMode::Fractional;
     s.sys.spread = Spread::Off;
     s.sys.off_state = OffState::Low;
+    s.ch2c = Ch2Coupling {false, 0};
 }
 
 bool SettingsService::eraseAll() {

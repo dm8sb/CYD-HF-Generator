@@ -25,7 +25,9 @@ enum class CommandType : uint8_t {
     OffState,        // value OffState
     ResetRemote,     // *RST
     SaveNow,         // SYSTem:SAVE
-    Identify         // SYSTem:IDENtify
+    Identify,        // SYSTem:IDENtify
+    Ch2Couple,       // value 0 free / 1 coupled to CH1 (E-52)
+    Ch2Offset        // value offset in Hz (CH2 = CH1 + offset)
 };
 
 struct Command {

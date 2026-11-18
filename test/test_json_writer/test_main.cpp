@@ -73,8 +73,10 @@ static Snapshot randomSnapshot() {
     s.state.sys.tuning_mode = (TuningMode)below(4);
     s.state.sys.spread = (Spread)below(5);
     s.state.sys.off_state = (OffState)below(4);
-    s.status[0] = (ChannelStatus)below(5);
-    s.status[1] = (ChannelStatus)below(5);
+    s.status[0] = (ChannelStatus)below(7);
+    s.status[1] = (ChannelStatus)below(7);
+    s.state.ch2c.coupled = below(2);
+    s.state.ch2c.offset = below(2) ? (int32_t)below(320000001) - 160000000 : (int32_t)rnd();
     s.ch3Status = (Ch3Status)below(8);
     for (double& a : s.actualHz) a = randomActual();
     s.hardwareReady = below(2);

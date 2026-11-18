@@ -159,7 +159,8 @@ class Model:
         self.lock = threading.RLock()
         self.rev = 1
         self.hw = args.hw
-        self.ch = [{"enabled": False, "frequency": dc.DEFAULT_FREQ[1]}, {"enabled": False, "frequency": dc.DEFAULT_FREQ[2]}]
+        self.ch = [{"enabled": False, "frequency": dc.DEFAULT_FREQ[1]},
+                   {"enabled": False, "frequency": dc.DEFAULT_FREQ[2], "coupled": False, "offset": 0}]
         self.ch3 = {"enabled": False, "master": 1, "phase": 90}
         self.cfg = {"drive": dc.DEFAULT_DRIVE, "tuning": "fractional", "spread": "off", "offState": "low", "correction": 0,
                     "step": dc.DEFAULT_STEP, "backlight": 80, "remoteOutputs": "local" if args.local_only else "allowed"}
@@ -228,10 +229,28 @@ class Model:
             hi = min(hi, math.floor(IQ_MAX / (1 + up)))
         return lo, hi
 
+    # CH2 coupled to CH1 (E-52): CH1 + offset, waits outside FREQ_MIN..FREQ_MAX.
+    def target(self):
+        return self.ch[0]["frequency"] + self.ch[1]["offset"]
+
+    def waiting(self):
+        return self.ch[1]["coupled"] and not FREQ_MIN <= self.target() <= FREQ_MAX
+
+    def freq(self, i):
+        if i == 1 and self.ch[1]["coupled"]:
+            return max(0, self.target())
+        return self.ch[i]["frequency"]
+
+    def sync(self):
+        if self.ch[1]["coupled"] and not self.waiting():
+            self.ch[1]["frequency"] = self.target()
+
     def ch_status(self, i):
         if self.hw != "CONN":
             return "NOHW"
-        return "ON" if self.ch[i]["enabled"] else "OFF"
+        if not self.ch[i]["enabled"]:
+            return "OFF"
+        return "WAIT" if i == 1 and self.waiting() else "ON"
 
     def ch3_status(self):
         if not self.ch3["enabled"]:
@@ -240,7 +259,7 @@ class Model:
             return "NOHW"
         m = self.ch[self.ch3["master"] - 1]
         lo, hi = self.iq_range()
-        if not m["enabled"] or not lo <= m["frequency"] <= hi:
+        if not m["enabled"] or not lo <= self.freq(self.ch3["master"] - 1) <= hi:
             return "WAIT"
         return "ON"
 
@@ -263,15 +282,22 @@ class Model:
         with self.lock:
             lo, hi = self.iq_range()
             s3 = self.ch3_status()
-            m = self.ch[self.ch3["master"] - 1]
+            mf = self.freq(self.ch3["master"] - 1)
+            chs = []
+            for i, c in enumerate(self.ch):
+                f = self.freq(i)
+                wait = i == 1 and self.waiting()
+                o = {"n": i + 1, "enabled": c["enabled"], "frequency": f,
+                     "actual": 0.0 if wait else self.actual(i + 1, f), "status": self.ch_status(i), "modes": self.modes(i + 1)}
+                if i == 1:
+                    o.update(coupled=c["coupled"], offset=c["offset"])
+                chs.append(o)
             return {"rev": self.rev, "hw": self.hw, "save": self.save, "remote": self.remote,
-                    "ch": [{"n": i + 1, "enabled": c["enabled"], "frequency": c["frequency"],
-                            "actual": self.actual(i + 1, c["frequency"]), "status": self.ch_status(i), "modes": self.modes(i + 1)}
-                           for i, c in enumerate(self.ch)],
+                    "ch": chs,
                     "ch3": {"enabled": self.ch3["enabled"], "master": self.ch3["master"], "phase": self.ch3["phase"],
-                            "status": s3, "frequency": m["frequency"],
-                            "actual": self.actual(3, m["frequency"]) if s3 == "ON" else 0.0, "iqMin": lo, "iqMax": hi},
-                    "limits": {"fmin": FREQ_MIN, "fmax": FREQ_MAX, "steps": list(STEPS)},
+                            "status": s3, "frequency": mf,
+                            "actual": self.actual(3, mf) if s3 == "ON" else 0.0, "iqMin": lo, "iqMax": hi},
+                    "limits": {"fmin": FREQ_MIN, "fmax": FREQ_MAX, "steps": list(STEPS), "offsetMax": dc.OFFSET_MAX},
                     "config": dict(self.cfg), "wifi": self.wifi_status(),
                     "device": {"version": VERSION, "passwordSet": bool(self.args.password)}}
 
@@ -287,9 +313,25 @@ class Model:
             raise ApiError(403, "-221,Remote outputs: local only")
 
     def post_channel(self, n, b):
-        check_obj(b, {"enabled": bool, "frequency": int, "frequencyText": str}, need_one=True)
+        keys = {"enabled": bool, "frequency": int, "frequencyText": str}
+        if n == 2:
+            keys.update(coupled=bool, offset=int)
+        check_obj(b, keys, need_one=True)
         if "frequency" in b and "frequencyText" in b:
             raise ApiError(400, "-108,frequency or frequencyText, not both")
+        c = self.ch[n - 1]
+        # Order as on the device: offset, coupled, frequency, enabled; stops at the first error.
+        if "offset" in b:
+            if not -dc.OFFSET_MAX <= b["offset"] <= dc.OFFSET_MAX:
+                raise ApiError(400, E_RANGE)
+            if b["offset"] != c["offset"]:
+                c["offset"] = b["offset"]
+                self.sync()
+                self.changed(True)
+        if "coupled" in b and b["coupled"] != c["coupled"]:
+            c["coupled"] = b["coupled"]
+            self.sync()
+            self.changed(True)
         f = None
         if "frequency" in b:
             f = b["frequency"]
@@ -297,12 +339,15 @@ class Model:
                 raise ApiError(400, E_RANGE)
         elif "frequencyText" in b:
             f = parse_freq(b["frequencyText"])
-        c = self.ch[n - 1]
+        if f is not None and c.get("coupled"):
+            raise ApiError(400, "-221,CH2 is coupled to CH1")
         if "enabled" in b:
             self.switch_on_allowed(c["enabled"], b["enabled"])
         save = f is not None and f != c["frequency"]
         if f is not None:
             c["frequency"] = f
+            if n == 1:
+                self.sync()
         if "enabled" in b:
             c["enabled"] = b["enabled"]
         self.changed(save)

@@ -17,13 +17,13 @@ namespace InputLogic {
 static constexpr size_t NUMPAD_MAX_LEN = 10;
 
 // Why the last key was rejected; shown as a text and a red border until the next key (U-9).
-enum class NumpadError : uint8_t { None, Empty, OutOfRange, TooLong, PpmRange };
+enum class NumpadError : uint8_t { None, Empty, OutOfRange, TooLong, PpmRange, OffsetRange };
 
 struct Numpad {
     char text[NUMPAD_MAX_LEN + 1] = {};
     size_t len = 0;
     NumpadError error = NumpadError::None;
-    bool negative = false; // correction entry only (numpadPpmKey)
+    bool negative = false; // correction and offset entry only (numpadPpmKey, numpadOffsetKey)
 };
 
 enum class NumpadEvent : uint8_t {
@@ -42,6 +42,9 @@ extern const char* const KEY_SIGN;
 // Correction entry (audit U-11): digits, point, backspace and C as numpadKey(), KEY_SIGN toggles the
 // sign, "ppm" confirms with *outCentiPpm in 0.01 ppm (rounded, at most CORRECTION_MAX).
 NumpadEvent numpadPpmKey(Numpad& n, const char* key, int32_t* outCentiPpm);
+// Offset entry of the coupled CH2 (E-52): as numpadKey(), KEY_SIGN toggles the sign, a unit key
+// confirms with *outHz in -CH2_OFFSET_MAX_HZ..+CH2_OFFSET_MAX_HZ (0 allowed).
+NumpadEvent numpadOffsetKey(Numpad& n, const char* key, int32_t* outHz);
 // Short text for the error line of the numpad ("" for None).
 const char* numpadErrorText(NumpadError e);
 

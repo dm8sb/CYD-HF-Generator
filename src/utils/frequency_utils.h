@@ -15,6 +15,12 @@ uint64_t clamp(uint64_t hz);
 void format(uint64_t hz, char* out, size_t outSize);
 // MHz with a fixed number of decimals (0..6, rounded): 4730000, 3 -> "4.730"; 100000000, 0 -> "100".
 void formatMHz(uint64_t hz, uint8_t decimals, char* out, size_t outSize);
+// Offset of the coupled CH2 (E-52) as format() with the sign always shown: "+455.000 kHz",
+// "-10.700 000 MHz", "+0.000 kHz".
+void formatOffset(int64_t hz, char* out, size_t outSize);
+// Compact for the MAIN mode line, trailing zeros dropped: "+455 kHz", "-10.7 MHz", "+1.5 kHz",
+// "+25 Hz", "+0 Hz".
+void formatOffsetCompact(int64_t hz, char* out, size_t outSize);
 void formatStep(uint32_t hz, char* out, size_t outSize);
 void formatPpm(int32_t centiPpm, char* out, size_t outSize);
 // "Off", "-0.5 %", "-1.5 %", "+/-0.5 %"
@@ -29,6 +35,8 @@ double formatOutput(double actualHz, uint64_t requestedHz, Spread spread, char* 
 // `text`: digits with at most one decimal point; `unit`: "Hz" (or nullptr), "kHz", "MHz".
 // Returns false for anything else or a result outside FREQ_MIN_HZ..FREQ_MAX_HZ.
 bool parseFrequency(const char* text, const char* unit, uint64_t* outHz);
+// As parseFrequency() without the range check (0 allowed): the magnitude of an offset.
+bool parseDecimalHz(const char* text, const char* unit, uint64_t* outHz);
 // Remote input (V-11: REST, SCPI, web field): an integer in Hz ("10000000", "7 100 000") or a
 // decimal number with a unit (Hz, kHz, MHz, k, M, any case: "10.7 MHz", "10,7MHZ", "455k").
 // Spaces only between groups of three digits and around the unit; no sign, exponent or hex.

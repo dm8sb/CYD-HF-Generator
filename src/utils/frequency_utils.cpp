@@ -51,6 +51,43 @@ void formatMHz(uint64_t hz, uint8_t decimals, char* out, size_t outSize) {
     }
 }
 
+void formatOffset(int64_t hz, char* out, size_t outSize) {
+    if (!out || outSize == 0) return;
+    const uint64_t magnitude = hz < 0 ? (uint64_t)(-(hz + 1)) + 1 : (uint64_t)hz;
+    out[0] = hz < 0 ? '-' : '+';
+    if (outSize > 1) format(magnitude, out + 1, outSize - 1);
+    else out[0] = '\0';
+}
+
+void formatOffsetCompact(int64_t hz, char* out, size_t outSize) {
+    if (!out || outSize == 0) return;
+    const uint64_t m = hz < 0 ? (uint64_t)(-(hz + 1)) + 1 : (uint64_t)hz;
+    const char sign = hz < 0 ? '-' : '+';
+    const char* unit = "Hz";
+    uint64_t scale = 1;
+    int decimals = 0;
+    if (m >= 1000000ULL) {
+        unit = "MHz";
+        scale = 1000000ULL;
+        decimals = 6;
+    } else if (m >= 1000ULL) {
+        unit = "kHz";
+        scale = 1000ULL;
+        decimals = 3;
+    }
+    uint64_t frac = m % scale;
+    while (decimals > 0 && frac % 10 == 0) {
+        frac /= 10;
+        --decimals;
+    }
+    if (decimals == 0) {
+        snprintf(out, outSize, "%c%llu %s", sign, (unsigned long long)(m / scale), unit);
+    } else {
+        snprintf(out, outSize, "%c%llu.%0*llu %s", sign, (unsigned long long)(m / scale), decimals,
+                 (unsigned long long)frac, unit);
+    }
+}
+
 void formatStep(uint32_t hz, char* out, size_t outSize) {
     if (hz >= 1000000UL && hz % 1000000UL == 0) snprintf(out, outSize, "%lu MHz", (unsigned long)(hz / 1000000UL));
     else if (hz >= 1000UL && hz % 1000UL == 0) snprintf(out, outSize, "%lu kHz", (unsigned long)(hz / 1000UL));
@@ -114,6 +151,13 @@ static bool isPlainDecimal(const char* text) {
 }
 
 bool parseFrequency(const char* text, const char* unit, uint64_t* outHz) {
+    uint64_t hz = 0;
+    if (!parseDecimalHz(text, unit, &hz) || hz < FREQ_MIN_HZ || hz > FREQ_MAX_HZ) return false;
+    *outHz = hz;
+    return true;
+}
+
+bool parseDecimalHz(const char* text, const char* unit, uint64_t* outHz) {
     if (!text || !outHz || !isPlainDecimal(text)) return false;
     int exp10 = 0;
     if (unit) {
@@ -134,7 +178,6 @@ bool parseFrequency(const char* text, const char* unit, uint64_t* outHz) {
     }
     uint64_t hz = 0;
     if (!scaleDecimal(mantissa, exp10, &hz)) return false;
-    if (hz < FREQ_MIN_HZ || hz > FREQ_MAX_HZ) return false;
     *outHz = hz;
     return true;
 }

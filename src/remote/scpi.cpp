@@ -154,6 +154,7 @@ scpi_result_t answer(scpi_t* c, const ScpiBackend::Outcome& o) {
         case Result::Conflict: error(c, SCPI_ERROR_SETTINGS_CONFLICT, "Not in Integer tuning"); break;
         case Result::Denied: error(c, SCPI_ERROR_SETTINGS_CONFLICT, "Remote outputs: local only"); break;
         case Result::HwError: error(c, SCPI_ERROR_HARDWARE_ERROR, "SI5351"); break;
+        case Result::Coupled: error(c, SCPI_ERROR_SETTINGS_CONFLICT, "CH2 is coupled to CH1"); break;
     }
     return SCPI_RES_ERR;
 }
@@ -294,6 +295,8 @@ scpi_result_t outputStatusQ(scpi_t* c) {
             case ChannelStatus::On: text = "ON"; break;
             case ChannelStatus::Error: text = "ERR"; break;
             case ChannelStatus::NoDevice: text = "NOHW"; break;
+            case ChannelStatus::FreqTooLow:
+            case ChannelStatus::FreqTooHigh: text = "WAIT"; break;
         }
     } else {
         switch (s.ch3Status) {
@@ -380,6 +383,15 @@ scpi_result_t frequency(scpi_t* c) {
     if (ch == 3) {
         error(c, SCPI_ERROR_SETTINGS_CONFLICT, "CH3 follows its master");
         return SCPI_RES_ERR;
+    }
+    // The controller refuses it too (Result::Coupled); checked here for the clearer order.
+    Snapshot s;
+    if (ch == 2) {
+        if (!state(c, &s)) return SCPI_RES_ERR;
+        if (s.state.ch2c.coupled) {
+            error(c, SCPI_ERROR_SETTINGS_CONFLICT, "CH2 is coupled to CH1");
+            return SCPI_RES_ERR;
+        }
     }
     return submit(c, CommandType::SetFrequency, ch, hz);
 }
@@ -510,6 +522,42 @@ scpi_result_t stepQ(scpi_t* c) {
     return SCPI_RES_OK;
 }
 
+// --- CH2 coupled to CH1 (E-52) -----------------------------------------------
+
+const NumberSpec OFFSET_SPEC {0, HZ_UNITS, -(int64_t)CH2_OFFSET_MAX_HZ, (int64_t)CH2_OFFSET_MAX_HZ, 0};
+const scpi_choice_def_t COUPLE_CHOICES[] = {{"OFF", 0}, {"CH1", 1}, SCPI_CHOICE_LIST_END};
+
+scpi_result_t couple(scpi_t* c) {
+    uint8_t ch;
+    if (!suffix(c, 2, 2, &ch)) return SCPI_RES_ERR;
+    int32_t v = 0;
+    if (!SCPI_ParamChoice(c, COUPLE_CHOICES, &v, TRUE)) return SCPI_RES_ERR; // -224 / -109 pushed
+    return submit(c, CommandType::Ch2Couple, 2, v);
+}
+
+scpi_result_t coupleQ(scpi_t* c) {
+    uint8_t ch;
+    Snapshot s;
+    if (!suffix(c, 2, 2, &ch) || !state(c, &s)) return SCPI_RES_ERR;
+    SCPI_ResultMnemonic(c, s.state.ch2c.coupled ? "CH1" : "OFF");
+    return SCPI_RES_OK;
+}
+
+scpi_result_t offset(scpi_t* c) {
+    uint8_t ch;
+    int64_t v;
+    if (!suffix(c, 2, 2, &ch) || !number(c, OFFSET_SPEC, &v)) return SCPI_RES_ERR;
+    return submit(c, CommandType::Ch2Offset, 2, v);
+}
+
+scpi_result_t offsetQ(scpi_t* c) {
+    uint8_t ch;
+    Snapshot s;
+    if (!suffix(c, 2, 2, &ch) || !state(c, &s)) return SCPI_RES_ERR;
+    SCPI_ResultInt64(c, s.state.ch2c.offset);
+    return SCPI_RES_OK;
+}
+
 const Unit PCT_UNITS[] = {{"PCT", 0}, {nullptr, 0}};
 const NumberSpec BACKLIGHT_SPEC {0, PCT_UNITS, BACKLIGHT_MIN_PERCENT, 100, DEFAULT_BACKLIGHT_PERCENT};
 
@@ -607,6 +655,10 @@ const scpi_command_t COMMANDS[] = {
     {"SOURce#:FREQuency[:CW]", frequency, 0},
     {"SOURce#:FREQuency[:CW]?", frequencyQ, 0},
     {"SOURce#:FREQuency:ACTual?", actualQ, 0},
+    {"SOURce#:FREQuency:OFFSet", offset, 0},
+    {"SOURce#:FREQuency:OFFSet?", offsetQ, 0},
+    {"SOURce#:COUPle", couple, 0},
+    {"SOURce#:COUPle?", coupleQ, 0},
     {"SOURce#:IQ:MASTer", iqMaster, 0},
     {"SOURce#:IQ:MASTer?", iqMasterQ, 0},
     {"SOURce#:IQ:RANGe?", iqRangeQ, 0},

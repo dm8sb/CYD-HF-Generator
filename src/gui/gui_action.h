@@ -51,5 +51,6 @@ enum class GuiAction : uint8_t {
     DevIpField,     // device page: arg 0..3 address, mask, gateway, DNS
     DevWebPassword, // device page: set, change or remove the web password
     RemoteDisconnect, // CONFIG Net tab: disconnect all web and SCPI clients
-    ConfigTab         // CONFIG tab bar: arg tab 0..CONFIG_TAB_COUNT-1
+    ConfigTab,        // CONFIG tab bar: arg tab 0..CONFIG_TAB_COUNT-1
+    Ch2Couple         // CH2 page: arg 0 Free, 1 CH1 + offset (E-52)
 };
