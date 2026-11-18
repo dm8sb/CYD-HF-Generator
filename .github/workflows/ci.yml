@@ -166,7 +166,10 @@ jobs:
           bin=.pio/build/esp32-2432S028R/firmware.bin
           grep -a -q -- "$commit" "$bin" || { echo "commit $commit not found in $bin"; exit 1; }
           if grep -a -q -- "$commit+" "$bin"; then echo "image is marked dirty"; exit 1; fi
-          echo "build information OK: $commit"
+          # AF25: the build time is the commit time in UTC, so a rebuild gives the same image.
+          stamp="$(date -u -d "@$(git log -1 --format=%ct HEAD)" '+%Y-%m-%d %H:%M UTC')"
+          grep -a -q -- "$stamp" "$bin" || { echo "build time $stamp not found in $bin"; exit 1; }
+          echo "build information OK: $commit, $stamp"
       # G7: Flash and static RAM of the firmware as job summary and artifact (tools/size_report.py).
       - name: Measure firmware size
         env:

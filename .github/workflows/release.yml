@@ -39,6 +39,7 @@ jobs:
       commit: ${{ steps.v.outputs.commit }}
       prerelease: ${{ steps.v.outputs.prerelease }}
       deploy: ${{ steps.v.outputs.deploy }}
+      epoch: ${{ steps.v.outputs.epoch }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,6 +56,8 @@ jobs:
           app="$(sed -n 's/^#define APP_VERSION "\([^"]*\)".*/\1/p' include/config.h)"
           [ -n "$app" ] || { echo "APP_VERSION not found in include/config.h" >&2; exit 1; }
           commit="$(git rev-parse --short HEAD)"
+          # Commit time as SOURCE_DATE_EPOCH (AF25): build stamp and archives depend only on the commit.
+          epoch="$(git log -1 --format=%ct HEAD)"
           prerelease=false
           deploy=false
           if [ "$REF_TYPE" = tag ]; then
@@ -81,6 +84,7 @@ jobs:
             echo "commit=$commit"
             echo "prerelease=$prerelease"
             echo "deploy=$deploy"
+            echo "epoch=$epoch"
           } >> "$GITHUB_OUTPUT"
           echo "version $version, commit $commit, prerelease $prerelease, deploy $deploy" >> "$GITHUB_STEP_SUMMARY"
 
@@ -119,6 +123,7 @@ jobs:
         env: [esp32-2432S028R]
     env:
       ENV_NAME: ${{ matrix.env }}
+      SOURCE_DATE_EPOCH: ${{ needs.meta.outputs.epoch }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -132,12 +137,19 @@ jobs:
         run: pio run -e "$ENV_NAME"
       # Audit T-16: the image carries the checked-out commit without the dirty mark.
       - name: Check build information
+        env:
+          # Tag builds carry the tag version (v2.0.0-rc1 -> 2.0.0-rc1), others APP_VERSION.
+          VERSION: ${{ github.ref_type == 'tag' && needs.meta.outputs.version || '' }}
         run: |
           commit="$(git rev-parse --short HEAD)"
           bin=".pio/build/$ENV_NAME/firmware.bin"
           grep -a -q -- "$commit" "$bin" || { echo "commit $commit not found in $bin"; exit 1; }
           if grep -a -q -- "$commit+" "$bin"; then echo "image is marked dirty"; exit 1; fi
-          echo "build information OK: $commit"
+          # AF25: the time stamp is the commit time in UTC, the version that of the tag.
+          stamp="$(date -u -d "@$SOURCE_DATE_EPOCH" '+%Y-%m-%d %H:%M UTC')"
+          grep -a -q -- "$stamp" "$bin" || { echo "build time $stamp not found in $bin"; exit 1; }
+          grep -a -q -- "$VERSION" "$bin" || { echo "version $VERSION not found in $bin"; exit 1; }
+          echo "build information OK: $commit, $stamp, $VERSION"
       # Offsets and paths (bootloader, partition table, boot_app0 from the framework package,
       # application) as PlatformIO's upload command uses them.
       - name: Collect flash parts
@@ -248,6 +260,7 @@ jobs:
       - name: Name the release files
         env:
           VERSION: ${{ needs.meta.outputs.version }}
+          SOURCE_DATE_EPOCH: ${{ needs.meta.outputs.epoch }}
         run: |
           mkdir release
           prefix="cyd-hf-generator-$VERSION"
@@ -259,7 +272,8 @@ jobs:
             cp "builds/build-$FLASHER_ENV/$part.bin" "release/$prefix-$FLASHER_ENV-$part.bin"
           done
           # Notices and license texts, and the LGPL sources (see the build job).
-          tar --exclude=lgpl-sources.tar.gz -czf "release/$prefix-licenses.tar.gz" -C "builds/build-$FLASHER_ENV" notices
+          # Deterministic archive (AF25): sorted, commit time, owner 0, gzip without name and time.
+          tar --exclude=lgpl-sources.tar.gz --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner --mode=a+rX,u+w,go-w --format=gnu -C "builds/build-$FLASHER_ENV" -cf - notices | gzip -n -9 > "release/$prefix-licenses.tar.gz"
           cp "builds/build-$FLASHER_ENV/notices/lgpl-sources.tar.gz" "release/$prefix-lgpl-sources.tar.gz"
           (cd release && sha256sum -- * > SHA256SUMS)
           cat release/SHA256SUMS
