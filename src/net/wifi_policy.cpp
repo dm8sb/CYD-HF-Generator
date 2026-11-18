@@ -48,4 +48,17 @@ int chooseSlot(const bool stored[2], const int rssi[2], int lastFailed, uint8_t 
     return stored[first] ? first : 1 - first;
 }
 
+Failure classifyFailure(uint16_t reason) {
+    switch (reason) {
+        case Reason::NO_AP_FOUND: return Failure::NotFound;
+        case Reason::AUTH_EXPIRE:
+        case Reason::FOURWAY_HANDSHAKE_TIMEOUT:
+        case Reason::AUTH_FAIL:
+        case Reason::HANDSHAKE_TIMEOUT: return Failure::WrongPassword;
+        default: return Failure::Other;
+    }
+}
+
+bool pollDue(uint32_t nowMs, uint32_t lastMs, bool polled) { return !polled || nowMs - lastMs >= STATUS_POLL_MS; }
+
 }

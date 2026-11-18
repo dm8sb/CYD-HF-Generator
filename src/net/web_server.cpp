@@ -200,6 +200,7 @@ struct WebHmiServer::Impl {
     LoginQueue login;
     Job job {};
     RestJson::DeviceInfo info {};
+    uint32_t infoRev = 0; // counts changes of info
     char wifiJson[RestWifi::SETTINGS_SIZE] {};
     char record[WebPassword::RECORD_SIZE] {};
     bool passwordSet = false;
@@ -219,6 +220,15 @@ struct WebHmiServer::Impl {
     ScanSession scan;
     RestJson::PushKey lastPush {};
     bool pushedOnce = false;
+    // What the last push looked at: unchanged inputs skip the key and the hash (AF11, PERF-12).
+    uint32_t pushedRevision = 0;
+    uint8_t pushedSave = 0;
+    uint32_t pushedRemoteMs = 0;
+    uint32_t pushedInfoRev = 0;
+    // updateShared() runs only when the WiFi manager or the confirmation countdown changed.
+    bool sharedKnown = false;
+    uint32_t sharedWifiRev = 0;
+    uint16_t sharedConfirmS = 0;
     uint32_t lastCleanupMs = 0;
     uint32_t lastStackLogMs = 0;
     NetSettings lastSettings {};
@@ -972,6 +982,11 @@ struct WebHmiServer::Impl {
     }
 
     void updateShared(uint32_t now) {
+        const uint16_t confirmS = netChange.confirmWithinS(now);
+        if (sharedKnown && wifi.revision() == sharedWifiRev && confirmS == sharedConfirmS) return;
+        sharedKnown = true;
+        sharedWifiRev = wifi.revision();
+        sharedConfirmS = confirmS;
         const WifiManager::Status& st = wifi.status();
         const NetSettings& ns = wifi.settings();
         RestJson::DeviceInfo d {};
@@ -986,7 +1001,7 @@ struct WebHmiServer::Impl {
         d.apOpen = st.apOpen;
         d.apStations = st.apStations;
         d.version = nullptr;
-        d.confirmWithin = netChange.confirmWithinS(now);
+        d.confirmWithin = confirmS;
         d.passwordSet = NetConfig::webPasswordSet(ns);
 
         GuardConfig cfg {};
@@ -1004,7 +1019,10 @@ struct WebHmiServer::Impl {
         if (settingsChanged && !RestWifi::buildSettings(ns, st.apSsid, json, sizeof(json))) json[0] = '\0';
 
         Lock l(mutex);
-        info = d;
+        if (memcmp(&info, &d, sizeof(d)) != 0) {
+            info = d; // both zero-initialized: memcmp compares the padding as well
+            ++infoRev;
+        }
         lxiNet.staIp = st.staConnected ? st.staIp : 0;
         lxiNet.staMask = st.staMask;
         lxiNet.staGateway = st.staGateway;
@@ -1026,17 +1044,17 @@ struct WebHmiServer::Impl {
             memcpy(wifiJson, json, sizeof(wifiJson));
             memcpy(&lastSettings, &ns, sizeof(lastSettings)); // with padding, for memcmp
             settingsKnown = true;
+            wipe(json, sizeof(json));
         }
-        wipe(json, sizeof(json));
     }
 
     void push(uint32_t now) {
         uint8_t clients;
-        RestJson::DeviceInfo d;
+        uint32_t rev;
         {
             Lock l(mutex);
             clients = wsc.count();
-            d = info;
+            rev = infoRev;
         }
         if (clients == 0) {
             pushedOnce = false;
@@ -1044,15 +1062,28 @@ struct WebHmiServer::Impl {
         }
         Snapshot s;
         if (!snapshot.read(&s)) return;
-        const RestJson::PushKey k = RestJson::pushKey(s, d, now);
+        RestJson::DeviceInfo d;
+        const bool inputsChanged = !pushedOnce || s.revision != pushedRevision || (uint8_t)s.saveState != pushedSave ||
+                                   s.lastRemoteMs != pushedRemoteMs || rev != pushedInfoRev ||
+                                   lastPush.remote; // the REMOTE indicator ends by time
         uint32_t ids[WsClients::MAX];
         {
             Lock l(mutex);
-            if (!pushedOnce || k != lastPush) wsc.markAll();
+            d = info;
+            if (inputsChanged) {
+                const RestJson::PushKey k = RestJson::pushKey(s, d, now);
+                if (!pushedOnce || k != lastPush) wsc.markAll();
+                lastPush = k;
+            }
             for (uint8_t i = 0; i < WsClients::MAX; ++i) ids[i] = wsc.needingState(i);
         }
-        lastPush = k;
-        pushedOnce = true;
+        if (inputsChanged) {
+            pushedOnce = true;
+            pushedRevision = s.revision;
+            pushedSave = (uint8_t)s.saveState;
+            pushedRemoteMs = s.lastRemoteMs;
+            pushedInfoRev = rev;
+        }
         AsyncWebSocketSharedBuffer buf;
         for (uint8_t i = 0; i < WsClients::MAX; ++i) {
             if (!ids[i] || !ws->availableForWrite(ids[i])) continue;

@@ -40,4 +40,25 @@ static constexpr int NOT_SEEN = -1000;
 // stronger network must not lock out the other one). -1: nothing stored.
 int chooseSlot(const bool stored[2], const int rssi[2], int lastFailed, uint8_t next);
 
+// Why a connection attempt failed (feedback on the WIFI page).
+enum class Failure : uint8_t { None, NotFound, WrongPassword, Other };
+// Disconnect reasons of the ESP-IDF WiFi driver used here (wifi_err_reason_t; wifi_manager.cpp
+// checks them against esp_wifi_types.h).
+namespace Reason {
+static constexpr uint16_t AUTH_EXPIRE = 2;
+static constexpr uint16_t FOURWAY_HANDSHAKE_TIMEOUT = 15;
+static constexpr uint16_t NO_AP_FOUND = 201;
+static constexpr uint16_t AUTH_FAIL = 202;
+static constexpr uint16_t HANDSHAKE_TIMEOUT = 204;
+}
+// The last disconnect reason of a timed-out attempt (0 = none came): not found, most often a
+// wrong password (auth expired/failed, handshake timeouts) or anything else.
+Failure classifyFailure(uint16_t reason);
+
+// Signal strength and AP stations are read from the driver at most this often (AF11): every
+// read is a cross-task call into the WiFi task.
+static constexpr uint32_t STATUS_POLL_MS = 1000;
+// True if a value last read at lastMs (polled: it was read at all) should be read again.
+bool pollDue(uint32_t nowMs, uint32_t lastMs, bool polled);
+
 }

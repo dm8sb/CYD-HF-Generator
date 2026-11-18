@@ -19,14 +19,14 @@
 // together with a client address (D14).
 class WifiManager {
 public:
-    enum class Failure : uint8_t { None, NotFound, WrongPassword, Other };
+    typedef WifiPolicy::Failure Failure;
     enum class ScanState : uint8_t { Idle, Running, Done, Failed };
 
     struct Status {
         WifiMode mode;
         bool staConnected;
-        char ssid[33];   // connected network
-        int8_t rssi;
+        char ssid[33];   // connected network (read once per address, AF11)
+        int8_t rssi;     // read at most once per second
         uint32_t staIp;  // a.b.c.d as in StaticIp
         uint32_t staMask;
         uint32_t staGateway;
@@ -35,7 +35,7 @@ public:
         bool apOpen;
         bool fallback;
         bool needsOpenConfirmation;
-        uint8_t apStations;
+        uint8_t apStations; // read at most once per second
         uint32_t apIp;
         char apSsid[33];
         bool connecting;        // a connection attempt runs
@@ -70,6 +70,9 @@ public:
     ScanState scanState() const { return uiScan_; }
     const ScanList& scanList() const { return scanList_; }
     const Status& status() const { return status_; }
+    // Counts every change of status() and settings() (AF11): readers compare it instead of
+    // the contents.
+    uint32_t revision() const { return revision_; }
     const NetSettings& settings() const { return settings_; }
 
 private:
@@ -80,12 +83,23 @@ private:
     void stopSta_();
     void tryConnect_();
     void onGotIp_();
-    void updateStatus_();
+    void readAddresses_();
+    void updateStatus_(uint32_t now);
 
     NetSettings settings_ {};
     uint8_t mac_[6] {};
     SaveFn save_ = nullptr;
     Status status_ {};
+    uint32_t revision_ = 0;
+    // Client data cached at GOT_IP (AF11).
+    uint32_t seenGotIp_ = 0;
+    uint32_t staIp_ = 0, staMask_ = 0, staGateway_ = 0, staDns_ = 0;
+    char staSsid_[33] {};
+    int8_t staRssi_ = 0;
+    uint32_t rssiPolledMs_ = 0;
+    uint8_t apStations_ = 0;
+    bool stationsPolled_ = false;
+    uint32_t stationsPolledMs_ = 0;
     bool staOn_ = false;
     bool apOn_ = false;
     bool apIsOpen_ = false;

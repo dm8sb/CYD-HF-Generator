@@ -105,6 +105,32 @@ static void test_choose_slot() {
     TEST_ASSERT_EQUAL_INT(-1, WifiPolicy::chooseSlot(none, r, -1, 0));
 }
 
+// AF11: driver disconnect reasons (WIFI_REASON_*) as feedback on the WIFI page.
+static void test_classify_failure() {
+    using WifiPolicy::Failure;
+    namespace R = WifiPolicy::Reason;
+    TEST_ASSERT_EQUAL_INT((int)Failure::NotFound, (int)WifiPolicy::classifyFailure(R::NO_AP_FOUND));
+    TEST_ASSERT_EQUAL_INT((int)Failure::WrongPassword, (int)WifiPolicy::classifyFailure(R::AUTH_EXPIRE));
+    TEST_ASSERT_EQUAL_INT((int)Failure::WrongPassword, (int)WifiPolicy::classifyFailure(R::FOURWAY_HANDSHAKE_TIMEOUT));
+    TEST_ASSERT_EQUAL_INT((int)Failure::WrongPassword, (int)WifiPolicy::classifyFailure(R::AUTH_FAIL));
+    TEST_ASSERT_EQUAL_INT((int)Failure::WrongPassword, (int)WifiPolicy::classifyFailure(R::HANDSHAKE_TIMEOUT));
+    // No disconnect event within the timeout, or any other reason.
+    TEST_ASSERT_EQUAL_INT((int)Failure::Other, (int)WifiPolicy::classifyFailure(0));
+    TEST_ASSERT_EQUAL_INT((int)Failure::Other, (int)WifiPolicy::classifyFailure(8));
+    TEST_ASSERT_EQUAL_INT((int)Failure::Other, (int)WifiPolicy::classifyFailure(203));
+    TEST_ASSERT_EQUAL_INT((int)Failure::Other, (int)WifiPolicy::classifyFailure(0xFFFF));
+    TEST_ASSERT_EQUAL_UINT16(201, R::NO_AP_FOUND);
+}
+
+// AF11: RSSI and AP stations are read from the driver at most once per second.
+static void test_status_poll_rate() {
+    TEST_ASSERT_TRUE(WifiPolicy::pollDue(1000, 0, false));      // never polled
+    TEST_ASSERT_FALSE(WifiPolicy::pollDue(999, 0, true));
+    TEST_ASSERT_TRUE(WifiPolicy::pollDue(1000, 0, true));
+    TEST_ASSERT_FALSE(WifiPolicy::pollDue(10, 0xFFFFFF00u, true)); // 266 ms across the millis() wrap
+    TEST_ASSERT_TRUE(WifiPolicy::pollDue(800, 0xFFFFFF00u, true));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_off_runs_nothing);
@@ -113,5 +139,7 @@ int main(int, char**) {
     RUN_TEST(test_ap_never_with_client_address);
     RUN_TEST(test_open_fallback_needs_confirmation);
     RUN_TEST(test_choose_slot);
+    RUN_TEST(test_classify_failure);
+    RUN_TEST(test_status_poll_rate);
     return UNITY_END();
 }
