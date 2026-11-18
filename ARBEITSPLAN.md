@@ -166,7 +166,6 @@ Host-Tests: 406 Fälle in `native-win` und 4 in `native-win-fault`.
 
 ### 2.5 Dokumentation
 
-- [ ] **Anwendungskapitel „Mischer-Experimente“** (beide Handbücher): Pegel je Drive-Stärke an 50 Ω (F2), Oberwellen des Rechtecks (3. ≈ −9,5 dBc, 5. ≈ −14 dBc) und Tiefpässe, LO-Pegel für Diodenringmischer (+7 dBm) bzw. Dämpfung für NE612/SA612, IQ an FST3253/74CBT3253 (Tayloe), gleich lange Kabel (1° bei 100 MHz ≈ 28 ps ≈ 5,6 mm Koax), Phasenfehler ↔ Spiegelunterdrückung (1° ≈ 41 dB, 2° ≈ 35 dB, 5° ≈ 27 dB), nie ungefiltert an eine Antenne. → N8
 - [M] **„50 % Tastverhältnis“** (Handbuch §1) ist nicht belegt (E5). → S72
 
 ### 2.6 Sicherheit und Netz (Audit)
@@ -389,7 +388,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **S60 · Stufe 2 (Entscheidungen, ≈ 6 h).** MESSPLAN Abschnitt 6: Standard-Tuning (K5, F3, K6), IQ ohne Reset (D3, D5, E9), ungerade Teiler und Phasenfehler (E3, E4, E5), Störquellen und PDN (F6, F7), Pegel (F2), Drift (C7); Entscheidungen als E-n in die Spezifikation, N1–N8 bestätigen oder streichen. *Commit:* `S60: Record tier-2 measurements and decisions`
 - [ ] **S61 · Stufe 1W (Pflicht ab WEB-HMI, ≈ 8 h + 24 h).** MESSPLAN 5.11 nach S58 auf beiden Boards; dazu L13, L15, Q1 aus Stufe 2; aus S54: Abbau einer verwaisten TCP-Verbindung nach ≈ 90 s (Keepalive), Sperre bei offenem AP (auch Portmapper und VXI-11 aus LX1), mDNS `_scpi-raw._tcp`; L-S6: der AP geht in `WifiManager::update()` aus `loop()` aus, nicht im IP-Event (D14, W-S3), die Grenze ≤ 1 s hängt an der `loop()`-Latenz. Dazu `tools/web_check.py <Gerät>` ohne und mit Passwort, PASS/FAIL-Liste ins Protokoll (TEST-1); L-S5 mit `slowloris.py` (AF39). *Commit:* `S61: Record network and security measurements`
 - [ ] **S62 · Stufe 3 (optional).** Charakterisierung und Bedientests mit Personen nach Bedarf (MESSPLAN Abschnitt 7). *Commit:* `S62: Record optional characterization measurements`
-- [ ] **S63 · Handbuchwerte.** Pegeltabelle (F2), Tastverhältnis (E5), Aufwärmzeit (C7), WLAN-Hinweis (L13), „SI5351 läuft beim Flashen weiter“ (A10), Hardware-Hinweise; DE und EN. *Commit:* `S63: Add measured values to the manuals`
+- [ ] **S63 · Handbuchwerte.** Pegeltabelle (F2), Mischer-Kapitel Abschnitt 18 (F2, G1, G2, E10, E4), Tastverhältnis (E5), Aufwärmzeit (C7), WLAN-Hinweis (L13), „SI5351 läuft beim Flashen weiter“ (A10), Hardware-Hinweise; DE und EN. *Commit:* `S63: Add measured values to the manuals`
 - [ ] **S64 · Freigabe.** Kriterien MESSPLAN 9.4 erfüllt; Version, README, Tag; Merge nach `dev` und `main` nur auf Anweisung. *Commit:* `S64: Release`
 
 ### Phase 9 – Folgearbeiten (je ein Commit, nach Messergebnis oder Rückfrage)
@@ -400,7 +399,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N5 · MultiSynth abgeschalteter Kanäle abschalten, PDN-Strategie** nach K2 und F7.
 - [ ] **N6 · Störquellen-Abhilfen** (Backlight-PWM ≥ 20 kHz, Ruhemodus der Überwachung) nach F6, F9; „Neuzeichnen nur bei Änderung“ übernimmt AF12, den Backoff der SI5351-Suche ohne Chip AF53 (PERF-11).
 - [ ] **N7 · TCXO-Option** nach C7, C8.
-- [ ] **N8 · Anwendungskapitel „Mischer-Experimente“** (Abschnitt 2.5) nach F2, G1, G2, E10.
+- [x] **N8 · Anwendungskapitel „Mischer-Experimente“.** Handbuch DE/EN Abschnitt 18 mit Rechen- und Datenblattwerten (D47): Pegel je Drive-Stärke als „typisch, nicht gemessen“, Oberwellen und Tiefpass, Diodenring (+7 dBm), NE612/SA612, Tayloe mit CH3 IQ, Leitungslängen, Phasenfehler ↔ Spiegelunterdrückung, zwei Beispiele. Messwerte (F2, G1, G2, E10, E4, E5) ersetzt S63.
 - [ ] **N9 · Sticky-Bit und „PLL locked“** (Abschnitt 2.1).
 - [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
 - [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release (AF26).

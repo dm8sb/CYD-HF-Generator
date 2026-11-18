@@ -24,6 +24,7 @@ Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_E
 - [15. Fernsteuerung über USB und Netz (SCPI)](#15-fernsteuerung-über-usb-und-netz-scpi)
 - [16. Weboberfläche](#16-weboberfläche)
 - [17. Firmware aktualisieren](#17-firmware-aktualisieren)
+- [18. Mischer-Experimente](#18-mischer-experimente)
 - [Anhang A: Seitenbilder](#anhang-a-seitenbilder)
 - [Anhang B: Glossar](#anhang-b-glossar)
 - [Anhang C: Symptome und Abhilfe](#anhang-c-symptome-und-abhilfe)
@@ -536,7 +537,7 @@ Die Ausgänge des SI5351 sind CMOS-Rechtecktreiber. Die Drive-Strength legt fest
 - An einer 50-Ω-Last oder einem langen Koaxkabel bringen 6 oder 8 mA mehr Pegel und sauberere Flanken.
 - Ein Rechteck enthält immer ungerade Oberwellen (3., 5., … Vielfaches). Wer ein sauberes Sinussignal braucht, filtert mit einem Tiefpass; eine kleinere Drive-Strength mildert die Oberwellen nur.
 - Die Änderung wirkt sofort und ohne Aussetzer, auch bei einem laufenden IQ-Paar.
-- Die gemessenen Pegel je Stufe stehen nach der Messung F2 in `MESSPLAN.md`.
+- Typische Pegel je Stufe an 50 Ω (noch nicht gemessen) stehen in Abschnitt 18; die Messwerte folgen nach der Messung F2 in `MESSPLAN.md`.
 
 ### Off state (Zustand abgeschalteter Ausgänge)
 
@@ -1520,6 +1521,193 @@ esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.0.0-esp32-2432S028R-b
 ### Aus dem Quellcode bauen
 
 Wer selbst baut, braucht PlatformIO; Bauen und Flashen beschreibt das README (Abschnitt [Build and Flash](README.md#build-and-flash)). `pio run -t upload` schreibt dieselben Teile an dieselben Adressen und behält die Einstellungen.
+
+---
+
+## 18. Mischer-Experimente
+
+Der Generator eignet sich als Lokaloszillator (LO) und als Testsignal für Mischer- und Empfängerversuche. Dieser Abschnitt sammelt Pegel, Filter und Einstellungen dafür und zeigt zwei Aufbauten.
+
+**Zu den Zahlen:** Werte mit dem Vermerk *typisch, nicht gemessen* sind Rechen- oder Erfahrungswerte, keine Messungen an diesem Gerät. Sie werden durch Messwerte ersetzt, sobald die Messungen F2, G1, G2 und E10 in `MESSPLAN.md` vorliegen. Werte mit *gerechnet* folgen aus der Formel, Werte mit *Datenblatt* aus dem Datenblatt des genannten Bauteils.
+
+### Einstellungen
+
+| Einstellung | Empfehlung | Grund |
+|---|---|---|
+| `Tuning` | `Low noise` | weniger Nebenlinien im LO; ganzzahliger Teiler am Ausgang (Abschnitt 8) |
+| `Spread CH1` | `Off` | mit Spread ist der LO kein einzelner Träger mehr, sondern ein Band |
+| `Off state` | `Low` oder `High-Z` | keine Gleichspannung an einem DC-gekoppelten Mischer; nie `High` |
+| `Drive all` | nach Pegel (Tabelle unten) | gilt für alle drei Ausgänge zugleich |
+| `Corr.` | abgleichen (Abschnitt 8) | der LO trifft die Frequenz, die ZF liegt genau |
+
+### Ausgangspegel an 50 Ω
+
+Der SI5351 liefert ein CMOS-Rechteck zwischen 0 V und etwa 3,3 V. An 50 Ω begrenzt die Drive-Strength den Pegel. Das Datenblatt nennt keine Pegel an 50 Ω.
+
+| `Drive all` | Grundwelle an 50 Ω (typisch, nicht gemessen) | entspricht Rechteck Uss (gerechnet) |
+|---|---:|---:|
+| 2 mA | ≈ 0 dBm | ≈ 0,5 V |
+| 4 mA | ≈ +5 dBm | ≈ 0,9 V |
+| 6 mA | ≈ +8 dBm | ≈ 1,25 V |
+| 8 mA | ≈ +10 dBm | ≈ 1,6 V |
+
+- Die Werte gelten um 10 MHz. Über 100 MHz sinkt der Pegel (Abschnitt 1).
+- Obergrenze: Ein ideales Rechteck mit 3,3 V Uss ergäbe an 50 Ω eine Grundwelle von +16,4 dBm (gerechnet). Der Innenwiderstand des Treibers senkt den Pegel deutlich darunter.
+- An einem hochohmigen Eingang (Logik, Schalter, NE612) liegt fast das volle Rechteck an, unabhängig von der Drive-Strength.
+- Der Ausgang führt einen Gleichanteil (Mittelwert ≈ 1,65 V). An einem 50-Ω-Eingang oder einer Übertragerwicklung einen Koppelkondensator in Reihe schalten (z. B. 100 nF).
+- Vor einem Spektrumanalysator immer erst 20 dB Dämpfung und eine DC-Sperre.
+
+### Oberwellen und Tiefpass
+
+Ein Rechteck mit genau 50 % Tastverhältnis enthält nur ungerade Oberwellen. Ihr Pegel fällt mit 1/n:
+
+| Oberwelle | Pegel (gerechnet, ideales Rechteck 50 %) |
+|---|---:|
+| 2. | keine |
+| 3. | −9,5 dBc |
+| 5. | −14,0 dBc |
+| 7. | −16,9 dBc |
+| 9. | −19,1 dBc |
+
+- Das Tastverhältnis ist noch nicht gemessen (MESSPLAN E5). Weicht es ab, entstehen gerade Oberwellen: Bei 49 % liegt die 2. Oberwelle bei ≈ −30 dBc, bei 48 % bei ≈ −24 dBc (gerechnet).
+- Reale Flanken sind endlich steil; die hohen Oberwellen liegen deshalb etwas unter der Tabelle. Eine kleinere Drive-Strength mildert sie nur wenig.
+- **Sinus gebraucht:** Tiefpass hinter den Ausgang. Für −50 dBc braucht die 3. Oberwelle ≥ 40 dB Dämpfung: z. B. ein Tiefpass 5. bis 7. Ordnung (Tschebyscheff oder Cauer) mit Grenzfrequenz etwa 1,2- bis 1,5-mal über der Nutzfrequenz, je Band ein Filter.
+- **Schaltmischer** (Diodenring, FST3253) arbeiten mit einem Rechteck-LO sogar besser als mit einem Sinus. Die Oberwellen des LO mischen aber Signale bei 3 × LO ± ZF, 5 × LO ± ZF usw. in die ZF. Dagegen hilft ein Bandpass oder Tiefpass vor dem HF-Eingang des Mischers, nicht am LO.
+
+### Diodenringmischer
+
+Beispiele: SBL-1, ADE-1, TUF-1 und andere „Level 7“-Mischer.
+
+- **LO-Pegel:** +7 dBm (Datenblatt der Mischer). Nach der Pegeltabelle: `Drive all` 8 mA (≈ +10 dBm) und ein 3-dB-Dämpfungsglied, oder 6 mA (≈ +8 dBm) und 1 dB (typisch, nicht gemessen). Pegel vorher am Analysator prüfen.
+- Das Dämpfungsglied verbessert zugleich die Anpassung: Die Impedanz des LO-Tors ändert sich mit dem Pegel, eine Fehlanpassung verschlechtert die Isolation.
+- Zu wenig LO (unter etwa +4 dBm) erhöht den Konversionsverlust. Mischer für +13 dBm oder +17 dBm brauchen einen Verstärker hinter dem Generator.
+- **Gleichstrom:** Das LO-Tor ist meist eine Übertragerwicklung gegen Masse, für Gleichstrom also ein Kurzschluss. Immer einen Koppelkondensator (z. B. 100 nF) in Reihe schalten; `Off state` `Low` oder `High-Z`, nie `High` (Abschnitt 8).
+- **Konversionsverlust:** ≈ 6–7 dB (Datenblatt, typisch für Level-7-Mischer).
+- **Testsignal:** CH2 über 30–40 dB Dämpfung an das HF-Tor. Das HF-Signal soll mindestens 20 dB unter dem LO-Pegel liegen.
+- **Übersprechen:** CH1 und CH2 sitzen im selben Chip. Bei kleinen HF-Pegeln kann das Übersprechen des LO auf CH2 in derselben Größenordnung liegen wie das Testsignal (Abschnitt 8, `Drive all`). Kleinere Drive-Strength und externe Dämpfung am Testsignal helfen.
+- Das ZF-Tor breitbandig mit 50 Ω abschließen (z. B. Diplexer); das verbessert die Großsignalfestigkeit.
+
+### NE612 / SA612
+
+Der NE612 (SA612, NE602) ist ein Gilbertzellen-Mischer mit eigenem Oszillator. Der Generator ersetzt den Oszillator: LO über einen Koppelkondensator an Pin 6, Pin 7 bleibt offen.
+
+- **LO-Pegel:** mindestens 200 mVss an Pin 6 (Datenblatt); etwa 200–300 mVss genügen. Mehr Pegel bringt keinen Gewinn, nur mehr Nebenprodukte.
+- Pin 6 ist hochohmig. Dort läge fast das volle Rechteck von 3,3 V an; deshalb einen Spannungsteiler verwenden:
+
+```text
+CLK0 ── 1 kΩ ──┬── 100 nF ── Pin 6 (NE612)
+               │
+             100 Ω
+               │
+              GND
+```
+
+- Der Teiler 1 kΩ / 100 Ω ergibt aus 3,3 V etwa 0,3 Vss (gerechnet). `Drive all` 2 oder 4 mA; den Pegel an Pin 6 mit dem Oszilloskop prüfen.
+- Pin 6 führt eine interne Vorspannung; der Koppelkondensator ist deshalb Pflicht.
+
+### IQ-Mischer mit FST3253 / 74CBT3253 (Tayloe-Detektor)
+
+Der FST3253 (oder 74CBT3253) ist ein doppelter 1-aus-4-Analogschalter. Als Tayloe-Detektor tastet er das HF-Signal in vier Viertelperioden ab und liefert I und Q im NF-Bereich. Die Auswahleingänge S0 und S1 brauchen zwei Rechtecke mit der LO-Frequenz, um 90° versetzt; sie durchlaufen dann die Folge 00, 01, 11, 10. Genau das liefert CH3 im IQ-Betrieb, ohne Teiler durch 4:
+
+| Generator | FST3253 |
+|---|---|
+| CH1 / CLK0 (0°) | S0 |
+| CH3 / CLK2 (Master CH1, Phase `90`) | S1 |
+| GND | GND |
+
+- **Bereich:** CH3 IQ arbeitet von 4,730 bis 100 MHz (Abschnitt 7). Für tiefere Frequenzen (160 m, 80 m, 60 m) CH1 auf die vierfache Frequenz stellen und mit einem Johnson-Zähler aus zwei D-Flipflops (z. B. 74AC74) durch 4 teilen; Beispiel: 3,6 MHz aus 14,4 MHz.
+- **Seitenband:** Ein Wechsel von `90` auf `270` invertiert Q und vertauscht damit oberes und unteres Seitenband. Der Wechsel kommt ohne Aussetzer aus (Abschnitt 7). `0` und `180` ergeben keine Quadratur und sind für den Tayloe-Detektor ungeeignet.
+- **Ungerade Teiler:** Im IQ-Betrieb mit `Fractional` oder `Low noise` ist der Teiler min(127, ⌊900 MHz / f⌋), z. B. 63 bei 14,2 MHz oder 9 bei 99 MHz. 180° und 270° entstehen durch Invertieren des CH3-Ausgangs (Abschnitt 7). Ob die Phase bei ungeradem Teiler so genau ist wie bei geradem, ist noch nicht gemessen (MESSPLAN E4). Wer die beste Spiegelunterdrückung braucht, nimmt `90` und vertauscht das Seitenband in der Software (I und Q tauschen).
+- **Tastverhältnis:** Jede Flanke von S0 und S1 legt ein Abtastfenster fest. Eine Abweichung vom 50-%-Tastverhältnis (MESSPLAN E5) verschiebt die Fenster und kostet Spiegelunterdrückung.
+- **Logikpegel:** Bei 5 V Versorgung erkennt der FST3253 ab 2,0 V HIGH (Datenblatt); die 3,3-V-Rechtecke reichen direkt. Die Eingänge sind hochohmig; `Drive all` 2 oder 4 mA genügt.
+- **Ausgeschaltet:** Mit `Off state` `Low` liegen S0 und S1 auf LOW; der Schalter bleibt auf Kanal 0 stehen. Das schadet nicht.
+
+### Gleich lange Leitungen
+
+Ein Laufzeitunterschied zwischen den Leitungen von CLK0 und CLK2 wirkt wie ein Phasenfehler. 1° entspricht (gerechnet, Koax mit Verkürzungsfaktor 0,66 wie RG-58 und RG-174):
+
+| Frequenz | 1° entspricht | Koax-Länge |
+|---|---:|---:|
+| 7,1 MHz | 391 ps | 77 mm |
+| 10 MHz | 278 ps | 55 mm |
+| 30 MHz | 93 ps | 18 mm |
+| 100 MHz | 28 ps | 5,5 mm |
+
+- Beide Leitungen gleich lang, aus demselben Kabeltyp und gleich belastet. Eine ungleiche Last (Kapazität am Eingang) verschiebt die Flanken ebenso.
+- Auf einer Platine die Leiterbahnen von S0 und S1 gleich lang führen.
+
+### Phasenfehler und Spiegelunterdrückung
+
+Die Spiegelunterdrückung (IRR) eines IQ-Empfängers hängt von Phasen- und Amplitudenfehler zwischen I und Q ab:
+
+```text
+IRR = 10 · log10( (1 + 2g · cos φ + g²) / (1 − 2g · cos φ + g²) )
+
+g = Amplitudenverhältnis von I zu Q (1 = gleich groß)
+φ = Phasenfehler (Abweichung von 90°)
+mit g = 1:  IRR = 20 · log10( cot(φ/2) )
+```
+
+| Phasenfehler φ (g = 1) | IRR (gerechnet) |
+|---|---:|
+| 0,5° | 47 dB |
+| 1° | 41 dB |
+| 2° | 35 dB |
+| 3° | 32 dB |
+| 5° | 27 dB |
+| 10° | 21 dB |
+
+| Amplitudenfehler (φ = 0) | IRR (gerechnet) |
+|---|---:|
+| 0,1 dB | 45 dB |
+| 0,2 dB | 39 dB |
+| 0,5 dB | 31 dB |
+| 1 dB | 25 dB |
+
+- Der Phasenfehler des Generators selbst ist noch nicht gemessen (MESSPLAN E1 bis E4). Zum Gesamtfehler tragen auch Mischer, Abtastkondensatoren, NF-Verstärker und Soundkarte bei.
+- SDR-Programme gleichen IQ-Fehler oft automatisch aus; ohne Ausgleich zeigt die Tabelle, was die Phase allein erlaubt.
+
+### Beispiel: Überlagerungsempfänger für 7,1 MHz mit 455-kHz-ZF
+
+Ein Diodenringmischer setzt 7,1 MHz auf die ZF 455 kHz um; CH1 ist der LO, CH2 das Testsignal (wie MESSPLAN G1).
+
+```text
+CH2 7,100 MHz ── 30 dB ──────────► HF ┐
+                                      ├ Diodenring (Level 7) ── ZF ──► Analysator
+CH1 7,555 MHz ── 3 dB ── 100 nF ─► LO ┘
+```
+
+1. CONFIG `Signal`: `Drive all` `8 mA`, `Off state` `Low`, `Tuning` `Low noise`; Register `Freq`: `Spread CH1` `Off`.
+2. CH1 auf 7,555 MHz stellen (LO oberhalb: 7,100 + 0,455 MHz) und einschalten.
+3. CH2 auf 7,100 MHz stellen und einschalten.
+4. LO über 3 dB und 100 nF an das LO-Tor: ≈ +7 dBm (typisch, nicht gemessen; am Analysator prüfen).
+5. Testsignal über 30 dB an das HF-Tor: ≈ −20 dBm (typisch, nicht gemessen).
+6. Am ZF-Tor erscheinen die Mischprodukte:
+
+```text
+ZF       = 7,555 − 7,100 = 0,455 MHz
+Summe    = 7,555 + 7,100 = 14,655 MHz
+Spiegel  = 7,555 + 0,455 = 8,010 MHz   (ergibt ebenfalls 455 kHz)
+```
+
+7. CH2 auf 8,010 MHz stellen: Auch der Spiegel erscheint bei 455 kHz. Erst ein Bandpass für 7 MHz vor dem HF-Tor unterdrückt ihn.
+8. Ablesen: Konversionsverlust (ZF-Pegel gegen HF-Pegel, ≈ 6–7 dB nach Datenblatt) und LO-Durchschlag bei 7,555 MHz am ZF-Tor.
+
+### Beispiel: Direktmischempfänger mit Tayloe-Detektor für 7,1 MHz
+
+1. CONFIG `Signal`: `Drive all` `4 mA`, `Off state` `Low`, `Tuning` `Low noise`; Register `Freq`: `Spread CH1` `Off`.
+2. CH1 auf 7,100 MHz stellen und einschalten.
+3. CH3-Seite: Master `CH1`, Phase `90`, einschalten. Die Statuszeile zeigt `Out 7.100 000 MHz …`.
+4. CLK0 an S0, CLK2 an S1, mit gleich langen Leitungen.
+5. I und Q (hinter den NF-Verstärkern) an den Stereo-Line-Eingang einer Soundkarte; ein SDR-Programm im IQ-Betrieb, Mittenfrequenz 7,100 MHz. Mit 48 kHz Abtastrate sind 7,076–7,124 MHz zu sehen.
+6. Ist das Spektrum gespiegelt, Phase `270` wählen oder I und Q im Programm tauschen.
+7. Testsignal: CH2 auf 7,101 MHz über 40–60 dB Dämpfung an den HF-Eingang. Die Linie erscheint 1 kHz über der Mitte, ihr Spiegel 1 kHz darunter; der Abstand beider ist die Spiegelunterdrückung (Tabelle oben, MESSPLAN E10).
+
+### Nie ungefiltert an eine Antenne
+
+- Der Generator ist kein Sender (Abschnitt 14). Das Rechteck enthält starke Oberwellen (3. Oberwelle −9,5 dBc).
+- Auch ein Empfängeraufbau strahlt ab: Der LO gelangt über das HF-Tor des Mischers an die Antenne. Bei einem Diodenring mit +7 dBm LO und typisch 30–45 dB LO-HF-Isolation (Datenblatt) sind das etwa −38 bis −23 dBm. Ein Bandpass vor dem Mischer und ein Vorverstärker mit guter Rückwärtsisolation senken das.
+- Abstrahlen nur mit Amateurfunkzulassung, in den zugelassenen Bändern, innerhalb der Grenzwerte für Nebenaussendungen und mit geeignetem Tiefpass.
 
 ## Anhang A: Seitenbilder
 

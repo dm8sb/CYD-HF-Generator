@@ -24,6 +24,7 @@ This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware
 - [15. Remote Control over USB and Network (SCPI)](#15-remote-control-over-usb-and-network-scpi)
 - [16. Web Interface](#16-web-interface)
 - [17. Updating the Firmware](#17-updating-the-firmware)
+- [18. Mixer Experiments](#18-mixer-experiments)
 - [Appendix A: Page Images](#appendix-a-page-images)
 - [Appendix B: Glossary](#appendix-b-glossary)
 - [Appendix C: Symptoms and Remedies](#appendix-c-symptoms-and-remedies)
@@ -536,7 +537,7 @@ The SI5351 outputs are CMOS square-wave drivers. The drive strength sets how muc
 - Into a 50 Ω load or a long coax cable, 6 or 8 mA give more level and cleaner edges.
 - A square wave always contains odd harmonics (3rd, 5th, … multiple). If you need a clean sine wave, filter with a low-pass; a smaller drive strength only softens the harmonics.
 - The change takes effect immediately and without a dropout, also on a running IQ pair.
-- The measured levels per step will be in `MESSPLAN.md` after measurement F2.
+- Typical levels per step into 50 Ω (not measured yet) are in section 18; the measured values follow after measurement F2 in `MESSPLAN.md`.
 
 ### Off state (State of Switched-Off Outputs)
 
@@ -1520,6 +1521,193 @@ esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.0.0-esp32-2432S028R-b
 ### Building from Source
 
 Building it yourself needs PlatformIO; the README describes building and flashing (section [Build and Flash](README.md#build-and-flash)). `pio run -t upload` writes the same parts to the same addresses and keeps the settings.
+
+---
+
+## 18. Mixer Experiments
+
+The generator works as a local oscillator (LO) and as a test signal for mixer and receiver experiments. This section collects levels, filters and settings for that and shows two setups.
+
+**About the numbers:** values marked *typical, not measured* are calculated or empirical values, not measurements on this device. They will be replaced by measured values once measurements F2, G1, G2 and E10 in `MESSPLAN.md` are done. Values marked *calculated* follow from the formula, values marked *datasheet* from the datasheet of the part named.
+
+### Settings
+
+| Setting | Recommendation | Reason |
+|---|---|---|
+| `Tuning` | `Low noise` | fewer spurs in the LO; integer divider at the output (section 8) |
+| `Spread CH1` | `Off` | with spread the LO is no longer a single carrier but a band |
+| `Off state` | `Low` or `High-Z` | no DC voltage on a DC-coupled mixer; never `High` |
+| `Drive all` | by level (table below) | applies to all three outputs at once |
+| `Corr.` | calibrate (section 8) | the LO hits its frequency, the IF is exact |
+
+### Output Levels into 50 Ω
+
+The SI5351 delivers a CMOS square wave between 0 V and about 3.3 V. Into 50 Ω the drive strength limits the level. The datasheet gives no levels into 50 Ω.
+
+| `Drive all` | Fundamental into 50 Ω (typical, not measured) | equals square wave Vpp (calculated) |
+|---|---:|---:|
+| 2 mA | ≈ 0 dBm | ≈ 0.5 V |
+| 4 mA | ≈ +5 dBm | ≈ 0.9 V |
+| 6 mA | ≈ +8 dBm | ≈ 1.25 V |
+| 8 mA | ≈ +10 dBm | ≈ 1.6 V |
+
+- The values apply around 10 MHz. Above 100 MHz the level drops (section 1).
+- Upper limit: an ideal square wave of 3.3 Vpp would give a fundamental of +16.4 dBm into 50 Ω (calculated). The internal resistance of the driver lowers the level well below that.
+- A high-impedance input (logic, switch, NE612) sees almost the full square wave, independent of the drive strength.
+- The output carries a DC component (mean ≈ 1.65 V). Put a coupling capacitor in series in front of a 50 Ω input or a transformer winding (e.g. 100 nF).
+- In front of a spectrum analyzer always use 20 dB attenuation and a DC block first.
+
+### Harmonics and Low-Pass Filter
+
+A square wave with exactly 50 % duty cycle contains only odd harmonics. Their level falls with 1/n:
+
+| Harmonic | Level (calculated, ideal 50 % square wave) |
+|---|---:|
+| 2nd | none |
+| 3rd | −9.5 dBc |
+| 5th | −14.0 dBc |
+| 7th | −16.9 dBc |
+| 9th | −19.1 dBc |
+
+- The duty cycle is not measured yet (MESSPLAN E5). If it deviates, even harmonics appear: at 49 % the 2nd harmonic is at ≈ −30 dBc, at 48 % at ≈ −24 dBc (calculated).
+- Real edges have a finite slope; the high harmonics are therefore somewhat below the table. A lower drive strength reduces them only a little.
+- **Sine needed:** low-pass filter after the output. For −50 dBc the 3rd harmonic needs ≥ 40 dB attenuation: e.g. a 5th to 7th order low-pass (Chebyshev or Cauer) with a cutoff about 1.2 to 1.5 times above the wanted frequency, one filter per band.
+- **Switching mixers** (diode ring, FST3253) even work better with a square-wave LO than with a sine. The LO harmonics, however, mix signals at 3 × LO ± IF, 5 × LO ± IF etc. into the IF. A band-pass or low-pass filter in front of the mixer's RF input helps against that, not at the LO.
+
+### Diode Ring Mixer
+
+Examples: SBL-1, ADE-1, TUF-1 and other "level 7" mixers.
+
+- **LO level:** +7 dBm (mixer datasheets). From the level table: `Drive all` 8 mA (≈ +10 dBm) and a 3 dB attenuator, or 6 mA (≈ +8 dBm) and 1 dB (typical, not measured). Check the level on the analyzer first.
+- The attenuator also improves the match: the impedance of the LO port changes with the level, and a mismatch worsens the isolation.
+- Too little LO (below about +4 dBm) increases the conversion loss. Mixers for +13 dBm or +17 dBm need an amplifier after the generator.
+- **DC current:** the LO port is usually a transformer winding to ground, so a short circuit for DC. Always put a coupling capacitor (e.g. 100 nF) in series; `Off state` `Low` or `High-Z`, never `High` (section 8).
+- **Conversion loss:** ≈ 6–7 dB (datasheet, typical for level 7 mixers).
+- **Test signal:** CH2 through 30–40 dB attenuation to the RF port. The RF signal should be at least 20 dB below the LO level.
+- **Crosstalk:** CH1 and CH2 sit in the same chip. At small RF levels the LO crosstalk onto CH2 can be in the same range as the test signal (section 8, `Drive all`). A lower drive strength and external attenuation at the test signal help.
+- Terminate the IF port with 50 Ω over a wide band (e.g. a diplexer); this improves the large-signal performance.
+
+### NE612 / SA612
+
+The NE612 (SA612, NE602) is a Gilbert cell mixer with its own oscillator. The generator replaces the oscillator: LO through a coupling capacitor to pin 6, pin 7 stays open.
+
+- **LO level:** at least 200 mVpp at pin 6 (datasheet); about 200–300 mVpp is enough. More level brings no gain, only more spurious products.
+- Pin 6 has a high impedance. It would see almost the full 3.3 V square wave; therefore use a voltage divider:
+
+```text
+CLK0 ── 1 kΩ ──┬── 100 nF ── pin 6 (NE612)
+               │
+             100 Ω
+               │
+              GND
+```
+
+- The 1 kΩ / 100 Ω divider makes about 0.3 Vpp out of 3.3 V (calculated). `Drive all` 2 or 4 mA; check the level at pin 6 with the oscilloscope.
+- Pin 6 carries an internal bias voltage; the coupling capacitor is therefore mandatory.
+
+### IQ Mixer with FST3253 / 74CBT3253 (Tayloe Detector)
+
+The FST3253 (or 74CBT3253) is a dual 1-of-4 analog switch. As a Tayloe detector it samples the RF signal in four quarter periods and delivers I and Q at audio frequency. The select inputs S0 and S1 need two square waves at the LO frequency, 90° apart; they then run through the sequence 00, 01, 11, 10. That is exactly what CH3 delivers in IQ mode, without a divide-by-4:
+
+| Generator | FST3253 |
+|---|---|
+| CH1 / CLK0 (0°) | S0 |
+| CH3 / CLK2 (master CH1, phase `90`) | S1 |
+| GND | GND |
+
+- **Range:** CH3 IQ works from 4.730 to 100 MHz (section 7). For lower frequencies (160 m, 80 m, 60 m) set CH1 to four times the frequency and divide by 4 with a Johnson counter of two D flip-flops (e.g. 74AC74); example: 3.6 MHz from 14.4 MHz.
+- **Sideband:** switching from `90` to `270` inverts Q and thus swaps the upper and lower sideband. The switch causes no dropout (section 7). `0` and `180` give no quadrature and are unsuitable for the Tayloe detector.
+- **Odd dividers:** in IQ mode with `Fractional` or `Low noise` the divider is min(127, ⌊900 MHz / f⌋), e.g. 63 at 14.2 MHz or 9 at 99 MHz. 180° and 270° are made by inverting the CH3 output (section 7). Whether the phase at an odd divider is as exact as at an even one is not measured yet (MESSPLAN E4). For the best image rejection use `90` and swap the sideband in software (swap I and Q).
+- **Duty cycle:** every edge of S0 and S1 defines a sampling window. A deviation from the 50 % duty cycle (MESSPLAN E5) shifts the windows and costs image rejection.
+- **Logic levels:** at a 5 V supply the FST3253 detects HIGH from 2.0 V (datasheet); the 3.3 V square waves drive it directly. The inputs have a high impedance; `Drive all` 2 or 4 mA is enough.
+- **Switched off:** with `Off state` `Low`, S0 and S1 are LOW; the switch stays on channel 0. This does no harm.
+
+### Equal Cable Lengths
+
+A delay difference between the lines from CLK0 and CLK2 acts like a phase error. 1° corresponds to (calculated, coax with velocity factor 0.66 such as RG-58 and RG-174):
+
+| Frequency | 1° equals | Coax length |
+|---|---:|---:|
+| 7.1 MHz | 391 ps | 77 mm |
+| 10 MHz | 278 ps | 55 mm |
+| 30 MHz | 93 ps | 18 mm |
+| 100 MHz | 28 ps | 5.5 mm |
+
+- Both lines of equal length, of the same cable type and equally loaded. An unequal load (capacitance at the input) shifts the edges as well.
+- On a PCB route the traces to S0 and S1 with equal length.
+
+### Phase Error and Image Rejection
+
+The image rejection (IRR) of an IQ receiver depends on the phase and amplitude error between I and Q:
+
+```text
+IRR = 10 · log10( (1 + 2g · cos φ + g²) / (1 − 2g · cos φ + g²) )
+
+g = amplitude ratio of I to Q (1 = equal)
+φ = phase error (deviation from 90°)
+with g = 1:  IRR = 20 · log10( cot(φ/2) )
+```
+
+| Phase error φ (g = 1) | IRR (calculated) |
+|---|---:|
+| 0.5° | 47 dB |
+| 1° | 41 dB |
+| 2° | 35 dB |
+| 3° | 32 dB |
+| 5° | 27 dB |
+| 10° | 21 dB |
+
+| Amplitude error (φ = 0) | IRR (calculated) |
+|---|---:|
+| 0.1 dB | 45 dB |
+| 0.2 dB | 39 dB |
+| 0.5 dB | 31 dB |
+| 1 dB | 25 dB |
+
+- The phase error of the generator itself is not measured yet (MESSPLAN E1 to E4). The mixer, sampling capacitors, audio amplifiers and sound card add to the total error.
+- SDR programs often correct IQ errors automatically; without correction the table shows what the phase alone allows.
+
+### Example: Superhet Receiver for 7.1 MHz with a 455 kHz IF
+
+A diode ring mixer converts 7.1 MHz to the 455 kHz IF; CH1 is the LO, CH2 the test signal (like MESSPLAN G1).
+
+```text
+CH2 7.100 MHz ── 30 dB ──────────► RF ┐
+                                      ├ diode ring (level 7) ── IF ──► analyzer
+CH1 7.555 MHz ── 3 dB ── 100 nF ─► LO ┘
+```
+
+1. CONFIG `Signal`: `Drive all` `8 mA`, `Off state` `Low`, `Tuning` `Low noise`; tab `Freq`: `Spread CH1` `Off`.
+2. Set CH1 to 7.555 MHz (LO above: 7.100 + 0.455 MHz) and switch it on.
+3. Set CH2 to 7.100 MHz and switch it on.
+4. LO through 3 dB and 100 nF to the LO port: ≈ +7 dBm (typical, not measured; check on the analyzer).
+5. Test signal through 30 dB to the RF port: ≈ −20 dBm (typical, not measured).
+6. The mixing products appear at the IF port:
+
+```text
+IF     = 7.555 − 7.100 = 0.455 MHz
+Sum    = 7.555 + 7.100 = 14.655 MHz
+Image  = 7.555 + 0.455 = 8.010 MHz   (also gives 455 kHz)
+```
+
+7. Set CH2 to 8.010 MHz: the image appears at 455 kHz too. Only a 7 MHz band-pass filter in front of the RF port suppresses it.
+8. Read off: conversion loss (IF level against RF level, ≈ 6–7 dB by datasheet) and LO leakage at 7.555 MHz at the IF port.
+
+### Example: Direct Conversion Receiver with a Tayloe Detector for 7.1 MHz
+
+1. CONFIG `Signal`: `Drive all` `4 mA`, `Off state` `Low`, `Tuning` `Low noise`; tab `Freq`: `Spread CH1` `Off`.
+2. Set CH1 to 7.100 MHz and switch it on.
+3. CH3 page: master `CH1`, phase `90`, switch on. The status line shows `Out 7.100 000 MHz …`.
+4. CLK0 to S0, CLK2 to S1, with lines of equal length.
+5. I and Q (after the audio amplifiers) to the stereo line input of a sound card; an SDR program in IQ mode, center frequency 7.100 MHz. At a 48 kHz sample rate 7.076–7.124 MHz are visible.
+6. If the spectrum is mirrored, choose phase `270` or swap I and Q in the program.
+7. Test signal: CH2 at 7.101 MHz through 40–60 dB attenuation to the RF input. The line appears 1 kHz above the center, its image 1 kHz below; the difference between both is the image rejection (table above, MESSPLAN E10).
+
+### Never Unfiltered to an Antenna
+
+- The generator is not a transmitter (section 14). The square wave contains strong harmonics (3rd harmonic −9.5 dBc).
+- A receiver setup radiates too: the LO reaches the antenna through the mixer's RF port. With a diode ring at +7 dBm LO and a typical LO-RF isolation of 30–45 dB (datasheet) that is about −38 to −23 dBm. A band-pass filter in front of the mixer and a preamplifier with good reverse isolation reduce it.
+- Radiate only with an amateur radio licence, in the permitted bands, within the spurious-emission limits and with a suitable low-pass filter.
 
 ## Appendix A: Page Images
 

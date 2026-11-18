@@ -61,6 +61,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - One header for every page except MAIN: `◀` at the top left goes one level back (replaces the `MAIN` button of the channel pages and CONFIG), page actions at the right; the WiFi scan list pages with `▲`/`▼` (E-43)
 - The device no longer shows `Saved` / `Saving...`; only save errors appear in red (E-44)
 - Manual: new section 17 "Updating the firmware" (web flasher, first installation or update, checking the download, esptool, building from source)
+- Manual: new section 18 "Mixer experiments" (settings, typical levels per drive strength, harmonics and low-pass filters, diode ring mixer, NE612/SA612, Tayloe detector with CH3 IQ, cable lengths, phase error and image rejection, two worked examples); levels are calculated or datasheet values until the measurements
 
 ### 2.0.0
 
