@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "rest_json.h"
+#include "json_writer.h"
 #include "rest_json_detail.h"
 
 #include <math.h>
@@ -462,17 +463,19 @@ void clean(const char* in, size_t maxIn, char* out, size_t outSize) {
 }
 
 // The mode line entries as an array (StatusText::modeSummary separates them by " | ").
-void addModes(JsonArray modes, const SystemSettings& sys, Spread spread) {
+void addModes(JsonWriter& w, const SystemSettings& sys, Spread spread) {
     char buf[64];
     StatusText::modeSummary(sys.tuning_mode, spread, sys.drive_ma, sys.off_state, buf, sizeof(buf));
+    w.beginArray();
     char* p = buf;
     while (*p) {
         char* sep = strstr(p, " | ");
         if (sep) *sep = '\0';
-        modes.add(p);
+        w.string(p);
         if (!sep) break;
         p = sep + 3;
     }
+    w.endArray();
 }
 
 } // namespace
@@ -615,70 +618,113 @@ size_t errorJson(const Reply& r, char* out, size_t outSize) {
     out[0] = '\0';
     char text[80];
     snprintf(text, sizeof(text), "%d,%s", (int)r.code, r.info ? r.info : errorText(r.code));
-    JsonDocument doc;
-    doc["error"] = text;
-    if (doc.overflowed() || measureJson(doc) >= outSize) return 0;
-    return serializeJson(doc, out, outSize);
+    JsonWriter w(out, outSize);
+    w.beginObject();
+    w.key("error");
+    w.string(text);
+    w.endObject();
+    return w.finish();
 }
 
 // ---------------------------------------------------------------------------
 // State
 
+// Fixed-buffer writer (AF54): no heap allocation per call; the same text as the former
+// ArduinoJson document (test_json_writer compares both).
 size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* out, size_t outSize) {
     if (!out || outSize == 0) return 0;
     out[0] = '\0';
     const SystemSettings& sys = s.state.sys;
-    JsonDocument doc;
-    doc["rev"] = s.revision;
-    doc["hw"] = linkName(s.link);
-    doc["save"] = saveName(s.saveState);
+    JsonWriter w(out, outSize);
+    w.beginObject();
+    w.key("rev");
+    w.number(s.revision);
+    w.key("hw");
+    w.string(linkName(s.link));
+    w.key("save");
+    w.string(saveName(s.saveState));
     const char* remote = remoteName(s.lastRemote);
-    if (remote && nowMs - s.lastRemoteMs < REMOTE_INDICATOR_MS) doc["remote"] = remote;
-    else doc["remote"] = nullptr;
+    w.key("remote");
+    if (remote && nowMs - s.lastRemoteMs < REMOTE_INDICATOR_MS) w.string(remote);
+    else w.null();
 
-    // Raw numbers must stay alive until serializeJson().
-    char actual[3][24];
-    JsonArray chs = doc["ch"].to<JsonArray>();
+    char actual[24];
+    w.key("ch");
+    w.beginArray();
     for (uint8_t n = 1; n <= 2; ++n) {
         const Channel& c = n == 1 ? s.state.ch1 : s.state.ch2;
-        JsonObject o = chs.add<JsonObject>();
-        o["n"] = (unsigned)n;
-        o["enabled"] = c.enabled;
-        o["frequency"] = c.frequency;
-        actualText(s.actualHz[n - 1], actual[n - 1], sizeof(actual[0]));
-        o["actual"] = serialized(actual[n - 1]);
-        o["status"] = channelStatusName(s.status[n - 1]);
+        w.beginObject();
+        w.key("n");
+        w.number((uint32_t)n);
+        w.key("enabled");
+        w.boolean(c.enabled);
+        w.key("frequency");
+        w.number(c.frequency);
+        actualText(s.actualHz[n - 1], actual, sizeof(actual));
+        w.key("actual");
+        w.raw(actual);
+        w.key("status");
+        w.string(channelStatusName(s.status[n - 1]));
         // Spread spectrum is on PLL A: CH1 only (AppController::spreadOf).
-        addModes(o["modes"].to<JsonArray>(), sys, n == 1 ? sys.spread : Spread::Off);
+        w.key("modes");
+        addModes(w, sys, n == 1 ? sys.spread : Spread::Off);
+        w.endObject();
     }
+    w.endArray();
 
-    JsonObject ch3 = doc["ch3"].to<JsonObject>();
-    ch3["enabled"] = s.state.ch3.enabled;
-    ch3["master"] = (unsigned)s.state.ch3.master;
-    ch3["phase"] = (unsigned)s.state.ch3.phase;
-    ch3["status"] = ch3StatusName(s.ch3Status);
-    ch3["frequency"] = s.state.ch3.master == 2 ? s.state.ch2.frequency : s.state.ch1.frequency;
-    actualText(s.actualHz[2], actual[2], sizeof(actual[2]));
-    ch3["actual"] = serialized(actual[2]);
-    ch3["iqMin"] = s.iqMinHz;
-    ch3["iqMax"] = s.iqMaxHz;
+    w.key("ch3");
+    w.beginObject();
+    w.key("enabled");
+    w.boolean(s.state.ch3.enabled);
+    w.key("master");
+    w.number((uint32_t)s.state.ch3.master);
+    w.key("phase");
+    w.number((uint32_t)s.state.ch3.phase);
+    w.key("status");
+    w.string(ch3StatusName(s.ch3Status));
+    w.key("frequency");
+    w.number(s.state.ch3.master == 2 ? s.state.ch2.frequency : s.state.ch1.frequency);
+    actualText(s.actualHz[2], actual, sizeof(actual));
+    w.key("actual");
+    w.raw(actual);
+    w.key("iqMin");
+    w.number(s.iqMinHz);
+    w.key("iqMax");
+    w.number(s.iqMaxHz);
+    w.endObject();
 
     // Fixed limits of the firmware (AF48): the web UI takes range and step list from here.
-    JsonObject limits = doc["limits"].to<JsonObject>();
-    limits["fmin"] = FREQ_MIN_HZ;
-    limits["fmax"] = FREQ_MAX_HZ;
-    JsonArray steps = limits["steps"].to<JsonArray>();
-    for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) steps.add(DELTA_STEPS[i]);
+    w.key("limits");
+    w.beginObject();
+    w.key("fmin");
+    w.number(FREQ_MIN_HZ);
+    w.key("fmax");
+    w.number(FREQ_MAX_HZ);
+    w.key("steps");
+    w.beginArray();
+    for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) w.number(DELTA_STEPS[i]);
+    w.endArray();
+    w.endObject();
 
-    JsonObject cfg = doc["config"].to<JsonObject>();
-    cfg["drive"] = (unsigned)sys.drive_ma;
-    cfg["tuning"] = nameAt(TUNING_NAMES, TUNING_COUNT, (uint8_t)sys.tuning_mode);
-    cfg["spread"] = nameAt(SPREAD_NAMES, SPREAD_COUNT, (uint8_t)sys.spread);
-    cfg["offState"] = nameAt(OFFSTATE_NAMES, OFFSTATE_COUNT, (uint8_t)sys.off_state);
-    cfg["correction"] = sys.freq_correction;
-    cfg["step"] = sys.delta_step;
-    cfg["backlight"] = (unsigned)sys.backlight;
-    cfg["remoteOutputs"] = s.remoteOutputsAllowed ? "allowed" : "local";
+    w.key("config");
+    w.beginObject();
+    w.key("drive");
+    w.number((uint32_t)sys.drive_ma);
+    w.key("tuning");
+    w.string(nameAt(TUNING_NAMES, TUNING_COUNT, (uint8_t)sys.tuning_mode));
+    w.key("spread");
+    w.string(nameAt(SPREAD_NAMES, SPREAD_COUNT, (uint8_t)sys.spread));
+    w.key("offState");
+    w.string(nameAt(OFFSTATE_NAMES, OFFSTATE_COUNT, (uint8_t)sys.off_state));
+    w.key("correction");
+    w.number(sys.freq_correction);
+    w.key("step");
+    w.number(sys.delta_step);
+    w.key("backlight");
+    w.number((uint32_t)sys.backlight);
+    w.key("remoteOutputs");
+    w.string(s.remoteOutputsAllowed ? "allowed" : "local");
+    w.endObject();
 
     char ssid[33], name[33], apSsid[33], version[33], ip[Ipv4::TEXT_SIZE];
     clean(d.ssid, sizeof(d.ssid), ssid, sizeof(ssid));
@@ -687,26 +733,44 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
     clean(d.version ? d.version : APP_VERSION, 32, version, sizeof(version));
     ip[0] = '\0';
     if (d.ip) Ipv4::format(d.ip, ip, sizeof(ip));
-    JsonObject wifi = doc["wifi"].to<JsonObject>();
-    wifi["mode"] = wifiModeName(d.mode);
-    wifi["connected"] = d.connected;
-    wifi["ssid"] = ssid;
-    wifi["rssi"] = d.rssi;
-    wifi["ip"] = ip;
-    wifi["name"] = name;
-    JsonObject ap = wifi["ap"].to<JsonObject>();
-    ap["active"] = d.apActive;
-    ap["ssid"] = apSsid;
-    ap["open"] = d.apOpen;
-    ap["stations"] = (unsigned)d.apStations;
-    wifi["confirmWithin"] = (unsigned)d.confirmWithin;
+    w.key("wifi");
+    w.beginObject();
+    w.key("mode");
+    w.string(wifiModeName(d.mode));
+    w.key("connected");
+    w.boolean(d.connected);
+    w.key("ssid");
+    w.string(ssid);
+    w.key("rssi");
+    w.number(d.rssi);
+    w.key("ip");
+    w.string(ip);
+    w.key("name");
+    w.string(name);
+    w.key("ap");
+    w.beginObject();
+    w.key("active");
+    w.boolean(d.apActive);
+    w.key("ssid");
+    w.string(apSsid);
+    w.key("open");
+    w.boolean(d.apOpen);
+    w.key("stations");
+    w.number((uint32_t)d.apStations);
+    w.endObject();
+    w.key("confirmWithin");
+    w.number((uint32_t)d.confirmWithin);
+    w.endObject();
 
-    doc["device"]["version"] = version;
-    doc["device"]["passwordSet"] = d.passwordSet;
-
-    if (doc.overflowed()) return 0;
-    if (measureJson(doc) >= outSize) return 0;
-    return serializeJson(doc, out, outSize);
+    w.key("device");
+    w.beginObject();
+    w.key("version");
+    w.string(version);
+    w.key("passwordSet");
+    w.boolean(d.passwordSet);
+    w.endObject();
+    w.endObject();
+    return w.finish();
 }
 
 // ---------------------------------------------------------------------------
@@ -759,11 +823,14 @@ size_t guardErrorJson(uint16_t status, const char* reason, char* out, size_t out
 size_t loginLockedJson(uint32_t retryAfterS, char* out, size_t outSize) {
     if (!out || outSize == 0) return 0;
     out[0] = '\0';
-    JsonDocument doc;
-    doc["error"] = "-200,Too many failed logins";
-    doc["retryAfter"] = retryAfterS;
-    if (doc.overflowed() || measureJson(doc) >= outSize) return 0;
-    return serializeJson(doc, out, outSize);
+    JsonWriter w(out, outSize);
+    w.beginObject();
+    w.key("error");
+    w.string("-200,Too many failed logins");
+    w.key("retryAfter");
+    w.number(retryAfterS);
+    w.endObject();
+    return w.finish();
 }
 
 }

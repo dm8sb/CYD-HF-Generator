@@ -33,6 +33,9 @@ namespace {
 constexpr const char* CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
                             "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 constexpr const char* JSON = "application/json";
+// REST writes and WiFi jobs (AF54, E-49): async_tcp waits at most FAST_REPLY_MS, woken by loop()
+// instead of polling; a slower loop() answers from the connection's poll callback.
+constexpr uint32_t FAST_REPLY_MS = 20;
 constexpr uint32_t JOB_WAIT_MS = 100;        // a job taken by loop() finishes within this
 constexpr uint32_t LOGIN_TIMEOUT_MS = 5000;  // a password check that never ends answers 503
 constexpr uint32_t CLEANUP_MS = 1000;
@@ -122,15 +125,6 @@ const char* header(AsyncWebServerRequest* req, const char* name) {
     return h ? h->value().c_str() : nullptr;
 }
 
-bool waitFor(bool (*cond)(void*), void* ctx, uint32_t budgetMs) {
-    const uint32_t t0 = millis();
-    for (;;) {
-        if (cond(ctx)) return true;
-        if (millis() - t0 >= budgetMs) return false;
-        vTaskDelay(1);
-    }
-}
-
 ScanSession::Radio radioOf(WifiManager::ScanState s) {
     switch (s) {
         case WifiManager::ScanState::Running: return ScanSession::Radio::Running;
@@ -150,6 +144,8 @@ ScanSession::Radio radioOf(WifiManager::ScanState s) {
 //   LoginService    async_tcp (submit, answer from the poll callback) and its own task
 //                   web_login (PBKDF2, W-S23)
 //   Pusher          loop(): WebSocket push, keep-alive, cleanup
+//   Replies         async_tcp: REST writes and WiFi jobs that loop() did not finish within
+//                   FAST_REPLY_MS, answered from the connection's poll callback (AF54)
 //   Impl            the glue: start/listen and the network state in loop(), routing and the
 //                   REST answers in async_tcp, the job mailbox between the two
 
@@ -280,6 +276,7 @@ struct WebHmiServer::Impl {
         void closed(int slot, uint32_t g) {
             release(slot, g);
             s.login.connectionClosed(slot);
+            s.replies.connectionClosed(slot);
         }
 
         // An upgraded connection counts as a WebSocket from now on. Under `mutex`.
@@ -553,6 +550,124 @@ struct WebHmiServer::Impl {
         }
     };
 
+    // ------------------------------------------------------------------ Replies (async_tcp, AF54)
+    // A REST write or WiFi job whose result loop() did not deliver within FAST_REPLY_MS: the
+    // request is paused and answered from its connection's poll callback (every ~0.5 s, async_tcp
+    // like every other answer: the library's response code is not thread-safe, so nothing is
+    // sent from loop()). A write answers once its commands are visible or REPLY_WAIT_MS passed
+    // (then with the state as it is, as before); a job once loop() finished it, or 503 after
+    // REPLY_WAIT_MS + JOB_WAIT_MS. One write per connection slot, one job (the mailbox has one
+    // slot); a closed connection drops its entry (and abandons the job). async_tcp only.
+    struct Replies {
+        struct Write {
+            Impl* s;
+            AsyncWebServerRequestPtr req;
+            uint32_t first;
+            uint8_t count;
+            uint32_t startMs;
+            bool used;
+        };
+        struct PendingJob {
+            Impl* s;
+            AsyncWebServerRequestPtr req;
+            int slot;
+            uint32_t startMs;
+            bool used;
+        };
+        Impl& s;
+        Write writes[HttpConnections::MAX] {};
+        PendingJob job {};
+
+        explicit Replies(Impl& impl) : s(impl) {
+            for (Write& w : writes) w.s = &impl;
+            job.s = &impl;
+        }
+
+        // false: no slot for this connection (the caller answers at once).
+        bool pauseWrite(AsyncWebServerRequest* r, uint32_t first, uint8_t count) {
+            int slot;
+            {
+                Lock l(s.mutex);
+                slot = s.gate.slotOf(r->client());
+            }
+            if (slot < 0 || writes[slot].used) return false;
+            Write& w = writes[slot];
+            w.req = r->pause();
+            w.first = first;
+            w.count = count;
+            w.startMs = millis();
+            w.used = true;
+            r->client()->onPoll([](void* arg, AsyncClient*) { pollWrite(*static_cast<Write*>(arg)); }, &w);
+            return true;
+        }
+
+        static void pollWrite(Write& w) {
+            if (!w.used) return;
+            std::shared_ptr<AsyncWebServerRequest> r = w.req.lock();
+            if (!r) {
+                w.used = false;
+                return;
+            }
+            const bool visible = w.s->commands.visible(w.first + w.count - 1);
+            if (!visible && millis() - w.startMs < REPLY_WAIT_MS) return;
+            w.used = false;
+            w.req.reset();
+            w.s->answerCommands(r.get(), w.first, w.count, visible);
+        }
+
+        bool pauseJob(AsyncWebServerRequest* r) {
+            int slot;
+            {
+                Lock l(s.mutex);
+                slot = s.gate.slotOf(r->client());
+            }
+            if (slot < 0 || job.used) return false;
+            job.req = r->pause();
+            job.slot = slot;
+            job.startMs = millis();
+            job.used = true;
+            r->client()->onPoll([](void* arg, AsyncClient*) { pollJob(*static_cast<PendingJob*>(arg)); }, &job);
+            return true;
+        }
+
+        static void pollJob(PendingJob& p) {
+            if (!p.used) return;
+            Impl& s = *p.s;
+            std::shared_ptr<AsyncWebServerRequest> r = p.req.lock();
+            Job j {};
+            bool ready = false;
+            const bool late = millis() - p.startMs >= REPLY_WAIT_MS + JOB_WAIT_MS;
+            {
+                Lock l(s.mutex);
+                if (r) ready = s.shared.job.collect(&j);
+                // Gone or too late: still queued: dropped; taken: cleared when loop() finishes it.
+                if (!ready && (!r || late)) s.shared.job.abandon();
+            }
+            if (!ready && r && !late) return;
+            p.used = false;
+            p.req.reset();
+            if (!r) return;
+            if (ready) {
+                s.answerJob(r.get(), j);
+                Job::clear(j);
+            } else {
+                sendRefusal(r.get(), 503, "Busy, try again");
+            }
+        }
+
+        void connectionClosed(int slot) {
+            if (slot < 0 || slot >= HttpConnections::MAX) return;
+            writes[slot].used = false;
+            writes[slot].req.reset();
+            if (job.used && job.slot == slot) {
+                job.used = false;
+                job.req.reset();
+                Lock l(s.mutex);
+                s.shared.job.abandon();
+            }
+        }
+    };
+
     // ------------------------------------------------------------------ Impl
     CommandQueue& commands;
     StateSnapshot& snapshot;
@@ -569,6 +684,11 @@ struct WebHmiServer::Impl {
     ConnectionGate gate {*this};
     LoginService login {*this};
     Pusher pusher {*this};
+    Replies replies {*this};
+    // loop() wakes a request that waits for its commands or job (AF54): given once per loop()
+    // while waiting is set (under mutex).
+    SemaphoreHandle_t replySignal = nullptr;
+    bool waiting = false;
     // --- loop() only
     NetChange netChange;
     ScanSession scan;
@@ -585,6 +705,7 @@ struct WebHmiServer::Impl {
     Impl(CommandQueue& c, StateSnapshot& s, WifiManager& w, bool (*sv)(const NetSettings&))
         : commands(c), snapshot(s), wifi(w), save(sv) {
         mutex = xSemaphoreCreateMutex();
+        replySignal = xSemaphoreCreateBinary();
     }
 
     // ---------------------------------------------------------------- start (loop)
@@ -885,8 +1006,43 @@ struct WebHmiServer::Impl {
         sendJson(req, status, buf);
     }
 
-    // REST writes: one batch, wait until it is in the snapshot, answer with the first error or
-    // the state (W-S23: at most REPLY_WAIT_MS; then the state as it is, the push follows).
+    // ---------------------------------------------------------------- waiting for loop() (AF54)
+    // async_tcp: waits at most budgetMs for cond; loop() wakes it once per pass (wakeWaiter)
+    // instead of a 1-ms poll.
+    bool waitLoop(bool (*cond)(void*), void* ctx, uint32_t budgetMs) {
+        const uint32_t t0 = millis();
+        {
+            Lock l(mutex);
+            waiting = true;
+        }
+        xSemaphoreTake(replySignal, 0); // drop a stale wake-up
+        bool ok;
+        for (;;) {
+            ok = cond(ctx);
+            if (ok) break;
+            const uint32_t elapsed = millis() - t0;
+            if (elapsed >= budgetMs) break;
+            TickType_t ticks = pdMS_TO_TICKS(budgetMs - elapsed);
+            xSemaphoreTake(replySignal, ticks ? ticks : 1);
+        }
+        Lock l(mutex);
+        waiting = false;
+        return ok;
+    }
+
+    // loop(), after the commands became visible and the job was served.
+    void wakeWaiter() {
+        bool w;
+        {
+            Lock l(mutex);
+            w = waiting;
+        }
+        if (w) xSemaphoreGive(replySignal);
+    }
+
+    // REST writes: one batch; answered with the first error or the state once it is in the
+    // snapshot: at once when loop() is fast (FAST_REPLY_MS), else from the poll callback
+    // (Replies; after REPLY_WAIT_MS with the state as it is, the push follows).
     void runCommands(AsyncWebServerRequest* req, const RestJson::Commands& cmds) {
         uint32_t first = 0;
         const PushResult p = commands.pushBatch(cmds.list, cmds.count, &first);
@@ -895,10 +1051,16 @@ struct WebHmiServer::Impl {
             CommandQueue* q;
             uint32_t last;
         } ctx {&commands, first + cmds.count - 1};
-        const bool done = waitFor([](void* c) { return static_cast<Ctx*>(c)->q->visible(static_cast<Ctx*>(c)->last); }, &ctx,
-                                  REPLY_WAIT_MS);
+        const bool done = waitLoop([](void* c) { return static_cast<Ctx*>(c)->q->visible(static_cast<Ctx*>(c)->last); }, &ctx,
+                                   FAST_REPLY_MS);
+        if (!done && replies.pauseWrite(req, first, cmds.count)) return;
+        answerCommands(req, first, cmds.count, done);
+    }
+
+    // done: the commands are in the snapshot (their results count), else the state as it is.
+    void answerCommands(AsyncWebServerRequest* req, uint32_t first, uint8_t count, bool done) {
         if (done) {
-            for (uint8_t i = 0; i < cmds.count; ++i) {
+            for (uint8_t i = 0; i < count; ++i) {
                 Result r = Result::Ok;
                 if (!commands.result(first + i, &r)) continue;
                 const RestJson::Reply rep = RestJson::fromResult(r);
@@ -920,20 +1082,15 @@ struct WebHmiServer::Impl {
         }
         RestWifi::wipe(&in.change);
         if (!queued) return sendRefusal(req, 503, "Busy, try again");
-        struct Wait {
-            static bool done(void* p) {
+        const bool done = waitLoop(
+            [](void* p) {
                 Impl* s = static_cast<Impl*>(p);
                 Lock l(s->mutex);
                 return s->shared.job.state() == JobSlot<Job>::State::Done;
-            }
-            static bool notTaken(void* p) {
-                Impl* s = static_cast<Impl*>(p);
-                Lock l(s->mutex);
-                return s->shared.job.state() != JobSlot<Job>::State::Taken;
-            }
-        };
-        // Taken: loop() is on it and needs no more than a few ms more.
-        if (!waitFor(Wait::done, this, REPLY_WAIT_MS)) waitFor(Wait::notTaken, this, JOB_WAIT_MS);
+            },
+            this, FAST_REPLY_MS);
+        // loop() is slow: answered from the poll callback (Replies).
+        if (!done && replies.pauseJob(req)) return;
         Job j {};
         bool ready;
         {
@@ -1229,7 +1386,7 @@ WebHmiServer::WebHmiServer(CommandQueue& commands, StateSnapshot& snapshot, Wifi
 
 void WebHmiServer::loop() {
     Impl* s = impl_;
-    if (!s || !s->mutex) return;
+    if (!s || !s->mutex || !s->replySignal) return;
     const uint32_t now = millis();
     const WifiManager::Status& st = s->wifi.status();
     const bool up = st.staConnected || st.apActive;
@@ -1248,6 +1405,7 @@ void WebHmiServer::loop() {
     s->serveDisconnect();
     s->updateShared(now);
     s->serveJob(now);
+    s->wakeWaiter();
     s->runNetChange(now);
     s->pusher.push(now);
     s->pusher.keepAlive(now);
