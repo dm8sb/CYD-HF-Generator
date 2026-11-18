@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "request_guard.h"
 
 // Byte and connection limits of the web server (S55, W-S6, W-S10). Pure and host-tested; the
 // device glue (net/web_server.*) feeds them from the async_tcp task. Not thread-safe.
@@ -131,3 +132,42 @@ private:
     };
     Client clients_[MAX] {};
 };
+
+// WebSocket push pacing (AF19, PERF-6): at most one push per MIN_INTERVAL_MS. The first change
+// after a quiet interval goes at once; changes within the interval are merged and the state as
+// it is then goes out at its end (a SCPI flood changed the state up to ~80 times per second,
+// each a JSON build and a send to every client).
+class PushPacer {
+public:
+    static constexpr uint32_t MIN_INTERVAL_MS = 100;
+    // changed: the state differs from the last one pushed. True: push the current state now.
+    bool due(bool changed, uint32_t nowMs) {
+        if (changed) pending_ = true;
+        if (!pending_) return false;
+        if (sent_ && nowMs - lastMs_ < MIN_INTERVAL_MS) return false;
+        pending_ = false;
+        sent_ = true;
+        lastMs_ = nowMs;
+        return true;
+    }
+    void reset() { *this = PushPacer {}; }
+
+private:
+    bool pending_ = false;
+    bool sent_ = false;
+    uint32_t lastMs_ = 0;
+};
+
+// Heap checks before allocations of the web server (AF19, PERF-8): a fragmented heap can have
+// enough free bytes but no block for the next allocation; std::make_shared then throws
+// bad_alloc, which ends in terminate() and a restart with all outputs off.
+namespace HeapLimits {
+static constexpr uint32_t MIN_BLOCK_ACCEPT = 8 * 1024; // a new connection: request, parser, answer
+static constexpr uint32_t PUSH_RESERVE = 4 * 1024;     // beyond the state text: message objects, lwIP
+// A new HTTP connection is taken (else 503): W-S10 free heap and the largest block.
+inline bool acceptOk(uint32_t freeHeap, uint32_t largestBlock) {
+    return freeHeap >= RequestGuard::MIN_FREE_HEAP && largestBlock >= MIN_BLOCK_ACCEPT;
+}
+// A push of stateBytes is built (else skipped, the clients keep waiting for the state).
+inline bool pushOk(size_t stateBytes, uint32_t largestBlock) { return largestBlock >= stateBytes + PUSH_RESERVE; }
+}

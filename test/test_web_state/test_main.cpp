@@ -430,6 +430,41 @@ static void test_ws_ping_flood_closes() {
     TEST_ASSERT_FALSE(s.clientPing(99, 0)); // unknown client
 }
 
+// AF19 (PERF-6): WebSocket pushes at most every 100 ms; the first change goes at once, changes
+// in between are merged and the latest state follows at the end of the interval.
+static void test_push_pacer() {
+    PushPacer p;
+    TEST_ASSERT_FALSE(p.due(false, 0));      // nothing changed
+    TEST_ASSERT_TRUE(p.due(true, 1000));     // first change at once
+    TEST_ASSERT_FALSE(p.due(true, 1010));    // within 100 ms: merged
+    TEST_ASSERT_FALSE(p.due(true, 1050));
+    TEST_ASSERT_FALSE(p.due(false, 1099));
+    TEST_ASSERT_TRUE(p.due(false, 1100));    // the latest state at the end of the interval
+    TEST_ASSERT_FALSE(p.due(false, 1200));   // nothing left
+    TEST_ASSERT_TRUE(p.due(true, 1500));     // quiet before: at once again
+    // A flood of 80 changes/s gives at most 10 pushes/s.
+    int pushes = 0;
+    for (uint32_t t = 2000; t < 3000; t += 12) pushes += p.due(true, t) ? 1 : 0;
+    TEST_ASSERT_TRUE(pushes <= 10);
+    TEST_ASSERT_TRUE(pushes >= 9);
+    // Across the millis() wrap.
+    PushPacer w;
+    TEST_ASSERT_TRUE(w.due(true, 0xFFFFFFC0u));
+    TEST_ASSERT_FALSE(w.due(true, 0xFFFFFFF0u));
+    TEST_ASSERT_TRUE(w.due(false, 0xFFFFFFC0u + PushPacer::MIN_INTERVAL_MS));
+    p.reset();
+    TEST_ASSERT_FALSE(p.due(false, 5000));
+}
+
+// AF19 (PERF-8): allocations depend on the largest free block, not on the free heap.
+static void test_heap_block_limits() {
+    TEST_ASSERT_FALSE(HeapLimits::acceptOk(200000, HeapLimits::MIN_BLOCK_ACCEPT - 1));
+    TEST_ASSERT_TRUE(HeapLimits::acceptOk(200000, HeapLimits::MIN_BLOCK_ACCEPT));
+    TEST_ASSERT_FALSE(HeapLimits::acceptOk(RequestGuard::MIN_FREE_HEAP - 1, 100000)); // W-S10 stays
+    TEST_ASSERT_FALSE(HeapLimits::pushOk(1000, 1000 + HeapLimits::PUSH_RESERVE - 1));
+    TEST_ASSERT_TRUE(HeapLimits::pushOk(1000, 1000 + HeapLimits::PUSH_RESERVE));
+}
+
 static HttpPreFilter::Verdict feedAll(HttpPreFilter& f, const std::string& s, uint32_t now = 0) {
     return f.feed((const uint8_t*)s.data(), s.size(), now);
 }
@@ -556,5 +591,7 @@ int main(int, char**) {
     RUN_TEST(test_connection_tables);
     RUN_TEST(test_ws_unsolicited_pongs_do_not_hold_a_slot);
     RUN_TEST(test_ws_ping_flood_closes);
+    RUN_TEST(test_push_pacer);
+    RUN_TEST(test_heap_block_limits);
     return UNITY_END();
 }

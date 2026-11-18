@@ -67,6 +67,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - One owner of the network settings during a web change: only the confirmed state is saved (a power loss brings back the previous settings), the device refuses network changes meanwhile with `Web change pending` (`Revert` / `Keep`), also with a web password (E-47)
 - `SYSTem:SAVE` and `POST /api/save` write only the changed keys and at most once per 10 s per source; further requests are merged silently (no flash wear from a save loop)
 - With a web password reading needs the login as well: the page asks for the password when it opens, state, token and WebSocket answer 401 without a session; `/lxi/identification` stays open. WebSocket: only the PONG to the device's random PING counts, a PING flood closes the client, a hidden tab frees its slot after 60 s (E-48)
+- WebSocket pushes at most every 100 ms (the first change at once, then the latest state); pushes and new connections check the largest free heap block, so a fragmented heap skips a push or answers 503 instead of restarting
 
 ### 2.0.0
 

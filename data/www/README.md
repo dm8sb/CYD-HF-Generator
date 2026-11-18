@@ -99,7 +99,7 @@ How the UI reads it:
 | `GET /api/wifi/scan` | | `{"state":"running\|done\|failed","networks":[{"ssid","rssi","secure"}]}` |
 | `GET /api/token` | | `{"token":"…"}` (same-origin only, for scripts) |
 | `GET /lxi/identification` | | LXI identification XML (`text/xml`, A-78): manufacturer, model, serial number as in `*IDN?`, firmware version, device name, address/mask/gateway of the connection, `TCPIP::<ip>::INSTR` and `TCPIP::<ip>::5025::SOCKET`; Host check as for the page, no Origin or token; readable without login, also when a web password is set (D33, stays so with `loginForReads`); not used by the UI |
-| WebSocket `/ws?t=<token>` | push only | state on connect and on every change |
+| WebSocket `/ws?t=<token>` | push only | state on connect and on every change, at most every 100 ms (the first change at once, then the latest state; AF19); skipped while the largest free block is too small |
 
 `slot` is 0 or 1 (= network 1 and 2 at the device); `password` is `""` (open network), a passphrase of 8–63 printable ASCII characters or exactly 64 hex digits (PMK, D31); the AP password 8–63 characters.
 
@@ -152,7 +152,7 @@ HTTP status codes (guard: `net/request_guard.cpp`, raw-byte pre-filter: `net/web
 | 431 | `-200,Headers too large` | headers > 2 KB |
 | 500 | `-240,SI5351 setup failed` | the write was applied but the SI5351 refused it (hardware error) |
 | 500 | `-200,Session failed` | login correct, but no session could be started |
-| 503 | `-200,Low memory` / `Out of memory` | free heap < 24 KB at the guard, or no memory for the answer or the JSON document |
+| 503 | `-200,Low memory` / `Out of memory` | free heap < 24 KB or largest free block < 8 KB (a new connection, AF19) at the guard, or no memory for the answer or the JSON document |
 | 503 | `-200,Busy, try again` | command queue full, the loop did not answer in time, login check busy |
 | 503 | `-200,Too many connections` | a 5th HTTP connection (at most 4 at a time; raw answer before parsing) |
 | 503 | `-200,Too many clients (max. 3)` | page or a 4th WebSocket while 3 are open |

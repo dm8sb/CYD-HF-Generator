@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <esp_heap_caps.h>
 #include <esp_random.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
@@ -219,6 +220,8 @@ struct WebHmiServer::Impl {
     ScanSession scan;
     RestJson::PushKey lastPush {};
     bool pushedOnce = false;
+    PushPacer pacer;          // at most one push per 100 ms (AF19)
+    uint32_t lowMemLogMs = 0; // a skipped push is logged at most once per minute
     // What the last push looked at: unchanged inputs skip the key and the hash (AF11, PERF-12).
     uint32_t pushedRevision = 0;
     uint8_t pushedSave = 0;
@@ -306,7 +309,8 @@ struct WebHmiServer::Impl {
         const uint32_t now = millis();
         int slot = -1;
         uint32_t gen = 0;
-        const bool heapOk = ESP.getFreeHeap() >= RequestGuard::MIN_FREE_HEAP; // W-S10: < 24 KB -> 503
+        // W-S10: < 24 KB free -> 503; AF19: also without a block for the request.
+        const bool heapOk = HeapLimits::acceptOk(ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
         if (heapOk) {
             Lock l(mutex);
             slot = conns.acquire(now);
@@ -1080,6 +1084,7 @@ struct WebHmiServer::Impl {
         }
         if (clients == 0) {
             pushedOnce = false;
+            pacer.reset();
             return;
         }
         Snapshot s;
@@ -1092,11 +1097,14 @@ struct WebHmiServer::Impl {
         {
             Lock l(mutex);
             d = info;
+            bool changed = false;
             if (inputsChanged) {
                 const RestJson::PushKey k = RestJson::pushKey(s, d, now);
-                if (!pushedOnce || k != lastPush) wsc.markAll();
+                changed = !pushedOnce || k != lastPush;
                 lastPush = k;
             }
+            // Merged to one push per 100 ms; a new client gets the state at once (needsState).
+            if (pacer.due(changed, now)) wsc.markAll();
             for (uint8_t i = 0; i < WsClients::MAX; ++i) ids[i] = wsc.needingState(i);
         }
         if (inputsChanged) {
@@ -1113,6 +1121,15 @@ struct WebHmiServer::Impl {
                 char text[RestJson::STATE_SIZE];
                 const size_t n = RestJson::buildState(s, d, now, text, sizeof(text));
                 if (!n) return;
+                // AF19: make_shared throws bad_alloc on a fragmented heap (terminate, restart);
+                // skipped instead, the clients keep waiting for the state.
+                if (!HeapLimits::pushOk(n, heap_caps_get_largest_free_block(MALLOC_CAP_8BIT))) {
+                    if (lowMemLogMs == 0 || now - lowMemLogMs >= 60000) {
+                        lowMemLogMs = now ? now : 1;
+                        Logger::error("WEB", "Low memory; WebSocket push skipped");
+                    }
+                    return;
+                }
                 buf = std::make_shared<std::vector<uint8_t>>((const uint8_t*)text, (const uint8_t*)text + n);
             }
             if (ws->text(ids[i], buf)) {
