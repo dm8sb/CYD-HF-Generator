@@ -79,10 +79,8 @@ void AppController::superviseHardware_() {
     if (now - lastHwCheckMs_ < interval) return;
     lastHwCheckMs_ = now;
     // Events of the supervision come from no command.
-    const Source previous = source_;
-    source_ = Source::Internal;
+    SourceScope internal(*this, Source::Internal);
     superviseOnce_();
-    source_ = previous;
 }
 
 void AppController::superviseOnce_() {
@@ -337,6 +335,13 @@ void AppController::reconfigureOutputs_() {
     configureMasterGroup_();
 }
 
+Result AppController::reconfigureReport_(uint16_t keys) {
+    const bool wasReady = si5351_.ready();
+    reconfigureOutputs_();
+    markChanged_(keys);
+    return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
+}
+
 Result AppController::outcome_(bool wasReady, uint8_t clk) const {
     if (!wasReady) return Result::Ok; // stored, shown as NO HW
     return (!si5351_.ready() || fault_[clk]) ? Result::HwError : Result::Ok;
@@ -417,10 +422,7 @@ Result AppController::setGlobalDriveStrength(uint8_t strength) {
     if (!isValidDrive(strength)) return Result::Invalid;
     if (strength == state_.sys.drive_ma) return Result::NoChange;
     state_.sys.drive_ma = strength;
-    const bool wasReady = si5351_.ready();
-    reconfigureOutputs_();
-    markChanged_(SettingKey::Drive);
-    return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
+    return reconfigureReport_(SettingKey::Drive);
 }
 
 Result AppController::setBacklight(uint8_t percent) {
@@ -449,10 +451,7 @@ Result AppController::setTuningMode(TuningMode mode) {
         si5351_.setSpread(Spread::Off);
     }
     si5351_.setTuningMode(mode);
-    const bool wasReady = si5351_.ready();
-    reconfigureOutputs_();
-    markChanged_(keys);
-    return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
+    return reconfigureReport_(keys);
 }
 
 Result AppController::setSpread(Spread spread) {
@@ -461,13 +460,10 @@ Result AppController::setSpread(Spread spread) {
     if (state_.sys.tuning_mode == TuningMode::Integer) return Result::Conflict;
     state_.sys.spread = spread;
     si5351_.setSpread(spread);
-    const bool wasReady = si5351_.ready();
-    reconfigureOutputs_();
-    markChanged_(SettingKey::Ssc);
-    return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
+    return reconfigureReport_(SettingKey::Ssc);
 }
 
-void AppController::resetToDefaults() {
+void AppController::applyDefaults_() {
     PersistentState d;
     SettingsService::defaults(d);
     d.sys.freq_correction = state_.sys.freq_correction;
@@ -477,6 +473,10 @@ void AppController::resetToDefaults() {
     if (!si5351_.setOffState(d.sys.off_state)) reportLinkLost_();
     backlight_.setPercent(d.sys.backlight);
     reconfigureOutputs_();
+}
+
+void AppController::resetToDefaults() {
+    applyDefaults_();
     markChanged_(SettingKey::All & ~SettingKey::Corr);
     Logger::info("APP", "Settings reset to defaults; correction kept");
 }
@@ -495,15 +495,7 @@ Result AppController::setRemoteOutputsAllowed(bool allowed) {
 }
 
 void AppController::resetForRemote() {
-    PersistentState d;
-    SettingsService::defaults(d);
-    d.sys.freq_correction = state_.sys.freq_correction;
-    state_ = d;
-    si5351_.setTuningMode(d.sys.tuning_mode);
-    si5351_.setSpread(d.sys.spread);
-    if (!si5351_.setOffState(d.sys.off_state)) reportLinkLost_();
-    backlight_.setPercent(d.sys.backlight);
-    reconfigureOutputs_();
+    applyDefaults_();
     settings_.clearDirty();
     bump_();
     Logger::info("APP", "*RST: defaults in RAM, not saved");
@@ -547,10 +539,7 @@ Result AppController::setCorrection(int32_t correction) {
     if (correction == state_.sys.freq_correction) return Result::NoChange;
     state_.sys.freq_correction = correction;
     si5351_.setCorrection(correction);
-    const bool wasReady = si5351_.ready();
-    reconfigureOutputs_();
-    markChanged_(SettingKey::Corr);
-    return (wasReady && !si5351_.ready()) ? Result::HwError : Result::Ok;
+    return reconfigureReport_(SettingKey::Corr);
 }
 
 Result AppController::adjustCorrection(int32_t delta) {

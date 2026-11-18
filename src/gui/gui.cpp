@@ -4,6 +4,8 @@
 #include "gui.h"
 #include "gui_layout.h"
 #include <drivers/status_led.h>
+#include <net/web_state.h>
+#include <net/wifi_policy.h>
 #include <utils/frequency_utils.h>
 #include <utils/logger.h>
 #include <utils/sanitize.h>
@@ -471,6 +473,10 @@ void Gui::eventCb_(lv_event_t* e) {
     g->handleAction_((Action)((packed >> 8) & 0xFF), (uint8_t)(packed & 0xFF), obj);
 }
 
+// The confirmation texts name these times.
+static_assert(WifiPolicy::OPEN_AP_IDLE_OFF_MS == 15 * 60000, "ApOpen text says 15 min");
+static_assert(NetChange::CONFIRM_MS == 120000, "WebNetwork/WebPending texts say 120 s");
+
 // CONFIG dropdowns (page_config.cpp) list their options in enum order; the index is the value.
 static_assert((uint8_t)TuningMode::Fractional == 0 && (uint8_t)TuningMode::LowNoise == 1 &&
                   (uint8_t)TuningMode::Integer == 2, "Tuning dropdown order");
@@ -525,9 +531,9 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             app.stepBacklight(1);
             break;
         case Action::Drive:
-            app.setGlobalDriveStrength((lv_dropdown_get_selected(obj) + 1) * 2);
+            app.setGlobalDriveStrength(DRIVE_MA_MIN + lv_dropdown_get_selected(obj) * DRIVE_MA_STEP);
             break;
-        // The dropdown options are in enum order (checked below). refresh_() shows the resulting state, e.g.
+        // The dropdown options are in enum order (checked above). refresh_() shows the resulting state, e.g.
         // spread spectrum turned off by the Integer mode.
         case Action::Tuning:
             app.setTuningMode((TuningMode)lv_dropdown_get_selected(obj));

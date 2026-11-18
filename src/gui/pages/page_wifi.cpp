@@ -5,6 +5,7 @@
 #include "../gui_layout.h"
 #include <net/net_settings.h>
 #include <net/request_guard.h>
+#include <net/wifi_policy.h>
 #include <utils/ipv4.h>
 #include <utils/logger.h>
 #include <utils/sanitize.h>
@@ -526,6 +527,9 @@ static constexpr int AP_TEXT_X = QR_X + QR_SIZE + 2 * QR_QUIET + 10;
 static constexpr int AP_BTN_Y = QR_Y + QR_SIZE + 2 * QR_QUIET + 6;
 static constexpr int AP_BTN_H = 36;
 static_assert(AP_BTN_Y + AP_BTN_H + 16 <= SCREEN_HEIGHT, "buttons and state line fit");
+// The AP state line names these times.
+static_assert(WifiPolicy::FALLBACK_AFTER_MS == 60000, "state line says 60 s");
+static_assert(WifiPolicy::OPEN_AP_IDLE_OFF_MS == 15 * 60000, "state line says 15 min");
 
 void Gui::storeAp_(const char* password, bool open) {
     if (!wifi_) return;

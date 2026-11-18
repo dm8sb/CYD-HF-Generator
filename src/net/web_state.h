@@ -103,7 +103,7 @@ private:
 };
 
 // One web password check at a time (W-S23): the async_tcp task submits it, a worker task runs
-// the slow PBKDF2 (WebPassword::verify, ~0.2-0.3 s) outside of it, and the async_tcp task
+// the slow PBKDF2 (WebPassword::verify, about 1.3 s) outside of it, and the async_tcp task
 // collects the result. Ids tell a late result of a cancelled check from the current one.
 class LoginQueue {
 public:

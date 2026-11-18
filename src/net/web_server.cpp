@@ -40,6 +40,13 @@ constexpr uint32_t STACK_LOG_MS = 60000; // debug log of the task stack reserves
 constexpr uint16_t WS_TOO_BIG = 1009;
 constexpr uint16_t WS_POLICY = 1008;
 constexpr uint16_t WS_GOING_AWAY = 1001;
+// Placeholder in index.html replaced by the per-boot token (tools/embed_www.py keeps it).
+constexpr char TOKEN_MARKER[] = "{{TOKEN}}";
+constexpr size_t TOKEN_MARKER_LEN = sizeof(TOKEN_MARKER) - 1;
+// Refusal text for a fourth client; the number is WsClients::MAX.
+#define TOO_MANY_CLIENTS "Too many clients (max. 3)"
+static_assert(WsClients::MAX == 3, "TOO_MANY_CLIENTS names WsClients::MAX");
+static_assert(NetChange::CONFIRM_MS == 120000, "the network change log line says 120 s");
 
 uint32_t hwRandom() { return esp_random(); }
 
@@ -249,17 +256,16 @@ struct WebHmiServer::Impl {
         RequestGuard::makeToken(hwRandom, token); // the radio runs: esp_random() is a true RNG
         // The page with the token, built once (the token is per boot).
         const WwwAsset& page = WWW_ASSETS[0];
-        const char* marker = "{{TOKEN}}";
         const char* src = (const char*)page.data;
         const char* at = nullptr;
-        for (size_t i = 0; i + 9 <= page.size; ++i) {
-            if (memcmp(src + i, marker, 9) == 0) {
+        for (size_t i = 0; i + TOKEN_MARKER_LEN <= page.size; ++i) {
+            if (memcmp(src + i, TOKEN_MARKER, TOKEN_MARKER_LEN) == 0) {
                 at = src + i;
                 break;
             }
         }
         if (!at) return false;
-        indexLen = page.size - 9 + RequestGuard::TOKEN_LEN;
+        indexLen = page.size - TOKEN_MARKER_LEN + RequestGuard::TOKEN_LEN;
         indexHtml = (char*)malloc(indexLen + 1);
         server = new (std::nothrow) Server(this);
         ws = new (std::nothrow) AsyncWebSocket("/ws");
@@ -268,7 +274,7 @@ struct WebHmiServer::Impl {
         const size_t pre = (size_t)(at - src);
         memcpy(indexHtml, src, pre);
         memcpy(indexHtml + pre, token, RequestGuard::TOKEN_LEN);
-        memcpy(indexHtml + pre + RequestGuard::TOKEN_LEN, at + 9, page.size - pre - 9);
+        memcpy(indexHtml + pre + RequestGuard::TOKEN_LEN, at + TOKEN_MARKER_LEN, page.size - pre - TOKEN_MARKER_LEN);
         indexHtml[indexLen] = '\0';
         ws->onEvent([this](AsyncWebSocket*, AsyncWebSocketClient* c, AwsEventType t, void* arg, uint8_t* data, size_t len) {
             wsEvent(c, t, arg, data, len);
@@ -487,7 +493,7 @@ struct WebHmiServer::Impl {
                     Lock l(mutex);
                     if (wsc.count() >= WsClients::MAX) {
                         // Released like any HTTP connection; the WebSocket would not get a place.
-                        return sendRefusal(req, 503, "Too many clients (max. 3)");
+                        return sendRefusal(req, 503, TOO_MANY_CLIENTS);
                     }
                 }
                 ws->handleRequest(req);
@@ -541,7 +547,7 @@ struct WebHmiServer::Impl {
             if (wsc.count() >= WsClients::MAX) {
                 AsyncWebServerResponse* r = req->beginResponse(
                     503, "text/html; charset=utf-8",
-                    "<!DOCTYPE html><title>CYD HF Generator</title><p>Too many clients (max. 3)</p>");
+                    "<!DOCTYPE html><title>CYD HF Generator</title><p>" TOO_MANY_CLIENTS "</p>");
                 secure(r, Cache::NoStore);
                 req->send(r);
                 return;
@@ -850,7 +856,7 @@ struct WebHmiServer::Impl {
                 }
                 c->client()->onPacket(nullptr, nullptr);
                 c->setCloseClientOnQueueFull(false);
-                if (!ok) c->close(WS_POLICY, "Too many clients (max. 3)");
+                if (!ok) c->close(WS_POLICY, TOO_MANY_CLIENTS);
                 break;
             }
             case WS_EVT_DISCONNECT: {

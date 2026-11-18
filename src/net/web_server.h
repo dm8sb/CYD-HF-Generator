@@ -17,7 +17,7 @@
 // I2C, NVS or the WiFi manager: writes go through the CommandQueue (the handler waits at most
 // REPLY_WAIT_MS for its commands to show in the snapshot, then answers with the state), WiFi
 // changes and scans through a one-slot job mailbox that loop() serves, the password check
-// through LoginQueue to a low-priority worker task (W-S23: PBKDF2 takes ~0.2-0.3 s). Its answer
+// through LoginQueue to a low-priority worker task (W-S23: PBKDF2 takes about 1.3 s). Its answer
 // is sent from the connection's poll callback, again in the async_tcp task. loop() runs the
 // two-stage network change, the WebSocket push and the guard configuration. Shared data is
 // guarded by one mutex. Created on the heap (E-31); the server starts when WiFi first comes up,

@@ -33,9 +33,10 @@
 //       Content-Length, 403 without the valid X-CYD-Token (W-S5)
 //   403 WebSocket upgrade without the valid token in the query (t=<token>) (W-S6)
 //   401 a web password is set and the request has no valid session: every POST except
-//       /api/login and /api/logout, and GET /api/wifi, /api/wifi/*; with loginForReads also all other /api/ and
-//       /ws (like the mock's --login-all). Pages, their files and by default the state load
-//       without login (ARBEITSPLAN 3.6: the state never holds secrets, MAC or commit)
+//       /api/login and /api/logout, and GET /api/wifi, /api/wifi/*; with loginForReads also all
+//       other /api/ and /ws (like the mock's --login-all; the device sets it with every web
+//       password, E-48). Pages and their files always load without login; the state never
+//       holds secrets, MAC or commit (ARBEITSPLAN 3.6)
 // After parsing a body the server calls checkSecrets() (W-S1), on /api/login loginAllowed()
 // (W-S11), on /api/wifi/scan scanAllowed() (W-S11). The write rate limit (20/s per source) is
 // done by CommandQueue::push() (W-S11) and not repeated here.
@@ -199,8 +200,8 @@ private:
 // function, so the server can switch to it later without changing stored records.
 // Iterations: 10 000, the minimum asked for (NIST SP 800-132 recommends at least 1 000; the
 // OWASP value for SHA-1 is far beyond an ESP32). The implementation hashes both HMAC pads in
-// every iteration (4 SHA-1 blocks), i.e. 40 000 blocks per check; not measured, estimated at
-// 0.2-0.3 s on the ESP32 (software SHA-1, 240 MHz). verify() therefore must not run in the
+// every iteration (4 SHA-1 blocks), i.e. 40 000 blocks per check; about 1.3 s on the ESP32
+// (software SHA-1, 240 MHz). verify() therefore must not run in the
 // async_tcp task (W-S23: no network task blocks > 100 ms); the login lock bounds it to
 // LOGIN_FAILURES checks per lock period. The iteration count is part of the record, so it can
 // be raised later; verify() accepts MIN_ITERATIONS..MAX_ITERATIONS only (a damaged record must

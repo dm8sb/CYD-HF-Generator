@@ -41,6 +41,19 @@ static_assert(CONTENT_Y + ROWS_PER_TAB * ROW_PITCH <= TAB_Y, "3 rows fit above t
 static_assert(CONTENT_Y + INFO_H + 4 <= TAB_Y, "the info card fits above the tab bar");
 static_assert(TAB_X0 >= 0, "the tabs fit the screen width");
 
+// Dropdown options. Gui::handleAction_ takes the selected index as the value: enum order for
+// tuning, spread and off state (checked in gui.cpp), DRIVE_MA_MIN + index * DRIVE_MA_STEP for
+// the drive strength.
+constexpr const char* DRIVE_OPTIONS = "2 mA\n4 mA\n6 mA\n8 mA";
+constexpr const char* OFFSTATE_OPTIONS = "Low\nHigh\nHigh-Z";
+constexpr const char* TUNING_OPTIONS = "Fractional\nLow noise\nInteger";
+constexpr const char* SPREAD_OPTIONS = "Off\n-0.5 %\n-1.5 %\n+/-0.5 %";
+constexpr uint8_t optionCount(const char* s) { return *s == '\0' ? 1 : (uint8_t)((*s == '\n') + optionCount(s + 1)); }
+static_assert(optionCount(DRIVE_OPTIONS) == DRIVE_OPTION_COUNT, "one option per drive strength");
+static_assert(optionCount(OFFSTATE_OPTIONS) == (uint8_t)OffState::HighZ + 1, "one option per OffState");
+static_assert(optionCount(TUNING_OPTIONS) == (uint8_t)TuningMode::Integer + 1, "one option per TuningMode");
+static_assert(optionCount(SPREAD_OPTIONS) == (uint8_t)Spread::Center05 + 1, "one option per Spread");
+
 static void setSelected(lv_obj_t* dd, uint16_t index) {
     if (lv_dropdown_get_selected(dd) != index) lv_dropdown_set_selected(dd, index);
 }
@@ -93,12 +106,12 @@ void Gui::createConfig_() {
     lv_obj_t* row;
     switch (configTab_) {
         case 0: // Signal; the dropdown entries are in the order of the enum values.
-            w_.driveDd = addOptionRow_(root_, 0, "Drive all", "2 mA\n4 mA\n6 mA\n8 mA", Action::Drive);
-            w_.offStateDd = addOptionRow_(root_, 1, "Off state", "Low\nHigh\nHigh-Z", Action::OffState);
-            w_.tuningDd = addOptionRow_(root_, 2, "Tuning", "Fractional\nLow noise\nInteger", Action::Tuning);
+            w_.driveDd = addOptionRow_(root_, 0, "Drive all", DRIVE_OPTIONS, Action::Drive);
+            w_.offStateDd = addOptionRow_(root_, 1, "Off state", OFFSTATE_OPTIONS, Action::OffState);
+            w_.tuningDd = addOptionRow_(root_, 2, "Tuning", TUNING_OPTIONS, Action::Tuning);
             break;
         case 1: // Freq: spread spectrum and the crystal correction.
-            w_.spreadDd = addOptionRow_(root_, 0, "Spread CH1", "Off\n-0.5 %\n-1.5 %\n+/-0.5 %", Action::Spread);
+            w_.spreadDd = addOptionRow_(root_, 0, "Spread CH1", SPREAD_OPTIONS, Action::Spread);
             // Frequency correction in ppm; the step chip cycles 0.01 / 0.1 / 1 ppm.
             row = addConfigRow_(root_, 1, ROW_H, "Corr.");
             // 14 px: with the frame the widest value ("+48.44 ppm", 96 px) ends 8 px before the chip.
@@ -187,7 +200,7 @@ void Gui::refreshConfig_() {
         static const char* corrStepLabels[CORRECTION_STEP_COUNT] = {"0.01", "0.1", "1"};
         Ui::setText(lv_obj_get_child(w_.corrStep, 0), corrStepLabels[corrStepIdx_]);
     }
-    if (w_.driveDd) setSelected(w_.driveDd, sys.drive_ma / 2 - 1);
+    if (w_.driveDd) setSelected(w_.driveDd, (sys.drive_ma - DRIVE_MA_MIN) / DRIVE_MA_STEP);
     if (w_.tuningDd) setSelected(w_.tuningDd, (uint16_t)sys.tuning_mode);
     if (w_.spreadDd) {
         // Spread spectrum needs a fractional PLL A; the controller keeps it Off in Integer mode.

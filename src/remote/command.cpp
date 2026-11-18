@@ -85,10 +85,8 @@ Result run(AppController& app, const Command& c) {
 }
 
 Result execute(AppController& app, const Command& c) {
-    app.setSource(c.source);
-    const Result r = run(app, c);
-    app.setSource(Source::Touch);
-    return r;
+    AppController::SourceScope scope(app, c.source);
+    return run(app, c);
 }
 
 bool CommandQueue::take_(Source s, uint8_t n) {

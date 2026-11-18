@@ -245,6 +245,13 @@ Reply text(JsonVariantConst v, JsonString* out) {
 const char* const TUNING_NAMES[] = {"fractional", "lownoise", "integer"};
 const char* const SPREAD_NAMES[] = {"off", "down05", "down15", "center05"};
 const char* const OFFSTATE_NAMES[] = {"low", "high", "hiz"};
+template <size_t N> constexpr uint8_t countOf(const char* const (&)[N]) { return (uint8_t)N; }
+constexpr uint8_t TUNING_COUNT = countOf(TUNING_NAMES);
+constexpr uint8_t SPREAD_COUNT = countOf(SPREAD_NAMES);
+constexpr uint8_t OFFSTATE_COUNT = countOf(OFFSTATE_NAMES);
+static_assert(TUNING_COUNT == (uint8_t)TuningMode::Integer + 1, "one name per TuningMode");
+static_assert(SPREAD_COUNT == (uint8_t)Spread::Center05 + 1, "one name per Spread");
+static_assert(OFFSTATE_COUNT == (uint8_t)OffState::HighZ + 1, "one name per OffState");
 
 // Index in names = enum value (TuningMode, Spread, OffState).
 Reply choice(JsonVariantConst v, const char* const* names, uint8_t count, int64_t* out) {
@@ -315,9 +322,9 @@ Reply convert(const Field& f, JsonVariantConst v, int64_t* out) {
             *out = (int64_t)hz;
             return ok();
         }
-        case Kind::Tuning: return choice(v, TUNING_NAMES, 3, out);
-        case Kind::Spread: return choice(v, SPREAD_NAMES, 4, out);
-        case Kind::OffState: return choice(v, OFFSTATE_NAMES, 3, out);
+        case Kind::Tuning: return choice(v, TUNING_NAMES, TUNING_COUNT, out);
+        case Kind::Spread: return choice(v, SPREAD_NAMES, SPREAD_COUNT, out);
+        case Kind::OffState: return choice(v, OFFSTATE_NAMES, OFFSTATE_COUNT, out);
         case Kind::DeviceOnly: return fail(403, SETTINGS_CONFLICT, "Remote outputs can only be changed at the device");
     }
     return bad(DATA_TYPE_ERROR);
@@ -656,9 +663,9 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
 
     JsonObject cfg = doc["config"].to<JsonObject>();
     cfg["drive"] = (unsigned)sys.drive_ma;
-    cfg["tuning"] = nameAt(TUNING_NAMES, 3, (uint8_t)sys.tuning_mode);
-    cfg["spread"] = nameAt(SPREAD_NAMES, 4, (uint8_t)sys.spread);
-    cfg["offState"] = nameAt(OFFSTATE_NAMES, 3, (uint8_t)sys.off_state);
+    cfg["tuning"] = nameAt(TUNING_NAMES, TUNING_COUNT, (uint8_t)sys.tuning_mode);
+    cfg["spread"] = nameAt(SPREAD_NAMES, SPREAD_COUNT, (uint8_t)sys.spread);
+    cfg["offState"] = nameAt(OFFSTATE_NAMES, OFFSTATE_COUNT, (uint8_t)sys.off_state);
     cfg["correction"] = sys.freq_correction;
     cfg["step"] = sys.delta_step;
     cfg["backlight"] = (unsigned)sys.backlight;
