@@ -215,7 +215,7 @@ void Gui::refreshConfig_() {
         }
     }
     if (w_.offStateDd) setSelected(w_.offStateDd, (uint16_t)sys.off_state);
-    if (w_.wifiDd) setSelected(w_.wifiDd, wifi_ ? (uint16_t)wifi_->settings().mode : 0);
+    if (w_.wifiDd) setSelected(w_.wifiDd, services_.wifi ? (uint16_t)services_.wifi->settings().mode : 0);
     if (w_.remoteDd) setSelected(w_.remoteDd, app.remoteOutputsAllowed() ? 0 : 1);
     if (!w_.touchInfo) return; // the info lines exist on the Info tab only
 
@@ -240,10 +240,10 @@ void Gui::refreshConfig_() {
 
     // WiFi line; a foreign SSID only through sanitize (W-S9).
     lv_color_t wifiColor = Colors::muted();
-    if (!wifi_ || wifi_->status().mode == WifiMode::Off) {
+    if (!services_.wifi || services_.wifi->status().mode == WifiMode::Off) {
         snprintf(buf, sizeof(buf), "WiFi off");
     } else {
-        const WifiManager::Status& w = wifi_->status();
+        const WifiManager::Status& w = services_.wifi->status();
         char ip[16];
         if (w.apActive) {
             Ipv4::format(w.apIp, ip, sizeof(ip));
@@ -260,14 +260,14 @@ void Gui::refreshConfig_() {
             snprintf(buf, sizeof(buf), "WiFi searching; open fallback AP needs confirmation");
             wifiColor = Colors::warn();
         } else {
-            snprintf(buf, sizeof(buf), "WiFi searching (%s)", wifi_->settings().deviceName);
+            snprintf(buf, sizeof(buf), "WiFi searching (%s)", services_.wifi->settings().deviceName);
         }
     }
     Ui::setText(w_.wifiInfo, buf);
     Ui::setTextColor(w_.wifiInfo, wifiColor);
     // Remote clients: open web pages (WebSockets) and the SCPI TCP client (W-S20).
-    const unsigned web = webClients_ ? webClients_() : 0;
-    const uint32_t scpi = scpiClient_ ? scpiClient_() : 0;
+    const unsigned web = services_.webClients ? services_.webClients() : 0;
+    const uint32_t scpi = services_.scpiClient ? services_.scpiClient() : 0;
     char scpiText[16] = "-";
     if (scpi) Ipv4::format(scpi, scpiText, sizeof(scpiText));
     snprintf(buf, sizeof(buf), "Remote: web %u, SCPI %s", web, scpiText);

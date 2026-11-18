@@ -77,6 +77,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - WIFI pages: text entry (limits, title, counter, what OK does for each of the six purposes), the status line and the pages of the scan list moved into host-tested logic (`InputLogic::submitEntry()`, `StatusText::wifiLine()`, suite `test_wifi_entry`); no visible change
 - Confirmation dialogs (title, text, buttons, action) come from one table instead of an if/else chain; no visible change
 - The WIFI pages are a class of their own (`WifiPages`: overview, scan list, text entry, access point, device page with their widgets and state) instead of part of the GUI class; no visible change
+- GUI callbacks of main (touch calibration store, factory reset, WiFi manager and save, web change confirmation, web password worker, remote clients) are passed as one `GuiServices` struct instead of six setters; no visible change
 
 ### 2.0.0
 

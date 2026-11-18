@@ -253,12 +253,20 @@ void setup() {
 
     // 8. LVGL and GUI init
     gui.begin(app, touch, display);
-    gui.setTouchCalibrationStore(saveTouchCalibration);
-    gui.setFactoryReset(factoryReset);
-    gui.setWifi(wifi, saveNetSettings);
-    gui.setNetConfirm(webConfirmNeeded, webConfirmAnswer, webChangePendingS);
-    gui.setWebPassword(startWebPassword, pollWebPassword);
-    gui.setRemoteClients(webClients, scpiClient, disconnectRemote);
+    GuiServices guiServices;
+    guiServices.storeTouchCal = saveTouchCalibration;
+    guiServices.factoryReset = factoryReset;
+    guiServices.wifi = &wifi;
+    guiServices.saveNet = saveNetSettings;
+    guiServices.netConfirmNeeded = webConfirmNeeded;
+    guiServices.netConfirmAnswer = webConfirmAnswer;
+    guiServices.netPendingS = webChangePendingS;
+    guiServices.webPasswordStart = startWebPassword;
+    guiServices.webPasswordPoll = pollWebPassword;
+    guiServices.webClients = webClients;
+    guiServices.scpiClient = scpiClient;
+    guiServices.disconnectRemote = disconnectRemote;
+    gui.setServices(guiServices);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
     if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
     app.addListener(Gui::onAppEvent, &gui);

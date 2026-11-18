@@ -11,6 +11,7 @@
 #include <drivers/display_panel.h>
 #include <drivers/touch.h>
 #include <gui/gui_action.h>
+#include <gui/gui_services.h>
 #include <gui/wifi_pages.h>
 #include <net/wifi_manager.h>
 #include <net/web_state.h>
@@ -43,35 +44,8 @@ public:
     // Touch calibration wizard (U-26). firstStart: no calibration stored; a timeout continues
     // with the default calibration on MAIN (otherwise back to CONFIG, unchanged).
     void calibrateTouch(bool firstStart);
-    // Saves a successful calibration (SettingsService, set by main).
-    void setTouchCalibrationStore(bool (*store)(const TouchCalibration&)) { storeTouchCal_ = store; }
-    // Factory reset (U-13): erases the NVS and restarts (set by main).
-    void setFactoryReset(void (*reset)()) { factoryReset_ = reset; }
-    // WiFi (S53): status for the status bar and the info card, mode from CONFIG; save writes
-    // the network settings (set by main). Without it the WiFi rows show Off.
-    // Web network change without web password (W-S12, S55): needed() asks whether the touch
-    // must confirm now, answer(true) keeps the new settings, answer(false) restores the old ones.
-    // pendingS(): seconds an open web change still waits (0 = none, AF16): network settings are
-    // not changed at the touch screen meanwhile ("Web change pending" with Revert and Keep).
-    void setNetConfirm(bool (*needed)(), void (*answer)(bool keep), uint16_t (*pendingS)()) {
-        wifiPages_.setNetConfirm(needed, answer, pendingS);
-    }
-    void setWifi(WifiManager& wifi, bool (*save)(const NetSettings&)) {
-        wifi_ = &wifi;
-        wifiPages_.setWifi(wifi, save);
-    }
-    // Web password on the device page (S55b): start() hands the typed password to the hashing
-    // worker (false: busy or invalid), poll() fetches the record once it is ready.
-    void setWebPassword(bool (*start)(const char* password, size_t len), WebPasswordJob::Poll (*poll)(char* record)) {
-        wifiPages_.setWebPassword(start, poll);
-    }
-    // Remote clients on the info card (S55b): open WebSockets, address of the SCPI TCP client
-    // (0 = none), and Reconnect all (served by the next loop()).
-    void setRemoteClients(uint8_t (*webClients)(), uint32_t (*scpiClient)(), void (*disconnectAll)()) {
-        webClients_ = webClients;
-        scpiClient_ = scpiClient;
-        disconnectRemote_ = disconnectAll;
-    }
+    // Callbacks and the WiFi manager (AF49c); set by main once after begin().
+    void setServices(const GuiServices& services) { services_ = services; }
 
 private:
     friend class WifiPages;
@@ -230,6 +204,8 @@ private:
     static void flushCb_(lv_disp_drv_t* disp, const lv_area_t* area, lv_color_t* color_p);
     static void touchCb_(lv_indev_drv_t* drv, lv_indev_data_t* data);
 
+    GuiServices services_;
+    WifiPages wifiPages_ {*this, services_}; // the WIFI pages (AF49b)
     DisplayPanel* display_ = nullptr;
     TouchDriver* touch_ = nullptr;
     AppController* app_ = nullptr;
@@ -250,11 +226,6 @@ private:
     uint32_t refreshCount_ = 0;     // debug build: redraws and flushes per minute
     uint32_t flushCount_ = 0;
     uint32_t countLogMs_ = 0;
-    WifiManager* wifi_ = nullptr; // status bar, CONFIG and the refresh check
-    WifiPages wifiPages_ {*this};  // the WIFI pages (AF49b)
-    uint8_t (*webClients_)() = nullptr;
-    uint32_t (*scpiClient_)() = nullptr;
-    void (*disconnectRemote_)() = nullptr;
     // Identify (W-E28): the LED blinks with the backlight, then shows the page again.
     bool ledIdentify_ = false;
     bool ledLit_ = false;
@@ -275,8 +246,6 @@ private:
     lv_event_code_t lastCode_ = LV_EVENT_ALL;
     uint8_t calShownTarget_ = 0xFF;
     TouchCal::Phase calShownPhase_ = TouchCal::Phase::Touch;
-    bool (*storeTouchCal_)(const TouchCalibration&) = nullptr;
-    void (*factoryReset_)() = nullptr;
     InputLogic::ScreenLock lock_; // RAM only: a restart unlocks
     lv_obj_t* lockHint_ = nullptr; // on the top layer, shown while a locked screen is touched
     ConfirmQueue confirms_;          // open confirmation and waiting ones (host-tested)

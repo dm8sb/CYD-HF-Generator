@@ -544,10 +544,10 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             handleNumpadKey_(obj);
             return;
         case Action::WifiMode: {
-            if (!wifi_) break;
+            if (!services_.wifi) break;
             const WifiMode mode = (WifiMode)lv_dropdown_get_selected(obj);
-            if (mode == wifi_->settings().mode) break;
-            NetSettings s = wifi_->settings();
+            if (mode == services_.wifi->settings().mode) break;
+            NetSettings s = services_.wifi->settings();
             s.mode = mode;
             wifiPages_.commitNet(s, WifiPages::NetApply::Restart);
             break;
@@ -557,7 +557,7 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             break;
         case Action::RemoteDisconnect:
             // Served by the next loop(); the info card shows the new counts then.
-            if (disconnectRemote_) disconnectRemote_();
+            if (services_.disconnectRemote) services_.disconnectRemote();
             Logger::info("GUI", "Reconnect all remote clients");
             break;
         case Action::ConfigTab:
@@ -739,9 +739,9 @@ void Gui::answerResetDefaults_(bool yes, uint8_t) {
 }
 
 void Gui::answerFactoryReset_(bool yes, uint8_t) {
-    if (!yes || !factoryReset_) return;
+    if (!yes || !services_.factoryReset) return;
     app_->resetToDefaults(); // outputs off before the restart
-    factoryReset_();         // does not return
+    services_.factoryReset();         // does not return
 }
 
 void Gui::confirm_(Confirm what, uint8_t payload) {

@@ -73,7 +73,7 @@ void Gui::tickTouchCal_() {
     switch (calWizard_.phase()) {
         case TouchCal::Phase::Done: {
             const TouchCalibration& c = calWizard_.result();
-            const bool saved = storeTouchCal_ && storeTouchCal_(c);
+            const bool saved = services_.storeTouchCal && services_.storeTouchCal(c);
             touch_->setCalibration(c, saved);
             snprintf(buf, sizeof(buf), "Calibrated: x %ld..%ld, y %ld..%ld, check %+d/%+d px%s", (long)c.x_min,
                      (long)c.x_max, (long)c.y_min, (long)c.y_max, calWizard_.checkDx(), calWizard_.checkDy(),

@@ -60,7 +60,7 @@ void WifiPages::update() {
     const bool calibrating = gui_.currentPage_ == PageId::TouchCal;
     // W-S2: an open fallback AP starts only after the question at the touch was answered. While
     // another dialog is open the question waits (CQ-1); once it is no longer needed it goes.
-    if (wifi_ && wifi_->status().needsOpenConfirmation) {
+    if (svc_.wifi && svc_.wifi->status().needsOpenConfirmation) {
         if (!openFallbackAsked_ && !calibrating) {
             openFallbackAsked_ = true;
             gui_.confirm_(Gui::Confirm::OpenFallback);
@@ -70,7 +70,7 @@ void WifiPages::update() {
         openFallbackAsked_ = false;
     }
     // W-S12: a network change from the web without web password is confirmed here as well.
-    if (netConfirmNeeded_ && netConfirmNeeded_()) {
+    if (svc_.netConfirmNeeded && svc_.netConfirmNeeded()) {
         if (!netConfirmAsked_ && !calibrating) {
             netConfirmAsked_ = true;
             gui_.confirm_(Gui::Confirm::WebNetwork);
@@ -81,8 +81,8 @@ void WifiPages::update() {
     }
     // AF16: with a web password the touch need not confirm, but the device shows the open change
     // with Revert (concept 2). The question also comes when a touch change is refused.
-    const bool pending = netPendingS_ && netPendingS_() > 0;
-    if (pending && wifi_ && NetConfig::webPasswordSet(wifi_->settings())) {
+    const bool pending = svc_.netPendingS && svc_.netPendingS() > 0;
+    if (pending && svc_.wifi && NetConfig::webPasswordSet(svc_.wifi->settings())) {
         if (!netPendingAsked_ && !calibrating) {
             netPendingAsked_ = true;
             gui_.confirm_(Gui::Confirm::WebPending);
@@ -97,8 +97,8 @@ void WifiPages::update() {
 // --- Confirmations ------------------------------------------------------------
 
 void WifiPages::answerDeleteNetwork(bool yes, uint8_t slot) {
-    if (!yes || !wifi_) return;
-    NetSettings s = wifi_->settings();
+    if (!yes || !svc_.wifi) return;
+    NetSettings s = svc_.wifi->settings();
     NetConfig::clearNetwork(s, slot);
     commitNet(s, NetApply::Restart);
 }
@@ -108,16 +108,16 @@ void WifiPages::answerOpenNetwork(bool yes, uint8_t) {
 }
 
 void WifiPages::answerApOpen(bool yes, uint8_t) {
-    if (yes && wifi_) storeAp_(wifi_->settings().apPassword, true);
+    if (yes && svc_.wifi) storeAp_(svc_.wifi->settings().apPassword, true);
 }
 
 void WifiPages::answerOpenFallback(bool yes, uint8_t) {
-    if (yes && wifi_) wifi_->confirmOpenFallback();
+    if (yes && svc_.wifi) svc_.wifi->confirmOpenFallback();
 }
 
 // Network change and Web change pending: Keep (yes) or Revert.
 void WifiPages::answerWebChange(bool yes, uint8_t) {
-    if (netConfirmAnswer_) netConfirmAnswer_(yes);
+    if (svc_.netConfirmAnswer) svc_.netConfirmAnswer(yes);
 }
 
 void WifiPages::answerRemoveWebPassword(bool yes, uint8_t) {
@@ -163,8 +163,8 @@ void WifiPages::createWifi_() {
 }
 
 void WifiPages::refreshWifi_() {
-    if (!wifi_) return;
-    const NetSettings& s = wifi_->settings();
+    if (!svc_.wifi) return;
+    const NetSettings& s = svc_.wifi->settings();
     char buf[128];
     for (uint8_t slot = 0; slot < 2; ++slot) {
         const WifiNetwork& n = s.networks[slot];
@@ -181,16 +181,16 @@ void WifiPages::refreshWifi_() {
         }
         Ui::setText(w_.netText[slot], buf);
     }
-    snprintf(buf, sizeof(buf), "AP  %s", wifi_->status().apSsid);
+    snprintf(buf, sizeof(buf), "AP  %s", svc_.wifi->status().apSsid);
     Ui::setText(w_.apText, buf);
-    const bool apRuns = wifi_->status().apActive;
+    const bool apRuns = svc_.wifi->status().apActive;
     snprintf(buf, sizeof(buf), "%s, %s", s.apOpen ? "open" : "WPA2", apRuns ? "active" : "off");
     Ui::setText(w_.apSub, buf);
     Ui::setTextColor(w_.apSub, s.apOpen ? Colors::warn() : Colors::muted());
     // Feedback (ARBEITSPLAN 3.4): what the WiFi does now and why the last attempt failed.
-    const WifiManager::Status& w = wifi_->status();
+    const WifiManager::Status& w = svc_.wifi->status();
     StatusText::WifiLine line;
-    line.pendingS = netPendingS_ ? netPendingS_() : 0;
+    line.pendingS = svc_.netPendingS ? svc_.netPendingS() : 0;
     line.mode = s.mode;
     line.staConnected = w.staConnected;
     line.ssid = w.ssid;
@@ -240,9 +240,9 @@ void WifiPages::createWifiScan_() {
 }
 
 void WifiPages::refreshWifiScan_() {
-    if (!wifi_) return;
-    const ScanList& list = wifi_->scanList();
-    const WifiManager::ScanState st = wifi_->scanState();
+    if (!svc_.wifi) return;
+    const ScanList& list = svc_.wifi->scanList();
+    const WifiManager::ScanState st = svc_.wifi->scanState();
     const uint8_t pages = InputLogic::scanPages(list.count(), ROWS);
     scanPage_ = InputLogic::clampScanPage(scanPage_, list.count(), ROWS);
     const bool showList = st == WifiManager::ScanState::Done && list.count() > 0;
@@ -316,7 +316,7 @@ void WifiPages::createEntry_() {
 
 void WifiPages::refreshEntry_() {
     if (!w_.ta) return;
-    const bool pwSet = wifi_ && NetConfig::webPasswordSet(wifi_->settings());
+    const bool pwSet = svc_.wifi && NetConfig::webPasswordSet(svc_.wifi->settings());
     char buf[48];
     InputLogic::entryInfo(entryPurpose_, strlen(lv_textarea_get_text(w_.ta)), entryError_, pwSet, buf, sizeof(buf));
     Ui::setText(w_.entryInfo, buf);
@@ -334,8 +334,8 @@ void WifiPages::openEntry_(InputLogic::EntryPurpose purpose, PageId back, const 
 // --- Actions ----------------------------------------------------------------
 
 bool WifiPages::storeNetwork_(const char* ssid, const char* key) {
-    if (!wifi_) return false;
-    NetSettings s = wifi_->settings();
+    if (!svc_.wifi) return false;
+    NetSettings s = svc_.wifi->settings();
     if (NetConfig::setNetwork(s, wifiSlot_, ssid, key) != NetConfig::KeyResult::Ok) {
         memset(&s, 0, sizeof(s)); // no key copy left on the stack
         return false;
@@ -350,23 +350,23 @@ bool WifiPages::storeNetwork_(const char* ssid, const char* key) {
 bool WifiPages::submitEntry_() {
     using InputLogic::EntryStep;
     const char* text = lv_textarea_get_text(w_.ta);
-    const bool pwSet = wifi_ && NetConfig::webPasswordSet(wifi_->settings());
+    const bool pwSet = svc_.wifi && NetConfig::webPasswordSet(svc_.wifi->settings());
     const InputLogic::EntryResult r = InputLogic::submitEntry(entryPurpose_, text, pwSet);
     switch (r.step) {
         case EntryStep::Invalid:
             snprintf(entryError_, sizeof(entryError_), "%s", r.error);
             return false;
         case EntryStep::StoreName: {
-            if (!wifi_) return false;
-            NetSettings s = wifi_->settings();
+            if (!svc_.wifi) return false;
+            NetSettings s = svc_.wifi->settings();
             snprintf(s.deviceName, sizeof(s.deviceName), "%s", text);
             commitNet(s, NetApply::Restart);
             gui_.requestNavigate_(PageId::WifiDevice);
             return true;
         }
         case EntryStep::StoreIp: {
-            if (!wifi_) return false;
-            NetSettings s = wifi_->settings();
+            if (!svc_.wifi) return false;
+            NetSettings s = svc_.wifi->settings();
             uint32_t* fields[4] = {&s.staticIp.ip, &s.staticIp.mask, &s.staticIp.gateway, &s.staticIp.dns};
             *fields[entryField_ & 3] = r.ip;
             // While static IP is on, an implausible combination is refused (W-S12).
@@ -386,7 +386,7 @@ bool WifiPages::submitEntry_() {
         case EntryStep::HashWebPassword:
             if (netChangeBlocked_()) return false; // before the hash: the password stays in the field
             // Hashed by a worker (~1.3 s); the device page shows "Saving..." until then.
-            if (webPwHashing_ || !webPwStart_ || !webPwStart_(text, strlen(text))) {
+            if (webPwHashing_ || !svc_.webPasswordStart || !svc_.webPasswordStart(text, strlen(text))) {
                 snprintf(entryError_, sizeof(entryError_), "%s", InputLogic::ENTRY_BUSY);
                 return false;
             }
@@ -419,26 +419,26 @@ void WifiPages::handleAction(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::WifiEdit:
             wifiSlot_ = arg;
             scanPage_ = 0;
-            if (wifi_) wifi_->startScan();
+            if (svc_.wifi) svc_.wifi->startScan();
             gui_.requestNavigate_(PageId::WifiScan);
             return;
         case Action::WifiDelete:
-            if (!wifi_ || !wifi_->settings().networks[arg].ssid[0]) return;
+            if (!svc_.wifi || !svc_.wifi->settings().networks[arg].ssid[0]) return;
             wifiSlot_ = arg;
             gui_.confirm_(Gui::Confirm::DeleteNetwork, arg);
             return;
         case Action::WifiRescan:
             scanPage_ = 0;
-            if (wifi_) wifi_->startScan();
+            if (svc_.wifi) svc_.wifi->startScan();
             break;
         case Action::WifiScanPage:
-            scanPage_ = InputLogic::stepScanPage(scanPage_, arg == 1, wifi_ ? wifi_->scanList().count() : 0, ROWS);
+            scanPage_ = InputLogic::stepScanPage(scanPage_, arg == 1, svc_.wifi ? svc_.wifi->scanList().count() : 0, ROWS);
             break;
         case Action::WifiPick: {
-            if (!wifi_) return;
+            if (!svc_.wifi) return;
             uint8_t idx = 0;
-            if (!InputLogic::scanIndex(scanPage_, arg, wifi_->scanList().count(), ROWS, &idx)) return;
-            const ScanEntry& e = wifi_->scanList().at(idx);
+            if (!InputLogic::scanIndex(scanPage_, arg, svc_.wifi->scanList().count(), ROWS, &idx)) return;
+            const ScanEntry& e = svc_.wifi->scanList().at(idx);
             if (!e.secure) {
                 snprintf(entrySsid_, sizeof(entrySsid_), "%s", e.ssid);
                 gui_.confirm_(Gui::Confirm::OpenNetwork);
@@ -463,10 +463,10 @@ void WifiPages::handleAction(Action action, uint8_t arg, lv_obj_t* obj) {
             if (submitEntry_()) return;
             break;
         case Action::ApRegenerate: {
-            if (!wifi_) return;
+            if (!svc_.wifi) return;
             char pw[NetConfig::AP_PASSWORD_LEN + 1];
-            wifi_->newApPassword(pw);
-            storeAp_(pw, wifi_->settings().apOpen);
+            svc_.wifi->newApPassword(pw);
+            storeAp_(pw, svc_.wifi->settings().apOpen);
             memset(pw, 0, sizeof(pw));
             break;
         }
@@ -474,16 +474,16 @@ void WifiPages::handleAction(Action action, uint8_t arg, lv_obj_t* obj) {
             openEntry_(InputLogic::EntryPurpose::ApPassword, PageId::WifiAp, nullptr);
             return;
         case Action::DevName:
-            if (!wifi_) return;
-            openEntry_(InputLogic::EntryPurpose::DeviceName, PageId::WifiDevice, wifi_->settings().deviceName);
+            if (!svc_.wifi) return;
+            openEntry_(InputLogic::EntryPurpose::DeviceName, PageId::WifiDevice, svc_.wifi->settings().deviceName);
             return;
         case Action::DevWebPassword:
-            if (!wifi_ || webPwHashing_) return;
+            if (!svc_.wifi || webPwHashing_) return;
             openEntry_(InputLogic::EntryPurpose::WebPassword, PageId::WifiDevice, "");
             return;
         case Action::DevIpField: {
-            if (!wifi_) return;
-            const StaticIp& ip = wifi_->settings().staticIp;
+            if (!svc_.wifi) return;
+            const StaticIp& ip = svc_.wifi->settings().staticIp;
             const uint32_t values[4] = {ip.ip, ip.mask, ip.gateway, ip.dns};
             char text[16] = "";
             if (values[arg & 3]) Ipv4::format(values[arg & 3], text, sizeof(text));
@@ -492,13 +492,13 @@ void WifiPages::handleAction(Action action, uint8_t arg, lv_obj_t* obj) {
             return;
         }
         case Action::DevIpMode: {
-            if (!wifi_) return;
-            NetSettings s = wifi_->settings();
+            if (!svc_.wifi) return;
+            NetSettings s = svc_.wifi->settings();
             const bool wantStatic = lv_dropdown_get_selected(obj) == 1;
             if (wantStatic == s.staticIp.enabled) break;
             if (wantStatic) {
                 // Empty fields take the current DHCP lease, so usually only the address changes.
-                const WifiManager::Status& w = wifi_->status();
+                const WifiManager::Status& w = svc_.wifi->status();
                 if (!s.staticIp.ip && w.staConnected) {
                     s.staticIp.ip = w.staIp;
                     s.staticIp.mask = w.staMask;
@@ -519,8 +519,8 @@ void WifiPages::handleAction(Action action, uint8_t arg, lv_obj_t* obj) {
             break;
         }
         case Action::ApOpenToggle:
-            if (!wifi_) return;
-            if (wifi_->settings().apOpen) storeAp_(wifi_->settings().apPassword, false);
+            if (!svc_.wifi) return;
+            if (svc_.wifi->settings().apOpen) storeAp_(svc_.wifi->settings().apPassword, false);
             else gui_.confirm_(Gui::Confirm::ApOpen);
             break;
         default:
@@ -544,8 +544,8 @@ static_assert(WifiPolicy::FALLBACK_AFTER_MS == 60000, "state line says 60 s");
 static_assert(WifiPolicy::OPEN_AP_IDLE_OFF_MS == 15 * 60000, "state line says 15 min");
 
 void WifiPages::storeAp_(const char* password, bool open) {
-    if (!wifi_) return;
-    NetSettings s = wifi_->settings();
+    if (!svc_.wifi) return;
+    NetSettings s = svc_.wifi->settings();
     snprintf(s.apPassword, sizeof(s.apPassword), "%s", password ? password : "");
     s.apOpen = open;
     if (commitNet(s, NetApply::Ap)) Logger::info("GUI", open ? "AP stored: open" : "AP stored: WPA2");
@@ -580,18 +580,18 @@ void WifiPages::createWifiAp_() {
     w_.apState = gui_.addLabel_(gui_.root_, "", &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, AP_BTN_Y + AP_BTN_H + 2);
     // A password exists from the first visit on, so the QR code always works (W-E3); not while a
     // web change is open (AF16: it would be refused).
-    if (wifi_ && !NetConfig::validPassphrase(wifi_->settings().apPassword) && !(netPendingS_ && netPendingS_())) {
+    if (svc_.wifi && !NetConfig::validPassphrase(svc_.wifi->settings().apPassword) && !(svc_.netPendingS && svc_.netPendingS())) {
         char pw[NetConfig::AP_PASSWORD_LEN + 1];
-        wifi_->newApPassword(pw);
-        storeAp_(pw, wifi_->settings().apOpen);
+        svc_.wifi->newApPassword(pw);
+        storeAp_(pw, svc_.wifi->settings().apOpen);
         memset(pw, 0, sizeof(pw));
     }
 }
 
 void WifiPages::refreshWifiAp_() {
-    if (!wifi_) return;
-    const NetSettings& s = wifi_->settings();
-    const WifiManager::Status& w = wifi_->status();
+    if (!svc_.wifi) return;
+    const NetSettings& s = svc_.wifi->settings();
+    const WifiManager::Status& w = svc_.wifi->status();
     Ui::setText(w_.apName, w.apSsid);
     char qr[160];
     if (NetConfig::wifiQrText(w.apSsid, s.apPassword, s.apOpen, qr, sizeof(qr))) {
@@ -645,16 +645,16 @@ static const char* webPasswordText(bool set, bool hashing) {
 }
 
 void WifiPages::storeWebPassword_(const char* record) {
-    if (!wifi_) return;
-    NetSettings s = wifi_->settings();
+    if (!svc_.wifi) return;
+    NetSettings s = svc_.wifi->settings();
     snprintf(s.webPassword, sizeof(s.webPassword), "%s", record ? record : "");
     commitNet(s, NetApply::WebPassword);
 }
 
 void WifiPages::pollWebPassword_() {
-    if (!webPwHashing_ || !webPwPoll_) return;
+    if (!webPwHashing_ || !svc_.webPasswordPoll) return;
     char record[WebPassword::RECORD_SIZE];
-    const WebPasswordJob::Poll p = webPwPoll_(record);
+    const WebPasswordJob::Poll p = svc_.webPasswordPoll(record);
     if (p == WebPasswordJob::Poll::Busy) return;
     webPwHashing_ = false;
     if (p == WebPasswordJob::Poll::Done) {
@@ -668,7 +668,7 @@ void WifiPages::pollWebPassword_() {
 }
 
 bool WifiPages::netChangeBlocked_() {
-    if (!netPendingS_ || netPendingS_() == 0) return false;
+    if (!svc_.netPendingS || svc_.netPendingS() == 0) return false;
     Logger::info("GUI", "Network change refused: web change pending");
     gui_.confirm_(Gui::Confirm::WebPending);
     return true;
@@ -676,15 +676,15 @@ bool WifiPages::netChangeBlocked_() {
 
 bool WifiPages::commitNet(NetSettings& s, NetApply how) {
     // One owner (AF16): while a web change waits, only the web change itself is saved.
-    if (!wifi_ || netChangeBlocked_()) {
+    if (!svc_.wifi || netChangeBlocked_()) {
         memset(&s, 0, sizeof(s));
         return false;
     }
-    if (saveNet_ && !saveNet_(s)) gui_.showMessage("WiFi", "Saving the WiFi settings failed.");
+    if (svc_.saveNet && !svc_.saveNet(s)) gui_.showMessage("WiFi", "Saving the WiFi settings failed.");
     switch (how) {
-        case NetApply::Restart: wifi_->apply(s); break;
-        case NetApply::Ap: wifi_->applyAp(s); break;
-        case NetApply::WebPassword: wifi_->applyWebPassword(s.webPassword); break;
+        case NetApply::Restart: svc_.wifi->apply(s); break;
+        case NetApply::Ap: svc_.wifi->applyAp(s); break;
+        case NetApply::WebPassword: svc_.wifi->applyWebPassword(s.webPassword); break;
     }
     memset(&s, 0, sizeof(s)); // no copy of keys and passwords left on the stack
     return true;
@@ -723,9 +723,9 @@ void WifiPages::createWifiDevice_() {
 }
 
 void WifiPages::refreshWifiDevice_() {
-    if (!wifi_) return;
-    const NetSettings& s = wifi_->settings();
-    const WifiManager::Status& w = wifi_->status();
+    if (!svc_.wifi) return;
+    const NetSettings& s = svc_.wifi->settings();
+    const WifiManager::Status& w = svc_.wifi->status();
     char buf[48];
     snprintf(buf, sizeof(buf), "%s.local", s.deviceName);
     Ui::setText(w_.devName, buf);

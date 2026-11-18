@@ -187,8 +187,8 @@ StatusView Gui::statusView_() {
     StatusView v;
     memset(&v, 0, sizeof(v));
     if (remoteShown_()) v.remote = (uint8_t)((uint8_t)app_->lastRemote() + 1);
-    if (!wifi_) return v;
-    const WifiManager::Status& w = wifi_->status();
+    if (!services_.wifi) return v;
+    const WifiManager::Status& w = services_.wifi->status();
     switch (currentPage_) {
         case PageId::Main: // status bar: WiFi symbol or AP
             v.wifiMode = (uint8_t)w.mode;
@@ -210,8 +210,8 @@ StatusView Gui::statusView_() {
             v.rssi = rssiShown_;
             if (StatusViewRules::heapDue(millis(), heapSampleMs_, heapSampled_)) sampleHeap_();
             v.heapStep = StatusViewRules::heapStep(heapFree_);
-            v.webClients = webClients_ ? webClients_() : 0;
-            v.scpiClient = scpiClient_ ? scpiClient_() : 0;
+            v.webClients = services_.webClients ? services_.webClients() : 0;
+            v.scpiClient = services_.scpiClient ? services_.scpiClient() : 0;
             break;
         case PageId::Wifi:
         case PageId::WifiScan:
@@ -228,8 +228,8 @@ StatusView Gui::statusView_() {
             v.apStations = w.apStations;
             v.lastFailure = (uint8_t)w.lastFailure;
             v.staIp = w.staIp;
-            v.scanState = (uint8_t)wifi_->scanState();
-            v.scanCount = wifi_->scanList().count();
+            v.scanState = (uint8_t)services_.wifi->scanState();
+            v.scanCount = services_.wifi->scanList().count();
             {
                 const uint16_t p = wifiPages_.pendingS();
                 v.netPendingS = (uint8_t)(p > 255 ? 255 : p);
@@ -245,8 +245,8 @@ void Gui::refreshStatusBar_() {
     // WiFi
     const char* text = "";
     lv_color_t color = Colors::muted();
-    if (wifi_) {
-        const WifiManager::Status& w = wifi_->status();
+    if (services_.wifi) {
+        const WifiManager::Status& w = services_.wifi->status();
         if (w.apActive) {
             text = w.apOpen ? "AP open" : "AP";
             color = w.apOpen ? Colors::warn() : Colors::ok();

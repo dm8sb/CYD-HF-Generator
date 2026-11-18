@@ -6,6 +6,7 @@
 #include <lvgl.h>
 #include <types.h>
 #include <gui/gui_action.h>
+#include <gui/gui_services.h>
 #include <net/net_settings.h>
 #include <net/web_state.h>
 #include <net/wifi_manager.h>
@@ -19,24 +20,11 @@ class Gui;
 // loop() (LVGL), like Gui. Implemented in pages/page_wifi.cpp.
 class WifiPages {
 public:
-    explicit WifiPages(Gui& gui) : gui_(gui) {}
-
-    void setWifi(WifiManager& wifi, bool (*save)(const NetSettings&)) {
-        wifi_ = &wifi;
-        saveNet_ = save;
-    }
-    void setNetConfirm(bool (*needed)(), void (*answer)(bool keep), uint16_t (*pendingS)()) {
-        netConfirmNeeded_ = needed;
-        netConfirmAnswer_ = answer;
-        netPendingS_ = pendingS;
-    }
-    void setWebPassword(bool (*start)(const char* password, size_t len), WebPasswordJob::Poll (*poll)(char* record)) {
-        webPwStart_ = start;
-        webPwPoll_ = poll;
-    }
+    // services: the callbacks of Gui (set by main through Gui::setServices()).
+    WifiPages(Gui& gui, const GuiServices& services) : gui_(gui), svc_(services) {}
 
     // Seconds an open web network change still waits (0 = none, AF16).
-    uint16_t pendingS() const { return netPendingS_ ? netPendingS_() : 0; }
+    uint16_t pendingS() const { return svc_.netPendingS ? svc_.netPendingS() : 0; }
 
     // Pages: Wifi, WifiScan, TextEntry, WifiAp, WifiDevice.
     void create(PageId page);
@@ -118,14 +106,8 @@ private:
     bool netChangeBlocked_();
 
     Gui& gui_;
+    const GuiServices& svc_;
     Widgets w_ {};
-    WifiManager* wifi_ = nullptr;
-    bool (*saveNet_)(const NetSettings&) = nullptr;
-    bool (*netConfirmNeeded_)() = nullptr;
-    void (*netConfirmAnswer_)(bool keep) = nullptr;
-    uint16_t (*netPendingS_)() = nullptr;
-    bool (*webPwStart_)(const char*, size_t) = nullptr;
-    WebPasswordJob::Poll (*webPwPoll_)(char*) = nullptr;
     // State (RAM only)
     bool openFallbackAsked_ = false; // W-S2 question shown for the current need
     bool netConfirmAsked_ = false;   // W-S12 question shown for the current web change

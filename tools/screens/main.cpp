@@ -146,9 +146,15 @@ int main(int argc, char** argv) {
     static Gui gui;
     gGui = &gui;
     gui.begin(app, touch, display);
-    gui.setWifi(wifi, nullptr);
-    gui.setNetConfirm(netConfirmNeeded, netConfirmAnswer, netPendingS);
-    gui.setRemoteClients(webClients, scpiClient, disconnectAll);
+    GuiServices services;
+    services.wifi = &wifi;
+    services.netConfirmNeeded = netConfirmNeeded;
+    services.netConfirmAnswer = netConfirmAnswer;
+    services.netPendingS = netPendingS;
+    services.webClients = webClients;
+    services.scpiClient = scpiClient;
+    services.disconnectRemote = disconnectAll;
+    gui.setServices(services);
     app.addListener(Gui::onAppEvent, &gui);
 
     // Documentation state: CH1 7.1 MHz, CH2 14 MHz, CH3 IQ +90 deg to CH1, all on.
