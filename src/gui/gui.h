@@ -10,6 +10,8 @@
 #include <core/app_controller.h>
 #include <drivers/display_panel.h>
 #include <drivers/touch.h>
+#include <gui/gui_action.h>
+#include <gui/wifi_pages.h>
 #include <net/wifi_manager.h>
 #include <net/web_state.h>
 #include <utils/input_logic.h>
@@ -52,19 +54,16 @@ public:
     // pendingS(): seconds an open web change still waits (0 = none, AF16): network settings are
     // not changed at the touch screen meanwhile ("Web change pending" with Revert and Keep).
     void setNetConfirm(bool (*needed)(), void (*answer)(bool keep), uint16_t (*pendingS)()) {
-        netConfirmNeeded_ = needed;
-        netConfirmAnswer_ = answer;
-        netPendingS_ = pendingS;
+        wifiPages_.setNetConfirm(needed, answer, pendingS);
     }
     void setWifi(WifiManager& wifi, bool (*save)(const NetSettings&)) {
         wifi_ = &wifi;
-        saveNet_ = save;
+        wifiPages_.setWifi(wifi, save);
     }
     // Web password on the device page (S55b): start() hands the typed password to the hashing
     // worker (false: busy or invalid), poll() fetches the record once it is ready.
     void setWebPassword(bool (*start)(const char* password, size_t len), WebPasswordJob::Poll (*poll)(char* record)) {
-        webPwStart_ = start;
-        webPwPoll_ = poll;
+        wifiPages_.setWebPassword(start, poll);
     }
     // Remote clients on the info card (S55b): open WebSockets, address of the SCPI TCP client
     // (0 = none), and Reconnect all (served by the next loop()).
@@ -75,52 +74,8 @@ public:
     }
 
 private:
-    enum class Action : uint8_t {
-        Navigate,       // arg: PageId
-        ChannelSwitch,  // arg: channel 1..3
-        FreqUp,
-        FreqDown,
-        FreqTap,        // tap on the frequency: digit selects the step, unit opens the numpad
-        SetStep,        // arg: DELTA_STEPS index
-        Ch3Master,      // arg: 1/2
-        Ch3Phase,       // arg: phase / 90
-        CorrUp,
-        CorrDown,
-        CorrStepCycle,
-        BacklightDown,
-        BacklightUp,
-        Drive,          // dropdowns: the selected index is the value
-        Tuning,
-        Spread,
-        OffState,
-        NumpadKey,
-        TouchCal,       // CONFIG: start the touch calibration
-        LockScreen,     // CONFIG: lock and go to MAIN (U-13)
-        ResetDefaults,  // CONFIG: confirm, then defaults (correction kept)
-        FactoryReset,   // CONFIG: confirm, then erase the NVS and restart
-        Ch3MasterFreq,  // CH3 page: tap on the frequency opens the master's numpad (U-16)
-        Ch3InfoTap,     // CH3 page: status line; switches the master on while CH3 waits for it
-        WifiMode,       // CONFIG: Off / Client / Access point
-        RemoteOutputs,  // CONFIG: allowed / local only (W-E25)
-        WifiEdit,       // WIFI: arg slot 0/1, scan and choose a network
-        WifiDelete,     // WIFI: arg slot, confirm and delete
-        WifiRescan,
-        WifiScanPage,   // arg 0 back, 1 forward
-        WifiPick,       // arg row on the page
-        WifiOther,      // hidden network: enter the name
-        EntryShow,      // text entry: show / hide the password
-        EntryChanged,
-        EntryDone,      // keyboard OK
-        ApRegenerate,   // AP page: new random password
-        ApSet,          // AP page: type a password
-        ApOpenToggle,   // AP page: open (with confirmation) or secure again
-        DevName,        // device page: edit the name
-        DevIpMode,      // device page: DHCP / Static (dropdown)
-        DevIpField,     // device page: arg 0..3 address, mask, gateway, DNS
-        DevWebPassword, // device page: set, change or remove the web password
-        RemoteDisconnect, // CONFIG Net tab: disconnect all web and SCPI clients
-        ConfigTab         // CONFIG tab bar: arg tab 0..CONFIG_TAB_COUNT-1
-    };
+    friend class WifiPages;
+    typedef GuiAction Action;
 
     struct Widgets {
         lv_obj_t* hdrSwitch;
@@ -143,7 +98,7 @@ private:
         lv_obj_t* offStateDd;
         lv_obj_t* si5351Info;
         lv_obj_t* saveState;   // CONFIG header, MAIN status bar: save errors only (E-44)
-        lv_obj_t* ta;
+        lv_obj_t* ta;          // numpad
         lv_obj_t* calCross[2]; // touch calibration: horizontal and vertical line
         lv_obj_t* calText;
         lv_obj_t* calStatus;
@@ -156,27 +111,6 @@ private:
         lv_obj_t* heapInfo;
         lv_obj_t* wifiState;   // MAIN status bar: WiFi symbol or AP
         lv_obj_t* remoteState; // MAIN status bar: REMOTE <source>
-        lv_obj_t* netText[2];  // WIFI overview
-        lv_obj_t* netSub[2];
-        lv_obj_t* wifiStatus;
-        lv_obj_t* scanRow[5];  // WIFI scan list
-        lv_obj_t* scanName[5];
-        lv_obj_t* scanInfo[5];
-        lv_obj_t* scanPage;
-        lv_obj_t* scanState;
-        lv_obj_t* entryShow;   // text entry
-        lv_obj_t* entryInfo;
-        lv_obj_t* apText;      // WIFI overview: AP card
-        lv_obj_t* apSub;
-        lv_obj_t* apQr;        // AP page
-        lv_obj_t* apName;
-        lv_obj_t* apPass;
-        lv_obj_t* apOpenBtn;
-        lv_obj_t* apState;
-        lv_obj_t* devName;     // device page
-        lv_obj_t* devIpMode;
-        lv_obj_t* devField[4];
-        lv_obj_t* devWebPw;
         lv_obj_t* remoteInfo;  // CONFIG info card: web and SCPI clients
     };
 
@@ -187,38 +121,6 @@ private:
     void createNumpad_(uint8_t ch);
     lv_color_t numpadColor_() const;
     void createTouchCal_();
-    void createWifi_();
-    void createWifiScan_();
-    void createEntry_();
-    void createWifiDevice_();
-    void refreshWifiDevice_();
-    // Web password (S55b): stores a record ("" = none) without restarting the WiFi.
-    void storeWebPassword_(const char* record);
-    // In update(): collects a finished hash.
-    void pollWebPassword_();
-    // The only touch path for network settings (AF15, CQ-5): saves s, reports a failed save,
-    // applies it (Restart: the WiFi restarts; Ap: only the access point; WebPassword: nothing
-    // restarts, the web server ends its sessions) and wipes s (keys and passwords).
-    enum class NetApply : uint8_t { Restart, Ap, WebPassword };
-    // Refused while a web change is open (AF16): asks "Web change pending" and returns false.
-    bool commitNet_(NetSettings& s, NetApply how);
-    // A web network change is open: shows "Web change pending" (Revert / Keep) and returns true.
-    bool netChangeBlocked_();
-    void createWifiAp_();
-    void refreshWifiAp_();
-    // Stores AP password / open flag (saved, running AP restarts).
-    void storeAp_(const char* password, bool open);
-    void refreshWifi_();
-    void refreshWifiScan_();
-    void refreshEntry_();
-    // Opens the text entry for purpose (AF47); prefill: the text it starts with, also the
-    // network a password is for (nullptr keeps the last one).
-    void openEntry_(InputLogic::EntryPurpose purpose, PageId back, const char* prefill);
-    // OK on the keyboard; true when the page changes or a confirmation opened.
-    bool submitEntry_();
-    void addBackTitle_(PageId back, const char* title, lv_color_t color);
-    void handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj);
-    bool storeNetwork_(const char* ssid, const char* key);
     // Feeds raw touch samples to the wizard and moves the cross (every loop on that page).
     void tickTouchCal_();
     void showCalTarget_();
@@ -307,18 +209,13 @@ private:
         const char* text;
         const char* text1;
         const char* const* buttons;
-        void (Gui::*answer)(bool yes, uint8_t payload);
+        void (Gui::*answer)(bool yes, uint8_t payload);           // or:
+        void (WifiPages::*wifiAnswer)(bool yes, uint8_t payload); // the WIFI confirmations
     };
     static const ConfirmSpec CONFIRMS_[CONFIRM_COUNT];
     void answerOffStateHigh_(bool yes, uint8_t);
     void answerResetDefaults_(bool yes, uint8_t);
     void answerFactoryReset_(bool yes, uint8_t);
-    void answerDeleteNetwork_(bool yes, uint8_t slot);
-    void answerOpenNetwork_(bool yes, uint8_t);
-    void answerApOpen_(bool yes, uint8_t);
-    void answerOpenFallback_(bool yes, uint8_t);
-    void answerWebChange_(bool yes, uint8_t);
-    void answerRemoveWebPassword_(bool yes, uint8_t);
     // Queues the question (ConfirmQueue: one open, the rest waits) and shows it when it is its
     // turn; payload: the network slot for DeleteNetwork.
     void confirm_(Confirm what, uint8_t payload = 0);
@@ -350,32 +247,14 @@ private:
     bool heapSampled_ = false;      // info card heap line, sampled every 5 s (AF12)
     uint32_t heapSampleMs_ = 0;
     uint32_t heapFree_ = 0, heapMin_ = 0, heapBlock_ = 0, lvglFree_ = 0;
-    uint32_t apQrHash_ = 0;         // QR text shown on the AP page (0 = none yet)
     uint32_t refreshCount_ = 0;     // debug build: redraws and flushes per minute
     uint32_t flushCount_ = 0;
     uint32_t countLogMs_ = 0;
-    WifiManager* wifi_ = nullptr;
-    bool (*saveNet_)(const NetSettings&) = nullptr;
-    // WIFI pages (RAM only)
-    uint8_t entryField_ = 0; // IpField: 0 address, 1 mask, 2 gateway, 3 DNS
-    PageId entryBack_ = PageId::WifiScan;
-    bool openFallbackAsked_ = false; // W-S2 question shown for the current need
-    bool (*netConfirmNeeded_)() = nullptr;
-    void (*netConfirmAnswer_)(bool keep) = nullptr;
-    bool netConfirmAsked_ = false;   // W-S12 question shown for the current web change
-    uint16_t (*netPendingS_)() = nullptr;
-    bool netPendingAsked_ = false;   // AF16 hint shown for the current web change (with web password)
-    bool (*webPwStart_)(const char*, size_t) = nullptr;
-    WebPasswordJob::Poll (*webPwPoll_)(char*) = nullptr;
-    bool webPwHashing_ = false;      // the device page shows "Saving..."
+    WifiManager* wifi_ = nullptr; // status bar, CONFIG and the refresh check
+    WifiPages wifiPages_ {*this};  // the WIFI pages (AF49b)
     uint8_t (*webClients_)() = nullptr;
     uint32_t (*scpiClient_)() = nullptr;
     void (*disconnectRemote_)() = nullptr;
-    uint8_t wifiSlot_ = 0;
-    uint8_t scanPage_ = 0;
-    InputLogic::EntryPurpose entryPurpose_ = InputLogic::EntryPurpose::Password;
-    char entrySsid_[33] {};
-    char entryError_[24] {};
     // Identify (W-E28): the LED blinks with the backlight, then shows the page again.
     bool ledIdentify_ = false;
     bool ledLit_ = false;

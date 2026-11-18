@@ -310,6 +310,7 @@ void Gui::navigate(PageId page) {
     lv_obj_clear_flag(root_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(root_, Colors::screenBg(), 0);
     w_ = Widgets{};
+    wifiPages_.clearWidgets();
 
     switch (page) {
         case PageId::Main: createMain_(); break;
@@ -319,11 +320,11 @@ void Gui::navigate(PageId page) {
         case PageId::Config: createConfig_(); break;
         case PageId::Numpad: createNumpad_(channel_); break;
         case PageId::TouchCal: createTouchCal_(); break;
-        case PageId::Wifi: createWifi_(); break;
-        case PageId::WifiScan: createWifiScan_(); break;
-        case PageId::TextEntry: createEntry_(); break;
-        case PageId::WifiAp: createWifiAp_(); break;
-        case PageId::WifiDevice: createWifiDevice_(); break;
+        case PageId::Wifi:
+        case PageId::WifiScan:
+        case PageId::TextEntry:
+        case PageId::WifiAp:
+        case PageId::WifiDevice: wifiPages_.create(page); break;
     }
     // Dialogs wait while the calibration covers the screen.
     if (page != PageId::TouchCal) {
@@ -362,11 +363,11 @@ void Gui::refresh_() {
         case PageId::Config: refreshConfig_(); break;
         case PageId::Numpad:
         case PageId::TouchCal: break;
-        case PageId::Wifi: refreshWifi_(); break;
-        case PageId::WifiScan: refreshWifiScan_(); break;
-        case PageId::TextEntry: refreshEntry_(); break;
-        case PageId::WifiAp: refreshWifiAp_(); break;
-        case PageId::WifiDevice: refreshWifiDevice_(); break;
+        case PageId::Wifi:
+        case PageId::WifiScan:
+        case PageId::TextEntry:
+        case PageId::WifiAp:
+        case PageId::WifiDevice: wifiPages_.refresh(currentPage_); break;
     }
     // A redraw right after an action is the redraw of this state: update() must not repeat it
     // (AF12, every touch action redrew twice).
@@ -376,40 +377,7 @@ void Gui::refresh_() {
 }
 
 void Gui::update() {
-    // W-S2: an open fallback AP starts only after the question at the touch was answered. While
-    // another dialog is open the question waits (CQ-1); once it is no longer needed it goes.
-    if (wifi_ && wifi_->status().needsOpenConfirmation) {
-        if (!openFallbackAsked_ && currentPage_ != PageId::TouchCal) {
-            openFallbackAsked_ = true;
-            confirm_(Confirm::OpenFallback);
-        }
-    } else {
-        if (openFallbackAsked_) dropConfirm_(Confirm::OpenFallback);
-        openFallbackAsked_ = false;
-    }
-    // W-S12: a network change from the web without web password is confirmed here as well.
-    if (netConfirmNeeded_ && netConfirmNeeded_()) {
-        if (!netConfirmAsked_ && currentPage_ != PageId::TouchCal) {
-            netConfirmAsked_ = true;
-            confirm_(Confirm::WebNetwork);
-        }
-    } else {
-        if (netConfirmAsked_) dropConfirm_(Confirm::WebNetwork);
-        netConfirmAsked_ = false;
-    }
-    // AF16: with a web password the touch need not confirm, but the device shows the open change
-    // with Revert (concept 2). The question also comes when a touch change is refused.
-    const bool pending = netPendingS_ && netPendingS_() > 0;
-    if (pending && wifi_ && NetConfig::webPasswordSet(wifi_->settings())) {
-        if (!netPendingAsked_ && currentPage_ != PageId::TouchCal) {
-            netPendingAsked_ = true;
-            confirm_(Confirm::WebPending);
-        }
-    } else if (!pending) {
-        if (netPendingAsked_) netPendingAsked_ = false;
-        dropConfirm_(Confirm::WebPending); // no-op when it is not queued
-    }
-    pollWebPassword_();
+    wifiPages_.update();
     if (app_->identifying()) {
         if (!ledIdentify_ || app_->identifyLit() != ledLit_) {
             ledIdentify_ = true;
@@ -581,7 +549,7 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             if (mode == wifi_->settings().mode) break;
             NetSettings s = wifi_->settings();
             s.mode = mode;
-            commitNet_(s, NetApply::Restart);
+            wifiPages_.commitNet(s, WifiPages::NetApply::Restart);
             break;
         }
         case Action::RemoteOutputs:
@@ -617,7 +585,7 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::DevIpMode:
         case Action::DevIpField:
         case Action::DevWebPassword:
-            handleWifiAction_(action, arg, obj);
+            wifiPages_.handleAction(action, arg, obj);
             return;
     }
     refresh_();
@@ -721,43 +689,43 @@ const Gui::ConfirmSpec Gui::CONFIRMS_[CONFIRM_COUNT] = {
     {"Off state High",
      "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
      "Do not use with DC-coupled mixers or inputs.",
-     nullptr, OFF_BUTTONS, &Gui::answerOffStateHigh_},
+     nullptr, OFF_BUTTONS, &Gui::answerOffStateHigh_, nullptr},
     {"Reset to defaults",
      "All settings and frequencies return to the factory values, all outputs switch off. "
      "Frequency correction and touch calibration are kept.",
-     nullptr, RESET_BUTTONS, &Gui::answerResetDefaults_},
+     nullptr, RESET_BUTTONS, &Gui::answerResetDefaults_, nullptr},
     {"Factory reset",
      "Erases all stored settings including frequency correction and touch calibration, "
      "then restarts. The touch calibration runs again.",
-     nullptr, ERASE_BUTTONS, &Gui::answerFactoryReset_},
+     nullptr, ERASE_BUTTONS, &Gui::answerFactoryReset_, nullptr},
     // Payload: the network slot.
     {"Delete network", "Network 1 and its password are deleted.", "Network 2 and its password are deleted.",
-     DELETE_BUTTONS, &Gui::answerDeleteNetwork_},
+     DELETE_BUTTONS, nullptr, &WifiPages::answerDeleteNetwork},
     {"Open network",
      "This network has no password: everything sent over it, including the web and SCPI "
      "traffic, can be read and changed by others nearby.",
-     nullptr, USE_BUTTONS, &Gui::answerOpenNetwork_},
+     nullptr, USE_BUTTONS, nullptr, &WifiPages::answerOpenNetwork},
     {"Open access point",
      "Without a password everyone nearby can connect, read everything and operate the "
      "generator. It switches off after 15 min without a connected device.",
-     nullptr, OPEN_BUTTONS, &Gui::answerApOpen_},
+     nullptr, OPEN_BUTTONS, nullptr, &WifiPages::answerApOpen},
     {"Open fallback AP",
      "No stored network found. Start the access point without a password? Everyone "
      "nearby can then connect and operate the generator.",
-     nullptr, START_BUTTONS, &Gui::answerOpenFallback_},
+     nullptr, START_BUTTONS, nullptr, &WifiPages::answerOpenFallback},
     {"Network change",
      "The network settings were changed from the web. Keep them? Without Keep here and "
      "Confirm in the browser, the previous settings return after 120 s.",
-     nullptr, KEEP_BUTTONS, &Gui::answerWebChange_},
+     nullptr, KEEP_BUTTONS, nullptr, &WifiPages::answerWebChange},
     {"Remove web password",
      "Everyone who can reach the device over the network can then operate it in the "
      "browser without logging in. Open web sessions end.",
-     nullptr, REMOVE_BUTTONS, &Gui::answerRemoveWebPassword_},
+     nullptr, REMOVE_BUTTONS, nullptr, &WifiPages::answerRemoveWebPassword},
     {"Web change pending",
      "Network settings were changed from the web and wait for Confirm in the browser "
      "(at most 120 s). Settings here can be changed after that. Revert restores the "
      "previous settings now.",
-     nullptr, KEEP_BUTTONS, &Gui::answerWebChange_},
+     nullptr, KEEP_BUTTONS, nullptr, &WifiPages::answerWebChange},
 };
 
 void Gui::answerOffStateHigh_(bool yes, uint8_t) {
@@ -774,37 +742,6 @@ void Gui::answerFactoryReset_(bool yes, uint8_t) {
     if (!yes || !factoryReset_) return;
     app_->resetToDefaults(); // outputs off before the restart
     factoryReset_();         // does not return
-}
-
-void Gui::answerDeleteNetwork_(bool yes, uint8_t slot) {
-    if (!yes || !wifi_) return;
-    NetSettings s = wifi_->settings();
-    NetConfig::clearNetwork(s, slot);
-    commitNet_(s, NetApply::Restart);
-}
-
-void Gui::answerOpenNetwork_(bool yes, uint8_t) {
-    if (yes && storeNetwork_(entrySsid_, "")) requestNavigate_(PageId::Wifi);
-}
-
-void Gui::answerApOpen_(bool yes, uint8_t) {
-    if (yes && wifi_) storeAp_(wifi_->settings().apPassword, true);
-}
-
-void Gui::answerOpenFallback_(bool yes, uint8_t) {
-    if (yes && wifi_) wifi_->confirmOpenFallback();
-}
-
-// Network change and Web change pending: Keep (yes) or Revert.
-void Gui::answerWebChange_(bool yes, uint8_t) {
-    if (netConfirmAnswer_) netConfirmAnswer_(yes);
-}
-
-void Gui::answerRemoveWebPassword_(bool yes, uint8_t) {
-    if (!yes) return;
-    storeWebPassword_("");
-    Logger::info("GUI", "Web password removed");
-    requestNavigate_(PageId::WifiDevice);
 }
 
 void Gui::confirm_(Confirm what, uint8_t payload) {
@@ -864,7 +801,11 @@ void Gui::confirmEventCb_(lv_event_t* e) {
         g->refresh_(); // stale box: no action
         return;
     }
-    if (a.kind < CONFIRM_COUNT) (g->*CONFIRMS_[a.kind].answer)(idx == 1, a.payload);
+    if (a.kind < CONFIRM_COUNT) {
+        const ConfirmSpec& spec = CONFIRMS_[a.kind];
+        if (spec.answer) (g->*spec.answer)(idx == 1, a.payload);
+        else (g->wifiPages_.*spec.wifiAnswer)(idx == 1, a.payload);
+    }
     // A waiting question (e.g. the open fallback AP) follows outside this event.
     lv_async_call(nextConfirmCb_, g);
     g->refresh_();

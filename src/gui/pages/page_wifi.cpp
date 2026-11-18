@@ -32,39 +32,137 @@ static constexpr int KB_Y = ENTRY_TA_Y + ENTRY_TA_H + 4;
 static_assert(NAV_Y + NAV_H <= SCREEN_HEIGHT, "scan list fits without scrolling");
 static_assert(STATUS_Y + 40 <= SCREEN_HEIGHT, "status lines fit");
 
+// --- Frame (AF49b) ----------------------------------------------------------
+
+void WifiPages::create(PageId page) {
+    switch (page) {
+        case PageId::Wifi: createWifi_(); break;
+        case PageId::WifiScan: createWifiScan_(); break;
+        case PageId::TextEntry: createEntry_(); break;
+        case PageId::WifiAp: createWifiAp_(); break;
+        case PageId::WifiDevice: createWifiDevice_(); break;
+        default: break;
+    }
+}
+
+void WifiPages::refresh(PageId page) {
+    switch (page) {
+        case PageId::Wifi: refreshWifi_(); break;
+        case PageId::WifiScan: refreshWifiScan_(); break;
+        case PageId::TextEntry: refreshEntry_(); break;
+        case PageId::WifiAp: refreshWifiAp_(); break;
+        case PageId::WifiDevice: refreshWifiDevice_(); break;
+        default: break;
+    }
+}
+
+void WifiPages::update() {
+    const bool calibrating = gui_.currentPage_ == PageId::TouchCal;
+    // W-S2: an open fallback AP starts only after the question at the touch was answered. While
+    // another dialog is open the question waits (CQ-1); once it is no longer needed it goes.
+    if (wifi_ && wifi_->status().needsOpenConfirmation) {
+        if (!openFallbackAsked_ && !calibrating) {
+            openFallbackAsked_ = true;
+            gui_.confirm_(Gui::Confirm::OpenFallback);
+        }
+    } else {
+        if (openFallbackAsked_) gui_.dropConfirm_(Gui::Confirm::OpenFallback);
+        openFallbackAsked_ = false;
+    }
+    // W-S12: a network change from the web without web password is confirmed here as well.
+    if (netConfirmNeeded_ && netConfirmNeeded_()) {
+        if (!netConfirmAsked_ && !calibrating) {
+            netConfirmAsked_ = true;
+            gui_.confirm_(Gui::Confirm::WebNetwork);
+        }
+    } else {
+        if (netConfirmAsked_) gui_.dropConfirm_(Gui::Confirm::WebNetwork);
+        netConfirmAsked_ = false;
+    }
+    // AF16: with a web password the touch need not confirm, but the device shows the open change
+    // with Revert (concept 2). The question also comes when a touch change is refused.
+    const bool pending = netPendingS_ && netPendingS_() > 0;
+    if (pending && wifi_ && NetConfig::webPasswordSet(wifi_->settings())) {
+        if (!netPendingAsked_ && !calibrating) {
+            netPendingAsked_ = true;
+            gui_.confirm_(Gui::Confirm::WebPending);
+        }
+    } else if (!pending) {
+        if (netPendingAsked_) netPendingAsked_ = false;
+        gui_.dropConfirm_(Gui::Confirm::WebPending); // no-op when it is not queued
+    }
+    pollWebPassword_();
+}
+
+// --- Confirmations ------------------------------------------------------------
+
+void WifiPages::answerDeleteNetwork(bool yes, uint8_t slot) {
+    if (!yes || !wifi_) return;
+    NetSettings s = wifi_->settings();
+    NetConfig::clearNetwork(s, slot);
+    commitNet(s, NetApply::Restart);
+}
+
+void WifiPages::answerOpenNetwork(bool yes, uint8_t) {
+    if (yes && storeNetwork_(entrySsid_, "")) gui_.requestNavigate_(PageId::Wifi);
+}
+
+void WifiPages::answerApOpen(bool yes, uint8_t) {
+    if (yes && wifi_) storeAp_(wifi_->settings().apPassword, true);
+}
+
+void WifiPages::answerOpenFallback(bool yes, uint8_t) {
+    if (yes && wifi_) wifi_->confirmOpenFallback();
+}
+
+// Network change and Web change pending: Keep (yes) or Revert.
+void WifiPages::answerWebChange(bool yes, uint8_t) {
+    if (netConfirmAnswer_) netConfirmAnswer_(yes);
+}
+
+void WifiPages::answerRemoveWebPassword(bool yes, uint8_t) {
+    if (!yes) return;
+    storeWebPassword_("");
+    Logger::info("GUI", "Web password removed");
+    gui_.requestNavigate_(PageId::WifiDevice);
+}
+
 // The same header as the channel pages and CONFIG: back at the top left, then the title.
-void Gui::addBackTitle_(PageId back, const char* title, lv_color_t color) { createHeader_(title, color, 0, back); }
+void WifiPages::addBackTitle_(PageId back, const char* title, lv_color_t color) {
+    gui_.createHeader_(title, color, 0, back);
+}
 
 // --- Overview ---------------------------------------------------------------
 
-void Gui::createWifi_() {
+void WifiPages::createWifi_() {
     const lv_color_t btnColor = lv_color_hex(0xF9A825);
     addBackTitle_(PageId::Config, "WIFI", Colors::config());
-    addButton_(root_, "Device", SCREEN_WIDTH - 4 - 84, BACK_Y, 84, BACK_H, btnColor, Action::Navigate, (uint8_t)PageId::WifiDevice);
+    gui_.addButton_(gui_.root_, "Device", SCREEN_WIDTH - 4 - 84, BACK_Y, 84, BACK_H, btnColor, Action::Navigate,
+                    (uint8_t)PageId::WifiDevice);
     for (uint8_t slot = 0; slot < 2; ++slot) {
-        lv_obj_t* card = addCard_(root_, MARGIN, NET_Y + slot * NET_PITCH, CONTENT_W, NET_H, Colors::config());
+        lv_obj_t* card = gui_.addCard_(gui_.root_, MARGIN, NET_Y + slot * NET_PITCH, CONTENT_W, NET_H, Colors::config());
         lv_obj_set_style_pad_all(card, 4, 0);
         lv_obj_set_style_border_width(card, 1, 0);
-        w_.netText[slot] = addLabel_(card, "", &lv_font_montserrat_16, Colors::text(), 2, 0);
+        w_.netText[slot] = gui_.addLabel_(card, "", &lv_font_montserrat_16, Colors::text(), 2, 0);
         lv_obj_set_width(w_.netText[slot], 170);
         lv_label_set_long_mode(w_.netText[slot], LV_LABEL_LONG_DOT);
-        w_.netSub[slot] = addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 2, 21);
-        addButton_(card, "Change", 178, 0, 72, NET_H - 10, btnColor, Action::WifiEdit, slot);
-        addButton_(card, LV_SYMBOL_TRASH, 254, 0, 40, NET_H - 10, Colors::gray(), Action::WifiDelete, slot);
+        w_.netSub[slot] = gui_.addLabel_(card, "", &lv_font_montserrat_12, Colors::muted(), 2, 21);
+        gui_.addButton_(card, "Change", 178, 0, 72, NET_H - 10, btnColor, Action::WifiEdit, slot);
+        gui_.addButton_(card, LV_SYMBOL_TRASH, 254, 0, 40, NET_H - 10, Colors::gray(), Action::WifiDelete, slot);
     }
     // Access point: name and state, "Show" opens the page with the QR code (S53c).
-    lv_obj_t* apCard = addCard_(root_, MARGIN, NET_Y + 2 * NET_PITCH, CONTENT_W, NET_H, Colors::config());
+    lv_obj_t* apCard = gui_.addCard_(gui_.root_, MARGIN, NET_Y + 2 * NET_PITCH, CONTENT_W, NET_H, Colors::config());
     lv_obj_set_style_pad_all(apCard, 4, 0);
     lv_obj_set_style_border_width(apCard, 1, 0);
-    w_.apText = addLabel_(apCard, "", &lv_font_montserrat_16, Colors::text(), 2, 0);
-    w_.apSub = addLabel_(apCard, "", &lv_font_montserrat_12, Colors::muted(), 2, 19);
-    addButton_(apCard, "Show", 178, 0, 116, NET_H - 10, btnColor, Action::Navigate, (uint8_t)PageId::WifiAp);
-    w_.wifiStatus = addLabel_(root_, "", &lv_font_montserrat_14, Colors::muted(), MARGIN + 2, STATUS_Y);
+    w_.apText = gui_.addLabel_(apCard, "", &lv_font_montserrat_16, Colors::text(), 2, 0);
+    w_.apSub = gui_.addLabel_(apCard, "", &lv_font_montserrat_12, Colors::muted(), 2, 19);
+    gui_.addButton_(apCard, "Show", 178, 0, 116, NET_H - 10, btnColor, Action::Navigate, (uint8_t)PageId::WifiAp);
+    w_.wifiStatus = gui_.addLabel_(gui_.root_, "", &lv_font_montserrat_14, Colors::muted(), MARGIN + 2, STATUS_Y);
     lv_obj_set_width(w_.wifiStatus, CONTENT_W - 4);
     lv_label_set_long_mode(w_.wifiStatus, LV_LABEL_LONG_WRAP);
 }
 
-void Gui::refreshWifi_() {
+void WifiPages::refreshWifi_() {
     if (!wifi_) return;
     const NetSettings& s = wifi_->settings();
     char buf[128];
@@ -110,14 +208,14 @@ void Gui::refreshWifi_() {
 
 // --- Scan list --------------------------------------------------------------
 
-void Gui::createWifiScan_() {
+void WifiPages::createWifiScan_() {
     const lv_color_t btnColor = lv_color_hex(0xF9A825);
     char title[16];
     snprintf(title, sizeof(title), "Network %u", (unsigned)(wifiSlot_ + 1));
     addBackTitle_(PageId::Wifi, title, Colors::config());
-    addButton_(root_, "Scan", SCREEN_WIDTH - 4 - 66, BACK_Y, 66, BACK_H, btnColor, Action::WifiRescan);
+    gui_.addButton_(gui_.root_, "Scan", SCREEN_WIDTH - 4 - 66, BACK_Y, 66, BACK_H, btnColor, Action::WifiRescan);
     for (uint8_t i = 0; i < ROWS; ++i) {
-        lv_obj_t* row = addButton_(root_, "", MARGIN, ROW_Y + i * ROW_PITCH, CONTENT_W, ROW_H, Colors::cardBg(),
+        lv_obj_t* row = gui_.addButton_(gui_.root_, "", MARGIN, ROW_Y + i * ROW_PITCH, CONTENT_W, ROW_H, Colors::cardBg(),
                                    Action::WifiPick, i);
         lv_obj_set_style_border_width(row, 1, 0);
         lv_obj_set_style_border_color(row, Colors::outline(), 0);
@@ -128,20 +226,20 @@ void Gui::createWifiScan_() {
         lv_obj_set_width(name, 200);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
         w_.scanName[i] = name;
-        w_.scanInfo[i] = addLabel_(row, "", &lv_font_montserrat_12, Colors::muted(), 0, 0);
+        w_.scanInfo[i] = gui_.addLabel_(row, "", &lv_font_montserrat_12, Colors::muted(), 0, 0);
         lv_obj_align(w_.scanInfo[i], LV_ALIGN_RIGHT_MID, -6, 0);
         w_.scanRow[i] = row;
     }
-    addButton_(root_, LV_SYMBOL_UP, MARGIN, NAV_Y, 50, NAV_H, Colors::gray(), Action::WifiScanPage, 0);
-    w_.scanPage = addLabel_(root_, "", &lv_font_montserrat_14, Colors::muted(), 0, 0);
+    gui_.addButton_(gui_.root_, LV_SYMBOL_UP, MARGIN, NAV_Y, 50, NAV_H, Colors::gray(), Action::WifiScanPage, 0);
+    w_.scanPage = gui_.addLabel_(gui_.root_, "", &lv_font_montserrat_14, Colors::muted(), 0, 0);
     lv_obj_align(w_.scanPage, LV_ALIGN_TOP_LEFT, MARGIN + 58, NAV_Y + 9);
-    addButton_(root_, LV_SYMBOL_DOWN, MARGIN + 110, NAV_Y, 50, NAV_H, Colors::gray(), Action::WifiScanPage, 1);
-    addButton_(root_, "Other...", SCREEN_WIDTH - 4 - 120, NAV_Y, 120, NAV_H, btnColor, Action::WifiOther);
-    w_.scanState = addLabel_(root_, "", &lv_font_montserrat_16, Colors::muted(), 0, 0);
+    gui_.addButton_(gui_.root_, LV_SYMBOL_DOWN, MARGIN + 110, NAV_Y, 50, NAV_H, Colors::gray(), Action::WifiScanPage, 1);
+    gui_.addButton_(gui_.root_, "Other...", SCREEN_WIDTH - 4 - 120, NAV_Y, 120, NAV_H, btnColor, Action::WifiOther);
+    w_.scanState = gui_.addLabel_(gui_.root_, "", &lv_font_montserrat_16, Colors::muted(), 0, 0);
     lv_obj_align(w_.scanState, LV_ALIGN_TOP_MID, 0, ROW_Y + 2 * ROW_PITCH);
 }
 
-void Gui::refreshWifiScan_() {
+void WifiPages::refreshWifiScan_() {
     if (!wifi_) return;
     const ScanList& list = wifi_->scanList();
     const WifiManager::ScanState st = wifi_->scanState();
@@ -175,13 +273,13 @@ void Gui::refreshWifiScan_() {
 
 // --- Text entry -------------------------------------------------------------
 
-void Gui::createEntry_() {
+void WifiPages::createEntry_() {
     using InputLogic::EntryPurpose;
     const InputLogic::EntrySpec spec = InputLogic::entrySpec(entryPurpose_);
     char title[48];
     InputLogic::entryTitle(entryPurpose_, entryField_, entrySsid_, title, sizeof(title));
     addBackTitle_(entryBack_, title, Colors::config());
-    w_.ta = lv_textarea_create(root_);
+    w_.ta = lv_textarea_create(gui_.root_);
     lv_obj_set_pos(w_.ta, 4, ENTRY_TA_Y);
     lv_obj_set_size(w_.ta, spec.secret ? SCREEN_WIDTH - 4 - 4 - 76 : SCREEN_WIDTH - 8, ENTRY_TA_H);
     lv_textarea_set_one_line(w_.ta, true);
@@ -191,32 +289,32 @@ void Gui::createEntry_() {
     lv_obj_set_style_text_font(w_.ta, &lv_font_montserrat_16, 0);
     lv_obj_set_style_border_color(w_.ta, Colors::config(), 0);
     lv_obj_add_state(w_.ta, LV_STATE_FOCUSED); // shows the cursor
-    on_(w_.ta, LV_EVENT_VALUE_CHANGED, Action::EntryChanged, 0);
+    gui_.on_(w_.ta, LV_EVENT_VALUE_CHANGED, Action::EntryChanged, 0);
     if (spec.secret) {
-        w_.entryShow = addButton_(root_, "Show", SCREEN_WIDTH - 4 - 76, ENTRY_TA_Y, 76, ENTRY_TA_H, Colors::gray(),
+        w_.entryShow = gui_.addButton_(gui_.root_, "Show", SCREEN_WIDTH - 4 - 76, ENTRY_TA_Y, 76, ENTRY_TA_H, Colors::gray(),
                                   Action::EntryShow, 0);
     }
     // Counter and error in the title row would collide with long titles: they sit on the keyboard top.
-    w_.entryInfo = addLabel_(root_, "", &lv_font_montserrat_12, Colors::muted(), 0, 0);
+    w_.entryInfo = gui_.addLabel_(gui_.root_, "", &lv_font_montserrat_12, Colors::muted(), 0, 0);
     lv_obj_align(w_.entryInfo, LV_ALIGN_TOP_RIGHT, -6, ENTRY_TA_Y + ENTRY_TA_H + 1);
     lv_obj_add_flag(w_.entryInfo, LV_OBJ_FLAG_FLOATING);
 
-    lv_obj_t* kb = lv_keyboard_create(root_);
+    lv_obj_t* kb = lv_keyboard_create(gui_.root_);
     // lv_keyboard_create() aligns the keyboard to the bottom; a position would only add an offset
     // and push it off the screen. Size it and keep the bottom alignment.
     lv_obj_set_size(kb, SCREEN_WIDTH, SCREEN_HEIGHT - KB_Y);
     lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_keyboard_set_textarea(kb, w_.ta);
     if (spec.numeric) lv_keyboard_set_mode(kb, LV_KEYBOARD_MODE_NUMBER);
-    on_(kb, LV_EVENT_READY, Action::EntryDone, 0);
-    on_(kb, LV_EVENT_CANCEL, Action::Navigate, (uint8_t)entryBack_);
+    gui_.on_(kb, LV_EVENT_READY, Action::EntryDone, 0);
+    gui_.on_(kb, LV_EVENT_CANCEL, Action::Navigate, (uint8_t)entryBack_);
     lv_obj_move_foreground(w_.entryInfo);
     // Ssid, device name and IP fields start with the current text (entrySsid_ holds it).
     if (spec.prefill && entrySsid_[0]) lv_textarea_set_text(w_.ta, entrySsid_);
     if (spec.secret && !spec.masked && w_.entryShow) Ui::setText(lv_obj_get_child(w_.entryShow, 0), "Hide");
 }
 
-void Gui::refreshEntry_() {
+void WifiPages::refreshEntry_() {
     if (!w_.ta) return;
     const bool pwSet = wifi_ && NetConfig::webPasswordSet(wifi_->settings());
     char buf[48];
@@ -225,31 +323,31 @@ void Gui::refreshEntry_() {
     Ui::setTextColor(w_.entryInfo, entryError_[0] ? Colors::error() : Colors::muted());
 }
 
-void Gui::openEntry_(InputLogic::EntryPurpose purpose, PageId back, const char* prefill) {
+void WifiPages::openEntry_(InputLogic::EntryPurpose purpose, PageId back, const char* prefill) {
     if (prefill) snprintf(entrySsid_, sizeof(entrySsid_), "%s", prefill);
     entryPurpose_ = purpose;
     entryBack_ = back;
     entryError_[0] = '\0';
-    requestNavigate_(PageId::TextEntry);
+    gui_.requestNavigate_(PageId::TextEntry);
 }
 
 // --- Actions ----------------------------------------------------------------
 
-bool Gui::storeNetwork_(const char* ssid, const char* key) {
+bool WifiPages::storeNetwork_(const char* ssid, const char* key) {
     if (!wifi_) return false;
     NetSettings s = wifi_->settings();
     if (NetConfig::setNetwork(s, wifiSlot_, ssid, key) != NetConfig::KeyResult::Ok) {
         memset(&s, 0, sizeof(s)); // no key copy left on the stack
         return false;
     }
-    if (!commitNet_(s, NetApply::Restart)) return false;
+    if (!commitNet(s, NetApply::Restart)) return false;
     Logger::info("GUI", "WiFi network stored");
     return true;
 }
 
 // OK on the keyboard: InputLogic checks the text, the page carries out the step. true: the
 // page changes (or a confirmation redraws), false: stay and redraw (error shown).
-bool Gui::submitEntry_() {
+bool WifiPages::submitEntry_() {
     using InputLogic::EntryStep;
     const char* text = lv_textarea_get_text(w_.ta);
     const bool pwSet = wifi_ && NetConfig::webPasswordSet(wifi_->settings());
@@ -262,8 +360,8 @@ bool Gui::submitEntry_() {
             if (!wifi_) return false;
             NetSettings s = wifi_->settings();
             snprintf(s.deviceName, sizeof(s.deviceName), "%s", text);
-            commitNet_(s, NetApply::Restart);
-            requestNavigate_(PageId::WifiDevice);
+            commitNet(s, NetApply::Restart);
+            gui_.requestNavigate_(PageId::WifiDevice);
             return true;
         }
         case EntryStep::StoreIp: {
@@ -275,16 +373,16 @@ bool Gui::submitEntry_() {
             const NetConfig::IpCheck c = NetConfig::checkStaticIp(s.staticIp);
             if (s.staticIp.enabled && c != NetConfig::IpCheck::Ok) {
                 memset(&s, 0, sizeof(s));
-                showMessage("Static IP", NetConfig::ipCheckText(c));
+                gui_.showMessage("Static IP", NetConfig::ipCheckText(c));
                 return false;
             }
-            commitNet_(s, NetApply::Restart);
-            requestNavigate_(PageId::WifiDevice);
+            commitNet(s, NetApply::Restart);
+            gui_.requestNavigate_(PageId::WifiDevice);
             return true;
         }
         case EntryStep::ConfirmRemove:
-            confirm_(Confirm::RemoveWebPassword);
-            return true; // confirm_() redraws
+            gui_.confirm_(Gui::Confirm::RemoveWebPassword);
+            return true; // gui_.confirm_() redraws
         case EntryStep::HashWebPassword:
             if (netChangeBlocked_()) return false; // before the hash: the password stays in the field
             // Hashed by a worker (~1.3 s); the device page shows "Saving..." until then.
@@ -294,12 +392,12 @@ bool Gui::submitEntry_() {
             }
             webPwHashing_ = true;
             lv_textarea_set_text(w_.ta, "");
-            requestNavigate_(PageId::WifiDevice);
+            gui_.requestNavigate_(PageId::WifiDevice);
             return true;
         case EntryStep::StoreApPassword:
             storeAp_(text, false);
             lv_textarea_set_text(w_.ta, "");
-            requestNavigate_(PageId::WifiAp);
+            gui_.requestNavigate_(PageId::WifiAp);
             return true;
         case EntryStep::AskPassword:
             openEntry_(InputLogic::EntryPurpose::Password, entryBack_, text);
@@ -310,24 +408,24 @@ bool Gui::submitEntry_() {
                 return false;
             }
             lv_textarea_set_text(w_.ta, "");
-            requestNavigate_(PageId::Wifi);
+            gui_.requestNavigate_(PageId::Wifi);
             return true;
     }
     return false;
 }
 
-void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
+void WifiPages::handleAction(Action action, uint8_t arg, lv_obj_t* obj) {
     switch (action) {
         case Action::WifiEdit:
             wifiSlot_ = arg;
             scanPage_ = 0;
             if (wifi_) wifi_->startScan();
-            requestNavigate_(PageId::WifiScan);
+            gui_.requestNavigate_(PageId::WifiScan);
             return;
         case Action::WifiDelete:
             if (!wifi_ || !wifi_->settings().networks[arg].ssid[0]) return;
             wifiSlot_ = arg;
-            confirm_(Confirm::DeleteNetwork, arg);
+            gui_.confirm_(Gui::Confirm::DeleteNetwork, arg);
             return;
         case Action::WifiRescan:
             scanPage_ = 0;
@@ -343,7 +441,7 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             const ScanEntry& e = wifi_->scanList().at(idx);
             if (!e.secure) {
                 snprintf(entrySsid_, sizeof(entrySsid_), "%s", e.ssid);
-                confirm_(Confirm::OpenNetwork);
+                gui_.confirm_(Gui::Confirm::OpenNetwork);
                 return;
             }
             openEntry_(InputLogic::EntryPurpose::Password, PageId::WifiScan, e.ssid);
@@ -411,24 +509,24 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                 if (c != NetConfig::IpCheck::Ok) {
                     // Keep the values for editing, stay on DHCP.
                     s.staticIp.enabled = false;
-                    commitNet_(s, NetApply::Restart);
-                    showMessage("Static IP", NetConfig::ipCheckText(c));
+                    commitNet(s, NetApply::Restart);
+                    gui_.showMessage("Static IP", NetConfig::ipCheckText(c));
                     break;
                 }
             }
             s.staticIp.enabled = wantStatic;
-            commitNet_(s, NetApply::Restart);
+            commitNet(s, NetApply::Restart);
             break;
         }
         case Action::ApOpenToggle:
             if (!wifi_) return;
             if (wifi_->settings().apOpen) storeAp_(wifi_->settings().apPassword, false);
-            else confirm_(Confirm::ApOpen);
+            else gui_.confirm_(Gui::Confirm::ApOpen);
             break;
         default:
             break;
     }
-    refresh_();
+    gui_.refresh_();
 }
 
 // --- Access point (S53c) ----------------------------------------------------
@@ -445,20 +543,20 @@ static_assert(AP_BTN_Y + AP_BTN_H + 16 <= SCREEN_HEIGHT, "buttons and state line
 static_assert(WifiPolicy::FALLBACK_AFTER_MS == 60000, "state line says 60 s");
 static_assert(WifiPolicy::OPEN_AP_IDLE_OFF_MS == 15 * 60000, "state line says 15 min");
 
-void Gui::storeAp_(const char* password, bool open) {
+void WifiPages::storeAp_(const char* password, bool open) {
     if (!wifi_) return;
     NetSettings s = wifi_->settings();
     snprintf(s.apPassword, sizeof(s.apPassword), "%s", password ? password : "");
     s.apOpen = open;
-    if (commitNet_(s, NetApply::Ap)) Logger::info("GUI", open ? "AP stored: open" : "AP stored: WPA2");
+    if (commitNet(s, NetApply::Ap)) Logger::info("GUI", open ? "AP stored: open" : "AP stored: WPA2");
 }
 
-void Gui::createWifiAp_() {
+void WifiPages::createWifiAp_() {
     apQrHash_ = 0; // a new code widget
     const lv_color_t btnColor = lv_color_hex(0xF9A825);
     addBackTitle_(PageId::Wifi, "Access point", Colors::config());
     // The phone needs a light quiet zone around the code.
-    lv_obj_t* frame = lv_obj_create(root_);
+    lv_obj_t* frame = lv_obj_create(gui_.root_);
     lv_obj_remove_style_all(frame);
     lv_obj_set_pos(frame, QR_X, QR_Y);
     lv_obj_set_size(frame, QR_SIZE + 2 * QR_QUIET, QR_SIZE + 2 * QR_QUIET);
@@ -467,19 +565,19 @@ void Gui::createWifiAp_() {
     lv_obj_clear_flag(frame, LV_OBJ_FLAG_CLICKABLE);
     w_.apQr = lv_qrcode_create(frame, QR_SIZE, lv_color_black(), lv_color_white());
     lv_obj_set_pos(w_.apQr, QR_QUIET, QR_QUIET);
-    addLabel_(root_, "Name", &lv_font_montserrat_12, Colors::muted(), AP_TEXT_X, QR_Y);
-    w_.apName = addLabel_(root_, "", &lv_font_montserrat_16, Colors::text(), AP_TEXT_X, QR_Y + 14);
-    addLabel_(root_, "Password", &lv_font_montserrat_12, Colors::muted(), AP_TEXT_X, QR_Y + 40);
-    w_.apPass = addLabel_(root_, "", &lv_font_montserrat_16, Colors::text(), AP_TEXT_X, QR_Y + 54);
+    gui_.addLabel_(gui_.root_, "Name", &lv_font_montserrat_12, Colors::muted(), AP_TEXT_X, QR_Y);
+    w_.apName = gui_.addLabel_(gui_.root_, "", &lv_font_montserrat_16, Colors::text(), AP_TEXT_X, QR_Y + 14);
+    gui_.addLabel_(gui_.root_, "Password", &lv_font_montserrat_12, Colors::muted(), AP_TEXT_X, QR_Y + 40);
+    w_.apPass = gui_.addLabel_(gui_.root_, "", &lv_font_montserrat_16, Colors::text(), AP_TEXT_X, QR_Y + 54);
     lv_obj_set_width(w_.apPass, SCREEN_WIDTH - AP_TEXT_X - 4);
     lv_label_set_long_mode(w_.apPass, LV_LABEL_LONG_WRAP);
-    addLabel_(root_, "Address", &lv_font_montserrat_12, Colors::muted(), AP_TEXT_X, QR_Y + 96);
-    addLabel_(root_, "192.168.4.1", &lv_font_montserrat_16, Colors::text(), AP_TEXT_X, QR_Y + 110);
-    addButton_(root_, "Regenerate", MARGIN, AP_BTN_Y, 104, AP_BTN_H, btnColor, Action::ApRegenerate);
-    addButton_(root_, "Set...", MARGIN + 108, AP_BTN_Y, 70, AP_BTN_H, btnColor, Action::ApSet);
-    w_.apOpenBtn = addButton_(root_, "", MARGIN + 182, AP_BTN_Y, CONTENT_W - 182, AP_BTN_H, Colors::gray(),
+    gui_.addLabel_(gui_.root_, "Address", &lv_font_montserrat_12, Colors::muted(), AP_TEXT_X, QR_Y + 96);
+    gui_.addLabel_(gui_.root_, "192.168.4.1", &lv_font_montserrat_16, Colors::text(), AP_TEXT_X, QR_Y + 110);
+    gui_.addButton_(gui_.root_, "Regenerate", MARGIN, AP_BTN_Y, 104, AP_BTN_H, btnColor, Action::ApRegenerate);
+    gui_.addButton_(gui_.root_, "Set...", MARGIN + 108, AP_BTN_Y, 70, AP_BTN_H, btnColor, Action::ApSet);
+    w_.apOpenBtn = gui_.addButton_(gui_.root_, "", MARGIN + 182, AP_BTN_Y, CONTENT_W - 182, AP_BTN_H, Colors::gray(),
                               Action::ApOpenToggle);
-    w_.apState = addLabel_(root_, "", &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, AP_BTN_Y + AP_BTN_H + 2);
+    w_.apState = gui_.addLabel_(gui_.root_, "", &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, AP_BTN_Y + AP_BTN_H + 2);
     // A password exists from the first visit on, so the QR code always works (W-E3); not while a
     // web change is open (AF16: it would be refused).
     if (wifi_ && !NetConfig::validPassphrase(wifi_->settings().apPassword) && !(netPendingS_ && netPendingS_())) {
@@ -490,7 +588,7 @@ void Gui::createWifiAp_() {
     }
 }
 
-void Gui::refreshWifiAp_() {
+void WifiPages::refreshWifiAp_() {
     if (!wifi_) return;
     const NetSettings& s = wifi_->settings();
     const WifiManager::Status& w = wifi_->status();
@@ -546,14 +644,14 @@ static const char* webPasswordText(bool set, bool hashing) {
     return set ? "Set (login needed)" : "None (no login)";
 }
 
-void Gui::storeWebPassword_(const char* record) {
+void WifiPages::storeWebPassword_(const char* record) {
     if (!wifi_) return;
     NetSettings s = wifi_->settings();
     snprintf(s.webPassword, sizeof(s.webPassword), "%s", record ? record : "");
-    commitNet_(s, NetApply::WebPassword);
+    commitNet(s, NetApply::WebPassword);
 }
 
-void Gui::pollWebPassword_() {
+void WifiPages::pollWebPassword_() {
     if (!webPwHashing_ || !webPwPoll_) return;
     char record[WebPassword::RECORD_SIZE];
     const WebPasswordJob::Poll p = webPwPoll_(record);
@@ -563,26 +661,26 @@ void Gui::pollWebPassword_() {
         storeWebPassword_(record);
         Logger::info("GUI", "Web password set");
     } else {
-        showMessage("Web password", "Setting the web password failed. Try again.");
+        gui_.showMessage("Web password", "Setting the web password failed. Try again.");
     }
     memset(record, 0, sizeof(record));
-    refresh_();
+    gui_.refresh_();
 }
 
-bool Gui::netChangeBlocked_() {
+bool WifiPages::netChangeBlocked_() {
     if (!netPendingS_ || netPendingS_() == 0) return false;
     Logger::info("GUI", "Network change refused: web change pending");
-    confirm_(Confirm::WebPending);
+    gui_.confirm_(Gui::Confirm::WebPending);
     return true;
 }
 
-bool Gui::commitNet_(NetSettings& s, NetApply how) {
+bool WifiPages::commitNet(NetSettings& s, NetApply how) {
     // One owner (AF16): while a web change waits, only the web change itself is saved.
     if (!wifi_ || netChangeBlocked_()) {
         memset(&s, 0, sizeof(s));
         return false;
     }
-    if (saveNet_ && !saveNet_(s)) showMessage("WiFi", "Saving the WiFi settings failed.");
+    if (saveNet_ && !saveNet_(s)) gui_.showMessage("WiFi", "Saving the WiFi settings failed.");
     switch (how) {
         case NetApply::Restart: wifi_->apply(s); break;
         case NetApply::Ap: wifi_->applyAp(s); break;
@@ -592,25 +690,25 @@ bool Gui::commitNet_(NetSettings& s, NetApply how) {
     return true;
 }
 
-void Gui::createWifiDevice_() {
+void WifiPages::createWifiDevice_() {
     addBackTitle_(PageId::Wifi, "Device", Colors::config());
     static const char* const NAMES[DEV_ROWS] = {"Name", "IP", "Address", "Mask", "Gateway", "DNS", "Web pw."};
     for (uint8_t i = 0; i < DEV_ROWS; ++i) {
         const int y = DEV_Y + i * DEV_PITCH;
-        addLabel_(root_, NAMES[i], &lv_font_montserrat_14, Colors::text(), MARGIN + 2, y + DEV_LABEL_DY);
+        gui_.addLabel_(gui_.root_, NAMES[i], &lv_font_montserrat_14, Colors::text(), MARGIN + 2, y + DEV_LABEL_DY);
         if (i == 1) {
-            w_.devIpMode = lv_dropdown_create(root_);
+            w_.devIpMode = lv_dropdown_create(gui_.root_);
             lv_dropdown_set_options(w_.devIpMode, "DHCP\nStatic");
             lv_obj_set_pos(w_.devIpMode, DEV_VALUE_X, y);
             lv_obj_set_size(w_.devIpMode, DEV_VALUE_W, DEV_H);
             lv_obj_set_style_pad_ver(w_.devIpMode, 4, 0);
-            on_(w_.devIpMode, LV_EVENT_VALUE_CHANGED, Action::DevIpMode, 0);
+            gui_.on_(w_.devIpMode, LV_EVENT_VALUE_CHANGED, Action::DevIpMode, 0);
             continue;
         }
         // The value is a tappable field that opens the keyboard.
         const bool web = i == DEV_ROWS - 1;
         const Action action = i == 0 ? Action::DevName : web ? Action::DevWebPassword : Action::DevIpField;
-        lv_obj_t* b = addButton_(root_, "", DEV_VALUE_X, y, DEV_VALUE_W, DEV_H, Colors::cardBg(), action,
+        lv_obj_t* b = gui_.addButton_(gui_.root_, "", DEV_VALUE_X, y, DEV_VALUE_W, DEV_H, Colors::cardBg(), action,
                                  (uint8_t)(i >= 2 && !web ? i - 2 : 0));
         lv_obj_set_style_border_width(b, 1, 0);
         lv_obj_set_style_border_color(b, Colors::outline(), 0);
@@ -624,7 +722,7 @@ void Gui::createWifiDevice_() {
     }
 }
 
-void Gui::refreshWifiDevice_() {
+void WifiPages::refreshWifiDevice_() {
     if (!wifi_) return;
     const NetSettings& s = wifi_->settings();
     const WifiManager::Status& w = wifi_->status();
