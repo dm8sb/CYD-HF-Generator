@@ -7,6 +7,9 @@
 # candidate, D21) deploys the flasher site after its release, which serves ESP Web Tools itself
 # (E-36). Manual run: tests, build and the assembled site as an artifact for testing; it never
 # deploys (D30, LIC-6).
+# Dry run (AF23, D49): every pull request to main, and pushes to dev or agent/** that change the
+# release path, run everything except the release and the deploy; the job "Release dry run" names
+# the assets and writes the notes with the same script as the release (tools/release_files.py).
 # The flasher writes the parts separately (no merged image from 0: it would erase NVS on every
 # update); the offsets come from PlatformIO (tools/flasher_site.py collect).
 # Actions are pinned by commit SHA (audit S-20, S-27); the token is read-only except in the
@@ -16,14 +19,26 @@ name: Release
 on:
   push:
     tags: ["v*"]
+    # Path filters apply only to the branch pushes, never to tags.
+    branches: [dev, "agent/**"]
+    paths:
+      - .github/workflows/release.yml
+      - tools/release_files.py
+      - tools/flasher_site.py
+      - tools/dep_check.py
+      - tools/requirements-ci.txt
+      - flasher/**
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# A tag run is never cancelled; a dry run is replaced by the next push to its branch or PR.
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+  group: release-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' && github.event_name != 'workflow_dispatch' }}
 
 env:
   # The env behind the web flasher and the flash parts of the release (Arduino core 3, E-32).
@@ -251,32 +266,22 @@ jobs:
             echo "release $TAG exists already; it is not changed" >&2
             exit 1
           fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           # By name into its own folder: with a pattern and a single match (one env since S41d)
           # the files would land directly in builds/ (an early release candidate failed on that).
           name: build-${{ env.FLASHER_ENV }}
           path: builds/build-${{ env.FLASHER_ENV }}/
+      # The asset names, the deterministic licenses archive and SHA256SUMS (tools/release_files.py,
+      # the same step as the dry run).
       - name: Name the release files
         env:
           VERSION: ${{ needs.meta.outputs.version }}
           SOURCE_DATE_EPOCH: ${{ needs.meta.outputs.epoch }}
-        run: |
-          mkdir release
-          prefix="cyd-hf-generator-$VERSION"
-          for dir in builds/build-*; do
-            env_name="${dir#builds/build-}"
-            cp "$dir/firmware.bin" "release/$prefix-$env_name-firmware.bin"
-          done
-          for part in bootloader partitions boot_app0; do
-            cp "builds/build-$FLASHER_ENV/$part.bin" "release/$prefix-$FLASHER_ENV-$part.bin"
-          done
-          # Notices and license texts, and the LGPL sources (see the build job).
-          # Deterministic archive (AF25): sorted, commit time, owner 0, gzip without name and time.
-          tar --exclude=lgpl-sources.tar.gz --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner --mode=a+rX,u+w,go-w --format=gnu -C "builds/build-$FLASHER_ENV" -cf - notices | gzip -n -9 > "release/$prefix-licenses.tar.gz"
-          cp "builds/build-$FLASHER_ENV/notices/lgpl-sources.tar.gz" "release/$prefix-lgpl-sources.tar.gz"
-          (cd release && sha256sum -- * > SHA256SUMS)
-          cat release/SHA256SUMS
+        run: python3 tools/release_files.py name --builds builds --env "$FLASHER_ENV" --version "$VERSION" --out release
       # Provenance for every asset, not only the .bin files (OPS-14).
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -291,51 +296,53 @@ jobs:
           PRERELEASE: ${{ needs.meta.outputs.prerelease }}
           PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: |
-          prefix="cyd-hf-generator-$VERSION-$FLASHER_ENV"
-          offsets="$(python3 -c 'import json,sys; [print("0x%X %s" % (p["offset"], p["file"])) for p in json.load(open(sys.argv[1]))["parts"]]' "builds/build-$FLASHER_ENV/parts.json")"
-          # The esptool command from the same offsets and the release file names (OPS-14); every
-          # part must be a release asset.
-          flash="$(python3 -c 'import json,os,sys
-          parts = json.load(open(sys.argv[1]))["parts"]
-          args = []
-          for p in parts:
-              name = "%s-%s" % (sys.argv[2], p["file"])
-              if not os.path.isfile(os.path.join("release", name)):
-                  sys.exit("part %s is not a release asset" % name)
-              args.append("0x%X %s" % (p["offset"], name))
-          print(" ".join(args))' "builds/build-$FLASHER_ENV/parts.json" "$prefix")"
-          cat > notes.md <<EOF
-          Firmware $VERSION (commit \`$COMMIT\`) for the ESP32-2432S028R (CYD and CYD2USB).
-
-          **Web flasher** (Chrome/Edge on a desktop): $PAGES_URL
-
-          | File | Content |
-          |---|---|
-          | \`$prefix-firmware.bin\` | Application at 0x10000 (the build behind the web flasher) |
-          | \`$prefix-bootloader.bin\`, \`-partitions.bin\`, \`-boot_app0.bin\` | Flash parts of the same build |
-          | \`SHA256SUMS\` | Checksums; provenance of every file: \`gh attestation verify <file> --repo $GH_REPO\` |
-          | \`cyd-hf-generator-$VERSION-licenses.tar.gz\` | License (GPL-3.0-or-later), third-party notices and license texts |
-          | \`cyd-hf-generator-$VERSION-lgpl-sources.tar.gz\` | Source of the LGPL libraries in the firmware (Arduino-ESP32, AsyncTCP, ESPAsyncWebServer) |
-
-          Copyright (C) 2026 DM8SB. Licensed under the GNU GPL version 3 or later (GPL-3.0-or-later), WITHOUT ANY WARRANTY. Source of this release: the source archives below (tag \`$TAG\`); all libraries and the framework packages are pinned in \`platformio.ini\`. Third-party components: \`THIRD_PARTY_NOTICES.md\` and the licenses archive.
-
-          Offsets (PlatformIO upload):
-          \`\`\`
-          $offsets
-          \`\`\`
-          Install or update with esptool 5 (does not erase NVS: touch calibration, correction and WiFi stay; esptool 4: \`esptool.py\` and \`write_flash\`):
-          \`\`\`
-          esptool --chip esp32 write-flash $flash
-          \`\`\`
-          EOF
-          {
-            echo
-            echo '<details><summary>Resolved PlatformIO packages</summary>'
-            echo
-            cat "builds/build-$FLASHER_ENV/packages.md"
-            echo '</details>'
-          } >> notes.md
+          # Notes with the offsets and the esptool command from parts.json and the release file
+          # names (every part must be an asset, OPS-14) and the resolved packages (AF22).
+          python3 tools/release_files.py notes --builds builds --env "$FLASHER_ENV" --version "$VERSION" --commit "$COMMIT" --tag "$TAG" --repo "$GH_REPO" --pages-url "$PAGES_URL" --packages "builds/build-$FLASHER_ENV/packages.md" --out notes.md
           flags=()
           [ "$PRERELEASE" = true ] && flags+=(--prerelease)
           # Fails if the release appeared meanwhile: nothing is overwritten.
           gh release create "$TAG" release/* --verify-tag --title "CYD HF Generator $VERSION" --notes-file notes.md "${flags[@]}"
+
+  # AF23: the release path without publishing (pull requests to main, pushes that change it,
+  # manual runs): same artifact, same script, same checks; the assets and notes are shown in the
+  # job summary and kept as an artifact. Not a required check of the ruleset.
+  dry-run:
+    name: Release dry run
+    needs: [meta, build]
+    if: ${{ !(github.event_name == 'push' && github.ref_type == 'tag') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: build-${{ env.FLASHER_ENV }}
+          path: builds/build-${{ env.FLASHER_ENV }}/
+      - name: Name the release files and write the notes
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+          COMMIT: ${{ needs.meta.outputs.commit }}
+          SOURCE_DATE_EPOCH: ${{ needs.meta.outputs.epoch }}
+          GH_REPO: ${{ github.repository }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: |
+          python3 tools/release_files.py name --builds builds --env "$FLASHER_ENV" --version "$VERSION" --out release
+          python3 tools/release_files.py notes --builds builds --env "$FLASHER_ENV" --version "$VERSION" --commit "$COMMIT" --tag "v$VERSION" --repo "$GH_REPO" --pages-url "$PAGES_URL" --packages "builds/build-$FLASHER_ENV/packages.md" --out notes.md
+          {
+            echo '### Release dry run (nothing published)'
+            echo '```'
+            cat release/SHA256SUMS
+            echo '```'
+            cat notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dry-run
+          path: |
+            release/
+            notes.md
+          if-no-files-found: error
+          retention-days: 7
