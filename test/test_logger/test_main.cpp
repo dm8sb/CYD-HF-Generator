@@ -7,6 +7,7 @@
 #include <unity.h>
 #include <Arduino.h>
 #include <string.h>
+#include <string>
 #include <constants.h>
 #include <utils/logger.h>
 
@@ -108,6 +109,20 @@ static void test_off_drops_everything() {
     TEST_ASSERT_TRUE(Fake::serialLog().contains("[APP] back"));
 }
 
+// AF35 (TEST-10): a line longer than the buffer slot is cut on the last byte and still ends
+// with a newline; a line that just fits stays whole.
+static void test_buffered_line_is_cut_with_newline() {
+    Logger::setOutput(Logger::Output::ToBuffer);
+    const std::string fits(Logger::LINE_LEN - 2, 'a'); // + '\n' + NUL = LINE_LEN
+    Logger::raw(fits.c_str());
+    Logger::raw((fits + "b").c_str());
+    Logger::raw(std::string(300, 'c').c_str());
+    char out[1024];
+    TEST_ASSERT_EQUAL_UINT16(3, Logger::readBuffered(out, sizeof(out)));
+    const std::string expected = fits + "\n" + fits + "\n" + std::string(Logger::LINE_LEN - 2, 'c') + "\n";
+    TEST_ASSERT_EQUAL_STRING(expected.c_str(), out);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_serial_output_by_default);
@@ -117,5 +132,6 @@ int main(int, char**) {
     RUN_TEST(test_buffer_drops_the_oldest_lines);
     RUN_TEST(test_read_stops_at_the_buffer_size);
     RUN_TEST(test_off_drops_everything);
+    RUN_TEST(test_buffered_line_is_cut_with_newline);
     return UNITY_END();
 }

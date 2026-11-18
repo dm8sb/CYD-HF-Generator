@@ -212,11 +212,108 @@ static void test_upgrade_from_old_keys() {
     TEST_ASSERT_EQUAL_size_t(1, Fake::nvs().count("nvs.net80211"));
 }
 
+// AF35 (TEST-4, M13): the autosave runs exactly quietMs after the last change, the retry
+// exactly SETTINGS_RETRY_MS after a failure.
+static void test_autosave_boundaries() {
+    SettingsService settings;
+    TEST_ASSERT_TRUE(settings.begin());
+    PersistentState s;
+    SettingsService::defaults(s);
+    Fake::clockMs() = 1000;
+    settings.markDirty(SettingKey::Ch1Freq);
+    Fake::clockMs() = 1000 + SETTINGS_AUTOSAVE_MS - 1;
+    TEST_ASSERT_EQUAL(SaveResult::None, settings.update(s));
+    TEST_ASSERT_TRUE(settings.isDirty());
+    Fake::clockMs() = 1000 + SETTINGS_AUTOSAVE_MS;
+    TEST_ASSERT_EQUAL(SaveResult::Saved, settings.update(s));
+    TEST_ASSERT_FALSE(settings.isDirty());
+
+    // Remote changes wait longer.
+    settings.markDirty(SettingKey::Delta, SETTINGS_REMOTE_AUTOSAVE_MS);
+    const uint32_t t0 = Fake::clockMs();
+    Fake::clockMs() = t0 + SETTINGS_REMOTE_AUTOSAVE_MS - 1;
+    TEST_ASSERT_EQUAL(SaveResult::None, settings.update(s));
+    Fake::clockMs() = t0 + SETTINGS_REMOTE_AUTOSAVE_MS;
+    TEST_ASSERT_EQUAL(SaveResult::Saved, settings.update(s));
+
+    // A failed save is reported once and retried after SETTINGS_RETRY_MS.
+    settings.markDirty(SettingKey::Corr);
+    Fake::nvs().failWrites = true;
+    const uint32_t t1 = Fake::clockMs();
+    Fake::clockMs() = t1 + SETTINGS_AUTOSAVE_MS;
+    TEST_ASSERT_EQUAL(SaveResult::Failed, settings.update(s));
+    TEST_ASSERT_TRUE(settings.lastSaveFailed());
+    const uint32_t t2 = Fake::clockMs();
+    Fake::clockMs() = t2 + SETTINGS_RETRY_MS - 1;
+    TEST_ASSERT_EQUAL(SaveResult::None, settings.update(s));
+    Fake::clockMs() = t2 + SETTINGS_RETRY_MS;
+    TEST_ASSERT_EQUAL(SaveResult::None, settings.update(s)); // failed again: not reported twice
+    Fake::nvs().failWrites = false;
+    Fake::clockMs() += SETTINGS_RETRY_MS;
+    TEST_ASSERT_EQUAL(SaveResult::Saved, settings.update(s));
+    TEST_ASSERT_FALSE(settings.lastSaveFailed());
+    Fake::clockMs() = 0;
+}
+
+// AF35 (TEST-10): NVS write errors on every write path of SettingsService.
+static void test_settings_write_errors() {
+    SettingsService settings;
+    TEST_ASSERT_TRUE(settings.begin());
+    PersistentState s;
+    SettingsService::defaults(s);
+    s.ch1.frequency = 7100000;
+    settings.markDirty(SettingKey::Ch1Freq);
+    Fake::nvs().failWrites = true;
+    // SYSTem:SAVE fails and leaves the keys to the autosave.
+    TEST_ASSERT_FALSE(settings.saveNow(s));
+    TEST_ASSERT_TRUE(settings.isDirty());
+    TEST_ASSERT_FALSE(settings.saveTouchCalibration(TouchCalibration {500, 3900, 300, 3800}));
+    TEST_ASSERT_FALSE(settings.saveRemoteOutputs(false));
+    TEST_ASSERT_EQUAL_size_t(0, Fake::nvs().count(SETTINGS_NAMESPACE));
+    Fake::nvs().failWrites = false;
+    TEST_ASSERT_TRUE(settings.loadRemoteOutputs()); // nothing stored: allowed
+    Fake::clockMs() += SETTINGS_RETRY_MS;
+    TEST_ASSERT_EQUAL(SaveResult::Saved, settings.update(s));
+    PersistentState r;
+    settings.load(r);
+    TEST_ASSERT_EQUAL_UINT64(7100000, r.ch1.frequency);
+    // A failing factory reset keeps the stored keys.
+    Fake::nvs().failWrites = true;
+    TEST_ASSERT_FALSE(settings.eraseAll());
+    Fake::nvs().failWrites = false;
+    TEST_ASSERT_EQUAL_size_t(1, Fake::nvs().count(SETTINGS_NAMESPACE));
+    // removeDisplayPanel(): only an existing key counts, a failing delete is reported.
+    TEST_ASSERT_FALSE(settings.removeDisplayPanel());
+    Preferences p;
+    TEST_ASSERT_TRUE(p.begin(SETTINGS_NAMESPACE));
+    p.putUChar("disp_panel", 1);
+    Fake::nvs().failWrites = true;
+    TEST_ASSERT_FALSE(settings.removeDisplayPanel());
+    Fake::nvs().failWrites = false;
+    TEST_ASSERT_TRUE(settings.removeDisplayPanel());
+    // Without NVS nothing is written and the defaults apply.
+    Fake::nvs().available = false;
+    SettingsService none;
+    TEST_ASSERT_FALSE(none.begin());
+    TEST_ASSERT_FALSE(none.saveNow(s));
+    TEST_ASSERT_FALSE(none.saveRemoteOutputs(true));
+    TEST_ASSERT_TRUE(none.loadRemoteOutputs());
+    TEST_ASSERT_FALSE(none.eraseAll());
+    TEST_ASSERT_FALSE(none.removeDisplayPanel());
+    none.markDirty();
+    Fake::clockMs() += SETTINGS_AUTOSAVE_MS;
+    TEST_ASSERT_EQUAL(SaveResult::None, none.update(s));
+    TEST_ASSERT_FALSE(none.isDirty());
+    Fake::clockMs() = 0;
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_fake_rejects_long_names);
     RUN_TEST(test_fake_rejects_long_strings);
     RUN_TEST(test_all_written_keys_are_valid_names);
     RUN_TEST(test_upgrade_from_old_keys);
+    RUN_TEST(test_autosave_boundaries);
+    RUN_TEST(test_settings_write_errors);
     return UNITY_END();
 }

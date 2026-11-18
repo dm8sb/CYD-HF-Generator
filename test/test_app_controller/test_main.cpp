@@ -1461,6 +1461,84 @@ static void test_settings_load_sanitizes_invalid_values() {
     TEST_ASSERT_EQUAL_INT32(-CORRECTION_MAX, d2.app.system().freq_correction);
 }
 
+// AF35 (TEST-4, M2): CH3 runs exactly at both ends of IQ_MIN_HZ..IQ_MAX_HZ and waits one hertz
+// outside.
+static void test_ch3_at_the_iq_limits() {
+    Device d;
+    startIQ(d);
+    d.app.setChannelFrequency(1, IQ_MAX_HZ);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    TEST_ASSERT_TRUE(enabled(2));
+    assertHz(2, IQ_MAX_HZ);
+    d.app.setChannelFrequency(1, IQ_MAX_HZ + 1);
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooHigh, d.app.ch3Status());
+    TEST_ASSERT_TRUE(poweredDown(2));
+    TEST_ASSERT_TRUE(enabled(0));
+    assertHz(0, IQ_MAX_HZ + 1);
+    d.app.setChannelFrequency(1, IQ_MIN_HZ - 1);
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooLow, d.app.ch3Status());
+    TEST_ASSERT_TRUE(poweredDown(2));
+    d.app.setChannelFrequency(1, IQ_MIN_HZ);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    assertHz(2, IQ_MIN_HZ);
+}
+
+// AF35 (TEST-5, M12): Identify blinks the backlight for IDENTIFY_MS, dark first, in
+// IDENTIFY_BLINK_MS phases, and ends with the set brightness.
+static uint32_t dutyOf(uint8_t percent) { return (uint32_t)percent * 255U / 100U; }
+
+static void test_identify_blinks_and_restores_backlight() {
+    Device d;
+    const uint32_t lit = dutyOf(DEFAULT_BACKLIGHT_PERCENT);
+    TEST_ASSERT_EQUAL_UINT32(lit, Fake::ledc().duty);
+    d.app.identify();
+    TEST_ASSERT_TRUE(d.app.identifying());
+    unsigned changes = 0;
+    bool last = true;
+    for (uint32_t t = 25; t <= IDENTIFY_MS; t += 25) {
+        Fake::advanceMs(25);
+        d.app.update();
+        const bool on = t >= IDENTIFY_MS || (t / IDENTIFY_BLINK_MS) % 2 == 1;
+        TEST_ASSERT_EQUAL_MESSAGE(on, d.app.identifyLit(), "blink phase");
+        TEST_ASSERT_EQUAL_UINT32_MESSAGE(on ? lit : 0, Fake::ledc().duty, "duty");
+        changes += on != last;
+        last = on;
+    }
+    TEST_ASSERT_EQUAL_UINT(IDENTIFY_MS / IDENTIFY_BLINK_MS, changes); // dark first, lit at the end
+    TEST_ASSERT_FALSE(d.app.identifying());
+    TEST_ASSERT_TRUE(d.app.identifyLit());
+    TEST_ASSERT_EQUAL_UINT32(lit, Fake::ledc().duty);
+    // Nothing changes after the end.
+    const int writes = Fake::ledc().writes;
+    d.run(2000);
+    TEST_ASSERT_EQUAL_INT(writes, Fake::ledc().writes);
+
+    // A second identify() while blinking starts the IDENTIFY_MS again.
+    d.app.identify();
+    d.run(600);
+    TEST_ASSERT_TRUE(d.app.identifying());
+    d.app.identify();
+    d.run(IDENTIFY_MS - 100);
+    TEST_ASSERT_TRUE(d.app.identifying());
+    d.run(200);
+    TEST_ASSERT_FALSE(d.app.identifying());
+    TEST_ASSERT_EQUAL_UINT32(lit, Fake::ledc().duty);
+
+    // A brightness change while blinking: the lit phases and the end use the new value, the
+    // dark phases stay dark.
+    d.app.identify();
+    d.run(1000);
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setBacklight(40));
+    d.run(IDENTIFY_BLINK_MS);
+    for (uint32_t t = 0; t < 2 * IDENTIFY_BLINK_MS; t += 50) {
+        d.run(50);
+        TEST_ASSERT_EQUAL_UINT32(d.app.identifyLit() ? dutyOf(40) : 0, Fake::ledc().duty);
+    }
+    d.run(IDENTIFY_MS);
+    TEST_ASSERT_FALSE(d.app.identifying());
+    TEST_ASSERT_EQUAL_UINT32(dutyOf(40), Fake::ledc().duty);
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_boot_with_defaults_all_outputs_off);
@@ -1536,5 +1614,7 @@ int main() {
     RUN_TEST(test_settings_survive_reboot_but_outputs_start_off);
     RUN_TEST(test_settings_load_sanitizes_invalid_values);
     RUN_TEST(test_actual_frequency_known_only_after_stored_settings);
+    RUN_TEST(test_ch3_at_the_iq_limits);
+    RUN_TEST(test_identify_blinks_and_restores_backlight);
     return UNITY_END();
 }

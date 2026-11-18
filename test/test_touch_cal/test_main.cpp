@@ -180,6 +180,56 @@ static void test_calibration_without_nvs() {
     TEST_ASSERT_FALSE(s.saveTouchCalibration(TOUCH_CAL_DEFAULT));
 }
 
+// AF35 (TEST-10): corners that do not form a rectangle end the wizard with Inconsistent (not
+// Check), and a finished wizard ignores further touches.
+static void test_wizard_fails_with_inconsistent_corners() {
+    Wizard w;
+    uint32_t t = 0;
+    w.start(t);
+    // The third cross (bottom right) is tapped at the top right corner.
+    for (uint8_t i = 0; i < POINT_COUNT; ++i) {
+        Point p = TARGETS[w.target()];
+        if (w.target() == 2) p = TARGETS[1];
+        for (uint32_t k = 0; k < 600; k += 10, t += 10) w.update(true, CYD.rawX(p.x), CYD.rawY(p.y), t);
+        for (uint32_t k = 0; k < 200; k += 10, t += 10) w.update(false, 0, 0, t);
+    }
+    TEST_ASSERT_EQUAL(Phase::Failed, w.phase());
+    TEST_ASSERT_EQUAL(Failure::Inconsistent, w.failure());
+    for (uint32_t k = 0; k < 1000; k += 10, t += 10) w.update(true, CYD.rawX(20), CYD.rawY(20), t);
+    TEST_ASSERT_EQUAL(Phase::Failed, w.phase());
+    // start() begins again from the first cross.
+    w.start(t);
+    TEST_ASSERT_EQUAL(Phase::Touch, w.phase());
+    TEST_ASSERT_EQUAL(Failure::None, w.failure());
+    TEST_ASSERT_EQUAL_UINT8(0, w.target());
+    tapAll(w, CYD, t);
+    TEST_ASSERT_EQUAL(Phase::Done, w.phase());
+}
+
+// The limits of plausible(): a range of exactly 1500 counts and values at -4000 / 8000 pass.
+static void test_plausible_limits() {
+    TEST_ASSERT_TRUE(plausible(TouchCalibration {300, 1800, 300, 1800}));
+    TEST_ASSERT_FALSE(plausible(TouchCalibration {300, 1799, 300, 1800}));
+    TEST_ASSERT_FALSE(plausible(TouchCalibration {300, 1800, 1800, 301}));
+    TEST_ASSERT_TRUE(plausible(TouchCalibration {-4000, 8000, 8000, -4000}));
+    TEST_ASSERT_FALSE(plausible(TouchCalibration {-4001, 3800, 300, 3800}));
+    TEST_ASSERT_FALSE(plausible(TouchCalibration {300, 3800, 300, 8001}));
+}
+
+// A failing NVS write keeps the stored calibration.
+static void test_calibration_write_error() {
+    SettingsService s;
+    TEST_ASSERT_TRUE(s.begin());
+    TEST_ASSERT_TRUE(s.saveTouchCalibration(TouchCalibration {500, 3900, 300, 3800}));
+    Fake::nvs().failWrites = true;
+    TEST_ASSERT_FALSE(s.saveTouchCalibration(TouchCalibration {600, 3800, 400, 3700}));
+    Fake::nvs().failWrites = false;
+    TouchCalibration c {};
+    TEST_ASSERT_TRUE(s.loadTouchCalibration(&c));
+    TEST_ASSERT_EQUAL_INT32(500, c.x_min);
+    TEST_ASSERT_EQUAL_INT32(3800, c.y_max);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_targets_near_the_corners_and_center);
@@ -193,5 +243,8 @@ int main(int, char**) {
     RUN_TEST(test_wizard_times_out_without_touch);
     RUN_TEST(test_calibration_is_stored_and_loaded);
     RUN_TEST(test_calibration_without_nvs);
+    RUN_TEST(test_wizard_fails_with_inconsistent_corners);
+    RUN_TEST(test_plausible_limits);
+    RUN_TEST(test_calibration_write_error);
     return UNITY_END();
 }

@@ -731,7 +731,7 @@ The keyboard has letters, digits and special characters, but no umlauts, `ß` an
 
 A line at the bottom shows what the WiFi does: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, green `Connected <network>` with address and `<device name>.local`, red `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <name> active`, `Access point <name> active`, `No network stored. Tap Change.`, orange `Web change pending (<seconds> s)` (a change from the browser waits for its confirmation, section 16)
 
-After saving, the WiFi restarts with the new data. With both slots used the device connects to the stronger network; if that fails (e.g. wrong password) it tries the other one next time.
+After saving, the WiFi restarts with the new data. With both slots used the device connects to the stronger network (the first one at equal strength); if that fails (e.g. wrong password) it tries the other one next time.
 
 The third card `AP  CYD-HF-<4 digits>` shows the own access point (`WPA2` or orange `open`, `active` or `off`); `Show` opens its page. `Device` at the top right opens device name and IP settings.
 

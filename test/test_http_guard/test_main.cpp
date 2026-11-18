@@ -912,6 +912,21 @@ static void test_random_requests_keep_the_rules() {
     TEST_ASSERT_TRUE(sessions > 100);
 }
 
+// AF35 (TEST-4, M7): an Authorization header of exactly 1024 bytes is well-formed (ignored),
+// 1025 bytes are refused.
+static void test_authorization_length_limit() {
+    RequestGuard g = guard(config());
+    GuardRequest r = get("/api/state");
+    const std::string fits = "Bearer " + std::string(1024 - 7, 'a');
+    const std::string tooLong = fits + "a";
+    TEST_ASSERT_EQUAL_size_t(1024, fits.size());
+    r.authorization = fits.c_str();
+    TEST_ASSERT_EQUAL_UINT16(200, status(g, r));
+    r.authorization = tooLong.c_str();
+    TEST_ASSERT_EQUAL_UINT16(400, status(g, r));
+    TEST_ASSERT_EQUAL_STRING("Bad Authorization header", g.check(r, 0).reason);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_host_allowlist);
@@ -931,5 +946,6 @@ int main(int, char**) {
     RUN_TEST(test_tokens);
     RUN_TEST(test_web_password_hash);
     RUN_TEST(test_random_requests_keep_the_rules);
+    RUN_TEST(test_authorization_length_limit);
     return UNITY_END();
 }

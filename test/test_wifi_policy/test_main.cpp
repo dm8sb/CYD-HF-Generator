@@ -292,6 +292,24 @@ static void test_open_ap_idle() {
     TEST_ASSERT_FALSE(WifiPolicy::openApIdleExpired(1000, 0xFFFFF000u)); // across the wrap
 }
 
+// AF35 (TEST-4, M5): at equal strength the first slot wins, and an access point with the same
+// RSSI as the strongest one so far does not count as stronger.
+static void test_rssi_tie_prefers_the_first_slot() {
+    const bool both[2] = {true, true};
+    const int tie[2] = {-60, -60};
+    TEST_ASSERT_EQUAL_INT(0, WifiPolicy::chooseSlot(both, tie, -1, 0));
+    TEST_ASSERT_EQUAL_INT(0, WifiPolicy::chooseSlot(both, tie, -1, 1)); // `next` is only for unseen ones
+    TEST_ASSERT_EQUAL_INT(1, WifiPolicy::chooseSlot(both, tie, 0, 0));  // the first one just failed
+    const int oneStronger[2] = {-61, -60};
+    TEST_ASSERT_EQUAL_INT(1, WifiPolicy::chooseSlot(both, oneStronger, -1, 0));
+    const char* stored[2] = {"Lab", "Lab"}; // the same SSID in both slots
+    int rssi[2] = {-60, WifiPolicy::NOT_SEEN};
+    TEST_ASSERT_EQUAL_UINT8(2, WifiPolicy::mergeSeen(stored, "Lab", -60, rssi));
+    TEST_ASSERT_EQUAL_UINT8(0, WifiPolicy::mergeSeen(stored, "Lab", -60, rssi)); // equal: not raised
+    TEST_ASSERT_EQUAL_INT(-60, rssi[0]);
+    TEST_ASSERT_EQUAL_INT(-60, rssi[1]);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_off_runs_nothing);
@@ -312,5 +330,6 @@ int main(int, char**) {
     RUN_TEST(test_stronger_network_fails_twice);
     RUN_TEST(test_both_hidden_round_robin);
     RUN_TEST(test_open_ap_idle);
+    RUN_TEST(test_rssi_tie_prefers_the_first_slot);
     return UNITY_END();
 }

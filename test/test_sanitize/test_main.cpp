@@ -80,6 +80,18 @@ static void test_random_input_gives_valid_utf8() {
     }
 }
 
+// AF35 (TEST-4, M10): the edges of strict UTF-8 (RFC 3629): overlong forms just below the
+// smallest 3- and 4-byte code points, the last code point before the surrogates and the
+// largest code point pass or fail byte for byte.
+static void test_utf8_boundaries() {
+    TEST_ASSERT_EQUAL_STRING("???", clean("\xE0\x9F\xBF").c_str());              // overlong U+07FF
+    TEST_ASSERT_EQUAL_STRING("\xE0\xA0\x80", clean("\xE0\xA0\x80").c_str());     // U+0800
+    TEST_ASSERT_EQUAL_STRING("\xED\x9F\xBF", clean("\xED\x9F\xBF").c_str());     // U+D7FF
+    TEST_ASSERT_EQUAL_STRING("????", clean("\xF0\x8F\xBF\xBF").c_str());         // overlong U+FFFF
+    TEST_ASSERT_EQUAL_STRING("\xF4\x8F\xBF\xBF", clean("\xF4\x8F\xBF\xBF").c_str()); // U+10FFFF
+    TEST_ASSERT_EQUAL_STRING("??\xC2\xA0", clean("\xC1\xBF\xC2\xA0").c_str());     // overlong, then U+00A0
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_plain_and_utf8_pass);
@@ -87,5 +99,6 @@ int main(int, char**) {
     RUN_TEST(test_control_characters);
     RUN_TEST(test_length_limit_on_character_boundary);
     RUN_TEST(test_random_input_gives_valid_utf8);
+    RUN_TEST(test_utf8_boundaries);
     return UNITY_END();
 }
