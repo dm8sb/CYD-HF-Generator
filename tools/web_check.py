@@ -25,8 +25,12 @@ import time
 import urllib.error
 import urllib.request
 
+import device_constants as dc
+
 TOKEN_RE = re.compile(r'<meta\s+name="cyd-token"\s+content="([0-9a-f]{32})"', re.I)
-STATE_KEYS = {"rev", "hw", "save", "remote", "ch", "ch3", "config", "wifi", "device"}
+STATE_KEYS = {"rev", "hw", "save", "remote", "ch", "ch3", "limits", "config", "wifi", "device"}
+# state.limits must match include/constants.h (AF48): the web UI takes range and steps from it.
+LIMITS = {"fmin": dc.FREQ_MIN, "fmax": dc.FREQ_MAX, "steps": list(dc.STEPS)}
 
 results = []
 
@@ -207,6 +211,7 @@ def main():
     check("/api/* no-store", hd.get("Cache-Control") == "no-store")
     check("wifi.confirmWithin and device.passwordSet",
           isinstance(s0["wifi"].get("confirmWithin"), int) and isinstance(s0["device"].get("passwordSet"), bool))
+    check("state.limits as in include/constants.h", s0["limits"] == LIMITS, str(s0["limits"]))
     check("state has no MAC/commit", "mac" not in json.dumps(s0).lower() and "commit" not in json.dumps(s0).lower())
     st, _, j = api.call("GET", "/api/token")
     check("GET /api/token", st == 200 and isinstance(j, dict) and j.get("token") == api.token, "%d %s" % (st, j))

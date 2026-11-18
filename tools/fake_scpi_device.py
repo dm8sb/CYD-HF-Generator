@@ -33,7 +33,9 @@ import struct
 import threading
 import time
 
-FREQ_MIN, FREQ_MAX = 8000, 160000000
+import device_constants as dc
+
+FREQ_MIN, FREQ_MAX = dc.FREQ_MIN, dc.FREQ_MAX  # include/constants.h (AF48)
 
 
 def kw_match(tok, spec):
@@ -45,9 +47,9 @@ def kw_match(tok, spec):
 class Device:
     def __init__(self):
         self.lock = threading.Lock()
-        self.freq = {1: 10000000, 2: 14000000}
+        self.freq = dict(dc.DEFAULT_FREQ)
         self.out = {1: 0, 2: 0, 3: 0}
-        self.step, self.corr, self.drive = 1000, 0.0, 4
+        self.step, self.corr, self.drive = dc.DEFAULT_STEP, 0.0, dc.DEFAULT_DRIVE
         self.tuning, self.ssc, self.off = "FRAC", "OFF", "LOW"
         self.master, self.phase = 1, 90
         self.errors = []
@@ -151,9 +153,9 @@ class Device:
         if path == "SYST:STEP":
             if query:
                 return str(self.step)
-            v = self.number(p, 1, 1000000, 1000)
+            v = self.number(p, dc.STEPS[0], dc.STEPS[-1], dc.DEFAULT_STEP)
             if v is not None:
-                if v in (1, 10, 100, 1000, 10000, 100000, 1000000):
+                if v in dc.STEPS:
                     self.step = int(v)
                 else:
                     self.err(-224, "Illegal parameter value")
@@ -161,14 +163,14 @@ class Device:
         if path == "SYST:CORR":
             if query:
                 return "%.2f" % self.corr
-            v = self.number(p, -50, 50, 0)
+            v = self.number(p, -dc.CORRECTION_MAX / 100, dc.CORRECTION_MAX / 100, 0)
             if v is not None:
                 self.corr = round(v, 2)
             return None
         if path == "OUTP:DRIV":
             if query:
                 return str(self.drive)
-            if p in ("2", "4", "6", "8"):
+            if p in tuple(str(d) for d in dc.DRIVES):
                 self.drive = int(p)
             else:
                 self.err(-224, "Illegal parameter value")
@@ -176,7 +178,7 @@ class Device:
         if path in ("SYST:TUN", "SSC", "OUTP:OFFS", "SOUR3:IQ:MAST", "SOUR3:PHAS"):
             return self.enum_setting(path, query, p)
         if path == "SOUR3:IQ:RANG":
-            return "4730000,160000000"
+            return "%d,%d" % (dc.IQ_MIN, dc.IQ_MAX)
         self.err(-113, "Undefined header")
         return None
 

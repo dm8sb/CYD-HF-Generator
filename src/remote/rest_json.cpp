@@ -661,6 +661,13 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
     ch3["iqMin"] = s.iqMinHz;
     ch3["iqMax"] = s.iqMaxHz;
 
+    // Fixed limits of the firmware (AF48): the web UI takes range and step list from here.
+    JsonObject limits = doc["limits"].to<JsonObject>();
+    limits["fmin"] = FREQ_MIN_HZ;
+    limits["fmax"] = FREQ_MAX_HZ;
+    JsonArray steps = limits["steps"].to<JsonArray>();
+    for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) steps.add(DELTA_STEPS[i]);
+
     JsonObject cfg = doc["config"].to<JsonObject>();
     cfg["drive"] = (unsigned)sys.drive_ma;
     cfg["tuning"] = nameAt(TUNING_NAMES, TUNING_COUNT, (uint8_t)sys.tuning_mode);

@@ -1426,7 +1426,7 @@ Programme können dieselben Funktionen über HTTP und JSON nutzen; Beispiel in `
 
 | Aufruf | Inhalt |
 |---|---|
-| `GET /api/state` | Zustand als JSON (Kanäle, CH3, CONFIG, WLAN, Speichern, `REMOTE`); mit Web-Passwort nur mit Anmeldung |
+| `GET /api/state` | Zustand als JSON (Kanäle, CH3, Frequenzbereich und Schrittliste, CONFIG, WLAN, Speichern, `REMOTE`); mit Web-Passwort nur mit Anmeldung |
 | `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` oder `{"frequencyText":"7.1M"}` |
 | `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
 | `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` bei `local only` 403), `correction` (0,01 ppm), `step`, `backlight` |

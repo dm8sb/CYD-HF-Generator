@@ -31,6 +31,12 @@ Tone modeSummary(TuningMode tuning, Spread spread, uint8_t driveMa, OffState off
 // retry. ch 1/2: standalone output; ch 3: IQ pair with master (1/2).
 void outputErrorText(uint8_t ch, uint8_t master, char* out, size_t outSize);
 
+// Status line of the CH3 page (AF48): why CH3 waits, its error, or "Off  |  follows CHn"; ""
+// while active (the page then shows the output line). iqMinHz/iqMaxHz are the effective limits
+// (narrower with spread spectrum), shown in MHz with 3 decimals rounded towards the inside.
+// Tone::Warn while waiting, Tone::Error for an error, otherwise Tone::Muted.
+Tone ch3Info(Ch3Status s, uint8_t master, uint64_t iqMinHz, uint64_t iqMaxHz, char* out, size_t outSize);
+
 // Hint for the channel page outside 1-100 MHz (E-16), short enough for the mode line next to
 // a few special modes: "" inside the range.
 const char* rangeNote(uint64_t hz);

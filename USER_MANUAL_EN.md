@@ -1426,7 +1426,7 @@ Programs can use the same functions over HTTP and JSON; example in `tools/rest_e
 
 | Call | Content |
 |---|---|
-| `GET /api/state` | State as JSON (channels, CH3, CONFIG, WiFi, saving, `REMOTE`); with a web password only with a login |
+| `GET /api/state` | State as JSON (channels, CH3, frequency range and step list, CONFIG, WiFi, saving, `REMOTE`); with a web password only with a login |
 | `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` or `{"frequencyText":"7.1M"}` |
 | `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
 | `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` under `local only` 403), `correction` (0.01 ppm), `step`, `backlight` |

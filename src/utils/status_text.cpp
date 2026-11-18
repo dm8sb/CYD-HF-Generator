@@ -50,6 +50,36 @@ void outputErrorText(uint8_t ch, uint8_t master, char* out, size_t outSize) {
     }
 }
 
+Tone ch3Info(Ch3Status s, uint8_t master, uint64_t iqMinHz, uint64_t iqMaxHz, char* out, size_t outSize) {
+    if (!out || outSize == 0) return Tone::Muted;
+    out[0] = '\0';
+    char limit[12];
+    switch (s) {
+        case Ch3Status::Off:
+            snprintf(out, outSize, "Off  |  follows CH%u", (unsigned)master);
+            return Tone::Muted;
+        case Ch3Status::Active: return Tone::Muted;
+        case Ch3Status::MasterOff:
+            snprintf(out, outSize, "Master CH%u is off: tap to switch on", (unsigned)master);
+            return Tone::Warn;
+        case Ch3Status::FreqTooLow:
+            FrequencyUtils::formatIqLimit(iqMinHz, true, 3, false, limit, sizeof(limit));
+            snprintf(out, outSize, "Waiting: CH%u below %s MHz", (unsigned)master, limit);
+            return Tone::Warn;
+        case Ch3Status::FreqTooHigh:
+            FrequencyUtils::formatIqLimit(iqMaxHz, false, 3, false, limit, sizeof(limit));
+            snprintf(out, outSize, "Waiting: CH%u above %s MHz", (unsigned)master, limit);
+            return Tone::Warn;
+        case Ch3Status::Error:
+            snprintf(out, outSize, "IQ setup failed, retrying");
+            return Tone::Error;
+        case Ch3Status::NoDevice:
+            snprintf(out, outSize, "SI5351 not found");
+            return Tone::Error;
+    }
+    return Tone::Muted;
+}
+
 const char* rangeNote(uint64_t hz) {
     if (hz > 100000000ULL) return ">100MHz: low level";
     if (hz < 1000000ULL) return "<1MHz: harmonics";

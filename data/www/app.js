@@ -7,9 +7,7 @@
 const D = document;
 const $ = (id) => D.getElementById(id);
 const TOKEN = (D.querySelector('meta[name="cyd-token"]') || {}).content || '';
-const FMIN = 8000, FMAX = 160000000, CMAX = 5000;
-const STEPS = [1000000, 100000, 10000, 1000, 100, 10, 1];
-const STEP_L = ['1M', '100k', '10k', '1k', '100', '10', '1'];
+const CMAX = 5000;
 const CSTEP = [1, 10, 100], CSTEP_L = ['0.01', '0.1', '1'];
 const OPT = {
   drive: [[2, '2 mA'], [4, '4 mA'], [6, '6 mA'], [8, '8 mA']],
@@ -27,6 +25,8 @@ const IPK = ['ip', 'mask', 'gateway', 'dns'];
 const IPRE = /^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$/;
 const NAMERE = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/;
 
+// Frequency range and step list of the firmware (state.limits, AF48); steps largest first.
+let L = null;
 let S = null, NET = null, first = true, sel = 1, online = false, cstep = 1;
 let ws = null, wsLive = false, wsRetry = 2000, polling = false, fails = 0, lastWrite = 0;
 let pendEnd = 0, pendAt = 0, pendT = 0, toastT = 0, loginP = null, loginRes = null, loginRej = null;
@@ -112,8 +112,12 @@ function outLine(a, f, ssc) {
   return ['Out ' + fmtF(a) + ' (' + (d < 0 ? '' : '+') + d.toFixed(1) + ' Hz)', Math.abs(d) >= 1];
 }
 const rangeNote = (f) => (f > 1e8 ? '>100MHz: low level' : f < 1e6 ? '<1MHz: harmonics' : '');
-const clampF = (v) => Math.min(FMAX, Math.max(FMIN, v));
-const snap = (s) => STEPS.find((x) => x <= s) || 1;
+// 8000 -> "8 kHz", 160000000 -> "160 MHz"; step chips: 1000000 -> "1M", 1000 -> "1k".
+const fmtLimit = (hz) => (hz >= 1e6 ? hz / 1e6 + ' MHz' : hz / 1e3 + ' kHz');
+const rangeText = () => fmtLimit(L.fmin) + ' - ' + fmtLimit(L.fmax);
+const stepLabel = (s) => (s >= 1e6 ? s / 1e6 + 'M' : s >= 1e3 ? s / 1e3 + 'k' : String(s));
+const clampF = (v) => Math.min(L.fmax, Math.max(L.fmin, v));
+const snap = (s) => L.steps.find((x) => x <= s) || 1;
 
 // ---- State access
 const chOf = (n) => S.ch.find((c) => c.n === n) || S.ch[n - 1];
@@ -206,14 +210,15 @@ const stepF = (n, k) => tune(n, (b) => clampF(b + k * step()));
 function decade(up) {
   tune(sel, (b) => {
     const v = up ? b * 10 : Math.round(b / 10);
-    if (v < FMIN || v > FMAX) { toast('8 kHz - 160 MHz'); return null; }
+    if (v < L.fmin || v > L.fmax) { toast(rangeText()); return null; }
     return v;
   });
 }
 const setStep = (s) => S && queue('step', S.config.step, () => s, (v) => api('/api/config', {step: v}));
 function moveStep(d) {
   if (!S) return;
-  queue('step', S.config.step, (b) => STEPS[Math.max(0, Math.min(6, STEPS.indexOf(snap(b)) + d))],
+  const k = L.steps.length - 1;
+  queue('step', S.config.step, (b) => L.steps[Math.max(0, Math.min(k, L.steps.indexOf(snap(b)) + d))],
     (v) => api('/api/config', {step: v}));
 }
 const setEnabled = (n, on) => act(api(chPath(n), {enabled: on}));
@@ -233,7 +238,7 @@ async function applyText(n) {
     discard(n);
     w.in.blur();
   } catch (e) {
-    line(w.err, e.code === -222 ? e.msg + ': 8 kHz - 160 MHz' : e.msg, 'err');
+    line(w.err, e.code === -222 ? e.msg + ': ' + rangeText() : e.msg, 'err');
     w.in.classList.add('bad');
   }
 }
@@ -358,7 +363,8 @@ function setOnline(v) {
   c.dataset.t = wsLive ? 'ok' : v ? '' : 'err';
 }
 function apply(st) {
-  if (!st || !Array.isArray(st.ch) || !st.ch3 || !st.config) return;
+  if (!st || !Array.isArray(st.ch) || !st.ch3 || !st.config || !st.limits || !Array.isArray(st.limits.steps)) return;
+  L = {fmin: st.limits.fmin, fmax: st.limits.fmax, steps: st.limits.steps.slice().sort((a, b) => b - a)};
   S = st;
   render();
   first = false;
@@ -481,7 +487,8 @@ function render() {
       line(w.out, (c.status === 'OFF' ? 'Off | ' : '') + o[0], o[1] ? 'warn' : '');
     }
     modeLine(w.m, modes, iq ? 'IQ master (' + c3.phase + '°)' : '', rangeNote(f));
-    w.steps.forEach((b, i) => press(b, STEPS[i] === snap(st)));
+    syncSteps(w);
+    w.steps.forEach((b, i) => press(b, L.steps[i] === snap(st)));
   }
 
   const m = c3.master, mc = chOf(m), w = U.ch[3], card = U.card[3], f3 = pend('f' + m, c3.frequency);
@@ -641,6 +648,14 @@ function buildMain() {
     h('div', {class: 'cards'}, [1, 2, 3].map(card)),
     U.local = h('p', {class: 'note', hidden: true, text: 'Remote outputs: local only — switch on at the device'}));
 }
+// Step chips of a channel page, built from L.steps (the first state) and again if they change.
+function syncSteps(w) {
+  const key = L.steps.join();
+  if (w.stepsKey === key) return;
+  w.stepsKey = key;
+  w.steps = L.steps.map((s) => h('button', {type: 'button', class: 'chip', text: stepLabel(s), onclick: () => setStep(s)}));
+  w.stepBox.replaceChildren(...w.steps);
+}
 function buildCh(n) {
   const w = U.ch[n] = {};
   return h('section', {class: 'area c' + n, id: 'ch' + n, onpointerdown: () => select(n), onfocusin: () => select(n)},
@@ -657,8 +672,7 @@ function buildCh(n) {
           h('div', {class: 'chips'}, w.ph = [0, 90, 180, 270].map((p) => h('button', {type: 'button', class: 'chip', text: String(p), onclick: () => post3({phase: p})}))))),
       w.note = h('p', {class: 'mu sm'})
     ] : [
-      h('div', {class: 'chips steps', role: 'group', 'aria-label': 'Step'},
-        w.steps = STEPS.map((s, i) => h('button', {type: 'button', class: 'chip', text: STEP_L[i], onclick: () => setStep(s)}))),
+      w.stepBox = h('div', {class: 'chips steps', role: 'group', 'aria-label': 'Step'}),
       h('div', {class: 'pm'}, rep('−', (k) => stepF(n, -k), 'Frequency down'), rep('+', (k) => stepF(n, k), 'Frequency up'))
     ],
     freqForm(n, w));

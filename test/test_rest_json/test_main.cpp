@@ -473,7 +473,7 @@ static void test_state_json_contract() {
     JsonDocument doc;
     parse(json, doc);
     // Exactly the keys of the contract; MAC and commit are not in it (S-26).
-    TEST_ASSERT_EQUAL(9, (int)keyCount(doc.as<JsonObjectConst>()));
+    TEST_ASSERT_EQUAL(10, (int)keyCount(doc.as<JsonObjectConst>()));
     TEST_ASSERT_EQUAL_UINT32(s.revision, doc["rev"].as<uint32_t>());
     TEST_ASSERT_EQUAL_STRING("CONN", doc["hw"]);
     TEST_ASSERT_EQUAL_STRING("pending", doc["save"]);
@@ -517,6 +517,14 @@ static void test_state_json_contract() {
     TEST_ASSERT_EQUAL_UINT64(7100000, c3["frequency"].as<uint64_t>());
     TEST_ASSERT_EQUAL_UINT64(s.iqMinHz, c3["iqMin"].as<uint64_t>());
     TEST_ASSERT_EQUAL_UINT64(s.iqMaxHz, c3["iqMax"].as<uint64_t>());
+    // Fixed limits for the web UI (AF48): range and step list of the firmware.
+    JsonObjectConst lim = doc["limits"];
+    TEST_ASSERT_EQUAL(3, (int)keyCount(lim));
+    TEST_ASSERT_EQUAL_UINT64(FREQ_MIN_HZ, lim["fmin"].as<uint64_t>());
+    TEST_ASSERT_EQUAL_UINT64(FREQ_MAX_HZ, lim["fmax"].as<uint64_t>());
+    JsonArrayConst steps = lim["steps"];
+    TEST_ASSERT_EQUAL(DELTA_STEP_COUNT, (int)steps.size());
+    for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) TEST_ASSERT_EQUAL_UINT32(DELTA_STEPS[i], steps[i].as<uint32_t>());
     TEST_ASSERT_TRUE(c3["actual"].is<double>());
     JsonObjectConst cfg = doc["config"];
     TEST_ASSERT_EQUAL(8, (int)keyCount(cfg));

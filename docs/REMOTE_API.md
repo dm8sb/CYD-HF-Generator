@@ -273,6 +273,7 @@ Only when a web password is set at the device:
  "ch":[{"n":1,"enabled":true,"frequency":10000000,"actual":10000000.0,"status":"ON","modes":["SSC -0.5%"]},
        {"n":2,"enabled":false,"frequency":14000000,"actual":14000000.0,"status":"OFF","modes":[]}],
  "ch3":{"enabled":false,"master":1,"phase":90,"status":"OFF","frequency":10000000,"actual":10000000.0,"iqMin":4730000,"iqMax":100000000},
+ "limits":{"fmin":8000,"fmax":160000000,"steps":[1,10,100,1000,10000,100000,1000000]},
  "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"remoteOutputs":"allowed"},
  "wifi":{"mode":"client","connected":true,"ssid":"Lab","rssi":-60,"ip":"192.168.1.50","name":"cyd-hf-1a2b",
          "ap":{"active":false,"ssid":"CYD-HF-1A2B","open":false,"stations":0},"confirmWithin":0},
@@ -295,6 +296,7 @@ Only when a web password is set at the device:
 | `remoteOutputs` | `allowed`, `local` |
 | `wifi.mode` | `off`, `client`, `ap` |
 | `confirmWithin` | seconds left to confirm a network change, 0 = none |
+| `limits` | fixed limits of the firmware: `fmin`/`fmax` frequency range of CH1/CH2 in Hz, `steps` the allowed values of `step` (ascending) |
 
 ### 4.4 Endpoints
 

@@ -36,6 +36,8 @@ import time
 import urllib.parse
 from decimal import Decimal, ROUND_HALF_UP
 
+import device_constants as dc
+
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "www")
 # Firmware version of the mock (device.version; the footer links its tag like the firmware, E-39).
 VERSION = "2.0.0"
@@ -44,9 +46,10 @@ STATIC = {"/app.js": ("app.js", "text/javascript; charset=utf-8"),
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 
-FREQ_MIN, FREQ_MAX = 8_000, 160_000_000
-IQ_MIN, IQ_MAX = 4_730_000, 100_000_000
-STEPS = (1, 10, 100, 1000, 10000, 100000, 1000000)
+# Limits and defaults from include/constants.h (AF48).
+FREQ_MIN, FREQ_MAX = dc.FREQ_MIN, dc.FREQ_MAX
+IQ_MIN, IQ_MAX = dc.IQ_MIN, dc.IQ_MAX
+STEPS = dc.STEPS
 SPREAD = {"down05": (0.005, 0.0), "down15": (0.015, 0.0), "center05": (0.005, 0.005)}
 SSC_TEXT = {"down05": "SSC -0.5%", "down15": "SSC -1.5%", "center05": "SSC +/-0.5%"}
 
@@ -154,10 +157,10 @@ class Model:
         self.lock = threading.RLock()
         self.rev = 1
         self.hw = args.hw
-        self.ch = [{"enabled": False, "frequency": 10_000_000}, {"enabled": False, "frequency": 14_000_000}]
+        self.ch = [{"enabled": False, "frequency": dc.DEFAULT_FREQ[1]}, {"enabled": False, "frequency": dc.DEFAULT_FREQ[2]}]
         self.ch3 = {"enabled": False, "master": 1, "phase": 90}
-        self.cfg = {"drive": 4, "tuning": "fractional", "spread": "off", "offState": "low", "correction": 0,
-                    "step": 1000, "backlight": 80, "remoteOutputs": "local" if args.local_only else "allowed"}
+        self.cfg = {"drive": dc.DEFAULT_DRIVE, "tuning": "fractional", "spread": "off", "offState": "low", "correction": 0,
+                    "step": dc.DEFAULT_STEP, "backlight": 80, "remoteOutputs": "local" if args.local_only else "allowed"}
         self.save, self.save_due = "saved", 0.0
         self.remote, self.remote_until = None, 0.0
         self.net = {"mode": "ap" if args.open_ap else "client",
@@ -210,7 +213,7 @@ class Model:
             m.append(SSC_TEXT[sp])
         if self.cfg["tuning"] != "fractional":
             m.append("Low noise" if self.cfg["tuning"] == "lownoise" else "Integer")
-        if self.cfg["drive"] != 4:
+        if self.cfg["drive"] != dc.DEFAULT_DRIVE:
             m.append("%dmA" % self.cfg["drive"])
         return m
 
@@ -266,6 +269,7 @@ class Model:
                     "ch3": {"enabled": self.ch3["enabled"], "master": self.ch3["master"], "phase": self.ch3["phase"],
                             "status": s3, "frequency": m["frequency"],
                             "actual": self.actual(3, m["frequency"]) if s3 == "ON" else 0.0, "iqMin": lo, "iqMax": hi},
+                    "limits": {"fmin": FREQ_MIN, "fmax": FREQ_MAX, "steps": list(STEPS)},
                     "config": dict(self.cfg), "wifi": self.wifi_status(),
                     "device": {"version": VERSION, "passwordSet": bool(self.args.password)}}
 
@@ -317,12 +321,12 @@ class Model:
         if isinstance(b, dict) and "remoteOutputs" in b:
             raise ApiError(403, "-221,Remote outputs can only be changed at the device")
         check_obj(b, {"drive": int, "tuning": str, "spread": str, "offState": str, "correction": int, "step": int, "backlight": int}, need_one=True)
-        enums = {"drive": (2, 4, 6, 8), "tuning": ("fractional", "lownoise", "integer"),
+        enums = {"drive": dc.DRIVES, "tuning": ("fractional", "lownoise", "integer"),
                  "spread": ("off", "down05", "down15", "center05"), "offState": ("low", "high", "hiz"), "step": STEPS}
         for k, allowed in enums.items():
             if k in b and b[k] not in allowed:
                 raise ApiError(400, E_ILLEGAL)
-        if "correction" in b and abs(b["correction"]) > 5000:
+        if "correction" in b and abs(b["correction"]) > dc.CORRECTION_MAX:
             raise ApiError(400, E_RANGE)
         if "backlight" in b and not 10 <= b["backlight"] <= 100:
             raise ApiError(400, E_RANGE)

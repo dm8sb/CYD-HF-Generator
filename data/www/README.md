@@ -72,6 +72,7 @@ State (`GET /api/state`, every WebSocket text message, body of every successful 
  "ch":[{"n":1,"enabled":true,"frequency":10000000,"actual":10000000.0,"status":"ON","modes":["SSC -0.5%"]},
        {"n":2,"enabled":false,"frequency":14000000,"actual":14000000.0,"status":"OFF","modes":[]}],
  "ch3":{"enabled":false,"master":1,"phase":90,"status":"OFF","frequency":10000000,"actual":10000000.0,"iqMin":4730000,"iqMax":100000000},
+ "limits":{"fmin":8000,"fmax":160000000,"steps":[1,10,100,1000,10000,100000,1000000]},
  "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"remoteOutputs":"allowed"},
  "wifi":{"mode":"client","connected":true,"ssid":"Lab","rssi":-60,"ip":"192.168.1.50","name":"cyd-hf-1a2b",
          "ap":{"active":false,"ssid":"CYD-HF-1A2B","open":false,"stations":0},"confirmWithin":0},
@@ -84,6 +85,7 @@ How the UI reads it:
 - `modes` holds only the CONFIG entries of the device mode line, in device order (`OFF=High`/`OFF=High-Z`, `SSC -0.5%`/`SSC -1.5%`/`SSC +/-0.5%`, `Low noise`/`Integer`, `2mA`/`6mA`/`8mA`). The UI adds `IQ master …` and the range hint itself and shows the line orange when it contains `OFF=High`. CH3 shows the modes of its master.
 - `actual` is what the `Out` line shows: with spread on CH1 (and CH3 with master CH1) the mean frequency, like `FREQ:ACT?`; 0 = no output (`Out -`). `ch3.actual` is 0 unless CH3 runs.
 - `ch3.iqMin`/`iqMax` are the effective limits (narrower with spread); the reason for `WAIT` is derived: master off → `master off`, master below `iqMin` → `below`, else `above`.
+- `limits` are the fixed limits of the firmware (`include/constants.h`): frequency range `fmin`..`fmax` in Hz and the step list `steps` (ascending). The UI takes the range of its checks and messages (`8 kHz - 160 MHz`) and the step chips from it; `tools/web_mock.py` reads the same constants (`tools/device_constants.py`), `tools/web_check.py` compares them.
 
 | Request | Body | Success |
 |---|---|---|
