@@ -173,7 +173,9 @@ private:
                     if (v >= 0xD800 && v < 0xDC00) continue;
                     c = v;
                 } else {
-                    c = (unsigned char)e;
+                    // \b \f \n \r \t are control characters, never part of a name ("Sec\ret" is
+                    // no secret: CI fuzz finding); \" \\ \/ stand for themselves.
+                    c = strchr("bfnrt", e) ? 0 : (unsigned char)e;
                 }
             }
             if (c >= 'A' && c <= 'Z') c += 32;

@@ -428,7 +428,9 @@ static void test_login_body_and_password_fields() {
     const std::string longKey = "{\"" + std::string(70, 'x') + "Password\":1}";
     TEST_ASSERT_TRUE(carriesSecret(longKey.c_str(), longKey.size()));
     const char* const plain[] = {"{\"drive\":4}", "{\"ssid\":\"password\"}", "[\"password\"]", "{}", "{password:1}", "",
-                                 "{\"mode\":\"client\",\"ssid\":\"Lab\"}"};
+                                 "{\"mode\":\"client\",\"ssid\":\"Lab\"}",
+                                 // \r is a carriage return, not the letter r: "Sec<CR>et" is no secret (CI fuzz).
+                                 "{\"Sec\\ret\":2}", "{\"pas\\ts\":1}", "{\"ps\\nk\":1}"};
     for (const char* b : plain) TEST_ASSERT_FALSE_MESSAGE(carriesSecret(b, strlen(b)), b);
     TEST_ASSERT_FALSE(carriesSecret(nullptr, 0));
 }
