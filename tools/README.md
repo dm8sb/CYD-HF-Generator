@@ -45,7 +45,7 @@ Open the USB port with DTR and RTS off, otherwise the board restarts (the script
 python tools/scpi_example.py --usb COM5
 python tools/scpi_example.py --tcp cyd-hf-1a2b.local            # port 5025
 python tools/scpi_example.py --visa "TCPIP0::cyd-hf-1a2b.local::5025::SOCKET"   # needs pyvisa
-python tools/rest_example.py cyd-hf-1a2b.local --password secret123   # web password: 8 to 64 characters
+python tools/rest_example.py cyd-hf-1a2b.local --password      # asks for the web password (8 to 64 characters)
 python tools/lxi_example.py --discover                          # VXI-11 broadcast, *IDN? of every device
 python tools/lxi_example.py --address 192.168.1.50 --command "FREQ?"
 python tools/lxi_example.py --address 192.168.1.50 --pyvisa     # TCPIP::<ip>::INSTR, needs pyvisa pyvisa-py
@@ -59,6 +59,12 @@ python tools/device_check.py --usb COM5 --outputs --json > report.json
 1 = at least one FAIL, 2 = no connection. `--json` writes the report to stdout (text lines go to stderr).
 The expected values (IDN pattern, limits, error texts, round-trip table, rejected inputs with their error
 codes) are in the tables at the top of the script; adjust them when firmware or manual change.
+
+**Web password** (`rest_example.py`, `web_check.py`): `--password` without a value asks for it without
+echo (`getpass`); without `--password` the tools take the environment variable `CYD_WEB_PASSWORD`, if set.
+`--password <value>` still works but prints a warning: the value lands in the shell history and in the
+process list of the machine. The mock's own `--password` (below) is the password of the simulated
+device, a test value.
 
 ### Offline try-out
 
@@ -88,7 +94,7 @@ python tools/web_mock.py --port 8080                 # then open http://127.0.0.
 python tools/web_mock.py --password secret123 --demo # with login and changing values
 python tools/rest_example.py 127.0.0.1:8080          # the REST example against the mock
 python tools/web_check.py 127.0.0.1:8080             # the contract check against the mock
-python tools/web_check.py cyd-hf-1a2b.local --password secret123   # ... against the device
+python tools/web_check.py cyd-hf-1a2b.local --password    # ... against the device, asks for the password
 ```
 
 The mock gives the firmware's answers (S55); where they differ, the firmware is the reference.

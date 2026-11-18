@@ -10,11 +10,12 @@ frequency briefly and restores them; it never switches an output on and never ch
 
     python tools/web_check.py cyd-hf-1a2b.local            # the device (port 80)
     python tools/web_check.py 127.0.0.1:8080               # the mock
-    python tools/web_check.py 192.168.1.50 --password secret123
+    python tools/web_check.py 192.168.1.50 --password      # asks for the web password
     python tools/web_check.py 192.168.4.1 --skip-scan      # over the AP
 """
 import argparse
 import base64
+import getpass
 import json
 import os
 import re
@@ -408,12 +409,31 @@ def check_logout(api, password, step0):
         check("logout without session -> 204", st == 204, "HTTP %d" % st)
 
 
+PASSWORD_ENV = "CYD_WEB_PASSWORD"
+
+
+def web_password(arg):
+    """The web password (AF27): --password without a value asks for it (getpass), otherwise
+    the environment variable CYD_WEB_PASSWORD. A value on the command line still works but
+    lands in the shell history and the process list, so it is warned about. None = no login."""
+    if arg == "":
+        return getpass.getpass("Web password: ")
+    if arg is not None:
+        print("warning: a password on the command line is visible in the shell history and the "
+              "process list; use --password without a value or %s" % PASSWORD_ENV, file=sys.stderr)
+        return arg
+    return os.environ.get(PASSWORD_ENV) or None
+
+
 def main():
     ap = argparse.ArgumentParser(description="Contract check of the CYD HF Generator web server.")
     ap.add_argument("host", help="host[:port], e.g. cyd-hf-1a2b.local or 127.0.0.1:8080")
-    ap.add_argument("--password", help="web password, if one is set")
+    ap.add_argument("--password", nargs="?", const="", metavar="PASSWORD",
+                    help="web password, if one is set: without a value it is asked for; "
+                         "default: environment variable " + PASSWORD_ENV)
     ap.add_argument("--skip-scan", action="store_true", help="no WiFi scan (it disturbs the link briefly)")
     args = ap.parse_args()
+    password = web_password(args.password)
     try:
         api = Api(args.host)
     except ValueError as e:
@@ -421,8 +441,8 @@ def main():
 
     if not check_page(api):
         return 1
-    if args.password:
-        check_login(api, args.password)
+    if password:
+        check_login(api, password)
     s0 = check_state(api)
     if s0 is None:
         return 1
@@ -432,7 +452,7 @@ def main():
     check_wifi(api, args.skip_scan)
     step0 = s0["config"]["step"]
     check_websocket(api, step0)
-    check_logout(api, args.password, step0)
+    check_logout(api, password, step0)
 
     passed = sum(results)
     print("\n%d PASS, %d FAIL" % (passed, len(results) - passed))
