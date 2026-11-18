@@ -61,4 +61,51 @@ static constexpr uint32_t STATUS_POLL_MS = 1000;
 // True if a value last read at lastMs (polled: it was read at all) should be read again.
 bool pollDue(uint32_t nowMs, uint32_t lastMs, bool polled);
 
+
+// Strongest access point per stored network: one call per scan entry; stored[i] "" = empty
+// slot. Returns the slots whose rssi[] it raised (bit 0, bit 1), so the caller can note the
+// security of that entry.
+uint8_t mergeSeen(const char* const stored[2], const char* seen, int seenRssi, int rssi[2]);
+
+// An open AP without station since idleSinceMs reached OPEN_AP_IDLE_OFF_MS (W-S2).
+bool openApIdleExpired(uint32_t nowMs, uint32_t idleSinceMs);
+
+// Timing of the client while it has no address (AF13, TEST-9): background scans, connection
+// attempts with their timeout and the slot that failed last. Pure state; WifiManager starts the
+// scans and attempts and reports what happened. All times wrap-safe (millis()).
+class Connector {
+public:
+    static constexpr uint32_t CONNECT_TIMEOUT_MS = 15000;
+    static constexpr uint32_t SCAN_INTERVAL_MS = 15000;
+    enum class Step : uint8_t { None, TimedOut };
+
+    // The client (re)starts: no attempt, nothing failed, the first scan is due at once.
+    void reset();
+    // Called in every loop() while the client has no address. TimedOut once when the running
+    // attempt reached CONNECT_TIMEOUT_MS; lastFailed() is its slot then.
+    Step poll(uint32_t nowMs);
+    // A background scan should start now (no attempt runs, the interval since the last scan).
+    bool scanDue(uint32_t nowMs) const;
+    void scanStarted(uint32_t nowMs);
+    // A scan of the WIFI page ended: the background scan waits a full interval.
+    void scanEnded(uint32_t nowMs) { scanStarted(nowMs); }
+    // The slot to try after a scan (rssi[] from mergeSeen, NOT_SEEN for unseen), -1 = none
+    // stored; advances the round robin for hidden networks.
+    int choose(const bool stored[2], const int rssi[2]);
+    void attemptStarted(int slot, uint32_t nowMs);
+    // The client got an address: the attempt ended well, no slot counts as failed any more.
+    void connected();
+    bool attempting() const { return attempting_; }
+    int lastFailed() const { return lastFailed_; }
+
+private:
+    bool attempting_ = false;
+    uint32_t attemptMs_ = 0;
+    int8_t attemptSlot_ = -1;
+    int8_t lastFailed_ = -1;
+    uint8_t next_ = 0;
+    bool scanned_ = false; // a scan ran since reset() (millis() may be 0 at a real scan)
+    uint32_t lastScanMs_ = 0;
+};
+
 }

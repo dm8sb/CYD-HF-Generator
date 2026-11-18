@@ -110,12 +110,7 @@ private:
     bool openApTimedOut_ = false;
     uint32_t noIpSinceMs_ = 0;
     uint32_t apIdleSinceMs_ = 0;
-    uint32_t lastScanMs_ = 0;
-    uint32_t attemptMs_ = 0;
-    bool attempting_ = false;
-    uint8_t nextSlot_ = 0;
-    int8_t attemptSlot_ = -1;
-    int8_t lastFailedSlot_ = -1; // WifiPolicy::chooseSlot
+    WifiPolicy::Connector conn_; // scan and attempt timing (AF13)
     bool scanning_ = false;
     void finishUiScan_(int found);
     ScanState uiScan_ = ScanState::Idle;
