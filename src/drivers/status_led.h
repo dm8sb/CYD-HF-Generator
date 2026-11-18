@@ -6,10 +6,10 @@
 #include <Arduino.h>
 #include <types.h>
 
-// Board RGB LED (active low). Shows the active channel page: CH1 red, CH2 green, CH3 blue, else off.
+// Board RGB LED (active low), driven by main in loop() (AF51b): the color comes from
+// LedColor::of() (shown channel page, Identify), the pins are written only on a change.
 namespace StatusLed {
 void begin();
-void showPage(PageId page);
-// Identify (W-E28): all colors on (white) or off.
-void showAll(bool on);
+// page: Gui::page(); identifying / lit: AppController::identifying(), identifyLit().
+void update(PageId page, bool identifying, bool lit);
 }

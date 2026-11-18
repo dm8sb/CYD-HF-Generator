@@ -2,27 +2,32 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "status_led.h"
+#include "led_color.h"
 #include <pins.h>
 
 namespace StatusLed {
+
+namespace {
+LedColor::Rgb shown {false, false, false};
+
+void write(const LedColor::Rgb& c) {
+    digitalWrite(PIN_LED_R, c.r ? LOW : HIGH);
+    digitalWrite(PIN_LED_G, c.g ? LOW : HIGH);
+    digitalWrite(PIN_LED_B, c.b ? LOW : HIGH);
+    shown = c;
+}
+}
 
 void begin() {
     pinMode(PIN_LED_R, OUTPUT);
     pinMode(PIN_LED_G, OUTPUT);
     pinMode(PIN_LED_B, OUTPUT);
-    showPage(PageId::Main);
+    write(LedColor::of(PageId::Main, false, false));
 }
 
-void showPage(PageId page) {
-    digitalWrite(PIN_LED_R, page == PageId::CH1 ? LOW : HIGH);
-    digitalWrite(PIN_LED_G, page == PageId::CH2 ? LOW : HIGH);
-    digitalWrite(PIN_LED_B, page == PageId::CH3 ? LOW : HIGH);
-}
-
-void showAll(bool on) {
-    digitalWrite(PIN_LED_R, on ? LOW : HIGH);
-    digitalWrite(PIN_LED_G, on ? LOW : HIGH);
-    digitalWrite(PIN_LED_B, on ? LOW : HIGH);
+void update(PageId page, bool identifying, bool lit) {
+    const LedColor::Rgb c = LedColor::of(page, identifying, lit);
+    if (c != shown) write(c);
 }
 
 }

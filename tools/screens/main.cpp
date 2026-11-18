@@ -91,6 +91,12 @@ static uint16_t netPendingS() { return 0; }
 static uint8_t webClients() { return 1; }
 static uint32_t scpiClient() { return ip4(192, 168, 1, 20); }
 static void disconnectAll() {}
+// CONFIG info card: plausible numbers of a running device.
+static void heapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) {
+    *freeBytes = 118u * 1024u;
+    *minFree = 96u * 1024u;
+    *largest = 72u * 1024u;
+}
 
 int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
@@ -146,9 +152,16 @@ int main(int argc, char** argv) {
     static Gui gui;
     gGui = &gui;
     gui.begin(app, touch, display);
-    gui.setWifi(wifi, nullptr);
-    gui.setNetConfirm(netConfirmNeeded, netConfirmAnswer, netPendingS);
-    gui.setRemoteClients(webClients, scpiClient, disconnectAll);
+    GuiServices services;
+    services.wifi = &wifi;
+    services.netConfirmNeeded = netConfirmNeeded;
+    services.netConfirmAnswer = netConfirmAnswer;
+    services.netPendingS = netPendingS;
+    services.webClients = webClients;
+    services.scpiClient = scpiClient;
+    services.disconnectRemote = disconnectAll;
+    services.heapInfo = heapInfo;
+    gui.setServices(services);
     app.addListener(Gui::onAppEvent, &gui);
 
     // Documentation state: CH1 7.1 MHz, CH2 14 MHz, CH3 IQ +90 deg to CH1, all on.

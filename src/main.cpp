@@ -23,12 +23,14 @@
 #include <net/wifi_manager.h>
 #include <net/web_server.h>
 #include <net/web_password_worker.h>
+#include <esp_heap_caps.h>
 #include <esp_random.h>
 // Test build with WiFi credentials from a local file that is never committed (.gitignore):
 // build with -DTEST_WIFI=1 and include/test_wifi_local.h defining TEST_WIFI_SSID/TEST_WIFI_PASS.
 #if defined(TEST_WIFI) && TEST_WIFI && __has_include(<test_wifi_local.h>)
 #include <test_wifi_local.h>
 #endif
+#include <drivers/status_led.h>
 #include <gui/gui.h>
 #include <utils/build_info.h>
 #include <utils/logger.h>
@@ -86,6 +88,12 @@ static void heapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) 
     *freeBytes = cachedFree;
     *minFree = cachedMin;
     *largest = cachedLargest;
+}
+// Heap line of the CONFIG info card (AF51b): read every 5 s by the GUI.
+static void guiHeapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) {
+    *freeBytes = ESP.getFreeHeap();
+    *minFree = ESP.getMinFreeHeap();
+    *largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 }
 static void coreDebugOutput(bool enabled) { Serial.setDebugOutput(enabled); }
 static void serialWrite(const char* data, size_t len, void*) { Serial.write((const uint8_t*)data, len); }
@@ -251,14 +259,24 @@ void setup() {
     display.begin();
     if (touch.pressed()) waitForRelease();
 
-    // 8. LVGL and GUI init
+    // 8. LVGL and GUI init; the status LED follows the shown page (AF51b).
+    StatusLed::begin();
     gui.begin(app, touch, display);
-    gui.setTouchCalibrationStore(saveTouchCalibration);
-    gui.setFactoryReset(factoryReset);
-    gui.setWifi(wifi, saveNetSettings);
-    gui.setNetConfirm(webConfirmNeeded, webConfirmAnswer, webChangePendingS);
-    gui.setWebPassword(startWebPassword, pollWebPassword);
-    gui.setRemoteClients(webClients, scpiClient, disconnectRemote);
+    GuiServices guiServices;
+    guiServices.storeTouchCal = saveTouchCalibration;
+    guiServices.factoryReset = factoryReset;
+    guiServices.wifi = &wifi;
+    guiServices.saveNet = saveNetSettings;
+    guiServices.netConfirmNeeded = webConfirmNeeded;
+    guiServices.netConfirmAnswer = webConfirmAnswer;
+    guiServices.netPendingS = webChangePendingS;
+    guiServices.webPasswordStart = startWebPassword;
+    guiServices.webPasswordPoll = pollWebPassword;
+    guiServices.webClients = webClients;
+    guiServices.scpiClient = scpiClient;
+    guiServices.disconnectRemote = disconnectRemote;
+    guiServices.heapInfo = guiHeapInfo;
+    gui.setServices(guiServices);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
     if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
     app.addListener(Gui::onAppEvent, &gui);
@@ -320,6 +338,9 @@ void loop() {
     commands.markVisible();
     if (web) web->loop();
     gui.update();
+    // Page color, or Identify blinking with the backlight (W-E28): one owner, also while the
+    // GUI shows the calibration.
+    StatusLed::update(gui.page(), app.identifying(), app.identifyLit());
     MemMonitor::update();
     runRestartTests();
     delay(5);

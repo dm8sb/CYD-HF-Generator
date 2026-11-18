@@ -8,7 +8,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <net/net_settings.h>
+#include <net/request_guard.h>
 #include <utils/frequency_utils.h>
+#include <utils/ipv4.h>
+#include <utils/sanitize.h>
 
 namespace InputLogic {
 
@@ -189,6 +193,99 @@ Area edgeArea(const Area& b, int16_t reach, int16_t screenW, int16_t screenH) {
 
 bool contains(const Area& a, int16_t x, int16_t y) {
     return x >= a.x1 && x <= a.x2 && y >= a.y1 && y <= a.y2;
+}
+
+// ---------------------------------------------------------------------------
+// Text entry (AF47)
+
+const char* const ENTRY_BUSY = "Busy, try again";
+const char* const ENTRY_NOT_ACCEPTED = "Not accepted";
+
+// A network key may be a 64-digit hex PMK (D31), the AP password is a passphrase (63).
+EntrySpec entrySpec(EntryPurpose p) {
+    switch (p) {
+        case EntryPurpose::Password: return {64, true, true, false, false, nullptr};
+        case EntryPurpose::ApPassword: return {63, true, false, false, false, nullptr};
+        case EntryPurpose::WebPassword: return {(uint8_t)WebPassword::MAX_LEN, true, true, false, false, nullptr};
+        case EntryPurpose::DeviceName:
+            return {32, false, false, false, true, "abcdefghijklmnopqrstuvwxyz0123456789-"};
+        case EntryPurpose::IpField: return {15, false, false, true, true, "0123456789."};
+        case EntryPurpose::Ssid: break;
+    }
+    return {32, false, false, false, true, nullptr};
+}
+
+void entryTitle(EntryPurpose p, uint8_t field, const char* ssid, char* out, size_t outSize) {
+    static const char* const FIELD_NAMES[4] = {"Address", "Mask", "Gateway", "DNS"};
+    switch (p) {
+        case EntryPurpose::DeviceName: snprintf(out, outSize, "Device name"); return;
+        case EntryPurpose::IpField: snprintf(out, outSize, "%s", FIELD_NAMES[field & 3]); return;
+        case EntryPurpose::ApPassword: snprintf(out, outSize, "AP password"); return;
+        case EntryPurpose::WebPassword: snprintf(out, outSize, "Web password"); return;
+        case EntryPurpose::Password: {
+            char shown[33];
+            Sanitize::text(ssid, strlen(ssid), shown, sizeof(shown));
+            snprintf(out, outSize, "Password %s", shown);
+            return;
+        }
+        case EntryPurpose::Ssid: break;
+    }
+    snprintf(out, outSize, "Network name");
+}
+
+void entryInfo(EntryPurpose p, size_t len, const char* error, bool webPasswordSet, char* out, size_t outSize) {
+    if (error && error[0]) snprintf(out, outSize, "%s", error);
+    else if (p == EntryPurpose::WebPassword && len == 0 && webPasswordSet) snprintf(out, outSize, "empty + OK: remove");
+    else snprintf(out, outSize, "%u/%u", (unsigned)len, (unsigned)entrySpec(p).maxLen);
+}
+
+static EntryResult entryStep(EntryStep step) { return {step, "", 0}; }
+static EntryResult entryInvalid(const char* error) { return {EntryStep::Invalid, error, 0}; }
+
+EntryResult submitEntry(EntryPurpose p, const char* text, bool webPasswordSet) {
+    switch (p) {
+        case EntryPurpose::DeviceName:
+            return NetConfig::validDeviceName(text) ? entryStep(EntryStep::StoreName) : entryInvalid("a-z 0-9 - (1-32)");
+        case EntryPurpose::IpField: {
+            EntryResult r = entryStep(EntryStep::StoreIp);
+            if (!Ipv4::parse(text, &r.ip)) return entryInvalid("e.g. 192.168.1.50");
+            return r;
+        }
+        case EntryPurpose::WebPassword: {
+            const size_t len = strlen(text);
+            if (len == 0 && webPasswordSet) return entryStep(EntryStep::ConfirmRemove);
+            return WebPassword::valid(text, len) ? entryStep(EntryStep::HashWebPassword) : entryInvalid("8-64 characters");
+        }
+        case EntryPurpose::ApPassword:
+            return NetConfig::validPassphrase(text) ? entryStep(EntryStep::StoreApPassword) : entryInvalid("8-63 characters");
+        case EntryPurpose::Ssid:
+            return NetConfig::validSsid(text) ? entryStep(EntryStep::AskPassword) : entryInvalid("1-32 characters");
+        case EntryPurpose::Password: break;
+    }
+    return NetConfig::validNetworkKey(text) ? entryStep(EntryStep::StoreNetwork) : entryInvalid("8-63 chars or 64 hex");
+}
+
+// ---------------------------------------------------------------------------
+// Scan list pages (AF47)
+
+uint8_t scanPages(uint8_t count, uint8_t rows) { return rows ? (uint8_t)((count + rows - 1) / rows) : 0; }
+
+uint8_t clampScanPage(uint8_t page, uint8_t count, uint8_t rows) {
+    const uint8_t pages = scanPages(count, rows);
+    if (page >= pages) page = pages ? (uint8_t)(pages - 1) : 0;
+    return page;
+}
+
+uint8_t stepScanPage(uint8_t page, bool forward, uint8_t count, uint8_t rows) {
+    if (!forward) return page > 0 ? (uint8_t)(page - 1) : page;
+    return (unsigned)(page + 1) * rows < count ? (uint8_t)(page + 1) : page;
+}
+
+bool scanIndex(uint8_t page, uint8_t row, uint8_t count, uint8_t rows, uint8_t* index) {
+    const unsigned idx = (unsigned)page * rows + row;
+    if (idx >= count) return false;
+    *index = (uint8_t)idx;
+    return true;
 }
 
 }

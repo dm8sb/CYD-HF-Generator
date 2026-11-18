@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// AF12: the GUI redraws a page only when the fields it shows change.
+// AF12: the GUI redraws a page only when the fields it shows change. AF51b: status LED color.
 
 #include <unity.h>
 #include <string.h>
+#include <drivers/led_color.h>
 #include <utils/status_view.h>
 
 void setUp() {}
@@ -79,6 +80,23 @@ static void test_heap_steps_and_rate() {
     TEST_ASSERT_FALSE(heapDue(100, 0xFFFFF000u, true)); // across the millis() wrap
 }
 
+// AF51b: the LED shows the channel page; Identify blinks all three colors over every page.
+static void test_led_color() {
+    using LedColor::Rgb;
+    TEST_ASSERT_TRUE(LedColor::of(PageId::CH1, false, false) == (Rgb {true, false, false}));
+    TEST_ASSERT_TRUE(LedColor::of(PageId::CH2, false, true) == (Rgb {false, true, false}));
+    TEST_ASSERT_TRUE(LedColor::of(PageId::CH3, false, false) == (Rgb {false, false, true}));
+    const PageId dark[] = {PageId::Main, PageId::Config, PageId::Numpad, PageId::TouchCal, PageId::Wifi,
+                           PageId::WifiScan, PageId::TextEntry, PageId::WifiAp, PageId::WifiDevice};
+    for (PageId p : dark) {
+        TEST_ASSERT_TRUE(LedColor::of(p, false, false) == (Rgb {false, false, false}));
+        TEST_ASSERT_TRUE(LedColor::of(p, true, true) == (Rgb {true, true, true}));
+    }
+    TEST_ASSERT_TRUE(LedColor::of(PageId::CH1, true, true) == (Rgb {true, true, true}));
+    TEST_ASSERT_TRUE(LedColor::of(PageId::CH1, true, false) == (Rgb {false, false, false}));
+    TEST_ASSERT_TRUE(LedColor::of(PageId::CH1, true, false) != LedColor::of(PageId::CH1, false, false));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_equal_views);
@@ -86,5 +104,6 @@ int main(int, char**) {
     RUN_TEST(test_no_collision_of_ip_and_rssi);
     RUN_TEST(test_rssi_hysteresis);
     RUN_TEST(test_heap_steps_and_rate);
+    RUN_TEST(test_led_color);
     return UNITY_END();
 }

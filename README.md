@@ -74,6 +74,13 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - The numpad rounds half a hertz exactly like SCPI and REST (integer arithmetic instead of `double`; e.g. `1.0079105 MHz` gave 1 007 910 Hz instead of 1 007 911 Hz)
 - REST and WebSocket state: new `limits` (frequency range and step list of the firmware); the web UI takes its range checks and step buttons from it, the mock and the fake SCPI device read `include/constants.h`
 - The web UI refuses static addresses with leading zeros (`192.168.001.5`) itself, like the device; the host tools parse `host:port` in one place (`[v6]:port`, a bad port is reported)
+- WIFI pages: text entry (limits, title, counter, what OK does for each of the six purposes), the status line and the pages of the scan list moved into host-tested logic (`InputLogic::submitEntry()`, `StatusText::wifiLine()`, suite `test_wifi_entry`); no visible change
+- Confirmation dialogs (title, text, buttons, action) come from one table instead of an if/else chain; no visible change
+- The WIFI pages are a class of their own (`WifiPages`: overview, scan list, text entry, access point, device page with their widgets and state) instead of part of the GUI class; no visible change
+- GUI callbacks of main (touch calibration store, factory reset, WiFi manager and save, web change confirmation, web password worker, remote clients) are passed as one `GuiServices` struct instead of six setters; no visible change
+- The status LED is driven by `main` in every loop (color of the shown channel page, or Identify blinking with the backlight) instead of by the GUI; the GUI reads the heap line through a callback; no visible change
+- Web server code grouped by task: connection gate (async_tcp), login service (async_tcp and its worker task), pusher (loop), shared data under one lock; the job mailbox for WiFi changes and scans is a host-tested `JobSlot`; no change of the API
+- REST writes and WiFi jobs no longer block the network task for up to 80/180 ms with 1-ms polling: they wait at most 20 ms, woken by the main loop, and a slow loop answers them from the connection's poll callback; the state JSON and error bodies are written into a fixed buffer without heap allocations (byte-identical output, E-50)
 - Host tools: `rest_example.py` and `web_check.py` ask for the web password (`--password` without a value) or take `CYD_WEB_PASSWORD`; a password on the command line still works with a warning. CI fails if `include/test_wifi_local.h` or Python bytecode is tracked
 - Advisory check: weekly and before every release, the pinned dependencies (libraries, Arduino-ESP32, ESP-IDF, ESP Web Tools with its npm packages) are checked against the GitHub advisories of their upstream repositories and OSV; a finding fails the run and opens an issue (`tools/dep_check.py advisories`, accepted exceptions with reason in `tools/advisories_accepted.json`)
 - Release dry run: pull requests to `main` run the release workflow without release and deploy; asset names, licenses archive, `SHA256SUMS` and notes come from `tools/release_files.py` for the dry run and the release alike
@@ -227,7 +234,7 @@ Needs Python 3, PlatformIO, OpenSCAD, Chrome or Edge and Node; details of the re
 - `core/app_controller.*`: single source of truth for runtime state, the only user of the SI5351 driver
 - `drivers/si5351_manager.*`, `drivers/si5351_plan.*`: SI5351 register driver and PLL/MultiSynth planning per tuning mode (pure functions)
 - `drivers/display_detect.*`, `drivers/display_panel.*`: controller detection (host-testable) and TFT_eSPI with the ST7789 init
-- `drivers/touch*`, `drivers/backlight.*`, `drivers/status_led.*`: touch with filter, backlight PWM, RGB LED
+- `drivers/touch*`, `drivers/backlight.*`, `drivers/status_led.*`, `drivers/led_color.h`: touch with filter, backlight PWM, RGB LED (driven by `main`: shown page or Identify)
 - `hal/i2c_bus.*`: owns `Wire`, opens either SDA/SCL assignment
 - `services/*`: Preferences storage and autosave
 - `remote/*`: command queue and state snapshot for remote access, line framer, SCPI command tree (`scpi.*`), the USB link (`scpi_usb.*`), SCPI over TCP (`scpi_tcp*`), ONC RPC and VXI-11 with portmapper (`onc_rpc.*`, `vxi11.*`, glue `vxi11_server.*`), LXI identification (`lxi_ident.*`), REST JSON mapping (`rest_json.*`, `rest_wifi.*`)

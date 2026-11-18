@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <utils/frequency_utils.h>
+#include <utils/ipv4.h>
+#include <utils/sanitize.h>
 
 namespace StatusText {
 
@@ -108,6 +110,46 @@ Tone modeSummary(TuningMode tuning, Spread spread, uint8_t driveMa, OffState off
         append(out, outSize, n, t);
     }
     return off == OffState::High ? Tone::Warn : Tone::Muted;
+}
+
+Tone wifiLine(const WifiLine& w, char* out, size_t outSize) {
+    if (w.pendingS) {
+        // AF16: the settings shown are the web change; they stay only when confirmed.
+        snprintf(out, outSize, "Web change pending (%u s)\nConfirm in the browser", (unsigned)w.pendingS);
+        return Tone::Warn;
+    }
+    if (w.mode == WifiMode::Off) {
+        snprintf(out, outSize, "WiFi is Off. Choose Client in CONFIG > WiFi.");
+        return Tone::Muted;
+    }
+    if (w.staConnected) {
+        char ssid[33];
+        char ip[16];
+        Sanitize::text(w.ssid, strlen(w.ssid), ssid, sizeof(ssid));
+        Ipv4::format(w.staIp, ip, sizeof(ip));
+        snprintf(out, outSize, "Connected %s\n%s, %s.local", ssid, ip, w.deviceName);
+        return Tone::Ok;
+    }
+    if (w.mode == WifiMode::AccessPoint) {
+        snprintf(out, outSize, "Access point %s active", w.apSsid);
+        return Tone::Muted;
+    }
+    if (w.apActive) {
+        snprintf(out, outSize, "Fallback: AP %s active\nStill searching", w.apSsid);
+        return Tone::Warn;
+    }
+    if (w.connecting) {
+        snprintf(out, outSize, "Connecting...");
+        return Tone::Muted;
+    }
+    switch (w.failure) {
+        case WifiPolicy::Failure::WrongPassword: snprintf(out, outSize, "Wrong password"); return Tone::Error;
+        case WifiPolicy::Failure::NotFound: snprintf(out, outSize, "Network not found"); return Tone::Warn;
+        case WifiPolicy::Failure::Other: snprintf(out, outSize, "Connection failed"); return Tone::Warn;
+        case WifiPolicy::Failure::None: break;
+    }
+    snprintf(out, outSize, w.networkStored ? "Searching..." : "No network stored. Tap Change.");
+    return Tone::Muted;
 }
 
 }
