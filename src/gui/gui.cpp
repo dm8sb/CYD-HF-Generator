@@ -705,6 +705,108 @@ void Gui::showModes_(lv_obj_t* label, uint8_t ch, const char* extra, const char*
     Ui::setTextColor(label, Colors::forTone(tone));
 }
 
+// Confirmation dialogs (AF49a): one row per Confirm value, in enum order. Button 0 cancels
+// (Revert for a web change), button 1 is the action in the warning color.
+static const char* const OFF_BUTTONS[] = {"Cancel", "High", ""};
+static const char* const RESET_BUTTONS[] = {"Cancel", "Reset", ""};
+static const char* const ERASE_BUTTONS[] = {"Cancel", "Erase", ""};
+static const char* const DELETE_BUTTONS[] = {"Cancel", "Delete", ""};
+static const char* const USE_BUTTONS[] = {"Cancel", "Use", ""};
+static const char* const OPEN_BUTTONS[] = {"Cancel", "Open", ""};
+static const char* const START_BUTTONS[] = {"Cancel", "Start", ""};
+static const char* const KEEP_BUTTONS[] = {"Revert", "Keep", ""};
+static const char* const REMOVE_BUTTONS[] = {"Cancel", "Remove", ""};
+
+const Gui::ConfirmSpec Gui::CONFIRMS_[CONFIRM_COUNT] = {
+    {"Off state High",
+     "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
+     "Do not use with DC-coupled mixers or inputs.",
+     nullptr, OFF_BUTTONS, &Gui::answerOffStateHigh_},
+    {"Reset to defaults",
+     "All settings and frequencies return to the factory values, all outputs switch off. "
+     "Frequency correction and touch calibration are kept.",
+     nullptr, RESET_BUTTONS, &Gui::answerResetDefaults_},
+    {"Factory reset",
+     "Erases all stored settings including frequency correction and touch calibration, "
+     "then restarts. The touch calibration runs again.",
+     nullptr, ERASE_BUTTONS, &Gui::answerFactoryReset_},
+    // Payload: the network slot.
+    {"Delete network", "Network 1 and its password are deleted.", "Network 2 and its password are deleted.",
+     DELETE_BUTTONS, &Gui::answerDeleteNetwork_},
+    {"Open network",
+     "This network has no password: everything sent over it, including the web and SCPI "
+     "traffic, can be read and changed by others nearby.",
+     nullptr, USE_BUTTONS, &Gui::answerOpenNetwork_},
+    {"Open access point",
+     "Without a password everyone nearby can connect, read everything and operate the "
+     "generator. It switches off after 15 min without a connected device.",
+     nullptr, OPEN_BUTTONS, &Gui::answerApOpen_},
+    {"Open fallback AP",
+     "No stored network found. Start the access point without a password? Everyone "
+     "nearby can then connect and operate the generator.",
+     nullptr, START_BUTTONS, &Gui::answerOpenFallback_},
+    {"Network change",
+     "The network settings were changed from the web. Keep them? Without Keep here and "
+     "Confirm in the browser, the previous settings return after 120 s.",
+     nullptr, KEEP_BUTTONS, &Gui::answerWebChange_},
+    {"Remove web password",
+     "Everyone who can reach the device over the network can then operate it in the "
+     "browser without logging in. Open web sessions end.",
+     nullptr, REMOVE_BUTTONS, &Gui::answerRemoveWebPassword_},
+    {"Web change pending",
+     "Network settings were changed from the web and wait for Confirm in the browser "
+     "(at most 120 s). Settings here can be changed after that. Revert restores the "
+     "previous settings now.",
+     nullptr, KEEP_BUTTONS, &Gui::answerWebChange_},
+};
+
+void Gui::answerOffStateHigh_(bool yes, uint8_t) {
+    if (yes) app_->setOffState(OffState::High);
+}
+
+void Gui::answerResetDefaults_(bool yes, uint8_t) {
+    if (!yes) return;
+    app_->resetToDefaults();
+    corrStepIdx_ = 1;
+}
+
+void Gui::answerFactoryReset_(bool yes, uint8_t) {
+    if (!yes || !factoryReset_) return;
+    app_->resetToDefaults(); // outputs off before the restart
+    factoryReset_();         // does not return
+}
+
+void Gui::answerDeleteNetwork_(bool yes, uint8_t slot) {
+    if (!yes || !wifi_) return;
+    NetSettings s = wifi_->settings();
+    NetConfig::clearNetwork(s, slot);
+    commitNet_(s, NetApply::Restart);
+}
+
+void Gui::answerOpenNetwork_(bool yes, uint8_t) {
+    if (yes && storeNetwork_(entrySsid_, "")) requestNavigate_(PageId::Wifi);
+}
+
+void Gui::answerApOpen_(bool yes, uint8_t) {
+    if (yes && wifi_) storeAp_(wifi_->settings().apPassword, true);
+}
+
+void Gui::answerOpenFallback_(bool yes, uint8_t) {
+    if (yes && wifi_) wifi_->confirmOpenFallback();
+}
+
+// Network change and Web change pending: Keep (yes) or Revert.
+void Gui::answerWebChange_(bool yes, uint8_t) {
+    if (netConfirmAnswer_) netConfirmAnswer_(yes);
+}
+
+void Gui::answerRemoveWebPassword_(bool yes, uint8_t) {
+    if (!yes) return;
+    storeWebPassword_("");
+    Logger::info("GUI", "Web password removed");
+    requestNavigate_(PageId::WifiDevice);
+}
+
 void Gui::confirm_(Confirm what, uint8_t payload) {
     switch (confirms_.post((uint8_t)what, payload)) {
         case ConfirmQueue::Post::Open: showConfirm_(); break;
@@ -735,67 +837,9 @@ void Gui::nextConfirmCb_(void* gui) {
 void Gui::showConfirm_() {
     if (confirmBox_ || !confirms_.isOpen() || currentPage_ == PageId::TouchCal) return;
     const ConfirmQueue::Entry& open = confirms_.open();
-    const Confirm what = (Confirm)open.kind;
-    static const char* offButtons[] = {"Cancel", "High", ""};
-    static const char* resetButtons[] = {"Cancel", "Reset", ""};
-    static const char* eraseButtons[] = {"Cancel", "Erase", ""};
-    static const char* deleteButtons[] = {"Cancel", "Delete", ""};
-    static const char* useButtons[] = {"Cancel", "Use", ""};
-    static const char* openButtons[] = {"Cancel", "Open", ""};
-    static const char* startButtons[] = {"Cancel", "Start", ""};
-    static const char* keepButtons[] = {"Revert", "Keep", ""};
-    static const char* removeButtons[] = {"Cancel", "Remove", ""};
-    const char* title = "Off state High";
-    const char* text = "Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). "
-                       "Do not use with DC-coupled mixers or inputs.";
-    const char** buttons = offButtons;
-    if (what == Confirm::ResetDefaults) {
-        title = "Reset to defaults";
-        text = "All settings and frequencies return to the factory values, all outputs switch off. "
-               "Frequency correction and touch calibration are kept.";
-        buttons = resetButtons;
-    } else if (what == Confirm::FactoryReset) {
-        title = "Factory reset";
-        text = "Erases all stored settings including frequency correction and touch calibration, "
-               "then restarts. The touch calibration runs again.";
-        buttons = eraseButtons;
-    } else if (what == Confirm::DeleteNetwork) {
-        title = "Delete network";
-        text = open.payload == 0 ? "Network 1 and its password are deleted." : "Network 2 and its password are deleted.";
-        buttons = deleteButtons;
-    } else if (what == Confirm::OpenNetwork) {
-        title = "Open network";
-        text = "This network has no password: everything sent over it, including the web and SCPI "
-               "traffic, can be read and changed by others nearby.";
-        buttons = useButtons;
-    } else if (what == Confirm::ApOpen) {
-        title = "Open access point";
-        text = "Without a password everyone nearby can connect, read everything and operate the "
-               "generator. It switches off after 15 min without a connected device.";
-        buttons = openButtons;
-    } else if (what == Confirm::OpenFallback) {
-        title = "Open fallback AP";
-        text = "No stored network found. Start the access point without a password? Everyone "
-               "nearby can then connect and operate the generator.";
-        buttons = startButtons;
-    } else if (what == Confirm::WebNetwork) {
-        title = "Network change";
-        text = "The network settings were changed from the web. Keep them? Without Keep here and "
-               "Confirm in the browser, the previous settings return after 120 s.";
-        buttons = keepButtons;
-    } else if (what == Confirm::WebPending) {
-        title = "Web change pending";
-        text = "Network settings were changed from the web and wait for Confirm in the browser "
-               "(at most 120 s). Settings here can be changed after that. Revert restores the "
-               "previous settings now.";
-        buttons = keepButtons;
-    } else if (what == Confirm::RemoveWebPassword) {
-        title = "Remove web password";
-        text = "Everyone who can reach the device over the network can then operate it in the "
-               "browser without logging in. Open web sessions end.";
-        buttons = removeButtons;
-    }
-    lv_obj_t* box = lv_msgbox_create(nullptr, title, text, buttons, false);
+    const ConfirmSpec& spec = CONFIRMS_[open.kind < CONFIRM_COUNT ? open.kind : 0];
+    const char* const text = open.payload != 0 && spec.text1 ? spec.text1 : spec.text;
+    lv_obj_t* box = lv_msgbox_create(nullptr, spec.title, text, const_cast<const char**>(spec.buttons), false);
     styleDialog(box, 2);
     lv_btnmatrix_set_btn_ctrl(lv_msgbox_get_btns(box), 1, LV_BTNMATRIX_CTRL_CHECKED);
     lv_obj_center(box);
@@ -820,35 +864,7 @@ void Gui::confirmEventCb_(lv_event_t* e) {
         g->refresh_(); // stale box: no action
         return;
     }
-    const bool yes = idx == 1;
-    const Confirm what = (Confirm)a.kind;
-    if (yes && what == Confirm::OffStateHigh) g->app_->setOffState(OffState::High);
-    if (yes && what == Confirm::ResetDefaults) {
-        g->app_->resetToDefaults();
-        g->corrStepIdx_ = 1;
-    }
-    if (yes && what == Confirm::DeleteNetwork && g->wifi_) {
-        NetSettings s = g->wifi_->settings();
-        NetConfig::clearNetwork(s, a.payload);
-        g->commitNet_(s, NetApply::Restart);
-    }
-    if (yes && what == Confirm::ApOpen && g->wifi_) {
-        g->storeAp_(g->wifi_->settings().apPassword, true);
-    }
-    if (yes && what == Confirm::OpenFallback && g->wifi_) g->wifi_->confirmOpenFallback();
-    if (yes && what == Confirm::RemoveWebPassword) {
-        g->storeWebPassword_("");
-        Logger::info("GUI", "Web password removed");
-        g->requestNavigate_(PageId::WifiDevice);
-    }
-    if ((what == Confirm::WebNetwork || what == Confirm::WebPending) && g->netConfirmAnswer_) g->netConfirmAnswer_(yes);
-    if (yes && what == Confirm::OpenNetwork && g->storeNetwork_(g->entrySsid_, "")) {
-        g->requestNavigate_(PageId::Wifi);
-    }
-    if (yes && what == Confirm::FactoryReset && g->factoryReset_) {
-        g->app_->resetToDefaults(); // outputs off before the restart
-        g->factoryReset_();          // does not return
-    }
+    if (a.kind < CONFIRM_COUNT) (g->*CONFIRMS_[a.kind].answer)(idx == 1, a.payload);
     // A waiting question (e.g. the open fallback AP) follows outside this event.
     lv_async_call(nextConfirmCb_, g);
     g->refresh_();

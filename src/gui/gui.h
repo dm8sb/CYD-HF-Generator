@@ -299,6 +299,26 @@ private:
         RemoveWebPassword,
         WebPending
     };
+    static constexpr uint8_t CONFIRM_COUNT = (uint8_t)Confirm::WebPending + 1;
+    // One row of the confirmation table (AF49a): title, text (text1 instead for payload != 0, if
+    // set), buttons {cancel, action, ""} and what the answer does (yes = the action button).
+    struct ConfirmSpec {
+        const char* title;
+        const char* text;
+        const char* text1;
+        const char* const* buttons;
+        void (Gui::*answer)(bool yes, uint8_t payload);
+    };
+    static const ConfirmSpec CONFIRMS_[CONFIRM_COUNT];
+    void answerOffStateHigh_(bool yes, uint8_t);
+    void answerResetDefaults_(bool yes, uint8_t);
+    void answerFactoryReset_(bool yes, uint8_t);
+    void answerDeleteNetwork_(bool yes, uint8_t slot);
+    void answerOpenNetwork_(bool yes, uint8_t);
+    void answerApOpen_(bool yes, uint8_t);
+    void answerOpenFallback_(bool yes, uint8_t);
+    void answerWebChange_(bool yes, uint8_t);
+    void answerRemoveWebPassword_(bool yes, uint8_t);
     // Queues the question (ConfirmQueue: one open, the rest waits) and shows it when it is its
     // turn; payload: the network slot for DeleteNetwork.
     void confirm_(Confirm what, uint8_t payload = 0);
