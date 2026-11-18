@@ -91,42 +91,19 @@ void Gui::refreshWifi_() {
     Ui::setTextColor(w_.apSub, s.apOpen ? Colors::warn() : Colors::muted());
     // Feedback (ARBEITSPLAN 3.4): what the WiFi does now and why the last attempt failed.
     const WifiManager::Status& w = wifi_->status();
-    lv_color_t color = Colors::muted();
-    const uint16_t pendingS = netPendingS_ ? netPendingS_() : 0;
-    if (pendingS) {
-        // AF16: the settings shown are the web change; they stay only when confirmed.
-        snprintf(buf, sizeof(buf), "Web change pending (%u s)\nConfirm in the browser", (unsigned)pendingS);
-        color = Colors::warn();
-    } else if (s.mode == WifiMode::Off) {
-        snprintf(buf, sizeof(buf), "WiFi is Off. Choose Client in CONFIG > WiFi.");
-    } else if (w.staConnected) {
-        char ssid[33];
-        char ip[16];
-        Sanitize::text(w.ssid, strlen(w.ssid), ssid, sizeof(ssid));
-        Ipv4::format(w.staIp, ip, sizeof(ip));
-        snprintf(buf, sizeof(buf), "Connected %s\n%s, %s.local", ssid, ip, s.deviceName);
-        color = Colors::ok();
-    } else if (s.mode == WifiMode::AccessPoint) {
-        snprintf(buf, sizeof(buf), "Access point %s active", w.apSsid);
-    } else if (w.apActive) {
-        snprintf(buf, sizeof(buf), "Fallback: AP %s active\nStill searching", w.apSsid);
-        color = Colors::warn();
-    } else if (w.connecting) {
-        snprintf(buf, sizeof(buf), "Connecting...");
-    } else if (w.lastFailure == WifiManager::Failure::WrongPassword) {
-        snprintf(buf, sizeof(buf), "Wrong password");
-        color = Colors::error();
-    } else if (w.lastFailure == WifiManager::Failure::NotFound) {
-        snprintf(buf, sizeof(buf), "Network not found");
-        color = Colors::warn();
-    } else if (w.lastFailure == WifiManager::Failure::Other) {
-        snprintf(buf, sizeof(buf), "Connection failed");
-        color = Colors::warn();
-    } else if (!s.networks[0].ssid[0] && !s.networks[1].ssid[0]) {
-        snprintf(buf, sizeof(buf), "No network stored. Tap Change.");
-    } else {
-        snprintf(buf, sizeof(buf), "Searching...");
-    }
+    StatusText::WifiLine line;
+    line.pendingS = netPendingS_ ? netPendingS_() : 0;
+    line.mode = s.mode;
+    line.staConnected = w.staConnected;
+    line.ssid = w.ssid;
+    line.staIp = w.staIp;
+    line.deviceName = s.deviceName;
+    line.apSsid = w.apSsid;
+    line.apActive = w.apActive;
+    line.connecting = w.connecting;
+    line.failure = w.lastFailure;
+    line.networkStored = s.networks[0].ssid[0] || s.networks[1].ssid[0];
+    const lv_color_t color = Colors::forTone(StatusText::wifiLine(line, buf, sizeof(buf)));
     Ui::setText(w_.wifiStatus, buf);
     Ui::setTextColor(w_.wifiStatus, color);
 }
@@ -168,12 +145,12 @@ void Gui::refreshWifiScan_() {
     if (!wifi_) return;
     const ScanList& list = wifi_->scanList();
     const WifiManager::ScanState st = wifi_->scanState();
-    const uint8_t pages = (uint8_t)((list.count() + ROWS - 1) / ROWS);
-    if (scanPage_ >= pages) scanPage_ = pages ? (uint8_t)(pages - 1) : 0;
+    const uint8_t pages = InputLogic::scanPages(list.count(), ROWS);
+    scanPage_ = InputLogic::clampScanPage(scanPage_, list.count(), ROWS);
     const bool showList = st == WifiManager::ScanState::Done && list.count() > 0;
     for (uint8_t i = 0; i < ROWS; ++i) {
-        const uint8_t idx = (uint8_t)(scanPage_ * ROWS + i);
-        if (showList && idx < list.count()) {
+        uint8_t idx = 0;
+        if (showList && InputLogic::scanIndex(scanPage_, i, list.count(), ROWS, &idx)) {
             const ScanEntry& e = list.at(idx);
             Ui::setText(w_.scanName[i], e.shown);
             char info[24];
@@ -198,50 +175,24 @@ void Gui::refreshWifiScan_() {
 
 // --- Text entry -------------------------------------------------------------
 
-// Longest text per purpose (the counter shows it). A network key may be a 64-digit hex PMK
-// (D31), the AP password is a passphrase (63).
-static unsigned entryMaxLen(bool password, bool webPassword, bool ip, bool apPassword) {
-    return webPassword ? (unsigned)WebPassword::MAX_LEN : apPassword ? 63u : password ? 64u : ip ? 15u : 32u;
-}
-
 void Gui::createEntry_() {
-    const bool apPass = entryPurpose_ == EntryPurpose::ApPassword;
-    const bool webPass = entryPurpose_ == EntryPurpose::WebPassword;
-    const bool password = entryPurpose_ == EntryPurpose::Password || apPass || webPass;
+    using InputLogic::EntryPurpose;
+    const InputLogic::EntrySpec spec = InputLogic::entrySpec(entryPurpose_);
     char title[48];
-    const bool name = entryPurpose_ == EntryPurpose::DeviceName;
-    const bool ip = entryPurpose_ == EntryPurpose::IpField;
-    static const char* const FIELD_NAMES[4] = {"Address", "Mask", "Gateway", "DNS"};
-    if (name) {
-        snprintf(title, sizeof(title), "Device name");
-    } else if (ip) {
-        snprintf(title, sizeof(title), "%s", FIELD_NAMES[entryField_ & 3]);
-    } else if (apPass) {
-        snprintf(title, sizeof(title), "AP password");
-    } else if (webPass) {
-        snprintf(title, sizeof(title), "Web password");
-    } else if (password) {
-        char shown[33];
-        Sanitize::text(entrySsid_, strlen(entrySsid_), shown, sizeof(shown));
-        snprintf(title, sizeof(title), "Password %s", shown);
-    } else {
-        snprintf(title, sizeof(title), "Network name");
-    }
+    InputLogic::entryTitle(entryPurpose_, entryField_, entrySsid_, title, sizeof(title));
     addBackTitle_(entryBack_, title, Colors::config());
     w_.ta = lv_textarea_create(root_);
     lv_obj_set_pos(w_.ta, 4, ENTRY_TA_Y);
-    lv_obj_set_size(w_.ta, password ? SCREEN_WIDTH - 4 - 4 - 76 : SCREEN_WIDTH - 8, ENTRY_TA_H);
+    lv_obj_set_size(w_.ta, spec.secret ? SCREEN_WIDTH - 4 - 4 - 76 : SCREEN_WIDTH - 8, ENTRY_TA_H);
     lv_textarea_set_one_line(w_.ta, true);
-    lv_textarea_set_max_length(w_.ta, entryMaxLen(password, webPass, ip, apPass));
-    if (name) lv_textarea_set_accepted_chars(w_.ta, "abcdefghijklmnopqrstuvwxyz0123456789-");
-    if (ip) lv_textarea_set_accepted_chars(w_.ta, "0123456789.");
-    // The AP password is shown on the AP page anyway: typed in clear.
-    lv_textarea_set_password_mode(w_.ta, password && !apPass);
+    lv_textarea_set_max_length(w_.ta, spec.maxLen);
+    if (spec.accepted) lv_textarea_set_accepted_chars(w_.ta, spec.accepted);
+    lv_textarea_set_password_mode(w_.ta, spec.masked);
     lv_obj_set_style_text_font(w_.ta, &lv_font_montserrat_16, 0);
     lv_obj_set_style_border_color(w_.ta, Colors::config(), 0);
     lv_obj_add_state(w_.ta, LV_STATE_FOCUSED); // shows the cursor
     on_(w_.ta, LV_EVENT_VALUE_CHANGED, Action::EntryChanged, 0);
-    if (password) {
+    if (spec.secret) {
         w_.entryShow = addButton_(root_, "Show", SCREEN_WIDTH - 4 - 76, ENTRY_TA_Y, 76, ENTRY_TA_H, Colors::gray(),
                                   Action::EntryShow, 0);
     }
@@ -256,29 +207,30 @@ void Gui::createEntry_() {
     lv_obj_set_size(kb, SCREEN_WIDTH, SCREEN_HEIGHT - KB_Y);
     lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_keyboard_set_textarea(kb, w_.ta);
-    if (ip) lv_keyboard_set_mode(kb, LV_KEYBOARD_MODE_NUMBER);
+    if (spec.numeric) lv_keyboard_set_mode(kb, LV_KEYBOARD_MODE_NUMBER);
     on_(kb, LV_EVENT_READY, Action::EntryDone, 0);
     on_(kb, LV_EVENT_CANCEL, Action::Navigate, (uint8_t)entryBack_);
     lv_obj_move_foreground(w_.entryInfo);
     // Ssid, device name and IP fields start with the current text (entrySsid_ holds it).
-    if (!password && entrySsid_[0]) lv_textarea_set_text(w_.ta, entrySsid_);
-    if (apPass && w_.entryShow) Ui::setText(lv_obj_get_child(w_.entryShow, 0), "Hide");
+    if (spec.prefill && entrySsid_[0]) lv_textarea_set_text(w_.ta, entrySsid_);
+    if (spec.secret && !spec.masked && w_.entryShow) Ui::setText(lv_obj_get_child(w_.entryShow, 0), "Hide");
 }
 
 void Gui::refreshEntry_() {
     if (!w_.ta) return;
-    const bool webPass = entryPurpose_ == EntryPurpose::WebPassword;
-    const bool password = entryPurpose_ == EntryPurpose::Password || entryPurpose_ == EntryPurpose::ApPassword || webPass;
-    const unsigned maxLen = entryMaxLen(password, webPass, entryPurpose_ == EntryPurpose::IpField,
-                                        entryPurpose_ == EntryPurpose::ApPassword);
-    const size_t len = strlen(lv_textarea_get_text(w_.ta));
+    const bool pwSet = wifi_ && NetConfig::webPasswordSet(wifi_->settings());
     char buf[48];
-    if (entryError_[0]) snprintf(buf, sizeof(buf), "%s", entryError_);
-    else if (webPass && len == 0 && wifi_ && NetConfig::webPasswordSet(wifi_->settings()))
-        snprintf(buf, sizeof(buf), "empty + OK: remove");
-    else snprintf(buf, sizeof(buf), "%u/%u", (unsigned)len, maxLen);
+    InputLogic::entryInfo(entryPurpose_, strlen(lv_textarea_get_text(w_.ta)), entryError_, pwSet, buf, sizeof(buf));
     Ui::setText(w_.entryInfo, buf);
     Ui::setTextColor(w_.entryInfo, entryError_[0] ? Colors::error() : Colors::muted());
+}
+
+void Gui::openEntry_(InputLogic::EntryPurpose purpose, PageId back, const char* prefill) {
+    if (prefill) snprintf(entrySsid_, sizeof(entrySsid_), "%s", prefill);
+    entryPurpose_ = purpose;
+    entryBack_ = back;
+    entryError_[0] = '\0';
+    requestNavigate_(PageId::TextEntry);
 }
 
 // --- Actions ----------------------------------------------------------------
@@ -293,6 +245,75 @@ bool Gui::storeNetwork_(const char* ssid, const char* key) {
     if (!commitNet_(s, NetApply::Restart)) return false;
     Logger::info("GUI", "WiFi network stored");
     return true;
+}
+
+// OK on the keyboard: InputLogic checks the text, the page carries out the step. true: the
+// page changes (or a confirmation redraws), false: stay and redraw (error shown).
+bool Gui::submitEntry_() {
+    using InputLogic::EntryStep;
+    const char* text = lv_textarea_get_text(w_.ta);
+    const bool pwSet = wifi_ && NetConfig::webPasswordSet(wifi_->settings());
+    const InputLogic::EntryResult r = InputLogic::submitEntry(entryPurpose_, text, pwSet);
+    switch (r.step) {
+        case EntryStep::Invalid:
+            snprintf(entryError_, sizeof(entryError_), "%s", r.error);
+            return false;
+        case EntryStep::StoreName: {
+            if (!wifi_) return false;
+            NetSettings s = wifi_->settings();
+            snprintf(s.deviceName, sizeof(s.deviceName), "%s", text);
+            commitNet_(s, NetApply::Restart);
+            requestNavigate_(PageId::WifiDevice);
+            return true;
+        }
+        case EntryStep::StoreIp: {
+            if (!wifi_) return false;
+            NetSettings s = wifi_->settings();
+            uint32_t* fields[4] = {&s.staticIp.ip, &s.staticIp.mask, &s.staticIp.gateway, &s.staticIp.dns};
+            *fields[entryField_ & 3] = r.ip;
+            // While static IP is on, an implausible combination is refused (W-S12).
+            const NetConfig::IpCheck c = NetConfig::checkStaticIp(s.staticIp);
+            if (s.staticIp.enabled && c != NetConfig::IpCheck::Ok) {
+                memset(&s, 0, sizeof(s));
+                showMessage("Static IP", NetConfig::ipCheckText(c));
+                return false;
+            }
+            commitNet_(s, NetApply::Restart);
+            requestNavigate_(PageId::WifiDevice);
+            return true;
+        }
+        case EntryStep::ConfirmRemove:
+            confirm_(Confirm::RemoveWebPassword);
+            return true; // confirm_() redraws
+        case EntryStep::HashWebPassword:
+            if (netChangeBlocked_()) return false; // before the hash: the password stays in the field
+            // Hashed by a worker (~1.3 s); the device page shows "Saving..." until then.
+            if (webPwHashing_ || !webPwStart_ || !webPwStart_(text, strlen(text))) {
+                snprintf(entryError_, sizeof(entryError_), "%s", InputLogic::ENTRY_BUSY);
+                return false;
+            }
+            webPwHashing_ = true;
+            lv_textarea_set_text(w_.ta, "");
+            requestNavigate_(PageId::WifiDevice);
+            return true;
+        case EntryStep::StoreApPassword:
+            storeAp_(text, false);
+            lv_textarea_set_text(w_.ta, "");
+            requestNavigate_(PageId::WifiAp);
+            return true;
+        case EntryStep::AskPassword:
+            openEntry_(InputLogic::EntryPurpose::Password, entryBack_, text);
+            return true;
+        case EntryStep::StoreNetwork:
+            if (!storeNetwork_(entrySsid_, text)) {
+                snprintf(entryError_, sizeof(entryError_), "%s", InputLogic::ENTRY_NOT_ACCEPTED);
+                return false;
+            }
+            lv_textarea_set_text(w_.ta, "");
+            requestNavigate_(PageId::Wifi);
+            return true;
+    }
+    return false;
 }
 
 void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
@@ -313,31 +334,23 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             if (wifi_) wifi_->startScan();
             break;
         case Action::WifiScanPage:
-            if (arg == 0 && scanPage_ > 0) --scanPage_;
-            else if (arg == 1 && wifi_ && (uint8_t)((scanPage_ + 1) * ROWS) < wifi_->scanList().count()) ++scanPage_;
+            scanPage_ = InputLogic::stepScanPage(scanPage_, arg == 1, wifi_ ? wifi_->scanList().count() : 0, ROWS);
             break;
         case Action::WifiPick: {
             if (!wifi_) return;
-            const uint8_t idx = (uint8_t)(scanPage_ * ROWS + arg);
-            if (idx >= wifi_->scanList().count()) return;
+            uint8_t idx = 0;
+            if (!InputLogic::scanIndex(scanPage_, arg, wifi_->scanList().count(), ROWS, &idx)) return;
             const ScanEntry& e = wifi_->scanList().at(idx);
-            snprintf(entrySsid_, sizeof(entrySsid_), "%s", e.ssid);
             if (!e.secure) {
+                snprintf(entrySsid_, sizeof(entrySsid_), "%s", e.ssid);
                 confirm_(Confirm::OpenNetwork);
                 return;
             }
-            entryPurpose_ = EntryPurpose::Password;
-            entryBack_ = PageId::WifiScan;
-            entryError_[0] = '\0';
-            requestNavigate_(PageId::TextEntry);
+            openEntry_(InputLogic::EntryPurpose::Password, PageId::WifiScan, e.ssid);
             return;
         }
         case Action::WifiOther:
-            entrySsid_[0] = '\0';
-            entryPurpose_ = EntryPurpose::Ssid;
-            entryBack_ = PageId::WifiScan;
-            entryError_[0] = '\0';
-            requestNavigate_(PageId::TextEntry);
+            openEntry_(InputLogic::EntryPurpose::Ssid, PageId::WifiScan, "");
             return;
         case Action::EntryShow: {
             const bool hidden = lv_textarea_get_password_mode(w_.ta);
@@ -348,94 +361,9 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::EntryChanged:
             entryError_[0] = '\0';
             break;
-        case Action::EntryDone: {
-            const char* text = lv_textarea_get_text(w_.ta);
-            if (entryPurpose_ == EntryPurpose::DeviceName) {
-                if (!NetConfig::validDeviceName(text)) {
-                    snprintf(entryError_, sizeof(entryError_), "a-z 0-9 - (1-32)");
-                    break;
-                }
-                NetSettings s = wifi_->settings();
-                snprintf(s.deviceName, sizeof(s.deviceName), "%s", text);
-                commitNet_(s, NetApply::Restart);
-                requestNavigate_(PageId::WifiDevice);
-                return;
-            }
-            if (entryPurpose_ == EntryPurpose::IpField) {
-                uint32_t v = 0;
-                if (!Ipv4::parse(text, &v)) {
-                    snprintf(entryError_, sizeof(entryError_), "e.g. 192.168.1.50");
-                    break;
-                }
-                NetSettings s = wifi_->settings();
-                uint32_t* fields[4] = {&s.staticIp.ip, &s.staticIp.mask, &s.staticIp.gateway, &s.staticIp.dns};
-                *fields[entryField_ & 3] = v;
-                // While static IP is on, an implausible combination is refused (W-S12).
-                const NetConfig::IpCheck c = NetConfig::checkStaticIp(s.staticIp);
-                if (s.staticIp.enabled && c != NetConfig::IpCheck::Ok) {
-                    memset(&s, 0, sizeof(s));
-                    showMessage("Static IP", NetConfig::ipCheckText(c));
-                    break;
-                }
-                commitNet_(s, NetApply::Restart);
-                requestNavigate_(PageId::WifiDevice);
-                return;
-            }
-            if (entryPurpose_ == EntryPurpose::WebPassword) {
-                const size_t len = strlen(text);
-                if (len == 0 && wifi_ && NetConfig::webPasswordSet(wifi_->settings())) {
-                    confirm_(Confirm::RemoveWebPassword);
-                    return; // confirm_() redraws
-                }
-                if (!WebPassword::valid(text, len)) {
-                    snprintf(entryError_, sizeof(entryError_), "8-64 characters");
-                    break;
-                }
-                if (netChangeBlocked_()) break; // before the hash: the password stays in the field
-                // Hashed by a worker (~1.3 s); the device page shows "Saving..." until then.
-                if (webPwHashing_ || !webPwStart_ || !webPwStart_(text, len)) {
-                    snprintf(entryError_, sizeof(entryError_), "Busy, try again");
-                    break;
-                }
-                webPwHashing_ = true;
-                lv_textarea_set_text(w_.ta, "");
-                requestNavigate_(PageId::WifiDevice);
-                return;
-            }
-            if (entryPurpose_ == EntryPurpose::ApPassword) {
-                if (!NetConfig::validPassphrase(text)) {
-                    snprintf(entryError_, sizeof(entryError_), "8-63 characters");
-                    break;
-                }
-                storeAp_(text, false);
-                lv_textarea_set_text(w_.ta, "");
-                requestNavigate_(PageId::WifiAp);
-                return;
-            }
-            if (entryPurpose_ == EntryPurpose::Ssid) {
-                if (!NetConfig::validSsid(text)) {
-                    snprintf(entryError_, sizeof(entryError_), "1-32 characters");
-                    break;
-                }
-                snprintf(entrySsid_, sizeof(entrySsid_), "%s", text);
-                entryPurpose_ = EntryPurpose::Password;
-                requestNavigate_(PageId::TextEntry);
-                return;
-            }
-            // A hidden network entered by name may be open (empty password); 64 hex digits are a
-            // PMK (D31).
-            if (!NetConfig::validNetworkKey(text)) {
-                snprintf(entryError_, sizeof(entryError_), "8-63 chars or 64 hex");
-                break;
-            }
-            if (!storeNetwork_(entrySsid_, text)) {
-                snprintf(entryError_, sizeof(entryError_), "Not accepted");
-                break;
-            }
-            lv_textarea_set_text(w_.ta, "");
-            requestNavigate_(PageId::Wifi);
-            return;
-        }
+        case Action::EntryDone:
+            if (submitEntry_()) return;
+            break;
         case Action::ApRegenerate: {
             if (!wifi_) return;
             char pw[NetConfig::AP_PASSWORD_LEN + 1];
@@ -445,38 +373,24 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             break;
         }
         case Action::ApSet:
-            entryPurpose_ = EntryPurpose::ApPassword;
-            entryBack_ = PageId::WifiAp;
-            entryError_[0] = '\0';
-            requestNavigate_(PageId::TextEntry);
+            openEntry_(InputLogic::EntryPurpose::ApPassword, PageId::WifiAp, nullptr);
             return;
         case Action::DevName:
             if (!wifi_) return;
-            snprintf(entrySsid_, sizeof(entrySsid_), "%s", wifi_->settings().deviceName);
-            entryPurpose_ = EntryPurpose::DeviceName;
-            entryBack_ = PageId::WifiDevice;
-            entryError_[0] = '\0';
-            requestNavigate_(PageId::TextEntry);
+            openEntry_(InputLogic::EntryPurpose::DeviceName, PageId::WifiDevice, wifi_->settings().deviceName);
             return;
         case Action::DevWebPassword:
             if (!wifi_ || webPwHashing_) return;
-            entrySsid_[0] = '\0';
-            entryPurpose_ = EntryPurpose::WebPassword;
-            entryBack_ = PageId::WifiDevice;
-            entryError_[0] = '\0';
-            requestNavigate_(PageId::TextEntry);
+            openEntry_(InputLogic::EntryPurpose::WebPassword, PageId::WifiDevice, "");
             return;
         case Action::DevIpField: {
             if (!wifi_) return;
             const StaticIp& ip = wifi_->settings().staticIp;
             const uint32_t values[4] = {ip.ip, ip.mask, ip.gateway, ip.dns};
-            if (values[arg & 3]) Ipv4::format(values[arg & 3], entrySsid_, sizeof(entrySsid_));
-            else entrySsid_[0] = '\0';
+            char text[16] = "";
+            if (values[arg & 3]) Ipv4::format(values[arg & 3], text, sizeof(text));
             entryField_ = arg & 3;
-            entryPurpose_ = EntryPurpose::IpField;
-            entryBack_ = PageId::WifiDevice;
-            entryError_[0] = '\0';
-            requestNavigate_(PageId::TextEntry);
+            openEntry_(InputLogic::EntryPurpose::IpField, PageId::WifiDevice, text);
             return;
         }
         case Action::DevIpMode: {

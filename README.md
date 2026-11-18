@@ -74,6 +74,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - The numpad rounds half a hertz exactly like SCPI and REST (integer arithmetic instead of `double`; e.g. `1.0079105 MHz` gave 1 007 910 Hz instead of 1 007 911 Hz)
 - REST and WebSocket state: new `limits` (frequency range and step list of the firmware); the web UI takes its range checks and step buttons from it, the mock and the fake SCPI device read `include/constants.h`
 - The web UI refuses static addresses with leading zeros (`192.168.001.5`) itself, like the device; the host tools parse `host:port` in one place (`[v6]:port`, a bad port is reported)
+- WIFI pages: text entry (limits, title, counter, what OK does for each of the six purposes), the status line and the pages of the scan list moved into host-tested logic (`InputLogic::submitEntry()`, `StatusText::wifiLine()`, suite `test_wifi_entry`); no visible change
 
 ### 2.0.0
 

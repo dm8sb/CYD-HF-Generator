@@ -211,6 +211,11 @@ private:
     void refreshWifi_();
     void refreshWifiScan_();
     void refreshEntry_();
+    // Opens the text entry for purpose (AF47); prefill: the text it starts with, also the
+    // network a password is for (nullptr keeps the last one).
+    void openEntry_(InputLogic::EntryPurpose purpose, PageId back, const char* prefill);
+    // OK on the keyboard; true when the page changes or a confirmation opened.
+    bool submitEntry_();
     void addBackTitle_(PageId back, const char* title, lv_color_t color);
     void handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj);
     bool storeNetwork_(const char* ssid, const char* key);
@@ -332,7 +337,6 @@ private:
     WifiManager* wifi_ = nullptr;
     bool (*saveNet_)(const NetSettings&) = nullptr;
     // WIFI pages (RAM only)
-    enum class EntryPurpose : uint8_t { Ssid, Password, ApPassword, DeviceName, IpField, WebPassword };
     uint8_t entryField_ = 0; // IpField: 0 address, 1 mask, 2 gateway, 3 DNS
     PageId entryBack_ = PageId::WifiScan;
     bool openFallbackAsked_ = false; // W-S2 question shown for the current need
@@ -349,7 +353,7 @@ private:
     void (*disconnectRemote_)() = nullptr;
     uint8_t wifiSlot_ = 0;
     uint8_t scanPage_ = 0;
-    EntryPurpose entryPurpose_ = EntryPurpose::Password;
+    InputLogic::EntryPurpose entryPurpose_ = InputLogic::EntryPurpose::Password;
     char entrySsid_[33] {};
     char entryError_[24] {};
     // Identify (W-E28): the LED blinks with the backlight, then shows the page again.

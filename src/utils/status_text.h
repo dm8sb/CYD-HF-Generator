@@ -5,6 +5,8 @@
 
 #include <stddef.h>
 #include <types.h>
+#include <net/net_settings.h>
+#include <net/wifi_policy.h>
 
 // State texts of MAIN and the page headers (audit U-1): both show the actual state, the
 // switches show the request. Errors start with "!", so they differ from ON also without color
@@ -40,5 +42,23 @@ Tone ch3Info(Ch3Status s, uint8_t master, uint64_t iqMinHz, uint64_t iqMaxHz, ch
 // Hint for the channel page outside 1-100 MHz (E-16), short enough for the mode line next to
 // a few special modes: "" inside the range.
 const char* rangeNote(uint64_t hz);
+
+// Status line of the WIFI page (AF47): what the WiFi does now and why the last attempt failed.
+// Foreign names (ssid) are sanitized here. Tone: Ok connected, Warn for a pending web change,
+// the fallback AP, a missing network or a failed connection, Error for a wrong password.
+struct WifiLine {
+    uint16_t pendingS;         // a web network change waits this long (AF16), 0 = none
+    WifiMode mode;
+    bool staConnected;
+    const char* ssid;          // connected network
+    uint32_t staIp;
+    const char* deviceName;
+    const char* apSsid;
+    bool apActive;
+    bool connecting;
+    WifiPolicy::Failure failure;
+    bool networkStored;        // at least one network is stored
+};
+Tone wifiLine(const WifiLine& w, char* out, size_t outSize);
 
 }

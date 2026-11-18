@@ -113,4 +113,63 @@ static constexpr int16_t EDGE_REACH = 8;
 Area edgeArea(const Area& button, int16_t reach, int16_t screenW, int16_t screenH);
 bool contains(const Area& a, int16_t x, int16_t y);
 
+// ---------------------------------------------------------------------------
+// Text entry of the WIFI pages (AF47, CQ-4): what each purpose accepts and what OK does. The
+// page keeps the keyboard and carries out the step submitEntry() returns.
+
+enum class EntryPurpose : uint8_t { Ssid, Password, ApPassword, DeviceName, IpField, WebPassword };
+
+struct EntrySpec {
+    uint8_t maxLen;       // field limit, shown by the counter
+    bool secret;          // a password: Show/Hide button next to a narrower field
+    bool masked;          // starts hidden (the AP password is typed in clear: the AP page shows it)
+    bool numeric;         // number keyboard (IP fields)
+    bool prefill;         // starts with the current text (name, IP field, network name)
+    const char* accepted; // accepted characters, nullptr = all
+};
+EntrySpec entrySpec(EntryPurpose p);
+
+// Title of the entry page. field: IP field 0..3 (address, mask, gateway, DNS); ssid: the
+// network a password is for (Password only, sanitized here).
+void entryTitle(EntryPurpose p, uint8_t field, const char* ssid, char* out, size_t outSize);
+
+// Line on the keyboard top: the error of the last OK, "empty + OK: remove" for an empty web
+// password while one is set, else the counter "len/max".
+void entryInfo(EntryPurpose p, size_t len, const char* error, bool webPasswordSet, char* out, size_t outSize);
+
+enum class EntryStep : uint8_t {
+    Invalid,         // not accepted: error says why, the text stays
+    StoreName,       // device name
+    StoreIp,         // IP field, value in ip
+    ConfirmRemove,   // empty web password while one is set: ask before removing it
+    HashWebPassword, // valid web password: hand it to the hashing worker
+    StoreApPassword,
+    AskPassword,     // hidden network: the name is accepted, the password follows
+    StoreNetwork,    // network key; empty for an open hidden network, 64 hex digits = PMK (D31)
+};
+
+struct EntryResult {
+    EntryStep step;
+    const char* error; // Invalid only
+    uint32_t ip;       // StoreIp only
+};
+
+// OK on the keyboard. webPasswordSet: a web password is stored (WebPassword only).
+EntryResult submitEntry(EntryPurpose p, const char* text, bool webPasswordSet);
+
+// Errors of the steps the page carries out: the hashing worker is busy, the network was refused.
+extern const char* const ENTRY_BUSY;
+extern const char* const ENTRY_NOT_ACCEPTED;
+
+// ---------------------------------------------------------------------------
+// Scan list of the WIFI page: pages of `rows` entries, no scrolling (AF47).
+
+uint8_t scanPages(uint8_t count, uint8_t rows);
+// The page shown for a list of count entries: page, or the last one when the list got shorter.
+uint8_t clampScanPage(uint8_t page, uint8_t count, uint8_t rows);
+// Back (forward false) or forward; stays at the first and last page.
+uint8_t stepScanPage(uint8_t page, bool forward, uint8_t count, uint8_t rows);
+// List index of `row` on `page`; false below the end of the list.
+bool scanIndex(uint8_t page, uint8_t row, uint8_t count, uint8_t rows, uint8_t* index);
+
 }
