@@ -1,6 +1,6 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: Release **2.0.0** (`v2.0.0-rc1` vom Nutzer getestet, D45); die Git-Historie beginnt mit 2.0.0 neu (D44). Enthalten sind LX1 (VXI-11/LXI), die Lizenzarbeiten AF29–AF31 und Priorität 1 (AF1–AF10); alle Rückfragen zum Audit sind entschieden (D22–D43) · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · nächste Ziele: AF11, AF12 und AF55 in 2.0.x; die Messungen (S41c, S49, S59–S61) kommen zuletzt (D38), danach S64
+Stand: Release **2.0.0** auf `main` (Historie neu ab 2.0.0, D44); seitdem auf `main` und `dev`: einheitliche Bedienung nach Nutzer-Feedback (U27: CONFIG in Registern, eine Kopfzeile mit `◀`, keine Anzeige `Saved`), API-Seite `docs/REMOTE_API.md`, CodeQL-Funde behoben (0 offen) · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · nächste Ziele: Release 2.0.1, dann AF11, AF12, AF55 und die übrigen Audit-Folgearbeiten; die Messungen (S41c, S49, S59–S61) kommen zuletzt (D38), danach S64
 
 Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufgabenliste. Sie ersetzt `todo.md`, `AUDIT_2026-11.md` und `KONZEPT_WEB_HMI.md`. Die Befund-IDs aus dem Audit (C-n Code, S-n Security, U-n Bedienung, P-n Plattform, T-n Tests) und dem Konzept (W-E, W-S, V-n) bleiben als Namen gültig. Messungen am Gerät: [MESSPLAN.md](MESSPLAN.md). Verhalten: [USER_MANUAL_DE.md](USER_MANUAL_DE.md); Anforderungen und Entscheidungen: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md).
 
@@ -39,9 +39,11 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 4 Migration | `dev`, S41d `feature/web-hmi` | espressif32 8.0.0 (Arduino 3.3.12 / IDF 5.5.5, `-Os`), LEDC-API, I2C-Zugriffe in `I2CBus` (C-14, V-7), GCC-14-Warnungen behoben, Host-Env `native-cpp20`, LVGL 8.4.0 (E-28), Smoke-Test mit Core 3, Routing-Entscheidung D14; seit S41d nur noch Core 3 (D16, E-32), Abnahmemessung S41c offen |
 | 5 WEB-HMI-Vorarbeiten | `dev` | V-1 bis V-6, V-11, C-16, C-17 (S42–S48): Ergebniscodes, Änderungszähler, Ereignisse mit Quelle, Speichern je Quelle und Schlüssel, Logger mit Ringpuffer, Befehlsqueue mit Schnappschuss, Netz-Parser |
 | 6 WEB-HMI bis S58 | 1.4.0-rc1 | Befehlskern mit Quellen, Ratenbegrenzung und `Remote outputs`; SCPI über USB (E-29) mit Identify; Netzeinstellungen `hfnet` (E-30); WLAN-Manager (Client, Rückfall-AP, mDNS, Captive-DNS, D14); CONFIG `WiFi`/`Remote out.`, Statusleiste mit WLAN und `REMOTE`; Seiten WIFI (Scan, Tastatur), Access Point (QR) und Device (Name, statische IP); LVGL-Pool aus dem Heap (E-31); Host-Werkzeuge in `tools/` (`device_check.py`); SCPI über TCP 5025 (S54); Request-Guard und REST-JSON (S55a); Weboberfläche `data/www/` mit Mock-Server (S56a); Fuzzing mit 9 Zielen, CI-Job und Zufallstest, Fix langer Zahlen (S57a–c); Webserver mit REST, WebSocket, Login und eingebetteter Oberfläche (S55, E-33–E-35), Web-Passwort auf der Seite Device und Remote-Clients mit `Reconnect all` auf der Info-Karte (S55b), feste Kopfzeile und Abmelden (S56); Fuzz-Funde behoben (lange Exponenten, 32-bit-Zeit im Guard, doppelte Schlüssel, einzelnes Surrogat in Schlüsseln); Doku auf 1.4.0, Release-Kandidat (S58) |
-| 6b LXI | `dev` | LX1: Portmapper (UDP/TCP 111), VXI-11-Kernkanal (TCP 9009), mDNS `_lxi._tcp`/`_vxi-11._tcp`, `/lxi/identification` (E-37, D33, D42, D43); Gerätetest mit lxi-tools 2.8, PyVISA und python-vxi11 |
-| 7 GitHub (Teil) | 1.4.0-rc1 | Release-Workflow mit Herkunftsnachweis und Webflasher-Seite (G1), `SECURITY.md` und CodeQL (G4), Dependabot (G6), Größenbericht in der CI (G7), Issue- und PR-Vorlagen (G8), Badges und `docs/hardware.md` (G9a); LF für alle Textdateien (`.gitattributes`, `.editorconfig`); Lizenz-Hinweise, Lizenzpaket und LGPL-Quellen am Release, ESP Web Tools selbst gehostet (G11); gerenderte Bilder (G13); Ruleset für `main` (G5); OpenSCAD-Gehäuse; TFT_eSPI-Schriften entfernt, Build-Pfade gekürzt; KI-Hinweis in README und auf der Webflasher-Seite |
-| 10 Audit (Teil) | `dev` | Projekt-Audit, Rückfragen entschieden (D22–D43); AF29–AF31: Notices gegen Linker-Map und Espressifs Liste geprüft, LGPL-Archiv vollständig, GPLv3-§7-Erlaubnis `LICENSE-EXCEPTION.md` (E-38), Quellverweise auf den Tag (E-39), SPDX-Köpfe und `REUSE.toml` (D40); Tag-Ruleset, Immutable Releases und Repo-Einstellungen (D29, D41); Priorität 1 (AF1–AF10): Off state `High` aus der Ferne bei `local only` abgelehnt (E-40), Web-`Off` nur mit Modus, kein Login über offenen AP, SSIDs im Log bereinigt, Netz-SCPI ohne Anmeldung dokumentiert (E-41), Bestätigungsdialoge in einer Warteschlange, Release nur von `main` mit Tests und ohne Überschreiben, REST-Vertrag mit Fehler- und Statustabellen, 64-Hex-PMK auch am Touch, Handbuch und README nachgezogen |
+| 6b LXI | 2.0.0 | LX1: Portmapper (UDP/TCP 111), VXI-11-Kernkanal (TCP 9009), mDNS `_lxi._tcp`/`_vxi-11._tcp`, `/lxi/identification` (E-37, D33, D42, D43); Gerätetest mit lxi-tools 2.8, PyVISA und python-vxi11 |
+| 7 GitHub (Teil) | 2.0.0 | Release-Workflow mit Herkunftsnachweis und Webflasher-Seite (G1), Release nur von `main` mit Tests und ohne Überschreiben (AF7), Tag-Ruleset und Immutable Releases (D29), `SECURITY.md` und CodeQL (G4), Dependabot (G6), Größenbericht (G7), Issue- und PR-Vorlagen (G8), Badges und `docs/hardware.md` (G9a); Lizenz-Hinweise, Lizenzpaket, LGPL-Quellen, ESP Web Tools selbst gehostet (G11); gerenderte Bilder (G13); Ruleset `main` und Repo-Einstellungen (G5, D41); Webflasher an beiden Boards erprobt (G2, ohne Handbuchabschnitt); OpenSCAD-Gehäuse; KI-Hinweis |
+| 10 Audit (Teil) | 2.0.0 | Projekt-Audit, Rückfragen entschieden (D22–D43); AF1–AF4, AF6–AF10 (Sicherheit, Release-Integrität, Doku, E-40, E-41); AF29–AF31 (Notices, `LICENSE-EXCEPTION.md` E-38, Links auf den Tag E-39, SPDX D40); CodeQL-Funde behoben bzw. als Fehlalarm geschlossen |
+| 2.0.0 | 2.0.0 | Version 2.0.0, Historie neu ab 2.0.0 (D44, D45); `v2.0.0-rc1` getestet, `v2.0.0` veröffentlicht |
+| Nach 2.0.0 | `main` | U27 einheitliche Bedienung nach Nutzer-Feedback: CONFIG in fünf Registern (E-42), eine Kopfzeile mit `◀` auf allen Seiten außer MAIN (E-43), keine Anzeige `Saved`/`Saving...` (E-44); Handbuch: Wirkung der CONFIG-Optionen ausführlich; API-Referenz `docs/REMOTE_API.md` |
 
 Host-Tests: 406 Fälle in `native-win` und 4 in `native-win-fault`.
 
@@ -134,15 +136,13 @@ Host-Tests: 406 Fälle in `native-win` und 4 in `native-win-fault`.
 ### 2.2 Bedienung
 
 - [ ] **Netzwahl nach falschem Passwort am Gerät** (S53b, Prüfpunkt h): zwei Netze gespeichert, das stärkere mit falschem Passwort → nach dem Fehlschlag verbindet sich das Gerät mit dem anderen. Host-getestet (`WifiPolicy::chooseSlot`). → S61
-- [ ] **Gestapelte Bestätigungsdialoge** (CQ-1, CQ-15): ein gemeinsames `pendingConfirm_`; Cancel im oberen und Delete im unteren Dialog geben den offenen Rückfall-AP frei. → AF6
 - [ ] **Zwei Schreiber der Netzeinstellungen** (CQ-2, CQ-5): Web-Rückfall verwirft Touch-Änderungen (auch das Web-Passwort), Touch-Änderungen speichern eine unbestätigte Web-Änderung; eine Kopie ohne Löschen der Schlüssel. → AF15, AF16
 - [ ] **Endlose Scans im Client-Modus** (PERF-5, TEST-9): Scan alle 15 s auch ohne gespeichertes Netz und neben dem Rückfall-AP; Failover-Ablauf ungetestet. → AF13, AF14
 
 ### 2.3 Code und Tests
 
 - [ ] **DMA und Doppelpuffer** (nach der Migration): zwei Puffer 320 × 40 px (`DMA_ATTR`, je 25,6 KB), `LV_COLOR_16_SWAP` = 1, `setSwapBytes(false)`; in `DisplayPanel::begin()` erst Erkennung und Init mit rohem Buszugriff, dann `initDMA()` und einmal `startWrite()` (CS bleibt LOW, `endWrite()` nie); `flush()` = `dmaWait()`, `setAddrWindow()`, `pushPixelsDMA()`, `lv_disp_flush_ready()` sofort. Erwartung bis ≈ 30 Bilder/s, +36 KB RAM; Messung mit `LV_USE_PERF_MONITOR`. → N13
-- [ ] **Offene CodeQL-Funde** (OPS-9): auf `dev` 9 offen. #12 `py/bad-tag-filter` in `tools/flasher_site.py:509` (neu geöffnet, nicht behoben), #3 `tools/web_check.py:154` (`<SCRIPT>`), `tools/screens/main.cpp:55`, `data/www/app.js:143/145` (Fehlalarm laut G4), `tools/cdp_shot.mjs` (3). Auf `main` stehen #4, #9, #10, #11 fälschlich auf „fixed“ (OPS-1). → AF21, AF27
-- [ ] **Fakes:** Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln (mehrere Namespaces und Strings im Preferences-Fake seit S52a). Dazu NVS-Grenzen im Fake (Schlüssel und Namespaces > 15 Zeichen, Strings > 4000 B) und `test_upgrade_from_1_3_3` (TEST-11). → AF38
+- [ ] **Fakes:** Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln (mehrere Namespaces und Strings im Preferences-Fake). Dazu NVS-Grenzen im Fake (Schlüssel und Namespaces > 15 Zeichen, Strings > 4000 B) und ein Upgrade-Test mit alten Schlüsseln (TEST-11). → AF38
 - [ ] **WLAN-Status je Iteration und Neuzeichnen** (PERF-1, CQ-12, PERF-12; PERF-2, PERF-3 = C-15, PERF-4, PERF-16, PERF-17, CQ-14): 3 synchrone Treiber-/lwIP-Aufrufe je `loop()`, Seiten-Refresh bei RSSI-Schwankung und 1-KB-Heapänderung. → AF11, AF12 (übernimmt „Neuzeichnen nur bei Änderung“ aus N6)
 - [ ] **WebSocket-Push und Speichermangel** (PERF-6, PERF-8): bis ≈ 80 Zustände/s ungebündelt; `bad_alloc` in `push()` führt zum Neustart. → AF19
 - [ ] **Geräte-Glue ohne Test** (TEST-1, CQ-6): `web_server.cpp`, `wifi_manager.cpp`, `scpi_tcp_server.cpp` nicht host-kompiliert; `web_check` prüft nur den Mock. → AF32, AF33, AF34, S61
@@ -159,31 +159,17 @@ Host-Tests: 406 Fälle in `native-win` und 4 in `native-win-fault`.
 | P-9 | Web-Bibliotheken | scpi-parser `8866159` (v2.3 + `strings.h`- und `-Wdouble-promotion`-Fix, seit S51, E-29) | ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, ArduinoJson 7.4.3, alle exakt gepinnt |
 | S-20 | Prüfung | XPT2046 auf Commit gepinnt | Plattform-Prüfsumme in der CI, Advisory-Check je Release (W-S24); Framework-Pakete exakt gepinnt (AF22), Advisory-Workflow (AF26); Actions-Policy mit SHA-Zwang gesetzt (D41) |
 
-- [x] **Release-Integrität** (OPS-4 = OPS-5 + TEST-3, OPS-14, OPS-15; erledigt mit AF7 und D29): Tags/Releases veränderbar (`--clobber`, kein Tag-Ruleset, keine Immutable Releases), Pages-Deploy ohne Release (Release-Kandidat), keine Herkunfts- und Testprüfung des Tag-Commits, Attestation nur für `.bin`. → AF7, AF28
 - [ ] **Framework nur per Tilde gepinnt** (OPS-3 = LIC-4, OPS-10, OPS-17): Arduino-Framework und `-esp32-libs` als Bereich; Release-Image hängt am CI-Cache; Notices behaupten exakte Pakete. → AF22
 - [ ] **CI-Workflows** (OPS-1, OPS-2, OPS-6, OPS-11, OPS-12, OPS-13, OPS-18 = CQ-20 = TEST-13, OPS-19): CodeQL-Alerts auf `main` fälschlich „fixed“, CI auf `main` abgebrochen, Release-Pfad vor dem Tag ungeprüft, Warnungs-Gate nicht erzwungen, Stempel nicht reproduzierbar. → AF21, AF23, AF24, AF25
-- [ ] **Advisory-Prüfung und Repo-Einstellungen** (OPS-8, OPS-16): keine automatische Schwachstellenprüfung der Firmware-Abhängigkeiten (ESPAsyncWebServer, AsyncTCP, ArduinoJson, scpi-parser, Arduino-ESP32/IDF, LVGL, ESP Web Tools; Dependabot sieht kein Manifest); aus OPS-16 offen: Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot`, Topics (OPS-7 gesetzt, D41). → AF26, AF28
+- [ ] **Advisory-Prüfung und Rest Repo-Einstellungen** (OPS-8, OPS-16): keine automatische Schwachstellenprüfung der Firmware-Abhängigkeiten (ESPAsyncWebServer, AsyncTCP, ArduinoJson, scpi-parser, Arduino-ESP32/IDF, LVGL, ESP Web Tools; Dependabot sieht kein Manifest); aus OPS-16 offen: Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot`, Topics (OPS-7 gesetzt, D41). → AF26, AF28
 
 ### 2.5 Dokumentation
 
 - [ ] **Anwendungskapitel „Mischer-Experimente“** (beide Handbücher): Pegel je Drive-Stärke an 50 Ω (F2), Oberwellen des Rechtecks (3. ≈ −9,5 dBc, 5. ≈ −14 dBc) und Tiefpässe, LO-Pegel für Diodenringmischer (+7 dBm) bzw. Dämpfung für NE612/SA612, IQ an FST3253/74CBT3253 (Tayloe), gleich lange Kabel (1° bei 100 MHz ≈ 28 ps ≈ 5,6 mm Koax), Phasenfehler ↔ Spiegelunterdrückung (1° ≈ 41 dB, 2° ≈ 35 dB, 5° ≈ 27 dB), nie ungefiltert an eine Antenne. → N8
 - [M] **„50 % Tastverhältnis“** (Handbuch §1) ist nicht belegt (E5). → S72
-- [ ] **REST-Vertrag** (DOC-2, DOC-4, DOC-5, DOC-13): Fehlerliste Zeile 105 falsch (−104/−221/−224), Statuscodes unvollständig, `slot` 0/1 nicht festgelegt, PMK-Regel widersprüchlich. → AF8
-- [ ] **Handbuch** (DOC-6, DOC-7, DOC-10, DOC-11, DOC-12, DOC-20): SCPI-Fehler/Einheiten unvollständig, „später Web/SCPI“, Logtabelle, Speicherliste, `Labor`/`Lab`. → AF9
-- [ ] **README, Werkzeuge, Spezifikation, Plan** (DOC-8, DOC-9, DOC-15 bis DOC-18 + OPS-20, DOC-14): Changelog-Stand, `-core3`, `--password secret`, A-24/A-46/A-48/A-60, CLAUDE.md-Liste (G2-Text und 3.6 sind mit der Übernahme des Audits korrigiert). → AF10 (DOC-14 mit AF4)
-  - DOC-9: README-Changelog nennt den falschen Release-Kandidaten, „Request guard … not yet wired to a server“ widerspricht dem Webserver-Eintrag, „both firmware envs“ (es gibt nur noch eine).
-  - DOC-15: A-60 („later TCP“), A-24 (Seitenliste ohne WIFI-Seiten), A-46 (Pins ohne die Web-Bibliotheken), A-48 (Host-Tests ohne Netzmodule) veraltet.
-  - DOC-16: doppelter Eintrag `+<net/request_guard.cpp>` in `[native_test]` `build_src_filter` (`platformio.ini`).
-  - DOC-18 + OPS-20: Tags ohne Release (ältere Tags und der erste Release-Kandidat; nur vermerken, Löschen nur auf Anweisung, D29).
-  - DOC-8: `tools/README.md` nennt die Env `esp32-2432S028R-core3` (gibt es nicht mehr, E-32) und `--password secret` (unter 8 Zeichen, abgelehnt); `web_mock.py`, `flasher_site.py`, `prefix_map.py` fehlen in der Tabelle.
-  - DOC-16/DOC-17: Host-Quellenliste in CLAUDE.md ohne `net/scan_list`, `web_limits`, `web_state`; Test- und Architekturübersicht im README ohne die Web-, REST- und WLAN-Module.
 
 ### 2.6 Sicherheit und Netz (Audit)
 
-- [ ] **Off state `High` aus der Ferne ohne Rückfrage** (SEC-V-1 = DOC-3): `OUTP:OFFS HIGH` und REST `offState:"high"` wirken sofort, auch bei `Remote out. local only`; A-52 verlangt eine Bestätigung. → AF1
-- [ ] **Web-`Off` speichert Zusatzfelder** (SEC-2): eine finale Änderung übernimmt auch Netze, Schlüssel, `ap.open`, Name und statische IP ohne Touch-Bestätigung (W-S12). → AF2
-- [ ] **Login über offenen AP** (SEC-3): `/api/login` prüft `checkSecrets()` nicht, gegen W-S1. **Rohe SSIDs im Log**, `SYST:LOG?` über TCP leert den USB-Puffer (SEC-6). → AF3
-- [ ] **Netz-SCPI ohne Anmeldung** (SEC-1 = DOC-1): TCP 5025 (und VXI-11 aus LX1) bleibt auch mit Web-Passwort voll schreibbar; Handbuch 762/1248 legt das Gegenteil nahe. → AF4 (nur Doku, D24)
 - [ ] **Flash-Verschleiß durch `SYST:SAVE`/`POST /api/save` aus der Ferne** (SEC-V-3): ≈ 10 NVS-Schreibvorgänge/s je Quelle ohne Anmeldung. → AF17
 - [ ] **WebSocket-Erschöpfung** (SEC-5, SEC-V-2, PERF-18): drei WebSockets mit dem öffentlichen Token sperren die Seite (503); PINGs füllen eine unbegrenzte Control-Queue; versteckte Tabs halten Slots. → AF18
 
@@ -320,16 +306,6 @@ Entwürfe zu größeren Audit-Befunden für offene Schritte in Phase 10. Entfern
   - `commitNet_` (AF15) ist der einzige Touch-Pfad.
 - **Folgen:** Handbuch §16 (Verhalten während einer offenen Web-Änderung), W-S12 und A-76 präzisieren, neue E-n. Host-Tests in `test_web_state`: Touch-Änderung im Fenster, Timeout, Bestätigung, Stromausfall = NVS-Inhalt. Bedientest mit und ohne Passwort.
 
-#### Konzept 3 · Dialog-Warteschlange mit Aktion je Dialog
-
-- **Problem:** Ein gemeinsames `pendingConfirm_` für mehrere modale Boxen. Die Entscheidung fällt nach dem Button-Label (CQ-1, CQ-15). Automatische Rückfragen (Rückfall-AP, Web-Netzänderung) können einen offenen manuellen Dialog überdecken.
-- **Optionen:**
-  - a) `user_data` je Box mit `Confirm`-Art und Generationszähler, Button-Index statt Label (minimal).
-  - b) Zusätzlich eine LVGL-freie `ConfirmQueue` (in `utils/message_queue.*` neben der vorhandenen Nachrichten-Queue): Einträge `{kind, payload, origin, priority}`, es ist immer nur ein Dialog offen, automatische Rückfragen warten. Eine dringende Rückfrage (z. B. der Countdown `WebNetwork`) darf einen manuellen Dialog ausdrücklich mit „Cancel“ schließen und danach erscheinen, aber nie dessen Antwort erben.
-  - c) Tabellengetriebene `ConfirmSpec` (Titel, Text, Buttons, sicherer Default) statt der if/else-Kette (CQ-3).
-- **Empfehlung:** a + b in AF6, c in AF49a. Eine Antwort gilt nur für die Generation, die sie geöffnet hat. `confirmOpenFallback()` wirkt nur, solange `needsOpenConfirmation` gilt.
-- **Folgen:** Host-Tests der Queue (Reihenfolge, Vorrang, veraltete Antwort verworfen, Überlauf). Im Handbuch einen Satz „Kommt während einer Rückfrage eine zweite, erscheint sie danach“. Bedientest.
-
 #### Konzept 4 · WLAN-Status zwischenspeichern und GUI-Neuzeichnen reduzieren
 
 - **Problem:** Je Iteration 3 synchrone Treiber- und lwIP-Aufrufe und ein Heap-`String` (PERF-1). Die GUI-Signatur enthält RSSI und Heap, `refresh_()` invalidiert alle Labels (PERF-2/3/16/17), Heap-Walks laufen unter Lock (PERF-4). Jede Neuzeichnung ist ein SPI-Burst neben dem SI5351.
@@ -399,8 +375,8 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 
 Stand: G1, G4–G9a, G11, G13 erledigt (Abschnitt 1.1), Workflows und Ruleset auf `main`; Pages (Quelle GitHub Actions) mit Umgebung `github-pages` (Regeln `main`, `v*`) sowie Secret Scanning und Push-Schutz sind eingerichtet.
 
-- [ ] **G2 · Webflasher am Gerät (Workflows liegen auf `main`).** Erstes Release-Tag (ein manueller Lauf deployt seit AF7 nicht mehr, D30); beide Boards über https://dm8sb.github.io/CYD-HF-Generator/ flashen; Update ohne Erase behält Touch-Abgleich, Korrektur und WLAN; Erstinstallation mit Erase startet mit dem Touch-Abgleich. Dann Handbuch DE/EN neuer Abschnitt „17. Firmware aktualisieren“ (Browser Chrome/Edge am Desktop, CH340-Treiber, `Connect` und Port, Erase nur bei der Erstinstallation, Update schreibt nur 0x1000/0x8000/0xE000/0x10000, BOOT halten bei Verbindungsproblemen, `SHA256SUMS` und `gh attestation verify`, esptool-Befehl); das README verlinkt die Seite bereits. Jeder `v*`-Tag deployt die Seite, auch Release-Kandidaten (D21); ab AF7 erst nach erfolgreichem Release. Der Tag des ersten Release-Kandidaten ist ein Tag ohne Release (DOC-18, OPS-20). Offen: Firefox-Unterstützung von Web Serial prüfen. *Commit:* `G2: Add web flasher on GitHub Pages` Der Release-Job (Upload, `attest-build-provenance`) läuft erstmals mit dem ersten Tag. Stand: Seite mit einem Release-Kandidaten live, Release-Job korrigiert (Download des einzelnen Build-Artefakts); offen ist das Flashen beider Boards über die Seite.
-- [ ] **G5 · Rest Repo-Einstellungen.** Erledigt: Ruleset „main“ (ID 26945350) per API, private Vulnerability Reports und Dependabot-Warnungen eingeschaltet, CodeQL-Default-Setup aus. Offen `[Nutzer]`: Topics speichern, Vorschaubild `docs/img/social-preview.png` hochladen; optional Renovate. Kein Commit nötig.
+- [ ] **G2 · Handbuchabschnitt „Firmware aktualisieren“.** Webflasher läuft (beide Boards erprobt, Releases 2.0.0-rc1 und 2.0.0 deployt). Offen: Handbuch DE/EN neuer Abschnitt (Chrome/Edge am Desktop, CH340-Treiber, `Connect` und Port, Erase nur bei der Erstinstallation, Update behält Touch-Abgleich, Korrektur und WLAN, BOOT halten bei Verbindungsproblemen, `SHA256SUMS` und `gh attestation verify`, esptool-Befehl); Firefox unterstützt Web Serial nicht. *Commit:* `G2: Describe the firmware update in the manual`
+- [ ] **G5 · Rest Repo-Einstellungen (`[Nutzer]`, kein Commit).** Topics speichern, Vorschaubild `docs/img/social-preview.png` hochladen; aus OPS-16 Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot` (AF28).
 - [ ] **G9 · Projektseite (Rest).** `[Nutzer]` Beschreibung, Website `https://dm8sb.github.io/CYD-HF-Generator/`, Topics, Vorschaubild 1280 × 640; CN1-Steckerraster (1,25 mm) und Pinfolge am Board bestätigen; Handbuch als Pages-Seite (nach G2). *Commit:* `G9b: Add manual page`
 - [ ] **G12 · Gehäuse am Gerät prüfen (`[Nutzer]`).** `case/CYD_Si5351_Gehaeuse.scad` (vom Nutzer; rendert fehlerfrei, außen 90,6 × 57 × 32,3 mm): Si5351-Modul nachmessen (`si_l`, `si_w`, `si_sma`, `sma_axis_off`), drucken, Passung von Display, USB-C, SMA, Rasthaken prüfen; danach Foto in G10 und ggf. STL-Export als Release-Asset. *Commit:* `G12: Adjust the case after the test print`
 - [ ] **G10 · Fotos (später, `[Nutzer]`).** Nach der Liste in `docs/hardware.md`: `board-cyd-front.jpg` und `board-cyd2usb-front.jpg` (MAIN-Seite, CH1 an), `si5351-wiring.jpg` (Modul mit den 4 Leitungen zu CN1 und CLK0–2), `cn1-connector.jpg` (Rückseite, Beschriftung lesbar), `setup-bench.jpg` (Aufbau mit Koax zum Messgerät), je ≤ 500 KB, kein WLAN-Name auf dem Display; ablegen unter `docs/img/`. Danach Platzhalter in `docs/hardware.md` aktivieren. Vorschaubild `social-preview.png` 1280 × 640 (< 1 MB) lädt der Nutzer unter Settings → General → Social preview hoch. Zwischenstand (G13): gerenderte Bilder in `docs/img/` stehen bis dahin in README, `docs/hardware.md`, `case/README.md` und Handbuch Anhang A, darunter eine gerenderte `social-preview.png` (liegt jetzt doch im Repo; durch eine Version mit Foto ersetzbar). *Commit:* `G10: Add hardware photos`
@@ -418,7 +394,6 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 
 ### Phase 9 – Folgearbeiten (je ein Commit, nach Messergebnis oder Rückfrage)
 
-- [x] **U27 · Einheitliche Bedienung nach Nutzer-Feedback: CONFIG in Registern (D46, E-42).** Fünf Register unten statt Scrollliste, je höchstens drei Zeilen; Bedienelemente unverändert; Register bleibt bis zum Ausschalten. Einheitliche Kopfzeile mit `◀` auf allen Seiten außer MAIN (E-43); `Saved`/`Saving...` am Gerät ausgeblendet (E-44). Handbuch §8 und Anhang A (ein Bild je Register), A-25, A-31, E-42 (ersetzt E-22), CLAUDE.md. Prüfung: Host-Tests, Build ohne Warnungen, `render_images.py screens`; Bedientest am Gerät (alle Register, Auswahllisten in Zeile 3 öffnen nach oben, NUMPAD der Korrektur und `Setup` kehren ins richtige Register zurück). *Commit:* `U27: Split CONFIG into tabs`
 - [ ] **N1 · Standard-Tuning** ändern, wenn die Stufe-2-Messungen es tragen (Rückfrage 1, E-19).
 - [ ] **N2 · IQ-Abstimmen ohne Aussetzer** (Abschnitt 2.1).
 - [ ] **N3 · Ungerade IQ-Teiler bei 180°/270°**, wenn E4 einen Fehler > 1° zeigt.
@@ -435,11 +410,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 
 ### Phase 10 – Audit-Folgearbeiten (je ein Commit)
 
-Jeder Schritt nennt Befund-IDs, Ort, Problem und Richtung selbst. „Konzept n“ = Abschnitt 3.9. Reihenfolge nach Priorität. Entschieden (D37, D38): **AF1–AF12 und AF55 vor S64 (Freigabe)**, AF13–AF19 im Release danach. AF5 und AF20 entfallen (D28, D24), AF29–AF31 sind erledigt (1.1). Aufwand: S < 2 h, M 2 h–1 d, L > 1 d. `[Nutzer]` = Einstellung, nur durch den Nutzer. Für UI-Änderungen gilt Regel 0.4 (Bedientest am Gerät vor dem Commit).
-
-#### Priorität 1 – Sicherheit, Sicherheitszusagen, Freigabe
-
-Erledigt (AF1–AF4, AF6–AF10; Bedientest AF6/AF8 bestanden, Details im Git-Verlauf).
+Jeder Schritt nennt Befund-IDs, Ort, Problem und Richtung selbst. „Konzept n“ = Abschnitt 3.9. Reihenfolge nach Priorität. AF1–AF10 und AF29–AF31 sind erledigt (1.1), AF5 und AF20 entfallen (D28, D24). Als Nächstes AF11, AF12 und AF55 (D37, D38), dann AF13–AF19. Aufwand: S < 2 h, M 2 h–1 d, L > 1 d. `[Nutzer]` = Einstellung, nur durch den Nutzer. Für UI-Änderungen gilt Regel 0.4 (Bedientest am Gerät vor dem Commit).
 
 #### Priorität 2 – Korrektheit und HF-Ruhe (vor S59/S60)
 
@@ -463,7 +434,7 @@ Erledigt (AF1–AF4, AF6–AF10; Bedientest AF6/AF8 bestanden, Details im Git-Ve
 - [ ] **AF25 · Reproduzierbare Stempel (S–M).** OPS-13. Heute meldet das Image eines Release-Kandidaten `<Version> | HEAD` (kein rc-Suffix, Branch `HEAD`, Lokalzeit ohne Zone; `tools/build_info.py`), die Tarballs sind nicht deterministisch. Version aus dem Tag (`GITHUB_REF_NAME`/`git describe`), Branch bei detached HEAD = Tag, Zeit aus `SOURCE_DATE_EPOCH` (Commit-Zeit, UTC); Tarballs sortiert, feste mtime, `gzip -n`. Handbuch (Info-Karte zeigt rc-Suffix), README. Prüfung: zwei Builds desselben Commits ergeben identische Tarballs; `build_info`-Check in der CI. *Commit:* `AF25: Stamp builds with the tag and commit time`
 - [ ] **AF26 · Advisory-Prüfung der Abhängigkeiten (M).** OPS-8, S-20, W-S24, N11. Workflow wöchentlich und vor Tags: gepinnte Versionen aus `platformio.ini`/`esp-web-tools.json` gegen GHSA/OSV der Upstream-Repos; Fund → Job rot und Summary. Prüfung: Testlauf mit einer bekannten alten Version. *Commit:* `AF26: Check pinned dependencies against advisories`
 - [ ] **AF27 · Werkzeug-Hygiene (S).** OPS-9, SEC-7, SEC-8. `flasher_site.py:509` und `web_check.py:154` mit `re.I` bzw. HTML-Parser, `tools/screens/main.cpp` mit eingeschränkten Rechten; `git rm --cached tools/__pycache__/…pyc`, `.gitignore` um `__pycache__/`, `*.pyc`, `.codegraph/`; `getpass` bzw. `CYD_WEB_PASSWORD` in `rest_example.py`/`web_check.py`. `[Nutzer]` Fehlalarme in GitHub begründet schließen. Prüfung: CodeQL-Lauf, `git status` sauber. *Commit:* `AF27: Fix tool CodeQL findings and ignore caches`
-- [ ] **AF28 · Repo-Einstellungen (`[Nutzer]`, kein Commit).** OPS-4 (Tag-Ruleset `refs/tags/v*`: Erstellen/Ändern/Löschen nur Admin, Immutable Releases), OPS-7 (`allowed_actions: selected`, `sha_pinning_required: true`), OPS-12 (`allowed_merge_methods: ["merge"]`), OPS-16 (Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe „all external contributors“, Wiki aus oder beschränkt, Environment `copilot` entfernen, Topics). Prüfung: API-Abfrage der Einstellungen. Stand: Tag-Ruleset und Immutable Releases (D29), OPS-7, OPS-12 und Wiki aus (D41) gesetzt; offen aus OPS-16: Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot`, Topics.
+- [ ] **AF28 · Rest Repo-Einstellungen (`[Nutzer]`, kein Commit).** Siehe G5; Tag-Ruleset, Immutable Releases, Actions-Policy, Merge-Methode und Wiki sind gesetzt (D29, D41).
 
 #### Priorität 4 – Tests
 
