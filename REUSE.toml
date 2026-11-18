@@ -12,6 +12,7 @@ path = [
     ".github/**",
     "docs/**",
     "flasher/*.json",
+    "tools/*.json",
     "test/fuzz/*.dict",
     "test/fuzz/corpus/**",
     ".editorconfig",

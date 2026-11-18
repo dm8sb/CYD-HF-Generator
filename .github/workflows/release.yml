@@ -27,6 +27,7 @@ on:
       - tools/flasher_site.py
       - tools/dep_check.py
       - tools/requirements-ci.txt
+      - tools/advisories_accepted.json
       - flasher/**
   pull_request:
     branches: [main]
@@ -243,9 +244,26 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
+  # AF26, D49: no release with an open advisory finding of a pinned dependency (the same check as
+  # the weekly advisories.yml). Dry runs report the result without failing.
+  advisories:
+    name: Advisory check
+    needs: [meta]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: ${{ github.ref_type != 'tag' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check pinned dependencies against advisories
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/dep_check.py advisories --summary "$GITHUB_STEP_SUMMARY"
+
   release:
     name: GitHub release
-    needs: [meta, build]
+    needs: [meta, build, advisories]
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

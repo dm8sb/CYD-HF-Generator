@@ -5,7 +5,7 @@
 # .github/workflows current (W-S24, audit S-20, S-27); it updates the SHA and the version
 # comment together. Also PlatformIO Core of the workflows with its hashes
 # (tools/requirements-ci.txt, AF22). PlatformIO's packages and libraries (platformio.ini) are not
-# supported by Dependabot.
+# supported by Dependabot; the weekly advisory check (advisories.yml, AF26) covers them.
 #
 # Dependabot reads this file only from the default branch (main). The pull requests go to
 # the development branch `dev`, where the workflows are changed; main gets them with the

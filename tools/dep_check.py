@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 DM8SB
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Pinned dependencies of the firmware (ARBEITSPLAN AF22): resolved packages against the pins.
+"""Pinned dependencies of the firmware and the flasher (ARBEITSPLAN AF22, AF26): pins and advisories.
 
 Python 3 standard library only. Used by .github/workflows/ci.yml and release.yml and locally:
 
@@ -16,12 +16,25 @@ toolchain the firmware is built with must be pinned there (not only through the 
 tilde ranges); and the versions THIRD_PARTY_NOTICES.md states (Arduino-ESP32, the ESP-IDF tag and
 commit of the precompiled libraries, the GCC runtime, the libraries) must match what the build
 uses. --summary appends the resolved list as Markdown (job summary, release notes).
+
+advisories (AF26, W-S24): the pinned versions against the published security advisories of
+their upstream repositories (GitHub repository advisories: the libraries of lib_deps, the version
+of git pins from their newest contained tag, Arduino-ESP32 and ESP-IDF as THIRD_PARTY_NOTICES.md
+names them, ESP Web Tools and esptool-js) and against OSV (the npm packages of
+flasher/esp-web-tools.json, the commits of the git pins). Advisories that do not apply are
+recorded with their reason in tools/advisories_accepted.json. A finding (affected, or a version
+range that cannot be read) fails; --issue-body writes the report for an issue. Token: GITHUB_TOKEN
+or GH_TOKEN. --override name=version checks another version instead (test with a known old one):
+
+  python tools/dep_check.py advisories --override ESPAsyncWebServer=3.11.0
 """
 import argparse
 import configparser
+import json
 import os
 import re
 import sys
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import flasher_site  # noqa: E402  (framework directory and ESP-IDF versions of a build)
@@ -183,6 +196,235 @@ def cmd_packages(args):
           % (len(pkgs), len(pinned)))
 
 
+# ---------------------------------------------------------------------------------------------
+# advisories (AF26)
+
+# GitHub repository of every registry library in lib_deps (a new library must be added here).
+LIB_REPOS = {
+    "TFT_eSPI": "Bodmer/TFT_eSPI",
+    "lvgl": "lvgl/lvgl",
+    "ArduinoJson": "bblanchon/ArduinoJson",
+    "AsyncTCP": "ESP32Async/AsyncTCP",
+    "ESPAsyncWebServer": "ESP32Async/ESPAsyncWebServer",
+}
+# npm packages of the flasher whose upstream repository also publishes GitHub advisories.
+NPM_REPOS = {"esp-web-tools": "esphome/esp-web-tools", "esptool-js": "espressif/esptool-js"}
+LOCK_FILE = os.path.join(ROOT, "flasher", "esp-web-tools.json")
+ACCEPTED_FILE = os.path.join(ROOT, "tools", "advisories_accepted.json")
+GITHUB_API = "https://api.github.com"
+OSV_API = "https://api.osv.dev/v1"
+VERSION_TOKEN = re.compile(r"^v?(\d+(?:\.\d+)*)(?:[-+.]?([0-9A-Za-z][0-9A-Za-z.-]*))?$")
+
+
+def _http_json(url, data=None, token=None):
+    headers = {"User-Agent": "cyd-dep-check", "Accept": "application/json"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+        headers["Accept"] = "application/vnd.github+json"
+    body = None
+    if data is not None:
+        body = json.dumps(data).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=body, headers=headers)
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def parse_version(text):
+    """'v5.5.5' -> ((5, 5, 5), ''), '4.0.0-alpha1' -> ((4, 0, 0), 'alpha1'); None if not a version."""
+    m = VERSION_TOKEN.match(text.strip())
+    if not m:
+        return None
+    nums = tuple(int(x) for x in m.group(1).split("."))
+    return nums, (m.group(2) or "")
+
+
+def _cmp(a, b):
+    """Compare two parsed versions; a pre-release sorts before its release."""
+    n = max(len(a[0]), len(b[0]))
+    x = a[0] + (0,) * (n - len(a[0]))
+    y = b[0] + (0,) * (n - len(b[0]))
+    if x != y:
+        return -1 if x < y else 1
+    if a[1] == b[1]:
+        return 0
+    if not a[1]:
+        return 1
+    if not b[1]:
+        return -1
+    return -1 if a[1] < b[1] else 1
+
+
+def _clean(text):
+    """Drop remarks like '(yet to be released)' and commit hashes in parentheses."""
+    return re.sub(r"\([^)]*\)", "", text or "").strip()
+
+
+def _terms(text):
+    """'>= 3.0, < 3.3.8' -> [('>=', v), ('<', v)]; None if a term is not a version comparison."""
+    out = []
+    for item in _clean(text).split(","):
+        item = item.strip()
+        if not item:
+            continue
+        m = re.match(r"^(<=|>=|<|>|=)?\s*(\S+)$", item)
+        v = parse_version(m.group(2)) if m else None
+        if v is None:
+            return None
+        out.append((m.group(1) or "", v))
+    return out or None
+
+
+def _holds(op, ours, v):
+    c = _cmp(ours, v)
+    return {"<": c < 0, "<=": c <= 0, ">": c > 0, ">=": c >= 0, "=": c == 0}[op]
+
+
+def affected(version, vulnerable, patched):
+    """True, False, or None if the free-text ranges of a repository advisory cannot be read.
+
+    Comparisons with a lower and an upper bound are a range ('>= 3.0, < 3.3.8'); other lists are
+    alternatives ('<=3.3.11, 4.0.0-alpha1'). A bare version ('v5.5.5', the ESP-IDF style) means that
+    release series up to this version: affected if major.minor are equal and ours is not newer. A
+    patched version of the same series that ours reaches clears the finding."""
+    ours = parse_version(version)
+    terms = _terms(vulnerable)
+    if ours is None or terms is None:
+        return None
+    ops = [op for op, _ in terms]
+    if len(terms) == 2 and any(o.startswith(">") for o in ops) and any(o.startswith("<") for o in ops):
+        hit = all(_holds(op, ours, v) for op, v in terms)
+    else:
+        hit = False
+        for op, v in terms:
+            if op:
+                hit = hit or _holds(op, ours, v)
+            else:
+                hit = hit or (ours[0][:2] == v[0][:2] and _cmp(ours, v) <= 0)
+    if hit and patched:
+        for op, v in _terms(patched) or []:
+            if op in ("", ">=", "=") and ours[0][:2] == v[0][:2] and _cmp(ours, v) >= 0:
+                return False
+    return hit
+
+
+def _tag_version(repo, commit, token):
+    """The newest tag the pinned commit contains (git describe over the API), for git pins."""
+    tags = _http_json("%s/repos/%s/tags?per_page=100" % (GITHUB_API, repo), token=token)
+    tags = [t for t in tags if parse_version(t["name"])]
+    tags.sort(key=lambda t: parse_version(t["name"])[0], reverse=True)
+    for t in tags:
+        cmp_ = _http_json("%s/repos/%s/compare/%s...%s" % (GITHUB_API, repo, t["commit"]["sha"], commit), token=token)
+        if cmp_.get("status") in ("identical", "ahead"):
+            return t["name"].lstrip("v")
+    return None
+
+
+def collect_pins(token):
+    """[(label, repo or None, version, commit)] of the firmware and [(name, version)] of the flasher."""
+    pins = []
+    for spec in ini_list("esp32", "lib_deps"):
+        m = re.match(r"^https://github\.com/([\w.-]+/[\w.-]+?)(?:\.git)?#([0-9a-f]{40})$", spec)
+        if m:
+            repo, commit = m.group(1), m.group(2)
+            pins.append((repo.split("/")[1], repo, _tag_version(repo, commit, token), commit))
+            continue
+        p = parse_spec(spec)
+        if not p or p[0] not in LIB_REPOS:
+            raise CheckError("lib_deps: no upstream repository known for %r (add it to LIB_REPOS)" % spec)
+        pins.append((p[0], LIB_REPOS[p[0]], p[1], None))
+    with open(NOTICES, encoding="utf-8") as f:
+        notes = notice_versions(f.read())
+    pins.append(("Arduino-ESP32", "espressif/arduino-esp32", notes["arduino"], None))
+    pins.append(("ESP-IDF", "espressif/esp-idf", notes["esp-idf"].split()[0].lstrip("v"), None))
+    lock = flasher_site.read_json(LOCK_FILE)
+    npm = {}
+    for url in [lock["base"]] + [n["url"] for n in lock.get("notices", {}).values()]:
+        m = re.match(r"^https://cdn\.jsdelivr\.net/npm/((?:@[\w.-]+/)?[\w.-]+)@([^/]+)/", url)
+        if m:
+            npm[m.group(1)] = m.group(2)
+    for name, repo in NPM_REPOS.items():
+        if name in npm:
+            pins.append((name, repo, npm[name], None))
+    return pins, sorted(npm.items())
+
+
+def cmd_advisories(args):
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    with open(ACCEPTED_FILE, encoding="utf-8") as f:
+        accepted = json.load(f)
+    pins, npm = collect_pins(token)
+    overrides = dict(o.split("=", 1) for o in args.override or [])
+    pins = [(l, r, overrides.get(l, v), c) for l, r, v, c in pins]
+    npm = [(n, overrides.get(n, v)) for n, v in npm]
+    findings, notes, seen = [], [], set()
+    for label, repo, version, commit in pins:
+        if version is None:
+            findings.append((label, version, "-", "no version for the pinned commit %s" % commit[:7], ""))
+            continue
+        for adv in _http_json("%s/repos/%s/security-advisories?state=published&per_page=100" % (GITHUB_API, repo), token=token):
+            if adv.get("withdrawn_at"):
+                continue
+            states = [affected(version, v.get("vulnerable_version_range"), v.get("patched_versions"))
+                      for v in adv.get("vulnerabilities") or []] or [None]
+            if True in states:
+                state = "affected"
+            elif None in states:
+                state = "range not readable"
+            else:
+                continue
+            gid = adv["ghsa_id"]
+            seen.add(gid)
+            if gid in accepted:
+                notes.append("%s %s (%s): accepted, %s" % (label, version, gid, accepted[gid]["reason"]))
+                continue
+            findings.append((label, version, gid, "%s: %s (%s)" % (state, adv.get("summary", ""), adv.get("severity", "?")),
+                             adv.get("html_url", "")))
+    # The flasher's npm packages and the git pins against OSV (it includes the GitHub advisories).
+    queries = [{"package": {"ecosystem": "npm", "name": n}, "version": v} for n, v in npm]
+    labels = ["%s %s" % (n, v) for n, v in npm]
+    for label, _, _, commit in pins:
+        if commit:
+            queries.append({"commit": commit})
+            labels.append("%s %s" % (label, commit[:7]))
+    res = _http_json(OSV_API + "/querybatch", {"queries": queries}).get("results", [])
+    for label, r in zip(labels, res):
+        for v in r.get("vulns") or []:
+            vid = v["id"]
+            seen.add(vid)
+            if vid in accepted:
+                notes.append("%s (%s): accepted, %s" % (label, vid, accepted[vid]["reason"]))
+                continue
+            name, _, version = label.rpartition(" ")
+            findings.append((name, version, vid, "affected (OSV)", "https://osv.dev/vulnerability/" + vid))
+    stale = sorted(set(accepted) - seen)
+    lines = ["### Dependency advisories", "",
+             "Checked %d pins (GitHub repository advisories) and %d npm packages plus %d git commits (OSV)."
+             % (len(pins), len(npm), sum(1 for p in pins if p[3])), ""]
+    if findings:
+        lines += ["| Dependency | Version | Advisory | Finding |", "|---|---|---|---|"]
+        lines += ["| %s | %s | %s | %s |" % (l, v, ("[%s](%s)" % (g, u)) if u else g, t.replace("|", "/"))
+                  for l, v, g, t, u in findings]
+        lines += ["", "Update the dependency, or record why the advisory does not apply in "
+                  "`tools/advisories_accepted.json`."]
+    else:
+        lines.append("No open finding.")
+    if notes:
+        lines += ["", "Accepted (`tools/advisories_accepted.json`):", ""] + ["- " + n for n in notes]
+    if stale:
+        lines += ["", "Accepted entries that no longer match (remove them): " + ", ".join(stale)]
+    text = "\n".join(lines) + "\n"
+    if args.summary:
+        with open(args.summary, "a", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+    sys.stdout.write(text)
+    if findings and args.issue_body:
+        with open(args.issue_body, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+    if findings:
+        raise CheckError("%d advisory finding(s)" % len(findings))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -192,12 +434,21 @@ def main():
     p.add_argument("--env", required=True)
     p.add_argument("--summary", help="append the Markdown table to this file instead of stdout")
     p.set_defaults(func=cmd_packages)
+    p = sub.add_parser("advisories", help="check the pinned versions against security advisories")
+    p.add_argument("--summary", help="append the Markdown report to this file (job summary)")
+    p.add_argument("--issue-body", help="write the report here when there is a finding")
+    p.add_argument("--override", action="append", metavar="NAME=VERSION",
+                   help="check this version instead of the pinned one (test), repeatable")
+    p.set_defaults(func=cmd_advisories)
     args = ap.parse_args()
     try:
         args.func(args)
     except CheckError as e:
         print("error: %s" % e, file=sys.stderr)
         return 1
+    except OSError as e:  # network: urllib errors are OSError
+        print("error: %s" % e, file=sys.stderr)
+        return 2
     return 0
 
 
