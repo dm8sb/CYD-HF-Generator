@@ -49,9 +49,12 @@ public:
     // the network settings (set by main). Without it the WiFi rows show Off.
     // Web network change without web password (W-S12, S55): needed() asks whether the touch
     // must confirm now, answer(true) keeps the new settings, answer(false) restores the old ones.
-    void setNetConfirm(bool (*needed)(), void (*answer)(bool keep)) {
+    // pendingS(): seconds an open web change still waits (0 = none, AF16): network settings are
+    // not changed at the touch screen meanwhile ("Web change pending" with Revert and Keep).
+    void setNetConfirm(bool (*needed)(), void (*answer)(bool keep), uint16_t (*pendingS)()) {
         netConfirmNeeded_ = needed;
         netConfirmAnswer_ = answer;
+        netPendingS_ = pendingS;
     }
     void setWifi(WifiManager& wifi, bool (*save)(const NetSettings&)) {
         wifi_ = &wifi;
@@ -197,7 +200,10 @@ private:
     // applies it (Restart: the WiFi restarts; Ap: only the access point; WebPassword: nothing
     // restarts, the web server ends its sessions) and wipes s (keys and passwords).
     enum class NetApply : uint8_t { Restart, Ap, WebPassword };
+    // Refused while a web change is open (AF16): asks "Web change pending" and returns false.
     bool commitNet_(NetSettings& s, NetApply how);
+    // A web network change is open: shows "Web change pending" (Revert / Keep) and returns true.
+    bool netChangeBlocked_();
     void createWifiAp_();
     void refreshWifiAp_();
     // Stores AP password / open flag (saved, running AP restarts).
@@ -285,7 +291,8 @@ private:
         ApOpen,
         OpenFallback,
         WebNetwork,
-        RemoveWebPassword
+        RemoveWebPassword,
+        WebPending
     };
     // Queues the question (ConfirmQueue: one open, the rest waits) and shows it when it is its
     // turn; payload: the network slot for DeleteNetwork.
@@ -332,6 +339,8 @@ private:
     bool (*netConfirmNeeded_)() = nullptr;
     void (*netConfirmAnswer_)(bool keep) = nullptr;
     bool netConfirmAsked_ = false;   // W-S12 question shown for the current web change
+    uint16_t (*netPendingS_)() = nullptr;
+    bool netPendingAsked_ = false;   // AF16 hint shown for the current web change (with web password)
     bool (*webPwStart_)(const char*, size_t) = nullptr;
     WebPasswordJob::Poll (*webPwPoll_)(char*) = nullptr;
     bool webPwHashing_ = false;      // the device page shows "Saving..."

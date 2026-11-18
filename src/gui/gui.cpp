@@ -395,6 +395,18 @@ void Gui::update() {
         if (netConfirmAsked_) dropConfirm_(Confirm::WebNetwork);
         netConfirmAsked_ = false;
     }
+    // AF16: with a web password the touch need not confirm, but the device shows the open change
+    // with Revert (concept 2). The question also comes when a touch change is refused.
+    const bool pending = netPendingS_ && netPendingS_() > 0;
+    if (pending && wifi_ && NetConfig::webPasswordSet(wifi_->settings())) {
+        if (!netPendingAsked_ && currentPage_ != PageId::TouchCal) {
+            netPendingAsked_ = true;
+            confirm_(Confirm::WebPending);
+        }
+    } else if (!pending) {
+        if (netPendingAsked_) netPendingAsked_ = false;
+        dropConfirm_(Confirm::WebPending); // no-op when it is not queued
+    }
     pollWebPassword_();
     if (app_->identifying()) {
         if (!ledIdentify_ || app_->identifyLit() != ledLit_) {
@@ -765,6 +777,12 @@ void Gui::showConfirm_() {
         text = "The network settings were changed from the web. Keep them? Without Keep here and "
                "Confirm in the browser, the previous settings return after 120 s.";
         buttons = keepButtons;
+    } else if (what == Confirm::WebPending) {
+        title = "Web change pending";
+        text = "Network settings were changed from the web and wait for Confirm in the browser "
+               "(at most 120 s). Settings here can be changed after that. Revert restores the "
+               "previous settings now.";
+        buttons = keepButtons;
     } else if (what == Confirm::RemoveWebPassword) {
         title = "Remove web password";
         text = "Everyone who can reach the device over the network can then operate it in the "
@@ -817,7 +835,7 @@ void Gui::confirmEventCb_(lv_event_t* e) {
         Logger::info("GUI", "Web password removed");
         g->requestNavigate_(PageId::WifiDevice);
     }
-    if (what == Confirm::WebNetwork && g->netConfirmAnswer_) g->netConfirmAnswer_(yes);
+    if ((what == Confirm::WebNetwork || what == Confirm::WebPending) && g->netConfirmAnswer_) g->netConfirmAnswer_(yes);
     if (yes && what == Confirm::OpenNetwork && g->storeNetwork_(g->entrySsid_, "")) {
         g->requestNavigate_(PageId::Wifi);
     }

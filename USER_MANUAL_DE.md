@@ -725,7 +725,7 @@ Oben links führt `◀` zurück zu CONFIG. Darunter stehen die beiden Netzplätz
 
 Die Tastatur hat Buchstaben, Ziffern und Sonderzeichen, aber keine Umlaute, `ß` und `€`. Netznamen werden bereinigt angezeigt (Steuerzeichen und ungültige Zeichen als `?`). Ein gespeichertes Passwort wird nie wieder angezeigt.
 
-Unten zeigt eine Zeile, was das WLAN gerade tut: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, grün `Connected <Netz>` mit Adresse und `<Gerätename>.local`, rot `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <Name> active`, `Access point <Name> active`, `No network stored. Tap Change.`
+Unten zeigt eine Zeile, was das WLAN gerade tut: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, grün `Connected <Netz>` mit Adresse und `<Gerätename>.local`, rot `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <Name> active`, `Access point <Name> active`, `No network stored. Tap Change.`, orange `Web change pending (<Sekunden> s)` (eine Änderung aus dem Browser wartet auf die Bestätigung, Abschnitt 16)
 
 Nach einem Speichern startet das WLAN mit den neuen Daten neu. Sind beide Plätze belegt, verbindet sich das Gerät mit dem stärkeren Netz; scheitert es dort (z. B. falsches Passwort), versucht es beim nächsten Mal das andere.
 
@@ -1118,6 +1118,7 @@ Wichtige Meldungen:
 | `[WEB] Server stopped (WiFi off)` | WLAN `Off`: der Webserver nimmt nichts mehr an, offene Seiten werden getrennt |
 | `[WEB] Network change from the web; confirm within 120 s` / `Network change from the web: WiFi off` | Netzänderung aus dem Browser angenommen; sie wird gleich angewendet (`WiFi off`: endgültig, Abschnitt 16) |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Netzänderung aus dem Browser (Abschnitt 16) |
+| `[GUI] Network change refused: web change pending` | Eine Netzeinstellung am Gerät wurde abgelehnt, weil eine Änderung aus dem Browser auf die Bestätigung wartet (Abschnitt 16) |
 | `[WEB] WebSocket closed: no pong` | Browser antwortet nicht mehr |
 | `[APP] Remote outputs: allowed` / `Remote outputs: local only` | CONFIG `Remote out.` geändert (sofort gespeichert) |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
@@ -1402,6 +1403,12 @@ Betriebsart, Gerätename, Netze, statische IP und Access Point lassen sich auch 
 2. Die Seite unter der neuen Adresse öffnen und dort `Confirm` drücken.
 3. Ohne Web-Passwort fragt zusätzlich das Gerät `Network change` (`Revert`/`Keep`); erst `Keep` am Gerät und `Confirm` im Browser zusammen behalten die Änderung.
 4. Ohne Bestätigung innerhalb von 120 s oder mit `Revert` kehren die vorherigen Einstellungen zurück.
+
+Solange eine Änderung aus dem Browser auf die Bestätigung wartet, gehören die Netzeinstellungen ihr allein:
+
+- Gespeichert wird erst der bestätigte Stand. Fällt in dieser Zeit der Strom aus, gelten nach dem Einschalten die vorherigen Einstellungen. Auch ein in dieser Zeit erzeugtes Access-Point-Passwort wird erst mit der Bestätigung gespeichert.
+- Am Gerät lassen sich Netzeinstellungen (Betriebsart, Netze, Access Point, Gerätename, IP, Web-Passwort) dann nicht ändern. Jeder Versuch öffnet die Frage `Web change pending` mit `Revert` (die vorherigen Einstellungen sofort zurück) und `Keep` (die Änderung bleibt offen; ohne Web-Passwort zählt `Keep` als Bestätigung am Gerät wie bei `Network change`). Die Statuszeile der Seite WIFI zeigt orange `Web change pending (<Sekunden> s)`.
+- Mit Web-Passwort muss das Gerät nicht bestätigen, zeigt die offene Änderung aber trotzdem mit derselben Frage an, damit sie sich am Gerät mit `Revert` zurücknehmen lässt.
 
 `Off` aus dem Browser gilt sofort und ohne Bestätigung (über eine neue Verbindung ließe sie sich nicht bestätigen); einschalten lässt sich das WLAN danach nur am Gerät. `Off` übernimmt nur die Betriebsart: Wer zugleich Netze, Gerätenamen, statische IP oder Access Point ändert, bekommt `WiFi off takes no other changes: apply them first` und es ändert sich nichts. Solche Änderungen erst mit `Apply` übernehmen und bestätigen, danach `Off` wählen (REST: `{"mode":"off"}` allein, sonst `-108,Parameter not allowed`). Passwortfelder sind über einen offenen Access Point gesperrt.
 

@@ -974,9 +974,9 @@ struct WebHmiServer::Impl {
                 Logger::info("WEB", "Network change confirmed");
                 break;
             case NetChange::Action::Revert:
+                // Nothing was saved while the change was open (AF16): NVS still has these.
                 Logger::info("WEB", "Network change not confirmed: previous settings restored");
                 wifi.apply(netChange.previous());
-                if (save && !save(netChange.previous())) Logger::error("WEB", "Saving the network settings failed");
                 break;
         }
     }
@@ -1169,6 +1169,8 @@ void WebHmiServer::loop() {
 }
 
 bool WebHmiServer::touchConfirmNeeded() const { return impl_ && impl_->netChange.waitingForTouch(); }
+
+uint16_t WebHmiServer::netChangePendingS() const { return impl_ ? impl_->netChange.pendingS(millis()) : 0; }
 
 void WebHmiServer::touchConfirm(bool keep) {
     if (impl_) impl_->netChange.confirmTouch(keep);

@@ -87,6 +87,7 @@ static void show(PageId page, const char* name) {
 
 static bool netConfirmNeeded() { return gNetConfirm; }
 static void netConfirmAnswer(bool) { gNetConfirm = false; }
+static uint16_t netPendingS() { return 0; }
 static uint8_t webClients() { return 1; }
 static uint32_t scpiClient() { return ip4(192, 168, 1, 20); }
 static void disconnectAll() {}
@@ -146,7 +147,7 @@ int main(int argc, char** argv) {
     gGui = &gui;
     gui.begin(app, touch, display);
     gui.setWifi(wifi, nullptr);
-    gui.setNetConfirm(netConfirmNeeded, netConfirmAnswer);
+    gui.setNetConfirm(netConfirmNeeded, netConfirmAnswer, netPendingS);
     gui.setRemoteClients(webClients, scpiClient, disconnectAll);
     app.addListener(Gui::onAppEvent, &gui);
 

@@ -58,6 +58,13 @@ static uint32_t publishedRemoteMs = 0;
 // Web server (S55) on the heap (E-31); it starts when WiFi first comes up.
 static WebHmiServer* web = nullptr;
 static bool webConfirmNeeded() { return web && web->touchConfirmNeeded(); }
+static uint16_t webChangePendingS() { return web ? web->netChangePendingS() : 0; }
+// Saves of the WiFi manager itself (AP password created): not while a web change is open, only
+// a confirmed state reaches NVS (AF16); the confirmation saves the manager's settings with it.
+static bool saveNetFromManager(const NetSettings& s) {
+    if (webChangePendingS()) return true;
+    return saveNetSettings(s);
+}
 static void webConfirmAnswer(bool keep) {
     if (web) web->touchConfirm(keep);
 }
@@ -195,7 +202,7 @@ void setup() {
     app.begin(loadedState);
     netStorage.begin(NetConfig::NAMESPACE);
     NetConfig::load(netStorage, netSettings, macBytes);
-    WifiManager::SaveFn saveNet = saveNetSettings;
+    WifiManager::SaveFn saveNet = saveNetFromManager;
 #ifdef TEST_WIFI_SSID
     // Test credentials only in RAM; nothing of it is saved.
     NetConfig::setNetwork(netSettings, 0, TEST_WIFI_SSID, TEST_WIFI_PASS);
@@ -218,7 +225,8 @@ void setup() {
     }
 #endif
     wifi.begin(netSettings, macBytes, saveNet);
-    web = new (std::nothrow) WebHmiServer(commands, snapshot, wifi, saveNet);
+    // The web server saves confirmed changes itself (not through the manager's gate).
+    web = new (std::nothrow) WebHmiServer(commands, snapshot, wifi, saveNet ? saveNetSettings : nullptr);
     if (!web) Logger::error("BOOT", "No memory for the web server");
     else web->setSerial(mac);
     webPassword = new (std::nothrow) WebPasswordWorker();
@@ -248,7 +256,7 @@ void setup() {
     gui.setTouchCalibrationStore(saveTouchCalibration);
     gui.setFactoryReset(factoryReset);
     gui.setWifi(wifi, saveNetSettings);
-    gui.setNetConfirm(webConfirmNeeded, webConfirmAnswer);
+    gui.setNetConfirm(webConfirmNeeded, webConfirmAnswer, webChangePendingS);
     gui.setWebPassword(startWebPassword, pollWebPassword);
     gui.setRemoteClients(webClients, scpiClient, disconnectRemote);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.

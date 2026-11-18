@@ -230,6 +230,10 @@ StatusView Gui::statusView_() {
             v.staIp = w.staIp;
             v.scanState = (uint8_t)wifi_->scanState();
             v.scanCount = wifi_->scanList().count();
+            if (netPendingS_) {
+                const uint16_t p = netPendingS_();
+                v.netPendingS = (uint8_t)(p > 255 ? 255 : p);
+            }
             break;
         default: break;
     }

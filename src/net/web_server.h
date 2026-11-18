@@ -32,9 +32,13 @@ public:
     WebHmiServer(CommandQueue& commands, StateSnapshot& snapshot, WifiManager& wifi, bool (*save)(const NetSettings&));
     // In loop() after the snapshot was published and CommandQueue::markVisible().
     void loop();
-    // Touch confirmation of a web network change without web password (W-S12), for the GUI.
+    // Touch confirmation of a web network change without web password (W-S12), for the GUI;
+    // touchConfirm(false) reverts the change also with a web password (AF16).
     bool touchConfirmNeeded() const;
     void touchConfirm(bool keep);
+    // Seconds an open web network change still waits, 0 = none (AF16: the touch screen does not
+    // change network settings meanwhile, the WiFi manager does not save).
+    uint16_t netChangePendingS() const;
     // Serial number of the LXI identification (GET /lxi/identification, A-78): the *IDN? one.
     void setSerial(const char* serial);
     // WebSocket clients now (info card).

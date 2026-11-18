@@ -47,6 +47,7 @@ static void test_every_field_counts() {
     v = base; v.heapStep = 1; TEST_ASSERT_TRUE(v != base);
     v = base; v.webClients = 1; TEST_ASSERT_TRUE(v != base);
     v = base; v.scpiClient = 1; TEST_ASSERT_TRUE(v != base);
+    v = base; v.netPendingS = 1; TEST_ASSERT_TRUE(v != base);
 }
 
 // The old XOR hash: staIp * 2654435761 ^ (rssi/5 << 9) could cancel out; field-wise it cannot.

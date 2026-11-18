@@ -725,7 +725,7 @@ Networks, passwords and the access point data are set up on the WIFI page (butto
 
 The keyboard has letters, digits and special characters, but no umlauts, `ß` and `€`. Network names are shown cleaned (control and invalid characters as `?`). A stored password is never shown again.
 
-A line at the bottom shows what the WiFi does: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, green `Connected <network>` with address and `<device name>.local`, red `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <name> active`, `Access point <name> active`, `No network stored. Tap Change.`
+A line at the bottom shows what the WiFi does: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, green `Connected <network>` with address and `<device name>.local`, red `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <name> active`, `Access point <name> active`, `No network stored. Tap Change.`, orange `Web change pending (<seconds> s)` (a change from the browser waits for its confirmation, section 16)
 
 After saving, the WiFi restarts with the new data. With both slots used the device connects to the stronger network; if that fails (e.g. wrong password) it tries the other one next time.
 
@@ -1118,6 +1118,7 @@ Important messages:
 | `[WEB] Server stopped (WiFi off)` | WiFi `Off`: the web server accepts nothing more, open pages are disconnected |
 | `[WEB] Network change from the web; confirm within 120 s` / `Network change from the web: WiFi off` | Network change from the browser accepted; it is applied shortly (`WiFi off`: final, section 16) |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Network change from the browser (section 16) |
+| `[GUI] Network change refused: web change pending` | A network setting at the device was refused because a change from the browser waits for its confirmation (section 16) |
 | `[WEB] WebSocket closed: no pong` | Browser no longer answers |
 | `[APP] Remote outputs: allowed` / `Remote outputs: local only` | CONFIG `Remote out.` changed (saved at once) |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
@@ -1402,6 +1403,12 @@ Mode, device name, networks, static IP and access point can also be changed in t
 2. Open the page at the new address and press `Confirm` there.
 3. Without a web password the device asks `Network change` (`Revert`/`Keep`) as well; only `Keep` at the device and `Confirm` in the browser together keep the change.
 4. Without confirmation within 120 s or with `Revert` the previous settings return.
+
+While a change from the browser waits for its confirmation, the network settings belong to it alone:
+
+- Only the confirmed state is saved. If the power fails meanwhile, the previous settings apply after switching on. An access point password created meanwhile is also saved only with the confirmation.
+- At the device the network settings (mode, networks, access point, device name, IP, web password) cannot be changed then. Every attempt opens the question `Web change pending` with `Revert` (the previous settings return at once) and `Keep` (the change stays open; without a web password `Keep` counts as the confirmation at the device as with `Network change`). The status line of the WIFI page shows `Web change pending (<seconds> s)` in orange.
+- With a web password the device need not confirm, but it still shows the open change with the same question, so that it can be taken back at the device with `Revert`.
 
 `Off` from the browser applies at once and without confirmation (it could not be confirmed over a new connection); the WiFi can then only be switched on at the device. `Off` takes only the mode: changing networks, device name, static IP or access point at the same time gives `WiFi off takes no other changes: apply them first` and nothing changes. Apply such changes first with `Apply` and confirm them, then choose `Off` (REST: `{"mode":"off"}` alone, otherwise `-108,Parameter not allowed`). Password fields are blocked over an open access point.
 

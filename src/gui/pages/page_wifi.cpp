@@ -90,7 +90,12 @@ void Gui::refreshWifi_() {
     // Feedback (ARBEITSPLAN 3.4): what the WiFi does now and why the last attempt failed.
     const WifiManager::Status& w = wifi_->status();
     lv_color_t color = Colors::muted();
-    if (s.mode == WifiMode::Off) {
+    const uint16_t pendingS = netPendingS_ ? netPendingS_() : 0;
+    if (pendingS) {
+        // AF16: the settings shown are the web change; they stay only when confirmed.
+        snprintf(buf, sizeof(buf), "Web change pending (%u s)\nConfirm in the browser", (unsigned)pendingS);
+        color = Colors::warn();
+    } else if (s.mode == WifiMode::Off) {
         snprintf(buf, sizeof(buf), "WiFi is Off. Choose Client in CONFIG > WiFi.");
     } else if (w.staConnected) {
         char ssid[33];
@@ -384,6 +389,7 @@ void Gui::handleWifiAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                     snprintf(entryError_, sizeof(entryError_), "8-64 characters");
                     break;
                 }
+                if (netChangeBlocked_()) break; // before the hash: the password stays in the field
                 // Hashed by a worker (~1.3 s); the device page shows "Saving..." until then.
                 if (webPwHashing_ || !webPwStart_ || !webPwStart_(text, len)) {
                     snprintf(entryError_, sizeof(entryError_), "Busy, try again");
@@ -555,8 +561,9 @@ void Gui::createWifiAp_() {
     w_.apOpenBtn = addButton_(root_, "", MARGIN + 182, AP_BTN_Y, CONTENT_W - 182, AP_BTN_H, Colors::gray(),
                               Action::ApOpenToggle);
     w_.apState = addLabel_(root_, "", &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, AP_BTN_Y + AP_BTN_H + 2);
-    // A password exists from the first visit on, so the QR code always works (W-E3).
-    if (wifi_ && !NetConfig::validPassphrase(wifi_->settings().apPassword)) {
+    // A password exists from the first visit on, so the QR code always works (W-E3); not while a
+    // web change is open (AF16: it would be refused).
+    if (wifi_ && !NetConfig::validPassphrase(wifi_->settings().apPassword) && !(netPendingS_ && netPendingS_())) {
         char pw[NetConfig::AP_PASSWORD_LEN + 1];
         wifi_->newApPassword(pw);
         storeAp_(pw, wifi_->settings().apOpen);
@@ -643,8 +650,16 @@ void Gui::pollWebPassword_() {
     refresh_();
 }
 
+bool Gui::netChangeBlocked_() {
+    if (!netPendingS_ || netPendingS_() == 0) return false;
+    Logger::info("GUI", "Network change refused: web change pending");
+    confirm_(Confirm::WebPending);
+    return true;
+}
+
 bool Gui::commitNet_(NetSettings& s, NetApply how) {
-    if (!wifi_) {
+    // One owner (AF16): while a web change waits, only the web change itself is saved.
+    if (!wifi_ || netChangeBlocked_()) {
         memset(&s, 0, sizeof(s));
         return false;
     }

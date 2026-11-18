@@ -316,7 +316,7 @@ Only when a web password is set at the device:
 | `GET /lxi/identification` | – | LXI identification XML |
 | WebSocket `/ws?t=<token>` | – | state on connect and on every change (push only, at most 3 clients) |
 
-**Network changes** (`POST /api/wifi`) only stay after a confirmation, so nobody locks themselves out: the WiFi restarts with the new data, then `POST /api/wifi/confirm` must arrive within 120 s at the new address; without a web password the touch screen asks `Network change` as well (`Keep`). Otherwise the previous settings return. `slot` is 0 or 1 (network 1 and 2); `password` is `""` (open network), 8–63 characters or 64 hex digits; passwords are write-only. `{"mode":"off"}` applies at once without confirmation and must come alone (any other key → 400 `-108`); WiFi can then only be switched on at the device.
+**Network changes** (`POST /api/wifi`) only stay after a confirmation, so nobody locks themselves out: the WiFi restarts with the new data, then `POST /api/wifi/confirm` must arrive within 120 s at the new address; without a web password the touch screen asks `Network change` as well (`Keep`). Otherwise the previous settings return. Only the confirmed state is saved (a power loss meanwhile brings back the previous settings), and while the change is open the touch screen changes no network settings; it offers `Revert` (`Web change pending`), also with a web password. `slot` is 0 or 1 (network 1 and 2); `password` is `""` (open network), 8–63 characters or 64 hex digits; passwords are write-only. `{"mode":"off"}` applies at once without confirmation and must come alone (any other key → 400 `-108`); WiFi can then only be switched on at the device.
 
 ### 4.5 Errors
 

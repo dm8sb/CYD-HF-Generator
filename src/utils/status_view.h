@@ -28,6 +28,7 @@ struct StatusView {
     uint32_t heapStep;     // free heap in HEAP_STEP_BYTES, CONFIG info tab only
     uint8_t webClients;
     uint32_t scpiClient;
+    uint8_t netPendingS;   // WIFI pages: a web network change waits (seconds, capped; AF16)
 
     bool operator==(const StatusView& o) const {
         return remote == o.remote && wifiMode == o.wifiMode && staConnected == o.staConnected &&
@@ -35,7 +36,8 @@ struct StatusView {
                needsOpenConfirmation == o.needsOpenConfirmation && connecting == o.connecting &&
                apStations == o.apStations && lastFailure == o.lastFailure && scanState == o.scanState &&
                scanCount == o.scanCount && rssi == o.rssi && staIp == o.staIp && heapStep == o.heapStep &&
-               webClients == o.webClients && scpiClient == o.scpiClient;
+               webClients == o.webClients && scpiClient == o.scpiClient &&
+               netPendingS == o.netPendingS;
     }
     bool operator!=(const StatusView& o) const { return !(*this == o); }
 };

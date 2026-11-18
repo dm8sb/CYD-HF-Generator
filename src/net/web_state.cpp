@@ -78,11 +78,16 @@ NetChange::Confirm NetChange::confirmWeb() {
 }
 
 void NetChange::confirmTouch(bool keep) {
-    if (state_ != State::Waiting || pendingEnd_ != Action::None || !needsTouch_) return;
+    if (!keep && state_ == State::Scheduled) {
+        end_(); // not applied yet: nothing to restore
+        return;
+    }
+    if (state_ != State::Waiting || pendingEnd_ != Action::None) return;
     if (!keep) {
         pendingEnd_ = Action::Revert;
         return;
     }
+    if (!needsTouch_) return;
     touchConfirmed_ = true;
     if (webConfirmed_) pendingEnd_ = Action::Save;
 }
@@ -105,6 +110,12 @@ uint16_t NetChange::confirmWithinS(uint32_t nowMs) const {
     }
     const uint32_t s = (left + 999) / 1000;
     return (uint16_t)(s == 0 ? 1 : s); // 1 until update() reverts
+}
+
+uint16_t NetChange::pendingS(uint32_t nowMs) const {
+    if (!busy()) return 0;
+    const uint16_t s = confirmWithinS(nowMs);
+    return s ? s : 1;
 }
 
 // ---------------------------------------------------------------------------

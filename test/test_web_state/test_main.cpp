@@ -113,13 +113,88 @@ static void test_change_without_password_needs_the_touch() {
         TEST_ASSERT_EQUAL(NetChange::Action::Revert, c.update(1000));
     }
     {
-        // With a password the touch has no say.
+        // With a password the touch need not confirm, Keep changes nothing, but Revert works
+        // (AF16, concept 2: the device shows a hint with Revert).
         NetChange c;
         c.request(a, b, false, false, 0);
         c.update(NetChange::APPLY_DELAY_MS);
-        c.confirmTouch(false);
+        c.confirmTouch(true);
         TEST_ASSERT_EQUAL(NetChange::Action::None, c.update(1000));
+        TEST_ASSERT_TRUE(c.busy());
+        c.confirmTouch(false);
+        TEST_ASSERT_EQUAL(NetChange::Action::Revert, c.update(1100));
     }
+}
+
+// --- AF16: one owner of the network settings (concept 2) ----------------------------------
+
+// While a web change is open the touch screen may not change the network settings ("Web change
+// pending"); afterwards it may again.
+static void test_touch_change_refused_while_pending() {
+    const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::Client, "new");
+    NetChange c;
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+    c.request(a, b, false, false, 0);
+    TEST_ASSERT_FALSE(c.acceptsTouchChange()); // scheduled
+    TEST_ASSERT_EQUAL_UINT16(121, c.pendingS(0));
+    c.update(NetChange::APPLY_DELAY_MS);
+    TEST_ASSERT_FALSE(c.acceptsTouchChange()); // waiting for the confirmation
+    TEST_ASSERT_EQUAL(NetChange::Confirm::Committed, c.confirmWeb());
+    TEST_ASSERT_FALSE(c.acceptsTouchChange()); // until the save is done
+    TEST_ASSERT_TRUE(c.pendingS(1000) >= 1);
+    TEST_ASSERT_EQUAL(NetChange::Action::Save, c.update(1000));
+    c.update(1001);
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+    TEST_ASSERT_EQUAL_UINT16(0, c.pendingS(1001));
+    // After a timeout as well.
+    c.request(a, b, false, false, 2000);
+    c.update(2000 + NetChange::APPLY_DELAY_MS);
+    TEST_ASSERT_EQUAL(NetChange::Action::Revert, c.update(2000 + NetChange::APPLY_DELAY_MS + NetChange::CONFIRM_MS));
+    c.update(2000 + NetChange::APPLY_DELAY_MS + NetChange::CONFIRM_MS + 1);
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+}
+
+// Revert at the touch before the change was even applied: nothing is applied, nothing saved.
+static void test_touch_revert_before_apply() {
+    const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::Client, "new");
+    NetChange c;
+    c.request(a, b, false, false, 0);
+    c.confirmTouch(false);
+    TEST_ASSERT_FALSE(c.busy());
+    TEST_ASSERT_EQUAL(NetChange::Action::None, c.update(NetChange::APPLY_DELAY_MS));
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+}
+
+// The NVS model: only a confirmed state is ever saved (W-S12). A power loss at any moment of
+// the window finds the previous settings; the manager's own saves (AP password) wait.
+static void test_power_loss_finds_the_previous_settings() {
+    const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::AccessPoint, "new");
+    for (int ending = 0; ending < 3; ++ending) { // 0 timeout, 1 touch revert, 2 web confirm
+        NetSettings nvs = a;
+        NetChange c;
+        c.request(a, b, false, false, 0);
+        uint32_t t = 0;
+        bool sawApply = false;
+        while (t <= NetChange::APPLY_DELAY_MS + NetChange::CONFIRM_MS + 300) {
+            if (t == 5000) {
+                TEST_ASSERT_FALSE(c.managerMaySave()); // an AP password created now is not saved yet
+                if (ending == 1) c.confirmTouch(false);
+                if (ending == 2) TEST_ASSERT_EQUAL(NetChange::Confirm::Committed, c.confirmWeb());
+            }
+            const NetChange::Action act = c.update(t);
+            if (act == NetChange::Action::Apply) sawApply = true;
+            if (NetChange::saves(act)) nvs = c.next();
+            // "Power loss" here: NVS holds the previous settings until the confirmation.
+            if (ending != 2 || t < 5000) TEST_ASSERT_EQUAL_STRING("old", nvs.deviceName);
+            t += 100;
+        }
+        TEST_ASSERT_TRUE(sawApply);
+        TEST_ASSERT_TRUE(c.managerMaySave());
+        TEST_ASSERT_EQUAL_STRING(ending == 2 ? "new" : "old", nvs.deviceName);
+    }
+    TEST_ASSERT_FALSE(NetChange::saves(NetChange::Action::Revert)); // NVS still has prev
+    TEST_ASSERT_FALSE(NetChange::saves(NetChange::Action::Apply));
+    TEST_ASSERT_TRUE(NetChange::saves(NetChange::Action::ApplyAndSave));
 }
 
 // Mode Off over the web (ARBEITSPLAN 3.6 point 2): final, applied and saved, nothing to confirm.
@@ -424,6 +499,9 @@ int main(int, char**) {
     RUN_TEST(test_change_confirmed_over_the_web);
     RUN_TEST(test_change_without_password_needs_the_touch);
     RUN_TEST(test_final_change);
+    RUN_TEST(test_touch_change_refused_while_pending);
+    RUN_TEST(test_touch_revert_before_apply);
+    RUN_TEST(test_power_loss_finds_the_previous_settings);
     RUN_TEST(test_change_across_the_millis_wrap);
     RUN_TEST(test_scan_semantics);
     RUN_TEST(test_login_queue);
