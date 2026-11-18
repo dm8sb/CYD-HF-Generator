@@ -75,6 +75,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - REST and WebSocket state: new `limits` (frequency range and step list of the firmware); the web UI takes its range checks and step buttons from it, the mock and the fake SCPI device read `include/constants.h`
 - The web UI refuses static addresses with leading zeros (`192.168.001.5`) itself, like the device; the host tools parse `host:port` in one place (`[v6]:port`, a bad port is reported)
 - Host tools: `rest_example.py` and `web_check.py` ask for the web password (`--password` without a value) or take `CYD_WEB_PASSWORD`; a password on the command line still works with a warning. CI fails if `include/test_wifi_local.h` or Python bytecode is tracked
+- Framework pinned exactly: `platform_packages` fixes the Arduino-ESP32 packages, the toolchain and esptool (the platform only asked for tilde ranges); CI and the release check the resolved packages against the pins and `THIRD_PARTY_NOTICES.md` (`tools/dep_check.py`), the release build runs without a package cache and its notes list every package; PlatformIO Core in CI is installed with hashes (`tools/requirements-ci.txt`, kept current by Dependabot); the package cache of CI is written only on `main` and `dev`
 - Zero-warning gate in CI: a compiler warning in `src/` or `include/` of the firmware builds fails the job `Firmware build`; host tests with `-Wall -Wextra`, `native-cpp20` with `-Werror`; a further job builds the touch log firmware and the host screen renderer
 - CI, fuzzing and CodeQL run on pushes to `main`, `dev` and `agent/**` and on pull requests (no longer on tags or other branches); runs on `main` are never cancelled by a later push, so the CodeQL alerts of `main` always come from a complete analysis
 
@@ -162,7 +163,7 @@ Pinned in `platformio.ini`:
 
 | Library | Version | License |
 |---|---|---|
-| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, Hash) with ESP-IDF 5.5.5 | 3.3.12 via `espressif32@8.0.0` | LGPL-2.1-or-later, Apache-2.0, MIT |
+| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, Hash) with ESP-IDF 5.5.5 | 3.3.12 via `espressif32@8.0.0`, package `framework-arduinoespressif32@4.30312.261116` (exact, with `-esp32-libs@3.3.12`, toolchain and esptool) | LGPL-2.1-or-later, Apache-2.0, MIT |
 | `bodmer/TFT_eSPI` (exact: the ST7789 init sequence is derived from it) | 2.5.43 | FreeBSD (BSD-2-Clause-Views), MIT |
 | `lvgl/lvgl` | 8.4.0 | MIT |
 | XPT2046_Touchscreen | commit `d57f64c` (tag v1.4) | MIT |

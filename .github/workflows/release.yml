@@ -26,7 +26,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PLATFORMIO_VERSION: "6.2.0"
   # The env behind the web flasher and the flash parts of the release (Arduino core 3, E-32).
   FLASHER_ENV: esp32-2432S028R
 
@@ -99,7 +98,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install PlatformIO
-        run: pip install "platformio==${PLATFORMIO_VERSION}"
+        run: pip install --require-hashes -r tools/requirements-ci.txt
       - name: Host unit tests
         run: pio test -e native
       - name: Host tests of the IQ error state
@@ -107,6 +106,8 @@ jobs:
       - name: Host tests in C++20
         run: pio test -e native-cpp20
 
+  # Without a package cache (AF22): the release image is built from freshly downloaded packages,
+  # pinned exactly in platformio.ini and checked by tools/dep_check.py.
   build:
     name: Build ${{ matrix.env }}
     needs: [meta, tests]
@@ -125,15 +126,8 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.platformio
-          key: pio-release-${{ matrix.env }}-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            pio-release-${{ matrix.env }}-${{ env.PLATFORMIO_VERSION }}-
-            pio-esp32-${{ env.PLATFORMIO_VERSION }}-
       - name: Install PlatformIO
-        run: pip install "platformio==${PLATFORMIO_VERSION}"
+        run: pip install --require-hashes -r tools/requirements-ci.txt
       - name: Build firmware
         run: pio run -e "$ENV_NAME"
       # Audit T-16: the image carries the checked-out commit without the dirty mark.
@@ -150,6 +144,13 @@ jobs:
         run: |
           pio project metadata -e "$ENV_NAME" --json-output > metadata.json
           python tools/flasher_site.py collect --metadata metadata.json --env "$ENV_NAME" --out "parts/$ENV_NAME"
+      # AF22: the packages of this build are exactly the pinned ones and the ones the notices name;
+      # the list goes into the job summary and the release notes (packages.md in the artifact).
+      - name: Check pinned packages
+        run: |
+          pio pkg list -e "$ENV_NAME" > pkg-list.txt
+          python tools/dep_check.py packages --pkg-list pkg-list.txt --metadata metadata.json --env "$ENV_NAME" --summary "parts/$ENV_NAME/packages.md"
+          cat "parts/$ENV_NAME/packages.md" >> "$GITHUB_STEP_SUMMARY"
       # G11 (THIRD_PARTY_NOTICES.md): notices and license texts next to the binaries, the license
       # files as shipped in the pinned packages, and the source of the LGPL parts linked into the
       # image (LGPL-2.1 section 6, LGPL-3.0 section 4). A missing file fails the build, so a
@@ -302,7 +303,7 @@ jobs:
           | \`cyd-hf-generator-$VERSION-licenses.tar.gz\` | License (GPL-3.0-or-later), third-party notices and license texts |
           | \`cyd-hf-generator-$VERSION-lgpl-sources.tar.gz\` | Source of the LGPL libraries in the firmware (Arduino-ESP32, AsyncTCP, ESPAsyncWebServer) |
 
-          Copyright (C) 2026 DM8SB. Licensed under the GNU GPL version 3 or later (GPL-3.0-or-later), WITHOUT ANY WARRANTY. Source of this release: the source archives below (tag \`$TAG\`); all libraries are pinned in \`platformio.ini\`. Third-party components: \`THIRD_PARTY_NOTICES.md\` and the licenses archive.
+          Copyright (C) 2026 DM8SB. Licensed under the GNU GPL version 3 or later (GPL-3.0-or-later), WITHOUT ANY WARRANTY. Source of this release: the source archives below (tag \`$TAG\`); all libraries and the framework packages are pinned in \`platformio.ini\`. Third-party components: \`THIRD_PARTY_NOTICES.md\` and the licenses archive.
 
           Offsets (PlatformIO upload):
           \`\`\`
@@ -313,6 +314,13 @@ jobs:
           esptool --chip esp32 write-flash $flash
           \`\`\`
           EOF
+          {
+            echo
+            echo '<details><summary>Resolved PlatformIO packages</summary>'
+            echo
+            cat "builds/build-$FLASHER_ENV/packages.md"
+            echo '</details>'
+          } >> notes.md
           flags=()
           [ "$PRERELEASE" = true ] && flags+=(--prerelease)
           # Fails if the release appeared meanwhile: nothing is overwritten.

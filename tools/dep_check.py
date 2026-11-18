@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 DM8SB
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""Pinned dependencies of the firmware (ARBEITSPLAN AF22): resolved packages against the pins.
+
+Python 3 standard library only. Used by .github/workflows/ci.yml and release.yml and locally:
+
+  pio pkg list -e esp32-2432S028R > pkg-list.txt        # PYTHONIOENCODING=utf-8 on Windows
+  pio project metadata -e esp32-2432S028R --json-output > meta.json
+  python tools/dep_check.py packages --pkg-list pkg-list.txt --metadata meta.json --env esp32-2432S028R
+
+packages: every package of `platform_packages` and every registry library of `lib_deps` in
+platformio.ini must resolve to exactly its pinned version; the framework packages and the
+toolchain the firmware is built with must be pinned there (not only through the platform's
+tilde ranges); and the versions THIRD_PARTY_NOTICES.md states (Arduino-ESP32, the ESP-IDF tag and
+commit of the precompiled libraries, the GCC runtime, the libraries) must match what the build
+uses. --summary appends the resolved list as Markdown (job summary, release notes).
+"""
+import argparse
+import configparser
+import os
+import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import flasher_site  # noqa: E402  (framework directory and ESP-IDF versions of a build)
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INI = os.path.join(ROOT, "platformio.ini")
+NOTICES = os.path.join(ROOT, "THIRD_PARTY_NOTICES.md")
+# The packages that compile, link and convert the firmware; each must be pinned exactly (AF22).
+MUST_PIN = ("framework-arduinoespressif32", "framework-arduinoespressif32-esp32-libs",
+            "toolchain-xtensa-esp-elf", "tool-esptool")
+PKG_LINE = re.compile(r"^[\s│]*[├└]── (\S+) @ (\S+) \(required: (.+)\)\s*$")
+
+
+class CheckError(Exception):
+    pass
+
+
+def ini_list(section, key):
+    """The lines of a multi-line platformio.ini value, without comments and empty lines."""
+    cp = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=(";",))
+    cp.read(INI, encoding="utf-8")
+    if not cp.has_option(section, key):
+        return []
+    out = []
+    for line in cp.get(section, key).splitlines():
+        line = line.split(";", 1)[0].strip()
+        if line:
+            out.append(line)
+    return out
+
+
+def parse_spec(spec):
+    """'owner/name @ 1.2.3' or 'owner/name@1.2.3' -> (name, version); None for git URLs."""
+    if "://" in spec:
+        return None
+    m = re.match(r"^(?:[\w.-]+/)?([\w.-]+)\s*@\s*(\S+)$", spec.strip())
+    return (m.group(1), m.group(2)) if m else None
+
+
+def parse_pkg_list(text):
+    """{name: (version, required)} of every line of `pio pkg list`."""
+    pkgs = {}
+    for line in text.splitlines():
+        m = PKG_LINE.match(line)
+        if m:
+            pkgs[m.group(1)] = (m.group(2), m.group(3))
+    if not pkgs:
+        raise CheckError("no packages in the pio pkg list output")
+    return pkgs
+
+
+def notice_versions(text):
+    """The versions THIRD_PARTY_NOTICES.md states, from the first columns of its table rows."""
+    rows = {}
+    for line in text.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) >= 2 and line.lstrip().startswith("|"):
+            rows.setdefault(cells[0], cells[1])
+
+    def row(prefix):
+        for k, v in rows.items():
+            if k.startswith(prefix):
+                return v
+        raise CheckError("THIRD_PARTY_NOTICES.md: no row %r" % prefix)
+
+    return {
+        "arduino": row("Arduino-ESP32 core and libraries"),
+        "esp-idf": row("ESP-IDF (system"),
+        "gcc": row("GCC runtime"),
+        "TFT_eSPI": row("TFT_eSPI"),
+        "lvgl": row("LVGL"),
+        "ArduinoJson": row("ArduinoJson"),
+        "AsyncTCP": row("AsyncTCP"),
+        "ESPAsyncWebServer": row("ESPAsyncWebServer"),
+        "XPT2046_Touchscreen": row("XPT2046_Touchscreen"),
+        "scpi-parser": row("scpi-parser"),
+    }
+
+
+def arduino_version(framework):
+    with open(os.path.join(framework, "cores", "esp32", "esp_arduino_version.h"), encoding="utf-8") as f:
+        text = f.read()
+    parts = [re.search(r"#define ESP_ARDUINO_VERSION_%s\s+(\d+)" % k, text) for k in ("MAJOR", "MINOR", "PATCH")]
+    if not all(parts):
+        raise CheckError("%s: no ESP_ARDUINO_VERSION" % framework)
+    return ".".join(m.group(1) for m in parts)
+
+
+def cmd_packages(args):
+    with open(args.pkg_list, encoding="utf-8") as f:
+        pkgs = parse_pkg_list(f.read())
+    problems = []
+    pinned = {}
+    for spec in ini_list("esp32", "platform_packages"):
+        p = parse_spec(spec)
+        if not p:
+            problems.append("platform_packages: cannot read %r" % spec)
+            continue
+        pinned[p[0]] = p[1]
+    for name in MUST_PIN:
+        if name not in pinned:
+            problems.append("%s is not pinned exactly in platform_packages" % name)
+    libs = {}
+    for spec in ini_list("esp32", "lib_deps"):
+        p = parse_spec(spec)
+        if p:
+            libs[p[0]] = p[1]
+    for name, want in sorted(list(pinned.items()) + list(libs.items())):
+        got = pkgs.get(name)
+        if got is None:
+            problems.append("%s @ %s is pinned but not in the resolved packages" % (name, want))
+        elif got[0] != want:
+            problems.append("%s resolved to %s, pinned %s" % (name, got[0], want))
+
+    # THIRD_PARTY_NOTICES.md against the build (framework and ESP-IDF from the metadata).
+    meta = flasher_site.read_json(args.metadata)
+    if args.env not in meta:
+        raise CheckError("env %s not in %s" % (args.env, args.metadata))
+    try:
+        framework, _ = flasher_site._package_dirs(meta[args.env], args.env)
+        idf, _ = flasher_site._idf_versions(meta[args.env])
+    except flasher_site.CheckError as e:
+        raise CheckError(str(e))
+    with open(NOTICES, encoding="utf-8") as f:
+        notes = notice_versions(f.read())
+    arduino = arduino_version(framework)
+    idf_tag, _, idf_commit = idf["esp-idf"].partition(" ")
+    tc = pkgs.get("toolchain-xtensa-esp-elf", ("?", ""))[0]
+    m = re.match(r"^(\d+\.\d+\.\d+)\+(\d+)$", tc)
+    gcc = "%s (esp-%s_%s)" % (m.group(1), m.group(1), m.group(2)) if m else "?"
+    expect = [
+        ("arduino", arduino, notes["arduino"] == arduino),
+        ("esp-idf", "%s (`%s`)" % (idf_tag, idf_commit[:11]), notes["esp-idf"] == "%s (`%s`)" % (idf_tag, idf_commit[:11])),
+        ("gcc", gcc, notes["gcc"] == gcc),
+    ]
+    for name in ("TFT_eSPI", "lvgl", "ArduinoJson", "AsyncTCP", "ESPAsyncWebServer"):
+        v = pkgs.get(name, ("?", ""))[0]
+        expect.append((name, v, notes[name] == v))
+    for name in ("XPT2046_Touchscreen", "scpi-parser"):
+        v = pkgs.get(name, ("?", ""))[0]
+        sha = v.rsplit("sha.", 1)[-1] if "sha." in v else "?"
+        expect.append((name, "commit `%s`" % sha, ("`%s`" % sha) in notes[name]))
+    for name, want, ok in expect:
+        if not ok:
+            problems.append("THIRD_PARTY_NOTICES.md: %s says %r, the build uses %s" % (name, notes[name], want))
+
+    lines = ["### Resolved packages (%s)" % args.env, "", "| Package | Version | Required |", "|---|---|---|"]
+    lines += ["| %s | %s | `%s` |" % (n, v, r) for n, (v, r) in sorted(pkgs.items())]
+    lines += ["", "Arduino-ESP32 %s, ESP-IDF %s, GCC %s." % (arduino, idf["esp-idf"], gcc), ""]
+    text = "\n".join(lines) + "\n"
+    if args.summary:
+        with open(args.summary, "a", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+    else:
+        sys.stdout.write(text)
+    if problems:
+        raise CheckError("\n  ".join(["pinned packages differ:"] + problems))
+    print("packages OK: %d resolved, %d pinned exactly in platform_packages, notices match"
+          % (len(pkgs), len(pinned)))
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("packages", help="compare the resolved packages with the pins and the notices")
+    p.add_argument("--pkg-list", required=True, help="output of pio pkg list -e <env>")
+    p.add_argument("--metadata", required=True, help="output of pio project metadata --json-output")
+    p.add_argument("--env", required=True)
+    p.add_argument("--summary", help="append the Markdown table to this file instead of stdout")
+    p.set_defaults(func=cmd_packages)
+    args = ap.parse_args()
+    try:
+        args.func(args)
+    except CheckError as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

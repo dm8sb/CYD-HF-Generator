@@ -25,6 +25,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
+  # Cache key only; the installed version comes from tools/requirements-ci.txt (with hashes).
   PLATFORMIO_VERSION: "6.2.0"
 
 jobs:
@@ -45,12 +46,15 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # The package cache is read everywhere but written only by pushes to main and dev (AF22), so
+      # a pull request or an agent branch cannot plant packages for later runs.
+      - id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: pio-native-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
       - name: Install PlatformIO
-        run: pip install "platformio==${PLATFORMIO_VERSION}"
+        run: pip install --require-hashes -r tools/requirements-ci.txt
       - name: Host unit tests
         run: pio test -e native
       - name: Host tests of the IQ error state
@@ -59,6 +63,11 @@ jobs:
       # warning in the tested sources, the tests or the fakes fails the job (AF24).
       - name: Host tests in C++20
         run: pio test -e native-cpp20
+      - if: steps.cache.outputs.cache-hit != 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-native-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
 
   # Not a required check (AF24): the touch log build and the host screen renderer of
   # tools/render_images.py must keep compiling; the touch log build also without warnings.
@@ -73,12 +82,15 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # The package cache is read everywhere but written only by pushes to main and dev (AF22), so
+      # a pull request or an agent branch cannot plant packages for later runs.
+      - id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: pio-esp32-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
       - name: Install PlatformIO
-        run: pip install "platformio==${PLATFORMIO_VERSION}"
+        run: pip install --require-hashes -r tools/requirements-ci.txt
       - name: Build touch log firmware
         run: |
           set -o pipefail
@@ -105,12 +117,15 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # The package cache is read everywhere but written only by pushes to main and dev (AF22), so
+      # a pull request or an agent branch cannot plant packages for later runs.
+      - id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: pio-esp32-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
       - name: Install PlatformIO
-        run: pip install "platformio==${PLATFORMIO_VERSION}"
+        run: pip install --require-hashes -r tools/requirements-ci.txt
       # The logs let the size report cross-check its numbers with PlatformIO's (G7).
       - name: Build firmware
         run: |
@@ -132,6 +147,18 @@ jobs:
             exit 1
           fi
           echo "no compiler warnings in src/ or include/"
+      # AF22: the resolved framework, toolchain and libraries are exactly the pinned ones and the
+      # ones THIRD_PARTY_NOTICES.md names (Arduino-ESP32, ESP-IDF tag and commit, GCC runtime).
+      - name: Check pinned packages
+        run: |
+          pio pkg list -e esp32-2432S028R > pkg-list.txt
+          pio project metadata -e esp32-2432S028R --json-output > metadata.json
+          python tools/dep_check.py packages --pkg-list pkg-list.txt --metadata metadata.json --env esp32-2432S028R --summary "$GITHUB_STEP_SUMMARY"
+      - if: steps.cache.outputs.cache-hit != 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-esp32-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
       # Audit T-16: the image must carry the checked-out commit without the dirty mark.
       - name: Check build information
         run: |
