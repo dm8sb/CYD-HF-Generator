@@ -16,6 +16,7 @@
 #include <hal/i2c_bus.h>
 #include <remote/scpi.h>
 #include <remote/scpi_usb.h>
+#include <utils/frequency_utils.h>
 #include <utils/logger.h>
 
 static Fake::Si5351Chip& chip = Fake::si5351();
@@ -219,6 +220,43 @@ static void test_number_parser() {
     TEST_ASSERT_EQUAL(Parse::Ok, frequency("160MHZ", 6, &hz));
     TEST_ASSERT_EQUAL_UINT64(FREQ_MAX_HZ, hz);
     TEST_ASSERT_EQUAL(Parse::Range, frequency("160.000001MHZ", 13, &hz));
+}
+
+// AF46 / CQ-11: half a hertz rounds up the same way on the numpad, REST/web (frequencyText)
+// and SCPI; the numpad used to compute in double and could end 1 Hz lower.
+static void expectSamePaths(const char* number, const char* unit, uint64_t expected) {
+    char msg[48];
+    snprintf(msg, sizeof(msg), "%s %s", number, unit);
+    uint64_t pad = 0, rest = 0, scpi = 0;
+    TEST_ASSERT_TRUE_MESSAGE(FrequencyUtils::parseFrequency(number, unit, &pad), msg);
+    TEST_ASSERT_TRUE_MESSAGE(FrequencyUtils::parseRemoteFrequency(msg, &rest), msg);
+    char upper[48];
+    snprintf(upper, sizeof(upper), "%s%s", number, strcmp(unit, "MHz") == 0 ? "MHZ" : strcmp(unit, "kHz") == 0 ? "KHZ" : "HZ");
+    TEST_ASSERT_EQUAL_MESSAGE(ScpiNumber::Parse::Ok, ScpiNumber::frequency(upper, strlen(upper), &scpi), msg);
+    TEST_ASSERT_EQUAL_UINT64_MESSAGE(expected, pad, msg);
+    TEST_ASSERT_EQUAL_UINT64_MESSAGE(expected, rest, msg);
+    TEST_ASSERT_EQUAL_UINT64_MESSAGE(expected, scpi, msg);
+}
+
+static void test_half_hertz_rounds_alike_on_all_paths() {
+    expectSamePaths("7.1000005", "MHz", 7100001ULL);
+    expectSamePaths("455.0005", "kHz", 455001ULL);
+    expectSamePaths("10.0000005", "MHz", 10000001ULL);
+    expectSamePaths("14.0740015", "MHz", 14074002ULL);
+    expectSamePaths("1000000.5", "Hz", 1000001ULL);
+    expectSamePaths("7.10000049", "MHz", 7100000ULL);
+    // Every x.5 Hz in MHz and kHz notation over the range (sampled).
+    char text[24];
+    for (uint64_t hz = FREQ_MIN_HZ; hz < FREQ_MAX_HZ; hz += 99991ULL) {
+        snprintf(text, sizeof(text), "%llu.%06llu5", (unsigned long long)(hz / 1000000ULL),
+                 (unsigned long long)(hz % 1000000ULL));
+        expectSamePaths(text, "MHz", hz + 1);
+        if (hz < 100000000ULL) {
+            snprintf(text, sizeof(text), "%llu.%03llu5", (unsigned long long)(hz / 1000ULL),
+                     (unsigned long long)(hz % 1000ULL));
+            expectSamePaths(text, "kHz", hz + 1);
+        }
+    }
 }
 
 static void test_outputs_and_condition() {
@@ -436,5 +474,6 @@ int main(int, char**) {
     RUN_TEST(test_log_query_gives_one_line);
     RUN_TEST(test_log_query_only_over_usb);
     RUN_TEST(test_usb_session_and_log);
+    RUN_TEST(test_half_hertz_rounds_alike_on_all_paths);
     return UNITY_END();
 }

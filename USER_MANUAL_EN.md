@@ -310,6 +310,8 @@ The `◀` button at the top left returns to the channel page **without any chang
 
 A maximum of 10 characters is allowed (e.g. `150.000001`); an eleventh shows `Max. 10 characters`.
 
+The frequency is rounded to whole Hz, half a hertz and more upwards, exactly as with SCPI and REST: `7.1000005` `MHz` gives 7 100 001 Hz, `7.10000049` `MHz` 7 100 000 Hz.
+
 ### Invalid Input
 
 If the value is outside 8 kHz – 160 MHz, or the input is empty or invalid, it is **not applied**. The input stays, the border turns red and the reason appears in red to the right below the field:

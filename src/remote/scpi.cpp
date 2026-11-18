@@ -7,6 +7,7 @@
 #include <string.h>
 #include <config.h>
 #include <constants.h>
+#include <utils/frequency_utils.h>
 #include <utils/logger.h>
 
 // ---------------------------------------------------------------------------
@@ -20,13 +21,6 @@ bool blank(char c) { return c == ' ' || c == '\t'; }
 char up(char c) { return (c >= 'a' && c <= 'z') ? (char)(c - 32) : c; }
 
 const Unit FREQ_UNITS[] = {{"HZ", 0}, {"KHZ", 3}, {"MHZ", 6}, {nullptr, 0}};
-
-// 10^e for 0 <= e <= 19.
-uint64_t pow10u(int e) {
-    uint64_t p = 1;
-    while (e-- > 0) p *= 10;
-    return p;
-}
 }
 
 Parse decimal(const char* s, size_t n, int8_t scaleExp, const Unit* units, int64_t* out) {
@@ -110,20 +104,11 @@ Parse decimal(const char* s, size_t n, int8_t scaleExp, const Unit* units, int64
         *out = 0;
         return Parse::Ok;
     }
-    uint64_t magnitude;
-    if (exp10 >= 0) {
-        if (exp10 > 18) return Parse::Range;
-        const uint64_t p = pow10u((int)exp10);
-        if (mantissa > (uint64_t)INT64_MAX / p) return Parse::Range;
-        magnitude = mantissa * p;
-    } else if (exp10 < -19) {
-        magnitude = 0; // below half a unit
-    } else {
-        const uint64_t p = pow10u((int)-exp10);
-        magnitude = mantissa / p;
-        const uint64_t rest = mantissa % p;
-        if (rest >= p - rest) ++magnitude; // half away from zero
-    }
+    // Rounding of the magnitude half up = half away from zero (AF46: same core as the numpad).
+    uint64_t magnitude = 0;
+    if (exp10 > 19) return Parse::Range;
+    const int e = exp10 < -20 ? -20 : (int)exp10; // below -19 the result is 0 anyway
+    if (!FrequencyUtils::scaleDecimal(mantissa, e, &magnitude)) return Parse::Range;
     if (magnitude > (uint64_t)INT64_MAX) return Parse::Range;
     *out = negative ? -(int64_t)magnitude : (int64_t)magnitude;
     return Parse::Ok;

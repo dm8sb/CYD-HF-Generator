@@ -46,5 +46,11 @@ int digitExponent(const char* text, size_t index);
 // Exponent of the largest power of ten <= value (value >= 1).
 uint8_t decimalExponent(uint32_t value);
 uint32_t powerOfTen(uint8_t exponent);
+// 10^exponent for 0..19 (the only power-of-ten loop; powerOfTen() is its 32-bit form).
+uint64_t pow10u(uint8_t exponent);
+// mantissa * 10^exp10 rounded half up to an integer, computed exactly in integers (AF46: the
+// common rounding of the numpad, REST/web frequencyText and SCPI). false if the result does not
+// fit into uint64.
+bool scaleDecimal(uint64_t mantissa, int exp10, uint64_t* out);
 uint32_t snapStep(uint32_t step);
 }

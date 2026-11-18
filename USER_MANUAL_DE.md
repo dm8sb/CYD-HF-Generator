@@ -310,6 +310,8 @@ Mit der Taste `◀` oben links geht es **ohne Änderung** zurück zur Kanalseite
 
 Maximal 10 Zeichen sind erlaubt (z. B. `150.000001`); ein elftes zeigt `Max. 10 characters`.
 
+Die Frequenz wird auf ganze Hz gerundet, ab einem halben Hz aufwärts, genau wie bei SCPI und REST: `7.1000005` `MHz` ergibt 7 100 001 Hz, `7.10000049` `MHz` 7 100 000 Hz.
+
 ### Ungültige Eingabe
 
 Liegt der Wert außerhalb von 8 kHz – 160 MHz oder ist die Eingabe leer bzw. ungültig, wird sie **nicht übernommen**. Die Eingabe bleibt stehen, der Rahmen wird rot und rechts unter dem Feld erscheint der Grund in Rot:
