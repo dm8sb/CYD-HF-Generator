@@ -166,7 +166,6 @@ Host-Tests: 406 Fälle in `native-win` und 4 in `native-win-fault`.
 
 ### 2.5 Dokumentation
 
-- [ ] **Anwendungskapitel „Mischer-Experimente“** (beide Handbücher): Pegel je Drive-Stärke an 50 Ω (F2), Oberwellen des Rechtecks (3. ≈ −9,5 dBc, 5. ≈ −14 dBc) und Tiefpässe, LO-Pegel für Diodenringmischer (+7 dBm) bzw. Dämpfung für NE612/SA612, IQ an FST3253/74CBT3253 (Tayloe), gleich lange Kabel (1° bei 100 MHz ≈ 28 ps ≈ 5,6 mm Koax), Phasenfehler ↔ Spiegelunterdrückung (1° ≈ 41 dB, 2° ≈ 35 dB, 5° ≈ 27 dB), nie ungefiltert an eine Antenne. → N8
 - [M] **„50 % Tastverhältnis“** (Handbuch §1) ist nicht belegt (E5). → S72
 
 ### 2.6 Sicherheit und Netz (Audit)
@@ -376,7 +375,7 @@ Je Schritt: Inhalt, Prüfung, Commit-Betreff. `[ ]` offen, `[x]` erledigt (wird 
 
 Stand: G1, G4–G9a, G11, G13 erledigt (Abschnitt 1.1), Workflows und Ruleset auf `main`; Pages (Quelle GitHub Actions) mit Umgebung `github-pages` (Regeln `main`, `v*`) sowie Secret Scanning und Push-Schutz sind eingerichtet.
 
-- [ ] **G2 · Handbuchabschnitt „Firmware aktualisieren“.** Webflasher läuft (beide Boards erprobt, Releases 2.0.0-rc1 und 2.0.0 deployt). Offen: Handbuch DE/EN neuer Abschnitt (Chrome/Edge am Desktop, CH340-Treiber, `Connect` und Port, Erase nur bei der Erstinstallation, Update behält Touch-Abgleich, Korrektur und WLAN, BOOT halten bei Verbindungsproblemen, `SHA256SUMS` und `gh attestation verify`, esptool-Befehl); Firefox unterstützt Web Serial nicht. *Commit:* `G2: Describe the firmware update in the manual`
+- [x] **G2 · Handbuchabschnitt „Firmware aktualisieren“.** Webflasher läuft (beide Boards erprobt, Releases 2.0.0-rc1 und 2.0.0 deployt). Erledigt: Handbuch DE/EN Abschnitt 17 (Chrome/Edge am Desktop, CH340-Treiber, `Connect` und Port, Erase nur bei der Erstinstallation, Update behält Touch-Abgleich, Korrektur und WLAN, BOOT halten bei Verbindungsproblemen, `SHA256SUMS` und `gh attestation verify`, esptool-Befehl); Firefox unterstützt Web Serial nicht. *Commit:* `G2: Describe the firmware update in the manual`
 - [ ] **G5 · Rest Repo-Einstellungen (`[Nutzer]`, kein Commit).** Topics speichern, Vorschaubild `docs/img/social-preview.png` hochladen; aus OPS-16 Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot` (AF28).
 - [ ] **G9 · Projektseite (Rest).** `[Nutzer]` Beschreibung, Website `https://dm8sb.github.io/CYD-HF-Generator/`, Topics, Vorschaubild 1280 × 640; CN1-Steckerraster (1,25 mm) und Pinfolge am Board bestätigen; Handbuch als Pages-Seite (nach G2). *Commit:* `G9b: Add manual page`
 - [ ] **G10 · Fotos (später, `[Nutzer]`).** Nach der Liste in `docs/hardware.md`: `board-cyd-front.jpg` und `board-cyd2usb-front.jpg` (MAIN-Seite, CH1 an), `si5351-wiring.jpg` (Modul mit den 4 Leitungen zu CN1 und CLK0–2), `cn1-connector.jpg` (Rückseite, Beschriftung lesbar), `setup-bench.jpg` (Aufbau mit Koax zum Messgerät), je ≤ 500 KB, kein WLAN-Name auf dem Display; ablegen unter `docs/img/`. Danach Platzhalter in `docs/hardware.md` aktivieren. Vorschaubild `social-preview.png` 1280 × 640 (< 1 MB) lädt der Nutzer unter Settings → General → Social preview hoch. Zwischenstand (G13): gerenderte Bilder in `docs/img/` stehen bis dahin in README, `docs/hardware.md`, `case/README.md` und Handbuch Anhang A, darunter eine gerenderte `social-preview.png` (liegt jetzt doch im Repo; durch eine Version mit Foto ersetzbar). *Commit:* `G10: Add hardware photos`
@@ -389,7 +388,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **S60 · Stufe 2 (Entscheidungen, ≈ 6 h).** MESSPLAN Abschnitt 6: Standard-Tuning (K5, F3, K6), IQ ohne Reset (D3, D5, E9), ungerade Teiler und Phasenfehler (E3, E4, E5), Störquellen und PDN (F6, F7), Pegel (F2), Drift (C7); Entscheidungen als E-n in die Spezifikation, N1–N8 bestätigen oder streichen. *Commit:* `S60: Record tier-2 measurements and decisions`
 - [ ] **S61 · Stufe 1W (Pflicht ab WEB-HMI, ≈ 8 h + 24 h).** MESSPLAN 5.11 nach S58 auf beiden Boards; dazu L13, L15, Q1 aus Stufe 2; aus S54: Abbau einer verwaisten TCP-Verbindung nach ≈ 90 s (Keepalive), Sperre bei offenem AP (auch Portmapper und VXI-11 aus LX1), mDNS `_scpi-raw._tcp`; L-S6: der AP geht in `WifiManager::update()` aus `loop()` aus, nicht im IP-Event (D14, W-S3), die Grenze ≤ 1 s hängt an der `loop()`-Latenz. Dazu `tools/web_check.py <Gerät>` ohne und mit Passwort, PASS/FAIL-Liste ins Protokoll (TEST-1); L-S5 mit `slowloris.py` (AF39). *Commit:* `S61: Record network and security measurements`
 - [ ] **S62 · Stufe 3 (optional).** Charakterisierung und Bedientests mit Personen nach Bedarf (MESSPLAN Abschnitt 7). *Commit:* `S62: Record optional characterization measurements`
-- [ ] **S63 · Handbuchwerte.** Pegeltabelle (F2), Tastverhältnis (E5), Aufwärmzeit (C7), WLAN-Hinweis (L13), „SI5351 läuft beim Flashen weiter“ (A10), Hardware-Hinweise; DE und EN. *Commit:* `S63: Add measured values to the manuals`
+- [ ] **S63 · Handbuchwerte.** Pegeltabelle (F2), Mischer-Kapitel Abschnitt 18 (F2, G1, G2, E10, E4), Tastverhältnis (E5), Aufwärmzeit (C7), WLAN-Hinweis (L13), „SI5351 läuft beim Flashen weiter“ (A10), Hardware-Hinweise; DE und EN. *Commit:* `S63: Add measured values to the manuals`
 - [ ] **S64 · Freigabe.** Kriterien MESSPLAN 9.4 erfüllt; Version, README, Tag; Merge nach `dev` und `main` nur auf Anweisung. *Commit:* `S64: Release`
 
 ### Phase 9 – Folgearbeiten (je ein Commit, nach Messergebnis oder Rückfrage)
@@ -400,7 +399,7 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N5 · MultiSynth abgeschalteter Kanäle abschalten, PDN-Strategie** nach K2 und F7.
 - [ ] **N6 · Störquellen-Abhilfen** (Backlight-PWM ≥ 20 kHz, Ruhemodus der Überwachung) nach F6, F9; „Neuzeichnen nur bei Änderung“ übernimmt AF12, den Backoff der SI5351-Suche ohne Chip AF53 (PERF-11).
 - [ ] **N7 · TCXO-Option** nach C7, C8.
-- [ ] **N8 · Anwendungskapitel „Mischer-Experimente“** (Abschnitt 2.5) nach F2, G1, G2, E10.
+- [x] **N8 · Anwendungskapitel „Mischer-Experimente“.** Handbuch DE/EN Abschnitt 18 mit Rechen- und Datenblattwerten (D47): Pegel je Drive-Stärke als „typisch, nicht gemessen“, Oberwellen und Tiefpass, Diodenring (+7 dBm), NE612/SA612, Tayloe mit CH3 IQ, Leitungslängen, Phasenfehler ↔ Spiegelunterdrückung, zwei Beispiele. Messwerte (F2, G1, G2, E10, E4, E5) ersetzt S63.
 - [ ] **N9 · Sticky-Bit und „PLL locked“** (Abschnitt 2.1).
 - [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
 - [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release (AF26).
