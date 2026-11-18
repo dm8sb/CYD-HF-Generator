@@ -92,6 +92,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - Host tests pin the boundaries and error paths the mutation audit found open (AF35): CH3 exactly at 4.730 and 100 MHz, the remainder of the remote rate limit (75 ms steps, `millis()` overflow), Authorization 1024/1025 bytes, five UTF-8 edges, the autosave and retry delays, the Identify blinking with the backlight, the RSSI tie of two WiFi networks (the first one wins), every failing transfer of the SI5351 init, closed I2C bus, cut log lines, an inconsistent touch calibration and NVS write errors; the random tests restart from their seed in every test and name it in the message
 - Fix: a log line longer than 127 bytes on the serial port lost its newline, so the next line was glued to it; the cut line now ends with a newline like in the SCPI log buffer (found by the AF35 tests)
 - Fuzzing: two more harnesses (12): `prefilter` (the byte filter in front of the HTTP parser, in random chunks and time steps, against an independent reference and differentially against the request guard) and `rest_wifi` (POST/GET `/api/wifi` against an independent model of the rules: unknown key −108, refusals leave the settings unchanged, no secret in any answer); both run 60 s per push in the CI job `Fuzz`
+- Host tests: random interleavings of the web job mailbox (`JobSlot`, request, timeout and late result of loop(), 200 000 steps): every request gets its own result or none, every scan buffer is freed exactly once (AF33)
 
 ### 2.0.0
 
