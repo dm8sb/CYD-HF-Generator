@@ -87,6 +87,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - Reproducible stamps: the info card and boot line show the commit time in UTC instead of the local build time, a release candidate shows its tag version (`2.0.0-rc1`) and the tag instead of `HEAD`; the license and LGPL archives of a release are deterministic (sorted, commit time, no owner, gzip without name and time), so an independent rebuild can be compared with the attested assets
 - Framework pinned exactly: `platform_packages` fixes the Arduino-ESP32 packages, the toolchain and esptool (the platform only asked for tilde ranges); CI and the release check the resolved packages against the pins and `THIRD_PARTY_NOTICES.md` (`tools/dep_check.py`), the release build runs without a package cache and its notes list every package; PlatformIO Core in CI is installed with hashes (`tools/requirements-ci.txt`, kept current by Dependabot); the package cache of CI is written only on `main` and `dev`
 - Zero-warning gate in CI: a compiler warning in `src/` or `include/` of the firmware builds fails the job `Firmware build`; host tests with `-Wall -Wextra`, `native-cpp20` with `-Werror`; a further job builds the touch log firmware and the host screen renderer
+- Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 on the pioarduino platform 55.03.313 (the PlatformIO registry has no 3.3.13 yet): fixes the lwIP DNS cache overflow GHSA-ch63-jxm5-vmvf of ESP-IDF 5.5.5; platform and framework pinned by release URL, CI and the release compare the SHA-256 digests GitHub publishes; Flash +26 KB, static RAM +384 B (E-51)
 - CI, fuzzing and CodeQL run on pushes to `main`, `dev` and `agent/**` and on pull requests (no longer on tags or other branches); runs on `main` are never cancelled by a later push, so the CodeQL alerts of `main` always come from a complete analysis
 
 ### 2.0.0
@@ -173,7 +174,7 @@ Pinned in `platformio.ini`:
 
 | Library | Version | License |
 |---|---|---|
-| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, Hash) with ESP-IDF 5.5.5 | 3.3.12 via `espressif32@8.0.0`, package `framework-arduinoespressif32@4.30312.261116` (exact, with `-esp32-libs@3.3.12`, toolchain and esptool) | LGPL-2.1-or-later, Apache-2.0, MIT |
+| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, Hash) with ESP-IDF 5.5.6 | 3.3.13 via the pioarduino platform `55.03.313` (E-51); `framework-arduinoespressif32` and `-libs` pinned by Espressif's release URLs, toolchain (GCC 14.4.0) and esptool 5.6.0 by the platform | LGPL-2.1-or-later, Apache-2.0, MIT |
 | `bodmer/TFT_eSPI` (exact: the ST7789 init sequence is derived from it) | 2.5.43 | FreeBSD (BSD-2-Clause-Views), MIT |
 | `lvgl/lvgl` | 8.4.0 | MIT |
 | XPT2046_Touchscreen | commit `d57f64c` (tag v1.4) | MIT |

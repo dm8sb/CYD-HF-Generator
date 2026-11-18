@@ -289,12 +289,13 @@ def cmd_notices(args):
 # Parts of the Arduino-ESP32 package in lgpl-sources.tar.gz: the core and libraries, the board
 # variant of esp32dev, the partition tables and the build scripts that compile them (AF29, LIC-5).
 LGPL_FRAMEWORK_PARTS = ("package.json", "cores", "libraries", "variants/esp32", "tools/partitions",
-                        "tools/platformio-build.py", "tools/pioarduino-build.py")
+                        "tools/pioarduino-build.py")
 
 
 def _idf_versions(meta):
     """versions.txt of the precompiled ESP-IDF libraries of this build (found via the include
-    paths): {"esp-idf": "v5.5.5 b774170ff46", ...} and the package directory."""
+    paths): {"esp-idf": "release/v5.5 a45de8ccca1", ...} and the package directory (versions.txt
+    lies in the chip folder, e.g. esp32/, package.json one level up)."""
     seen = set()
     for path in (meta.get("includes") or {}).get("build", []):
         d = os.path.normpath(path)
@@ -304,14 +305,15 @@ def _idf_versions(meta):
                 break
             seen.add(d)
             vt = os.path.join(d, "versions.txt")
-            if os.path.isfile(vt) and os.path.isfile(os.path.join(d, "package.json")):
+            pkg_dir = next((p for p in (d, os.path.dirname(d)) if os.path.isfile(os.path.join(p, "package.json"))), None)
+            if os.path.isfile(vt) and pkg_dir:
                 versions = {}
                 with open(vt, "r", encoding="utf-8") as f:
                     for line in f:
                         k, _, v = line.partition(":")
                         versions[k.strip()] = v.strip()
                 if "esp-idf" in versions:
-                    return versions, d
+                    return versions, pkg_dir
     fail("metadata names no precompiled ESP-IDF libraries with versions.txt")
 
 
@@ -348,7 +350,7 @@ LICENSES/                       LGPL-2.1, LGPL-3.0 and the GNU GPL 3.0 the LGPL-
 Not in this archive (not under the LGPL): the precompiled ESP-IDF libraries the Arduino core is
 built against, PlatformIO package {libs_name} {libs_ver} (Apache-2.0 and the
 licenses in THIRD_PARTY_NOTICES.md), built by esp32-arduino-lib-builder {builder} from
-ESP-IDF {idf} (https://github.com/espressif/esp-idf/tree/{idf_tag}).
+ESP-IDF {idf} (https://github.com/espressif/esp-idf/tree/{idf_ref}).
 
 Relinking against a modified library: check out the tagged commit, replace the library (for
 example a copy of framework-arduinoespressif32 via platform_packages, or AsyncTCP via lib_deps
@@ -357,7 +359,7 @@ or the lib/ folder) and run `pio run -e esp32-2432S028R`.
            asynctcp=libver["AsyncTCP"], aws=libver["ESPAsyncWebServer"],
            libs_name=libs_pkg.get("name", "?"), libs_ver=libs_pkg.get("version", "?"),
            builder=versions.get("lib-builder", "?"), idf=versions["esp-idf"],
-           idf_tag=versions["esp-idf"].split()[0])
+           idf_ref=versions["esp-idf"].split()[-1])
 
 
 # ---------------------------------------------------------------------------------------------

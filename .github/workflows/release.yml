@@ -175,6 +175,9 @@ jobs:
       # AF22: the packages of this build are exactly the pinned ones and the ones the notices name;
       # the list goes into the job summary and the release notes (packages.md in the artifact).
       - name: Check pinned packages
+        env:
+          # E-51: the SHA-256 digests of the pinned release assets are read over the GitHub API.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           pio pkg list -e "$ENV_NAME" > pkg-list.txt
           python tools/dep_check.py packages --pkg-list pkg-list.txt --metadata metadata.json --env "$ENV_NAME" --summary "parts/$ENV_NAME/packages.md"
