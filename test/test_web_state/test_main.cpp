@@ -3,7 +3,8 @@
 
 // State machines of the web server (S55): two-stage network change with fallback (W-S12),
 // scan semantics (ARBEITSPLAN 3.6 point 6, W-S11), one password check at a time outside the
-// async_tcp task (W-S23), and the byte and connection limits (W-S6, W-S10).
+// async_tcp task (W-S23), the byte and connection limits (W-S6, W-S10) and the job mailbox
+// (AF33: abandon, late finish, double collect).
 
 #include <unity.h>
 #include <string.h>
@@ -574,6 +575,126 @@ static void test_connection_tables() {
     TEST_ASSERT_FALSE(WsClients::frameAllowed(513));
 }
 
+
+// --- JobSlot (AF33) --------------------------------------------------------------------------
+
+// A job like the server's: a secret input and an owned output buffer; counts what is still owned.
+static int g_owned = 0;
+struct TestJob {
+    int kind;
+    char secret[8];
+    char* out;
+    int status;
+    static void clear(TestJob& j) {
+        if (j.out) {
+            delete[] j.out;
+            --g_owned;
+        }
+        memset(&j, 0, sizeof(j));
+    }
+};
+
+static TestJob job(int kind, const char* secret) {
+    TestJob j;
+    memset(&j, 0, sizeof(j));
+    j.kind = kind;
+    snprintf(j.secret, sizeof(j.secret), "%s", secret);
+    return j;
+}
+
+static void result(TestJob& j, int status, bool withOut) {
+    j.status = status;
+    if (withOut) {
+        j.out = new char[4];
+        ++g_owned;
+    }
+}
+
+static void test_job_slot_runs_one_job() {
+    g_owned = 0;
+    JobSlot<TestJob> slot;
+    TestJob t;
+    TEST_ASSERT_FALSE(slot.take(&t)); // nothing queued
+    TEST_ASSERT_TRUE(slot.submit(job(1, "key")));
+    TEST_ASSERT_FALSE(slot.submit(job(2, "x"))); // one at a time
+    TestJob out;
+    TEST_ASSERT_FALSE(slot.collect(&out)); // still queued
+    TEST_ASSERT_TRUE(slot.take(&t));
+    TEST_ASSERT_EQUAL(1, t.kind);
+    TEST_ASSERT_EQUAL_STRING("key", t.secret);
+    TEST_ASSERT_FALSE(slot.take(&t)); // taken once
+    TEST_ASSERT_FALSE(slot.collect(&out)); // still running
+    TEST_ASSERT_FALSE(slot.submit(job(2, "x")));
+    result(t, 200, true);
+    TEST_ASSERT_TRUE(slot.finish(t));
+    TEST_ASSERT_TRUE(slot.collect(&out));
+    TEST_ASSERT_EQUAL(200, out.status);
+    TEST_ASSERT_NOT_NULL(out.out);
+    TEST_ASSERT_FALSE(slot.collect(&out)); // collected once: no double free
+    TEST_ASSERT_EQUAL(JobSlot<TestJob>::State::Free, slot.state());
+    TestJob::clear(out); // the caller owns the result
+    TEST_ASSERT_EQUAL(0, g_owned);
+    TEST_ASSERT_TRUE(slot.submit(job(2, "x"))); // free again
+}
+
+static void test_job_slot_abandon_in_every_state() {
+    g_owned = 0;
+    TestJob t, out;
+    // Queued: dropped at once, loop() finds nothing.
+    JobSlot<TestJob> a;
+    a.submit(job(1, "key"));
+    a.abandon();
+    TEST_ASSERT_EQUAL(JobSlot<TestJob>::State::Free, a.state());
+    TEST_ASSERT_FALSE(a.take(&t));
+    // Taken: the late result is cleared by finish() (its buffer freed), the slot is free.
+    JobSlot<TestJob> b;
+    b.submit(job(1, "key"));
+    b.take(&t);
+    b.abandon();
+    TEST_ASSERT_EQUAL(JobSlot<TestJob>::State::Abandoned, b.state());
+    TEST_ASSERT_FALSE(b.submit(job(2, "x"))); // busy until loop() is done with it
+    result(t, 200, true);
+    TEST_ASSERT_FALSE(b.finish(t));
+    TEST_ASSERT_NULL(t.out);
+    TEST_ASSERT_EQUAL(0, g_owned);
+    TEST_ASSERT_FALSE(b.collect(&out));
+    TEST_ASSERT_TRUE(b.submit(job(2, "x")));
+    // Done but never collected: cleared at abandon.
+    JobSlot<TestJob> c;
+    c.submit(job(1, "key"));
+    c.take(&t);
+    result(t, 200, true);
+    c.finish(t);
+    TEST_ASSERT_EQUAL(1, g_owned);
+    c.abandon();
+    TEST_ASSERT_EQUAL(0, g_owned);
+    TEST_ASSERT_FALSE(c.collect(&out));
+    TEST_ASSERT_EQUAL(JobSlot<TestJob>::State::Free, c.state());
+    // Abandon twice or on a free slot changes nothing.
+    c.abandon();
+    TEST_ASSERT_EQUAL(JobSlot<TestJob>::State::Free, c.state());
+}
+
+static void test_job_slot_wipes_inputs() {
+    g_owned = 0;
+    JobSlot<TestJob> slot;
+    TestJob t, out;
+    slot.submit(job(1, "secret"));
+    slot.take(&t);
+    // The slot keeps no copy of the key while loop() works on it, nor after the answer.
+    result(t, 202, false);
+    memset(t.secret, 0, sizeof(t.secret));
+    slot.finish(t);
+    slot.collect(&out);
+    TEST_ASSERT_EQUAL_STRING("", out.secret);
+    TEST_ASSERT_EQUAL(202, out.status);
+    // A finish without a taken job (programming error) clears the result instead of leaking.
+    TestJob stray = job(3, "k");
+    result(stray, 200, true);
+    TEST_ASSERT_FALSE(slot.finish(stray));
+    TEST_ASSERT_EQUAL(0, g_owned);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_change_applies_after_the_answer_and_reverts_without_confirmation);
@@ -593,5 +714,8 @@ int main(int, char**) {
     RUN_TEST(test_ws_ping_flood_closes);
     RUN_TEST(test_push_pacer);
     RUN_TEST(test_heap_block_limits);
+    RUN_TEST(test_job_slot_runs_one_job);
+    RUN_TEST(test_job_slot_abandon_in_every_state);
+    RUN_TEST(test_job_slot_wipes_inputs);
     return UNITY_END();
 }

@@ -10,8 +10,8 @@
 
 // Web server of the WEB-HMI (S55, ARBEITSPLAN 3.3, 3.6, 3.7) on port 80: the embedded web UI,
 // the REST API and the push-only WebSocket /ws. Device glue, not host-compiled; the decisions
-// are in RequestGuard, RestJson, RestWifi, NetChange, ScanSession, LoginQueue, HttpPreFilter,
-// HttpConnections and WsClients (all host-tested).
+// are in RequestGuard, RestJson, RestWifi, NetChange, ScanSession, LoginQueue, JobSlot,
+// HttpPreFilter, HttpConnections and WsClients (all host-tested).
 //
 // Tasks: requests are handled in the async_tcp task. They never call the AppController, LVGL,
 // I2C, NVS or the WiFi manager: writes go through the CommandQueue (the handler waits at most
@@ -20,9 +20,10 @@
 // through LoginQueue to a low-priority worker task (W-S23: PBKDF2 takes about 1.3 s). Its answer
 // is sent from the connection's poll callback, again in the async_tcp task. loop() runs the
 // two-stage network change, the WebSocket push and the guard configuration. Shared data is
-// guarded by one mutex. Created on the heap (E-31); the server starts when WiFi first comes up,
-// stops listening when the WiFi mode becomes Off (its WebSockets closed, sessions ended) and
-// listens again when WiFi is back.
+// guarded by one mutex (AF50: web_server.cpp groups the code by task into ConnectionGate,
+// LoginService and Pusher; Shared holds the data under the mutex). Created on the heap (E-31);
+// the server starts when WiFi first comes up, stops listening when the WiFi mode becomes Off
+// (its WebSockets closed, sessions ended) and listens again when WiFi is back.
 class WebHmiServer {
 public:
     static constexpr uint32_t REPLY_WAIT_MS = 80;   // < 100 ms per W-S23
