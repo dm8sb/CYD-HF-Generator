@@ -117,6 +117,7 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 | D49 | Priorität 3: CI, Fuzz und CodeQL bei Push nur auf `main`, `dev` und `agent/**` (PRs nach `main` immer), Tags nur im Release-Workflow, auf `main` kein Abbruch (AF21); Framework exakt pinnen, Release ohne Cache, Probelauf des Release-Pfads in PRs nach `main` (AF22, AF23); Warnungen in `src/` lassen die CI scheitern, kein zusätzlicher Lint (AF24); Stempel aus Tag und Commit-Zeit (UTC), rc-Suffix auf der Info-Karte (AF25); wöchentliche Advisory-Prüfung, Fund = roter Lauf und Issue, auch vor Tags (AF26); Werkzeug-Hygiene mit CI-Schutz gegen eine versionierte `include/test_wifi_local.h` (AF27); Repo-Einstellungen per API (AF28) (Nutzer) |
 | D50 | N15 (Flash sparen) wird vorerst nicht umgesetzt; Flash ist mit ≈ 48 % ausreichend frei (Nutzer) |
 | D51 | N11: Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 (behebt GHSA-ch63-jxm5-vmvf) über die pioarduino-Plattform 55.03.313, weil das PlatformIO-Register 3.3.13 noch nicht anbietet; GHSA-ch63 wird nicht als Ausnahme akzeptiert, das Release wartet auf das Update. Unity 2.7.0 folgt, sobald es im Register steht. „Release dry run“ ist Pflicht-Check für `main` (Nutzer) |
+| D52 | Parallel zu N11: Priorität 4 komplett (AF32–AF39). N9 später (Gerätetest mit SI5351 nötig), N13 entfällt (Anzeige reicht, RAM bleibt frei). N14 wird umgesetzt: Kopplung auf der CH2-Seite (Chips `Free` / `CH1 + offset`, die Frequenzkarte zeigt den Offset, +/− und NUMPAD ändern ihn, MAIN-Moduszeile `CH1 +455 kHz`), Offset −160 … +160 MHz in 1 Hz, liegt CH1 + Offset außerhalb 8 kHz–160 MHz, wartet CH2 (`WAIT`) und startet von selbst wieder. G9: Handbuch DE/EN, Hardware-Beschreibung und Remote-API als Webseiten auf GitHub Pages neben dem Webflasher, mit dem Release deployt, nach N11 (Nutzer) |
 
 **Nicht umsetzen:** neue Funktionen außer N14 vorerst (D18); RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); Kanalwahl im Header (Rest von U-16: kein Platz neben Zustand und `MAIN`, über MAIN und die Karten 2 Tipps); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
 
@@ -352,7 +353,6 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N9 · Sticky-Bit und „PLL locked“** (Abschnitt 2.1).
 - [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
 - [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6 (behebt GHSA-ch63, AF26); Advisory-Check je Release läuft (AF26).
-- [ ] **N13 · DMA und Doppelpuffer** (Abschnitt 2.3, nach der Migration).
 - [ ] **N14 · Gekoppelter Betrieb CH2 = CH1 ± Offset (D18).** CH2 folgt CH1 mit festem Offset (positiv oder negativ, z. B. Überlagerungsempfänger mit fester ZF): Einstellung und Anzeige auf der CH2-Seite, Grenzen 8 kHz–160 MHz für beide, CH3-IQ und Spread berücksichtigen, SCPI/REST und Weboberfläche; Planung vor der Umsetzung. *Commit:* `N14: Add CH2 coupled to CH1 with offset`
 
 ### Phase 10 – Audit-Folgearbeiten (je ein Commit)
