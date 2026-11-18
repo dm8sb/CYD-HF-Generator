@@ -171,10 +171,21 @@ def cmd_collect(args):
     env = meta[args.env]
     extra = env.get("extra") or {}
     images = [(int(i["offset"], 0), i["path"]) for i in extra.get("flash_images", [])]
-    if "application_offset" not in extra:
-        fail("metadata has no application_offset")
+    # The application goes to the first app partition of the built table (factory, else ota_0).
+    # pioarduino sets application_offset only while building, not for `pio project metadata`
+    # (E-51); where the metadata has it, it must agree with the table.
+    tables = [p for _, p in images if os.path.basename(p) == "partitions.bin"]
+    if len(tables) != 1:
+        fail("metadata names no single partitions.bin")
+    with open(tables[0], "rb") as f:
+        apps = [p for p in parse_partition_table(f.read()) if p["type"] == 0 and p["subtype"] in (0x00, 0x10)]
+    if not apps:
+        fail("%s: no factory or ota_0 app partition" % tables[0])
+    app_offset = min(apps, key=lambda p: p["subtype"])["offset"]
+    if "application_offset" in extra and int(extra["application_offset"], 0) != app_offset:
+        fail("metadata application_offset %s, partition table 0x%X" % (extra["application_offset"], app_offset))
     firmware = os.path.join(os.path.dirname(env["prog_path"]), "firmware.bin")
-    images.append((int(extra["application_offset"], 0), firmware))
+    images.append((app_offset, firmware))
     images.sort()
     os.makedirs(args.out, exist_ok=True)
     parts = []
