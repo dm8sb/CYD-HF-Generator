@@ -115,6 +115,7 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 | D47 | Nächster Block selbständig: AF55, AF11, AF12, AF13–AF19, G2 und N8. N8 jetzt mit Rechen- und Datenblattwerten, Pegel als „typisch, nicht gemessen“ markiert, nach S63 durch Messwerte ersetzt. UI-Schritte (AF12, AF16, AF18) gesammelt am Ende am Gerät testen. Release erst danach, zusammen mit U27 und der API-Seite (Nutzer) |
 | D48 | Priorität 5 (Barrierefreiheit, AF40–AF43) wird nicht umgesetzt: Gerät und Weboberfläche lassen sich für den Anwendungsfall gut genug bedienen. D34–D36 entfallen damit; die A11Y-Befunde bleiben nur als Namen (Nutzer) |
 | D49 | Priorität 3: CI, Fuzz und CodeQL bei Push nur auf `main`, `dev` und `agent/**` (PRs nach `main` immer), Tags nur im Release-Workflow, auf `main` kein Abbruch (AF21); Framework exakt pinnen, Release ohne Cache, Probelauf des Release-Pfads in PRs nach `main` (AF22, AF23); Warnungen in `src/` lassen die CI scheitern, kein zusätzlicher Lint (AF24); Stempel aus Tag und Commit-Zeit (UTC), rc-Suffix auf der Info-Karte (AF25); wöchentliche Advisory-Prüfung, Fund = roter Lauf und Issue, auch vor Tags (AF26); Werkzeug-Hygiene mit CI-Schutz gegen eine versionierte `include/test_wifi_local.h` (AF27); Repo-Einstellungen per API (AF28) (Nutzer) |
+| D50 | N15 (Flash sparen) wird vorerst nicht umgesetzt; Flash ist mit ≈ 48 % ausreichend frei (Nutzer) |
 
 **Nicht umsetzen:** neue Funktionen außer N14 vorerst (D18); RGB-LED als Ausgangsanzeige (bleibt Seitenanzeige, E-3); doppelte Statusanzeige im Header bleibt (E-13); Kanalwahl im Header (Rest von U-16: kein Platz neben Zustand und `MAIN`, über MAIN und die Karten 2 Tipps); LVGL 9, LovyanGFX (außer als Fallback), espressif32 6.13.0, Secure Boot / Flash Encryption (S-22).
 
@@ -351,7 +352,6 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N11 · Spätere Updates:** Unity 2.7.0, Arduino 3.3.13 / IDF 5.5.6; Advisory-Check je Release (AF26).
 - [ ] **N13 · DMA und Doppelpuffer** (Abschnitt 2.3, nach der Migration).
 - [ ] **N14 · Gekoppelter Betrieb CH2 = CH1 ± Offset (D18).** CH2 folgt CH1 mit festem Offset (positiv oder negativ, z. B. Überlagerungsempfänger mit fester ZF): Einstellung und Anzeige auf der CH2-Seite, Grenzen 8 kHz–160 MHz für beide, CH3-IQ und Spread berücksichtigen, SCPI/REST und Weboberfläche; Planung vor der Umsetzung. *Commit:* `N14: Add CH2 coupled to CH1 with offset`
-- [ ] **N15 · Flash sparen (bei Bedarf).** Teilschriften mit `lv_font_conv` aus denselben Quellen (Montserrat, Font Awesome, OFL): Montserrat 28 (37 KB, nur die Frequenz auf CH1/CH2/CH3: Ziffern, `.`, Leerzeichen, `~`, `kHz`/`MHz`) auf ≈ 5 KB → ≈ 30 KB; Montserrat 20 (22 KB) ohne ungenutzte Symbole (genutzt: BACKSPACE, LEFT, RIGHT, MINUS, PLUS, TRASH, WIFI) → einige KB. Vorher alle Texte dieser Schriften prüfen, danach Bedientest. Nur mit eigenem IDF-Build (D14 ausgeschlossen): Bluetooth-Reste ≈ 6 KB, Core-Dump ≈ 13 KB, IPv6 ≈ 11 KB, Fehlertexte ≈ 8 KB. Schon erledigt: TFT_eSPI-Schriften −27,6 KB, Build-Pfade −0,9 KB (Stand 1 507 650 B, 47,9 %). Beim Subsetting `--no-kern` (Kerning ≈ 16,5 KB) und `-fno-exceptions` für `src/` testen (≈ 12,5 KB `.eh_frame`), PERF-13. *Commit:* `N15: Subset the large LVGL fonts`
 
 ### Phase 10 – Audit-Folgearbeiten (je ein Commit)
 
@@ -386,7 +386,7 @@ Jeder Schritt nennt Befund-IDs, Ort, Problem und Richtung selbst. „Konzept n�
 - [ ] **AF51b · LED/Heap-Schichtung (S, Aufräumen, nach AF12).** CQ-13/CQ-17, Teil LED. Heute steuert die GUI die Status-LED und liest den Heap direkt (`gui.cpp`, `page_config.cpp`, `page_main.cpp`; Identify hat zwei Besitzer, die LED bleibt dunkel, wenn die GUI nicht aktualisiert). `StatusLed` aus `AppController`/`main`, Heap per Callback. Prüfung: Identify am Gerät. *Commit:* `AF51b: Move the status LED out of the GUI`
 - [ ] **AF54 · Asynchrone REST-Antworten, JSON ohne Allokation (M–L).** PERF-7, PERF-9. Heute blockieren REST-Schreibvorgänge und WLAN-Jobs `async_tcp` bis 80/180 ms mit 1-ms-Polling (laut W-S23 akzeptiert), der ArduinoJson-Zustandsaufbau allokiert je Aufruf ≈ 20–30-mal. `req->pause()` + Antwort aus `onPoll` für Schreibvorgänge und Jobs; Writer mit festem Puffer (bzw. Arena) für Zustand und Fehler. Prüfung: Host-Test des Writers gegen ArduinoJson-Ausgabe; Gerät: WS-Latenz während Halten-Wiederholen in einem zweiten Tab. *Commit:* `AF54: Answer REST writes asynchronously and build JSON without allocations`
 
-In bestehende Schritte eingeordnet (kein eigener AF-Schritt): PERF-13 → N15, PERF-14 und der PERF-8-Worst-Case → S57, PERF-15 → AF55 (D38) und S49, TEST-2 → S41c/S59/S61 (+ AF39), DOC-14 → AF4.
+In bestehende Schritte eingeordnet (kein eigener AF-Schritt): PERF-13 → entfällt (D50), PERF-14 und der PERF-8-Worst-Case → S57, PERF-15 → AF55 (D38) und S49, TEST-2 → S41c/S59/S61 (+ AF39), DOC-14 → AF4.
 
 ---
 
