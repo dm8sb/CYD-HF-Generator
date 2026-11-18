@@ -55,9 +55,40 @@ jobs:
         run: pio test -e native
       - name: Host tests of the IQ error state
         run: pio test -e native-fault
-      # The firmware on Arduino 3.x is C++20: the host tests in the same standard.
+      # The firmware on Arduino 3.x is C++20: the host tests in the same standard. -Werror: a
+      # warning in the tested sources, the tests or the fakes fails the job (AF24).
       - name: Host tests in C++20
         run: pio test -e native-cpp20
+
+  # Not a required check (AF24): the touch log build and the host screen renderer of
+  # tools/render_images.py must keep compiling; the touch log build also without warnings.
+  test-builds:
+    name: Test builds (touchlog, screens)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-esp32-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
+      - name: Install PlatformIO
+        run: pip install "platformio==${PLATFORMIO_VERSION}"
+      - name: Build touch log firmware
+        run: |
+          set -o pipefail
+          pio run -e esp32-2432S028R-touchlog 2>&1 | tee touchlog.log
+          if grep -E '^(src|include)/[^:]+:[0-9]+:([0-9]+:)? warning:' touchlog.log; then
+            echo "::error::compiler warnings in src/ or include/ (gate: 0)"
+            exit 1
+          fi
+      - name: Build the host screen renderer
+        run: pio run -e screens
 
   firmware:
     # Required check in the ruleset of main: keep the name.
@@ -88,7 +119,19 @@ jobs:
           pio run -e esp32-2432S028R 2>&1 | tee size-logs/esp32-2432S028R.log
       # The touch test build (hit map + touch log) must keep compiling.
       - name: Build touch test firmware
-        run: pio run -e esp32-2432S028R-hitmap
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          pio run -e esp32-2432S028R-hitmap 2>&1 | tee logs/esp32-2432S028R-hitmap.log
+      # AF24: the own sources stay at 0 warnings (-Wall -Wextra via build_src_flags; libraries
+      # keep their defaults and are not checked).
+      - name: Zero-warning gate
+        run: |
+          if grep -E '^(src|include)/[^:]+:[0-9]+:([0-9]+:)? warning:' size-logs/esp32-2432S028R.log logs/esp32-2432S028R-hitmap.log; then
+            echo "::error::compiler warnings in src/ or include/ (gate: 0)"
+            exit 1
+          fi
+          echo "no compiler warnings in src/ or include/"
       # Audit T-16: the image must carry the checked-out commit without the dirty mark.
       - name: Check build information
         run: |
