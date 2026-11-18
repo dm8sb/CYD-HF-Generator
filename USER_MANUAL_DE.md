@@ -23,6 +23,7 @@ Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_E
 - [14. Sicherheitshinweis](#14-sicherheitshinweis)
 - [15. Fernsteuerung über USB und Netz (SCPI)](#15-fernsteuerung-über-usb-und-netz-scpi)
 - [16. Weboberfläche](#16-weboberfläche)
+- [17. Firmware aktualisieren](#17-firmware-aktualisieren)
 - [Anhang A: Seitenbilder](#anhang-a-seitenbilder)
 - [Anhang B: Glossar](#anhang-b-glossar)
 - [Anhang C: Symptome und Abhilfe](#anhang-c-symptome-und-abhilfe)
@@ -1415,6 +1416,110 @@ Programme können dieselben Funktionen über HTTP und JSON nutzen; Beispiel in `
 | WebSocket `/ws?t=<Token>` | Zustand bei jeder Änderung |
 
 Jeder `POST` braucht `Content-Type: application/json` und den Kopf `X-CYD-Token` mit dem Token aus der Seite (neu bei jedem Neustart, `GET /api/token`). Fehler kommen wie bei SCPI als `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` (Einschalten, `offState` `high`) 403, zu viele Befehle 429, Gerät beschäftigt 503, nicht angemeldet 401. Grenzen: Anfrage höchstens 1 KB, Adresse 256 Zeichen, 20 Schreibbefehle pro Sekunde. `backlight` nimmt jeden Wert von 10 bis 100 und rundet auf 10 % (55 → 60). Alle Fehlercodes und HTTP-Statuscodes stehen in `data/www/README.md`.
+
+---
+
+## 17. Firmware aktualisieren
+
+Neue Versionen erscheinen als Release auf GitHub: https://github.com/dm8sb/CYD-HF-Generator/releases. Am einfachsten installiert sie der Webflasher direkt aus dem Browser. Die installierte Version steht in CONFIG → `Info`, Zeile `Firmware` (Abschnitt 8).
+
+Eine Firmware gilt für beide Boards (CYD mit ILI9341 und CYD2USB mit ST7789); der Display-Controller wird beim Start erkannt (Abschnitt 13).
+
+### Voraussetzungen
+
+| Was | Hinweis |
+|---|---|
+| Browser | Chrome oder Edge auf einem Desktop-Rechner (Windows, macOS, Linux). Firefox, Safari und Browser auf Smartphones und Tablets können nicht flashen: Ihnen fehlt Web Serial. |
+| USB-Kabel | Ein Datenkabel. Manche Kabel führen nur die Versorgung; dann erscheint kein Port. |
+| Treiber | Der USB-Seriell-Chip des CYD ist ein CH340. Unter Windows braucht er den CH340-Treiber von WCH, wenn kein COM-Port erscheint. Linux bringt den Treiber mit. |
+| Freier Port | Seriellen Monitor (PlatformIO, Arduino IDE, Terminalprogramm) und SCPI-Programme über USB schließen; sie belegen den Port. |
+| Gespeicherte Einstellungen | Nach der letzten Änderung 5 s warten, damit sie gespeichert ist; nach SCPI-Änderungen 30 s oder `SYST:SAVE` (Abschnitt 9). |
+
+### Mit dem Webflasher
+
+1. https://dm8sb.github.io/CYD-HF-Generator/ öffnen. Die Seite nennt die Version des aktuellen Release und den Commit, aus dem sie gebaut ist.
+2. Das Board über USB anschließen.
+3. `Connect` klicken und den Port des Boards wählen (Windows: `COMx`, „USB-SERIAL CH340“; Linux: `/dev/ttyUSB0`).
+4. Installieren wählen. Der Flasher fragt, ob das Gerät vorher gelöscht werden soll (`Erase`):
+   - **Erstinstallation:** Löschen bestätigen.
+   - **Update:** nicht löschen.
+5. Die Installation abwarten; der Flasher zeigt den Fortschritt. Danach startet das Board neu.
+
+Nach jedem Start, auch nach einem Update, sind alle Ausgänge aus (Abschnitt 9).
+
+### Erstinstallation oder Update
+
+| | Erstinstallation (mit Löschen) | Update (ohne Löschen) |
+|---|---|---|
+| Flash-Speicher | ganz gelöscht, dann neu beschrieben | nur Bootloader, Partitionstabelle, `boot_app0` und Firmware neu |
+| Touch-Abgleich | gelöscht; der Abgleich startet beim ersten Start (Abschnitt 8) | bleibt |
+| Frequenzkorrektur (`Corr.`) | gelöscht (0 ppm) | bleibt |
+| WLAN, Web-Passwort, `Remote out.` | gelöscht | bleiben |
+| Frequenzen und übrige Einstellungen | Werkseinstellungen (Kurzanleitung) | bleiben |
+| Wann | erstes Flashen, Board mit fremder Firmware, Neubeginn | neue Version derselben Firmware |
+
+Das Update schreibt vier Teile einzeln an ihre Adressen. Der Einstellungsspeicher (NVS) liegt dazwischen und bleibt unberührt; ein einziges Gesamtabbild ab Adresse 0 würde ihn mit überschreiben.
+
+| Adresse | Teil |
+|---|---|
+| `0x1000` | Bootloader (`…-bootloader.bin`) |
+| `0x8000` | Partitionstabelle (`…-partitions.bin`) |
+| `0xE000` | `boot_app0` (`…-boot_app0.bin`) |
+| `0x10000` | Firmware (`…-firmware.bin`) |
+
+Alle Einstellungen löschen geht auch ohne Flashen: CONFIG `Device` → `Reset` → `Factory` (Abschnitt 8).
+
+### Wenn die Verbindung nicht klappt
+
+| Symptom | Abhilfe |
+|---|---|
+| Der Browser meldet, dass er nicht flashen kann | Chrome oder Edge am Desktop verwenden; die Seite nur über `https://` öffnen. |
+| Kein Port in der Liste | Datenkabel statt Ladekabel; unter Windows den CH340-Treiber installieren; anderen USB-Anschluss versuchen. |
+| Der Port lässt sich nicht öffnen | Seriellen Monitor, SCPI-Programm oder einen zweiten Flasher-Tab schließen. |
+| Die Verbindung bricht ab oder kommt nicht zustande | Die Taste `BOOT` am Board halten, während `Connect` geklickt und der Port gewählt wird; loslassen, sobald der Fortschritt läuft. |
+| Nach dem Flashen bleibt das Display dunkel oder zeigt Rauschen | USB ab- und wieder anstecken. Hilft das nicht: Erstinstallation mit Löschen. Bei Rauschen auf einem unbekannten Board: Abschnitt 13. |
+
+### Download prüfen
+
+Jedes Release enthält die Flash-Teile, Prüfsummen und einen Herkunftsnachweis (Build Provenance) für jede Datei:
+
+| Datei | Inhalt |
+|---|---|
+| `cyd-hf-generator-<Version>-esp32-2432S028R-firmware.bin` | Firmware ab `0x10000` (dieselbe wie im Webflasher) |
+| `…-bootloader.bin`, `…-partitions.bin`, `…-boot_app0.bin` | übrige Flash-Teile desselben Builds |
+| `SHA256SUMS` | SHA-256-Prüfsummen aller Dateien |
+| `cyd-hf-generator-<Version>-licenses.tar.gz`, `…-lgpl-sources.tar.gz` | Lizenzen und Quellcode der LGPL-Bibliotheken (Abschnitt 1) |
+
+Prüfsummen der heruntergeladenen Dateien vergleichen (im Ordner mit den Dateien):
+
+```bash
+sha256sum -c --ignore-missing SHA256SUMS
+```
+
+Unter Windows ohne `sha256sum`: `Get-FileHash <Datei> -Algorithm SHA256` in PowerShell und den Wert mit der Zeile in `SHA256SUMS` vergleichen (Groß- und Kleinschreibung spielt keine Rolle).
+
+Herkunft prüfen mit der GitHub CLI (`gh`, angemeldet): Die Prüfung bestätigt, dass die Datei vom Release-Workflow dieses Repositorys gebaut wurde.
+
+```bash
+gh attestation verify <Datei> --repo dm8sb/CYD-HF-Generator
+```
+
+### Mit esptool
+
+Ohne Browser installiert esptool dieselben Teile. esptool 5 installieren (`pip install esptool`), die vier Flash-Teile des Release in einen Ordner laden und dort aufrufen (Beispiel für 2.0.0; den Befehl für jede Version enthalten die Release-Notizen):
+
+```bash
+esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.0.0-esp32-2432S028R-bootloader.bin 0x8000 cyd-hf-generator-2.0.0-esp32-2432S028R-partitions.bin 0xE000 cyd-hf-generator-2.0.0-esp32-2432S028R-boot_app0.bin 0x10000 cyd-hf-generator-2.0.0-esp32-2432S028R-firmware.bin
+```
+
+- Der Befehl löscht den Einstellungsspeicher nicht; Touch-Abgleich, Korrektur und WLAN bleiben (wie das Update im Webflasher).
+- Erstinstallation: vorher `esptool --chip esp32 erase-flash`.
+- esptool sucht den Port selbst; sonst `--port COMx` (Linux: `--port /dev/ttyUSB0`) nach `--chip esp32` angeben.
+- esptool 4: `esptool.py` statt `esptool`, `write_flash` und `erase_flash` statt `write-flash` und `erase-flash`.
+
+### Aus dem Quellcode bauen
+
+Wer selbst baut, braucht PlatformIO; Bauen und Flashen beschreibt das README (Abschnitt [Build and Flash](README.md#build-and-flash)). `pio run -t upload` schreibt dieselben Teile an dieselben Adressen und behält die Einstellungen.
 
 ## Anhang A: Seitenbilder
 

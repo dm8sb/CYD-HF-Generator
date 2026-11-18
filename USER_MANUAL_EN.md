@@ -23,6 +23,7 @@ This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware
 - [14. Safety Note](#14-safety-note)
 - [15. Remote Control over USB and Network (SCPI)](#15-remote-control-over-usb-and-network-scpi)
 - [16. Web Interface](#16-web-interface)
+- [17. Updating the Firmware](#17-updating-the-firmware)
 - [Appendix A: Page Images](#appendix-a-page-images)
 - [Appendix B: Glossary](#appendix-b-glossary)
 - [Appendix C: Symptoms and Remedies](#appendix-c-symptoms-and-remedies)
@@ -1415,6 +1416,110 @@ Programs can use the same functions over HTTP and JSON; example in `tools/rest_e
 | WebSocket `/ws?t=<token>` | State on every change |
 
 Every `POST` needs `Content-Type: application/json` and the header `X-CYD-Token` with the token from the page (new with every restart, `GET /api/token`). Errors come as with SCPI as `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` (switching on, `offState` `high`) 403, too many commands 429, device busy 503, not logged in 401. Limits: request at most 1 KB, address 256 characters, 20 setting commands per second. `backlight` takes every value from 10 to 100 and rounds to 10 % (55 → 60). All error codes and HTTP status codes are listed in `data/www/README.md`.
+
+---
+
+## 17. Updating the Firmware
+
+New versions are published as releases on GitHub: https://github.com/dm8sb/CYD-HF-Generator/releases. The easiest way to install one is the web flasher, straight from the browser. The installed version is shown in CONFIG → `Info`, line `Firmware` (section 8).
+
+One firmware serves both boards (CYD with ILI9341 and CYD2USB with ST7789); the display controller is detected at boot (section 13).
+
+### Requirements
+
+| What | Note |
+|---|---|
+| Browser | Chrome or Edge on a desktop computer (Windows, macOS, Linux). Firefox, Safari and browsers on phones and tablets cannot flash: they lack Web Serial. |
+| USB cable | A data cable. Some cables carry power only; then no port appears. |
+| Driver | The USB serial chip of the CYD is a CH340. On Windows it needs the CH340 driver from WCH if no COM port appears. Linux includes the driver. |
+| Free port | Close any serial monitor (PlatformIO, Arduino IDE, terminal program) and SCPI programs over USB; they hold the port. |
+| Saved settings | Wait 5 s after the last change so it is saved; after SCPI changes 30 s or `SYST:SAVE` (section 9). |
+
+### With the Web Flasher
+
+1. Open https://dm8sb.github.io/CYD-HF-Generator/. The page names the version of the current release and the commit it was built from.
+2. Connect the board by USB.
+3. Click `Connect` and choose the board's port (Windows: `COMx`, "USB-SERIAL CH340"; Linux: `/dev/ttyUSB0`).
+4. Choose install. The flasher asks whether to erase the device first (`Erase`):
+   - **First installation:** confirm erasing.
+   - **Update:** do not erase.
+5. Wait for the installation; the flasher shows the progress. The board then restarts.
+
+After every start, including after an update, all outputs are off (section 9).
+
+### First Installation or Update
+
+| | First installation (with erase) | Update (without erase) |
+|---|---|---|
+| Flash memory | fully erased, then written | only bootloader, partition table, `boot_app0` and firmware rewritten |
+| Touch calibration | erased; the calibration starts at the first boot (section 8) | kept |
+| Frequency correction (`Corr.`) | erased (0 ppm) | kept |
+| WiFi, web password, `Remote out.` | erased | kept |
+| Frequencies and other settings | factory settings (Quick Start) | kept |
+| When | first flashing, board with other firmware, fresh start | new version of the same firmware |
+
+The update writes four parts separately to their addresses. The settings memory (NVS) lies in between and stays untouched; a single merged image from address 0 would overwrite it as well.
+
+| Address | Part |
+|---|---|
+| `0x1000` | Bootloader (`…-bootloader.bin`) |
+| `0x8000` | Partition table (`…-partitions.bin`) |
+| `0xE000` | `boot_app0` (`…-boot_app0.bin`) |
+| `0x10000` | Firmware (`…-firmware.bin`) |
+
+Erasing all settings also works without flashing: CONFIG `Device` → `Reset` → `Factory` (section 8).
+
+### If the Connection Fails
+
+| Symptom | Remedy |
+|---|---|
+| The browser reports that it cannot flash | Use Chrome or Edge on a desktop; open the page only via `https://`. |
+| No port in the list | Use a data cable instead of a charging cable; on Windows install the CH340 driver; try another USB port. |
+| The port cannot be opened | Close the serial monitor, SCPI program or a second flasher tab. |
+| The connection drops or is not established | Hold the `BOOT` button on the board while clicking `Connect` and choosing the port; release it as soon as the progress runs. |
+| After flashing the display stays dark or shows noise | Unplug and replug USB. If that does not help: first installation with erase. Noise on an unknown board: section 13. |
+
+### Checking the Download
+
+Every release contains the flash parts, checksums and build provenance for every file:
+
+| File | Content |
+|---|---|
+| `cyd-hf-generator-<version>-esp32-2432S028R-firmware.bin` | Firmware at `0x10000` (the same as in the web flasher) |
+| `…-bootloader.bin`, `…-partitions.bin`, `…-boot_app0.bin` | other flash parts of the same build |
+| `SHA256SUMS` | SHA-256 checksums of all files |
+| `cyd-hf-generator-<version>-licenses.tar.gz`, `…-lgpl-sources.tar.gz` | Licenses and source of the LGPL libraries (section 1) |
+
+Compare the checksums of the downloaded files (in the folder with the files):
+
+```bash
+sha256sum -c --ignore-missing SHA256SUMS
+```
+
+On Windows without `sha256sum`: `Get-FileHash <file> -Algorithm SHA256` in PowerShell, and compare the value with the line in `SHA256SUMS` (case does not matter).
+
+Check the provenance with the GitHub CLI (`gh`, logged in): the check confirms that the file was built by the release workflow of this repository.
+
+```bash
+gh attestation verify <file> --repo dm8sb/CYD-HF-Generator
+```
+
+### With esptool
+
+Without a browser, esptool installs the same parts. Install esptool 5 (`pip install esptool`), download the four flash parts of the release into one folder and run there (example for 2.0.0; the release notes contain the command for every version):
+
+```bash
+esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.0.0-esp32-2432S028R-bootloader.bin 0x8000 cyd-hf-generator-2.0.0-esp32-2432S028R-partitions.bin 0xE000 cyd-hf-generator-2.0.0-esp32-2432S028R-boot_app0.bin 0x10000 cyd-hf-generator-2.0.0-esp32-2432S028R-firmware.bin
+```
+
+- The command does not erase the settings memory; touch calibration, correction and WiFi stay (like the update in the web flasher).
+- First installation: run `esptool --chip esp32 erase-flash` before.
+- esptool finds the port itself; otherwise add `--port COMx` (Linux: `--port /dev/ttyUSB0`) after `--chip esp32`.
+- esptool 4: `esptool.py` instead of `esptool`, `write_flash` and `erase_flash` instead of `write-flash` and `erase-flash`.
+
+### Building from Source
+
+Building it yourself needs PlatformIO; the README describes building and flashing (section [Build and Flash](README.md#build-and-flash)). `pio run -t upload` writes the same parts to the same addresses and keeps the settings.
 
 ## Appendix A: Page Images
 
