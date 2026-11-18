@@ -75,6 +75,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - REST and WebSocket state: new `limits` (frequency range and step list of the firmware); the web UI takes its range checks and step buttons from it, the mock and the fake SCPI device read `include/constants.h`
 - The web UI refuses static addresses with leading zeros (`192.168.001.5`) itself, like the device; the host tools parse `host:port` in one place (`[v6]:port`, a bad port is reported)
 - Host tools: `rest_example.py` and `web_check.py` ask for the web password (`--password` without a value) or take `CYD_WEB_PASSWORD`; a password on the command line still works with a warning. CI fails if `include/test_wifi_local.h` or Python bytecode is tracked
+- CI, fuzzing and CodeQL run on pushes to `main`, `dev` and `agent/**` and on pull requests (no longer on tags or other branches); runs on `main` are never cancelled by a later push, so the CodeQL alerts of `main` always come from a complete analysis
 
 ### 2.0.0
 

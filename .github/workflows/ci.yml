@@ -6,22 +6,30 @@
 name: CI
 
 on:
+  # Pushes only on the working branches (D49): main, dev and the agent branches; tags run only
+  # in release.yml. Pull requests to main always (the ruleset requires the checks), to dev for
+  # Dependabot.
   push:
+    branches: [main, dev, "agent/**"]
   pull_request:
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# One run per branch or pull request and event; a newer push cancels the older run, except on
+# main, where every merge keeps its complete run (AF21, OPS-2).
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   PLATFORMIO_VERSION: "6.2.0"
 
 jobs:
   host-tests:
+    # Required check in the ruleset of main: keep the name.
     name: Host tests (native)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -52,6 +60,7 @@ jobs:
         run: pio test -e native-cpp20
 
   firmware:
+    # Required check in the ruleset of main: keep the name.
     name: Firmware build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
