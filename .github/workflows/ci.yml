@@ -63,6 +63,27 @@ jobs:
       # warning in the tested sources, the tests or the fakes fails the job (AF24).
       - name: Host tests in C++20
         run: pio test -e native-cpp20
+      # AF36: the same tests under ASan and UBSan; any report fails the job.
+      - name: Host tests under ASan/UBSan
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: pio test -e native-asan
+      # The probe must be caught: a deliberate overflow has to fail the sanitizer run.
+      - name: Sanitizer probe
+        env:
+          PLATFORMIO_BUILD_FLAGS: -DSANITIZER_PROBE=1
+        run: |
+          set +e
+          pio test -e native-asan -f test_sanitizer > probe.log 2>&1
+          status=$?
+          set -e
+          tail -n 30 probe.log
+          if [ "$status" -eq 0 ] || ! grep -q "AddressSanitizer: heap-buffer-overflow" probe.log; then
+            echo "::error::the deliberate overflow was not reported by native-asan"
+            exit 1
+          fi
+          echo "sanitizer probe reported as expected"
       - if: steps.cache.outputs.cache-hit != 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:

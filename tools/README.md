@@ -24,6 +24,7 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | `cdp_shot.mjs` | Node 22+ helper of `render_images.py`: screenshots over the Chrome DevTools protocol (viewport and phone emulation, clip to an element). |
 | `screens/` | Host screen renderer (not a host tool): stand-ins for display, touch, WiFi, LED and build info, the sample state and `lv_conf_host.h`; built by `pio run -e screens-win`. |
 | `build_info.py` | PlatformIO build script (not a host tool). |
+| `sanitize_link.py` | PlatformIO build script of the env `native-asan` (not a host tool): links the ASan/UBSan runtime with the same `-fsanitize` flags as the compile (AF36). |
 | `embed_www.py` | PlatformIO build script: embeds `data/www` into the firmware (`app.js`, `style.css` gzip with ETag, `index.html` for the per-boot token) as `$BUILD_DIR/www/www_assets.h`. |
 
 ## Install

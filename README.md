@@ -94,6 +94,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - Fuzzing: two more harnesses (12): `prefilter` (the byte filter in front of the HTTP parser, in random chunks and time steps, against an independent reference and differentially against the request guard) and `rest_wifi` (POST/GET `/api/wifi` against an independent model of the rules: unknown key −108, refusals leave the settings unchanged, no secret in any answer); both run 60 s per push in the CI job `Fuzz`
 - Host tests: random interleavings of the web job mailbox (`JobSlot`, request, timeout and late result of loop(), 200 000 steps): every request gets its own result or none, every scan buffer is freed exactly once (AF33)
 - Web server: the routes are one table in `net/web_routes.*` used by the request dispatch and the request guard, and the request body is assembled there (host-tested against every path of `data/www/README.md`); a body with an embedded NUL byte is now refused with `-102` instead of being cut at the NUL, and the whole body is wiped after a password (AF32)
+- CI: the host tests also run under ASan and UBSan (env `native-asan`, Linux), and a deliberate overflow in the probe suite `test_sanitizer` must be reported (AF36)
 
 ### 2.0.0
 
@@ -212,6 +213,7 @@ The controller is read over SPI before the display init at every boot; nothing i
 pio test -e native-win         # host tests on Windows (MinGW bundled with PlatformIO)
 pio test -e native             # host tests on Linux/macOS/CI (gcc in PATH)
 pio test -e native-win-fault   # IQ error state (TEST_FAULT_IQ); native-fault on Linux
+pio test -e native-asan        # host tests under ASan/UBSan (Linux/CI)
 ```
 
 Host tests cover the SI5351 driver and planner against a register model (`test/helpers/si5351_model.h`, decoded independently of the driver), the AppController, display detection, touch, GUI input logic, status texts, contrast, the remote command queue, SCPI, SCPI over TCP, VXI-11 and LXI identification, the web request guard, the web routes and body assembly (every path of the REST contract), REST JSON and WiFi mapping, network settings, the NVS limits and the upgrade from the stored keys of 2.0.0, WiFi policy, the logger and sanitizing, plus fuzz harnesses with a fixed seed (`test_fuzz_random`). `test/fakes` replaces the Arduino core, `Wire` and `Preferences`; the fuzz harnesses are described in [test/fuzz/README.md](test/fuzz/README.md).
