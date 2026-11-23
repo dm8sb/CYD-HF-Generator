@@ -84,9 +84,22 @@ void AppController::superviseHardware_() {
     superviseOnce_();
 }
 
+// Bit 0: PLL A unlocked, bit 1: PLL B. Unused -> Locked comes with a setup that counts already.
+uint8_t AppController::lockCode_() const {
+    using Lock = SI5351Manager::PllLock;
+    return (uint8_t)((si5351_.pllLock(SI5351Manager::Pll::A) == Lock::Unlocked ? 1 : 0) |
+                     (si5351_.pllLock(SI5351Manager::Pll::B) == Lock::Unlocked ? 2 : 0));
+}
+
 void AppController::superviseOnce_() {
     if (si5351_.ready()) {
+        // Also a restart with all outputs off (SYS_INIT / SYS_INIT_STKY, FW-07) fails here.
         if (si5351_.checkAlive()) {
+            const uint8_t lock = lockCode_();
+            if (lock != lockSeen_) {
+                lockSeen_ = lock;
+                bump_();
+            }
             if (anyFault_()) {
                 quietRetry_ = true;
                 reconfigureOutputs_();

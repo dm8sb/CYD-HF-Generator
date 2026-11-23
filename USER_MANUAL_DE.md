@@ -541,7 +541,7 @@ Die Titelzeile mit `◀` bleibt stehen. Darunter zeigt CONFIG höchstens drei Ze
 | `Device` | `Backlight` | `−`, Wert, `+` |
 | | `Screen` | Tasten `Lock` (Bildschirmsperre), `Touch cal.` (Touch-Abgleich) und `Rotate` (Bild um 180° drehen) |
 | | `Reset` | Tasten `Defaults` und `Factory` (rot) |
-| `Info` | Info-Karte | Firmware, Build, Display, Touch, SI5351, WLAN, Fernsteuerung, Speicher |
+| `Info` | Info-Karte | Firmware, Build, Display, Touch, SI5351, PLL, WLAN, Fernsteuerung, Speicher |
 
 - Ein Tipp auf ein Register zeigt dessen Zeilen; das gewählte Register ist gelb gefüllt. Beim ersten Öffnen nach dem Einschalten ist `Signal` gewählt, die Einstellungen, die das Signal verändern.
 - Das zuletzt gewählte Register bleibt erhalten, wenn man über `◀`, `Setup` oder das NUMPAD der Korrektur die Seite verlässt und zu CONFIG zurückkehrt (bis zum Ausschalten).
@@ -862,6 +862,7 @@ Build 2026-11-05 14:00 UTC
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
+PLL locked: A ok  B ok
 WiFi Lab 192.168.1.50 -60 dBm
 Heap 241/215 KB, block 108 KB, LVGL 30 KB
 ```
@@ -873,6 +874,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Display` | Display-Controller (`ILI9341` oder `ST7789`) und Herkunft: `detected` (erkannt), `default` (nichts erkannt, ILI9341 angenommen), `build flag` (beim Bauen festgelegt) |
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
+| `PLL locked` | Einrastzustand der beiden PLLs des SI5351 (`A` speist CH1, `B` CH2; CH3 hängt an der PLL seines Masters), gelesen bei der Überwachung alle 2 s: `ok` eingerastet, `LOL` (Loss of Lock) nicht eingerastet, dann ist die ganze Zeile orange; `-` für eine PLL, die seit dem Verbinden noch nicht eingestellt wurde. Ein kurzes `LOL` direkt nach einem Frequenzwechsel mit PLL-Reset ist möglich; ein bleibendes `LOL` deutet auf einen Fehler des Moduls (Quarz, Versorgung). Ohne Verbindung: `PLL locked: -` in Rot |
 | `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke (neu angezeigt erst bei einer Änderung um mindestens 3 dB, abgefragt etwa einmal pro Sekunde); `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
 | `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-Client über TCP 5025 oder, wenn dort keiner verbunden ist, über VXI-11. Die Taste `Reconnect all` (Register `Net`, Zeile `Clients`) trennt alle Browser-Verbindungen, beendet die Web-Anmeldungen, die SCPI-TCP- und die VXI-11-Verbindung. Die Gegenstellen verbinden sich danach von selbst neu (ein Browser ohne Web-Passwort nach wenigen Sekunden, ein SCPI-Programm sofort). Aussperren lässt sich niemand damit. Ein Web-Passwort sperrt nur Weboberfläche und REST; SCPI über TCP 5025 und VXI-11 bleiben ohne Anmeldung (Abschnitt 15). Gegen das Einschalten der Ausgänge aus dem Netz `Remote out.` auf `local only` stellen, gegen fremde Clients ein eigenes, gesichertes Netz verwenden oder das WLAN abschalten (Abschnitt 14). |
 | `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB; alle 5 s gemessen, neu angezeigt, wenn sich der freie Speicher um mindestens 4 KB ändert oder die Seite ohnehin neu gezeichnet wird |
@@ -1038,6 +1040,8 @@ Für Rückfragen mit zwei Tasten (z. B. `Delete network`, `Open fallback AP`, `N
 Wird der SI5351 beim Start nicht gefunden, erscheint **eine** Meldung. Danach zeigen die Kanäle auf der Hauptseite `! NO HW`, die Kanalseiten `SI5351 not found`. Einstellungen lassen sich trotzdem ändern und werden gespeichert.
 
 Die Firmware prüft alle 2 Sekunden, ob der SI5351 antwortet. Ohne SI5351 sucht sie in der ersten Minute nach dem Start bzw. nach dem Verbindungsverlust alle 2 s, danach alle 10 s (jeder Suchschritt baut den I2C-Treiber für beide Zuordnungen neu auf); ein später angeschlossenes Modul wird dann nach spätestens etwa 10 s gefunden. Wird er nachträglich angeschlossen oder ist ein Wackelkontakt behoben, verbindet sie automatisch neu, stellt die eingestellten Frequenzen und ON/OFF-Zustände wieder her und schließt die Verbindungsmeldung. Geht die Verbindung im Betrieb verloren (oder verliert der SI5351 kurz die Versorgung), erscheint die Meldung `Connection lost` und die Kanäle zeigen `! NO HW`, bis die Verbindung wieder steht. Die Firmware versucht sofort nach dem Erkennen neu zu verbinden; nach einem kurzen Versorgungsausfall laufen die Ausgänge daher spätestens nach etwa 2 s wieder.
+
+Einen Neustart des SI5351 erkennt die Überwachung auch, wenn kein Ausgang eingeschaltet ist: Der SI5351 setzt nach jedem Einschalten seiner Versorgung ein Merkbit (`SYS_INIT_STKY` in Register 1), das die Firmware nach dem Einrichten löscht und alle 2 s mitliest. Ist es wieder gesetzt, hat das Modul die Versorgung verloren (Spannungseinbruch, Wackelkontakt an 3,3 V); die Firmware meldet `Connection lost`, richtet den SI5351 neu ein und stellt die Einstellungen wieder her (Log `[ERROR][SI5351] Device restarted (SYS_INIT)`). Ein Nachbau, der dieses Bit nicht löschen lässt, wird trotzdem verwendet; für ihn gilt diese Erkennung nicht (Log `SYS_INIT sticky not cleared; restart detection off`), ein Versorgungsausfall fällt dann nur bei eingeschaltetem Ausgang auf.
 
 SDA und SCL dürfen an CN1 beliebig angeschlossen sein (GPIO22/GPIO27). Die Firmware probiert beide Zuordnungen, auch nach dem Umstecken im Betrieb. Die Info-Karte auf CONFIG und der Serial Monitor zeigen die gefundene Zuordnung, bei vertauschten Adern mit dem Zusatz `(swapped)`.
 
@@ -1206,6 +1210,8 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | Meldung | Bedeutung |
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Überwachung: SI5351 antwortet nicht oder hat seine Einstellung verloren |
+| `[ERROR][SI5351] Device restarted (SYS_INIT)` | Überwachung: der SI5351 ist neu gestartet (Versorgung unterbrochen), auch ohne eingeschalteten Ausgang; er wird neu eingerichtet (Abschnitt 11) |
+| `[ERROR][SI5351] SYS_INIT sticky not cleared; restart detection off` | Das Modul lässt das Neustart-Merkbit nicht löschen (Nachbau); es wird verwendet, ein Neustart ohne eingeschalteten Ausgang bleibt aber unbemerkt |
 | `[ERROR][SI5351] I2C transfer failed; device lost` | Eine I2C-Übertragung zum SI5351 ist gescheitert; die Suche nach dem SI5351 beginnt (eine Minute alle 2 s, dann alle 10 s) |
 | `[E][esp32-hal-i2c-ng.c:372] i2cWriteReadNonStop(): i2c_master_transmit_receive failed: [259] ESP_ERR_INVALID_STATE`, danach `[E][Wire.cpp:532] requestFrom(): i2cWriteReadNonStop returned Error 259` | Meldung des Arduino-Cores (I2C-Treiber) zum selben Ausfall, zusammen mit `[ERROR][SI5351] I2C transfer failed; device lost` |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Ungewöhnliches Register 183, z. B. Nachbau; das Modul wird trotzdem verwendet |
@@ -1957,6 +1963,7 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 | `Touch calibrated …` / `Touch not calibrated (default)` | Info-Karte: Touch-Abgleich | 8 |
 | `detected` / `default` / `build flag` | Info-Karte: Herkunft des Display-Controllers | 8, 13 |
 | `(swapped)` / `(clone?)` | Info-Karte: SDA/SCL vertauscht bzw. ungewöhnliches SI5351-Register | 8, 11 |
+| `PLL locked: A ok  B ok` / `LOL` | Info-Karte: PLL eingerastet bzw. nicht eingerastet (orange) | 8 |
 
 ---
 

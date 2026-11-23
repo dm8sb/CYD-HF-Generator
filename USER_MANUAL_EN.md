@@ -541,7 +541,7 @@ The title bar with `◀` stays fixed. Below it CONFIG shows at most three rows; 
 | `Device` | `Backlight` | `−`, value, `+` |
 | | `Screen` | `Lock` (screen lock), `Touch cal.` (touch calibration) and `Rotate` (turn the screen by 180°) buttons |
 | | `Reset` | `Defaults` and `Factory` (red) buttons |
-| `Info` | Info card | Firmware, Build, Display, Touch, SI5351, WiFi, remote access, memory |
+| `Info` | Info card | Firmware, Build, Display, Touch, SI5351, PLL, WiFi, remote access, memory |
 
 - A tap on a tab shows its rows; the selected tab is filled yellow. When CONFIG is opened for the first time after power-on, `Signal` is selected, the settings that change the signal.
 - The last selected tab is kept when you leave the page via `◀`, `Setup` or the numpad of the correction and come back to CONFIG (until power-off).
@@ -862,6 +862,7 @@ Build 2026-11-05 14:00 UTC
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
+PLL locked: A ok  B ok
 WiFi Lab 192.168.1.50 -60 dBm
 Heap 241/215 KB, block 108 KB, LVGL 30 KB
 ```
@@ -873,6 +874,7 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Display` | Display controller (`ILI9341` or `ST7789`) and source: `detected` (detected automatically), `default` (nothing detected, ILI9341 assumed), `build flag` (set at build time) |
 | `Touch` | `Touch calibrated x … y …`: stored calibration with the raw values of the screen edges; `Touch not calibrated (default)`: fixed values |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
+| `PLL locked` | Lock state of the two PLLs of the SI5351 (`A` feeds CH1, `B` CH2; CH3 uses the PLL of its master), read by the supervision every 2 s: `ok` locked, `LOL` (loss of lock) not locked, the whole line is then orange; `-` for a PLL that has not been set up since connecting. A short `LOL` right after a frequency change with a PLL reset is possible; a lasting `LOL` points to a fault of the module (crystal, supply). Without a connection: `PLL locked: -` in red |
 | `WiFi` | `WiFi off`; connected: network, address, signal strength (shown anew only after a change of at least 3 dB, read about once per second); `WiFi searching (<device name>)`; access point: `AP` or `Fallback AP`, name, address, number of connected devices (orange without password). Foreign network names are cleaned (control and invalid characters as `?`, at most 32 bytes) |
 | `Remote` | `web <n>` open browser pages, `SCPI <address>` or `-` the SCPI client over TCP 5025 or, if none is connected there, over VXI-11. The `Reconnect all` button (tab `Net`, row `Clients`) closes all browser connections, ends the web sessions, the SCPI TCP and the VXI-11 connection. The peers connect again by themselves afterwards (a browser without web password within seconds, an SCPI program at once). It does not lock anybody out. A web password locks only the web interface and REST; SCPI over TCP 5025 and VXI-11 stay without login (section 15). To keep the outputs from being switched on from the network set `Remote out.` to `local only`; against foreign clients use an own, secured network or switch WiFi off (section 14). |
 | `Heap` | free memory and its minimum since boot, largest contiguous block, free memory of the user interface (LVGL), each in KB; measured every 5 s, shown anew when the free memory changes by at least 4 KB or the page is redrawn anyway |
@@ -1038,6 +1040,8 @@ The same holds for questions with two buttons (e.g. `Delete network`, `Open fall
 If the SI5351 is not found at startup, **one** message appears. After that, the channels on the main page show `! NO HW` and the channel pages show `SI5351 not found`. Settings can still be changed and are saved.
 
 The firmware checks every 2 seconds whether the SI5351 responds. Without an SI5351 it searches every 2 s during the first minute after boot or after losing the connection, then every 10 s (each search step sets up the I2C driver again for both assignments); a module connected later is then found after about 10 s at the latest. If it is connected later or a loose contact is fixed, the firmware reconnects automatically, restores the set frequencies and ON/OFF states and closes the connection message. If the connection is lost during operation (or the SI5351 briefly loses power), the message `Connection lost` appears and the channels show `! NO HW` until the connection is restored. The firmware tries to reconnect right after detecting the loss; after a short power interruption the outputs therefore run again after about 2 s at the latest.
+
+The supervision also detects a restart of the SI5351 when no output is on: after every power-up the SI5351 sets a flag (`SYS_INIT_STKY` in register 1), which the firmware clears after the setup and reads along every 2 s. If it is set again, the module lost its supply (voltage dip, loose contact at 3.3 V); the firmware reports `Connection lost`, sets up the SI5351 again and restores the settings (log `[ERROR][SI5351] Device restarted (SYS_INIT)`). A clone that does not let this bit be cleared is used anyway; this detection does not apply to it (log `SYS_INIT sticky not cleared; restart detection off`), a power interruption then only shows while an output is on.
 
 SDA and SCL may be connected to CN1 in either order (GPIO22/GPIO27). The firmware tries both assignments, also after replugging during operation. The info card on CONFIG and the serial monitor show the assignment found, with the suffix `(swapped)` for swapped wires.
 
@@ -1206,6 +1210,8 @@ Error messages start with `[ERROR]`, e.g.:
 | Message | Meaning |
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Supervision: the SI5351 does not respond or has lost its configuration |
+| `[ERROR][SI5351] Device restarted (SYS_INIT)` | Supervision: the SI5351 restarted (supply interrupted), also with no output on; it is set up again (section 11) |
+| `[ERROR][SI5351] SYS_INIT sticky not cleared; restart detection off` | The module does not let the restart flag be cleared (clone); it is used, but a restart with no output on goes unnoticed |
 | `[ERROR][SI5351] I2C transfer failed; device lost` | An I2C transfer to the SI5351 failed; the search for the SI5351 starts (every 2 s for one minute, then every 10 s) |
 | `[E][esp32-hal-i2c-ng.c:372] i2cWriteReadNonStop(): i2c_master_transmit_receive failed: [259] ESP_ERR_INVALID_STATE`, then `[E][Wire.cpp:532] requestFrom(): i2cWriteReadNonStop returned Error 259` | Message of the Arduino core (I2C driver) about the same failure, together with `[ERROR][SI5351] I2C transfer failed; device lost` |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Unusual register 183, e.g. a clone; the module is used anyway |
@@ -1957,6 +1963,7 @@ Rendered with `tools/web_mock.py` in the same state (section 16): desktop at 128
 | `Touch calibrated …` / `Touch not calibrated (default)` | info card: touch calibration | 8 |
 | `detected` / `default` / `build flag` | info card: source of the display controller | 8, 13 |
 | `(swapped)` / `(clone?)` | info card: SDA/SCL swapped or unusual SI5351 register | 8, 11 |
+| `PLL locked: A ok  B ok` / `LOL` | info card: PLL locked or not locked (orange) | 8 |
 
 ---
 

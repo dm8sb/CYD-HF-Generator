@@ -71,7 +71,7 @@ Host-Tests: 524 Fälle in `native-win` und 4 in `native-win-fault`.
 - [M] **Störquellen der Plattform** (M-310, M-418): Backlight-PWM 5 kHz (Seitenlinien ±5 kHz möglich), I2C-Überwachung alle 2 s; das Neuzeichnen nur bei Änderung ist mit AF12 erledigt. → FW-06
 - [M] **IQ-Abstimmen mit Aussetzer** (M-304, M-305, M-303, M-306): jede Frequenz- oder Korrekturänderung im IQ-Betrieb setzt die PLL zurück (1000 Schritte → 1000 Resets). → FW-02
 - [M] **180°/270° bei ungeraden Teilern** (M-308): die Invertierung ergibt nur bei exakt 50 % Tastverhältnis 180°; der IQ-Teiler `min(127, ⌊900 MHz / f⌋)` ist in 54 % der Fälle ungerade (14,2 MHz → 63, 99 MHz → 9). → FW-03
-- [ ] **Spannungseinbruch des Moduls ohne aktiven Ausgang unbemerkt:** `checkAlive()` erkennt einen SI5351-Neustart nur, solange ein Ausgang konfiguriert ist. → FW-07
+- [M] **Spannungseinbruch des Moduls ohne aktiven Ausgang** (Gerätetest wie M-106): `checkAlive()` erkannte einen SI5351-Neustart nur, solange ein Ausgang konfiguriert war. Umgesetzt und host-getestet: die Überwachung liest `SYS_INIT`/`SYS_INIT_STKY` (Register 0/1) mit, die Info-Karte zeigt `PLL locked` (A-226, E-214); offen ist nur der Gerätetest mit SI5351. → FW-07
 - [ ] **Hinweise fehlen im Handbuch:** SI5351 läuft beim Flashen und nach ESP32-Reset mit der letzten Einstellung weiter (M-119); Hardware-Hinweise (eigener LDO mit Ferrit, kurze Masse, Abschirmung, optional TCXO nach M-313); VCO bei `Fractional` und +50 ppm 900,045 MHz (unkritisch, A-214). → DOK-01, DOK-02, DOK-03
 
 ### 2.2 Bedienung
@@ -126,11 +126,11 @@ Je Aufgabe: **Warum** (Anlass, Befund), **Was** (Umfang), **Prüfung** und Commi
   - *Was:* Backlight-PWM ≥ 20 kHz oder 100 % ohne PWM, Ruhemodus der I2C-Überwachung; „Neuzeichnen nur bei Änderung“ (AF12) und der Backoff der SI5351-Suche (AF53, PERF-11) sind erledigt.
   - *Prüfung:* M-310 wiederholen; Host-Test der Überwachungstakte.
   - *Commit:* `FW-06: Reduce platform spurs`
-- [ ] **FW-07 · Sticky-Bit und „PLL locked“** (braucht einen Gerätetest mit SI5351)
-  - *Warum:* Befund 2.1 „Spannungseinbruch ohne aktiven Ausgang unbemerkt“.
-  - *Was:* Register 1 (`SYS_INIT_STKY`) nach `begin()` löschen und zyklisch lesen; dasselbe Register meldet `LOL_A`/`LOL_B` → Zeile „PLL locked“ auf der Info-Karte (A-226).
-  - *Prüfung:* Host-Test im Registermodell (Sticky-Bit gesetzt → Wiederverbinden); am Gerät die Versorgung des Moduls ohne eingeschalteten Ausgang unterbrechen (wie M-106).
-  - *Commit:* `FW-07: Detect SI5351 power loss by the sticky bit`
+- [ ] **FW-07 · Gerätetest Sticky-Bit und „PLL locked“** (Umsetzung erledigt; offen nur der Gerätetest mit SI5351, Hardware derzeit nicht verfügbar)
+  - *Warum:* Befund 2.1 „Spannungseinbruch ohne aktiven Ausgang“.
+  - *Erledigt:* Commit `FW-07: Detect SI5351 power loss by the sticky bit` – `begin()` löscht Register 1, die Überwachung liest Register 0/1 alle 2 s in einer Übertragung mit; `SYS_INIT`/`SYS_INIT_STKY` gesetzt → Wiederverbinden und neu einrichten, auch ohne Ausgang; Zeile `PLL locked: A ok  B ok` auf der Info-Karte (A-226, E-214); Host-Tests im Registermodell.
+  - *Offen (Gerätetest):* alle Ausgänge aus, die Versorgung des Moduls kurz unterbrechen (wie M-106) → Meldung `Connection lost`, Log `[ERROR][SI5351] Device restarted (SYS_INIT)`, danach verbunden; Off state `High` bleibt nach dem Einbruch wirksam (Register 24 neu geschrieben). Info-Karte: `PLL locked: A ok  B ok`, ohne Modul `PLL locked: -`; Layout der 9 Zeilen ohne Abschneiden auf beiden Boards.
+  - *Abschluss:* Ergebnis im Messprotokoll, Haken hier und in Befund 2.1.
 - [ ] **FW-08 · Warnung `Heap low`** (vor MES-04)
   - *Warum:* A-726 verlangt eine Logzeile unter 40 KB freiem Heap; M-205 prüft sie, die Firmware hat sie noch nicht.
   - *Was:* in `loop()` den freien Heap prüfen; unter 40 KB einmal `Heap low` mit freiem Heap und größtem Block loggen, erneut erst nach Erholung über 48 KB (Hysterese); Grenzen in `constants.h`.

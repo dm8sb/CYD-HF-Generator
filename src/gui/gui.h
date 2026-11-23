@@ -74,6 +74,7 @@ private:
         lv_obj_t* spreadDd;
         lv_obj_t* offStateDd;
         lv_obj_t* si5351Info;
+        lv_obj_t* pllInfo;     // CONFIG info card: PLL lock (A-226)
         lv_obj_t* saveState;   // CONFIG header, MAIN status bar: save errors only (E-313)
         lv_obj_t* ta;          // numpad
         lv_obj_t* calCross[2]; // touch calibration: horizontal and vertical line

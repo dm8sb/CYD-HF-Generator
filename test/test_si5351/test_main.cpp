@@ -174,6 +174,30 @@ static void test_begin_tolerates_sys_init_stuck() {
     chip.reset();
     chip.initReads = 100;
     TEST_ASSERT_TRUE(si.begin(0));
+    // Restart detection is off for such a clone: no reconnect every 2 s.
+    TEST_ASSERT_TRUE(si.checkAlive());
+}
+
+// FW-07: begin() clears SYS_INIT_STKY and the LOL sticky bits in register 1 (write 0).
+static void test_begin_clears_sticky_bits() {
+    chip.reset();
+    chip.regs[1] = 0xE0; // SYS_INIT_STKY, LOL_B_STKY, LOL_A_STKY
+    TEST_ASSERT_TRUE(si.begin(0));
+    TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[1]);
+    TEST_ASSERT_EQUAL_UINT(1, chip.writesTo(1));
+    // After the init writes, before the chip counts as ready.
+    TEST_ASSERT_TRUE(chip.firstWriteTo(1) > chip.firstWriteTo(183));
+    TEST_ASSERT_TRUE(si.checkAlive());
+}
+
+// A clone that keeps the sticky bits: no restart detection by them, no endless reconnect.
+static void test_sticky_bits_kept_by_clone_disable_restart_detection() {
+    chip.reset();
+    chip.keepSticky = true;
+    TEST_ASSERT_TRUE(si.begin(0));
+    TEST_ASSERT_EQUAL_HEX8(0x80, chip.regs[1]);
+    TEST_ASSERT_TRUE(si.checkAlive());
+    TEST_ASSERT_TRUE(si.ready());
 }
 
 static void test_begin_stops_at_first_io_error() {
@@ -205,6 +229,66 @@ static void test_check_alive_detects_power_cycle() {
     chip.powerOn();
     TEST_ASSERT_FALSE(si.checkAlive());
     TEST_ASSERT_FALSE(si.ready());
+}
+
+// FW-07: with all outputs off a restart leaves the output registers at the values the driver
+// wrote; only SYS_INIT_STKY (register 1) or SYS_INIT (register 0) shows it.
+static void test_check_alive_detects_restart_without_output_by_sticky_bit() {
+    TEST_ASSERT_TRUE(si.checkAlive());
+    chip.powerOn();
+    chip.initReads = 0; // calibration done, only the sticky bit is left
+    TEST_ASSERT_FALSE(si.checkAlive());
+    TEST_ASSERT_FALSE(si.ready());
+    TEST_ASSERT_TRUE(si.begin(0));
+    TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[1]);
+    TEST_ASSERT_TRUE(si.checkAlive());
+}
+
+static void test_check_alive_detects_restart_by_sys_init() {
+    TEST_ASSERT_TRUE(si.checkAlive());
+    chip.initReads = 1; // still calibrating, sticky bit not (yet) seen
+    TEST_ASSERT_FALSE(si.checkAlive());
+    TEST_ASSERT_FALSE(si.ready());
+}
+
+// One more read (registers 0 and 1 in one transfer) per check, no write.
+static void test_check_alive_adds_one_read_and_no_write() {
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    TEST_ASSERT_TRUE(si.enableOutput(0, true));
+    chip.clearLog();
+    TEST_ASSERT_TRUE(si.checkAlive());
+    TEST_ASSERT_EQUAL_UINT(3, chip.readTransfers); // status, output enable, CLK0..2 control
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+    // A loss of lock changes nothing on the bus either (the sticky LOL bit is not cleared).
+    chip.setLol(true, false);
+    chip.clearLog();
+    TEST_ASSERT_TRUE(si.checkAlive());
+    TEST_ASSERT_EQUAL_UINT(3, chip.readTransfers);
+    TEST_ASSERT_EQUAL_UINT(0, chip.writes.size());
+}
+
+// LOL_A / LOL_B of register 0 per PLL; a PLL not set up since begin() is Unused.
+static void test_check_alive_reports_pll_lock() {
+    using Lock = SI5351Manager::PllLock;
+    TEST_ASSERT_EQUAL(Lock::Unused, si.pllLock(Pll::A));
+    TEST_ASSERT_EQUAL(Lock::Unused, si.pllLock(Pll::B));
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    TEST_ASSERT_TRUE(si.checkAlive());
+    TEST_ASSERT_EQUAL(Lock::Locked, si.pllLock(Pll::A));
+    TEST_ASSERT_EQUAL(Lock::Unused, si.pllLock(Pll::B));
+    TEST_ASSERT_TRUE(si.setupStandalone(1, Pll::B, 14000000, 8));
+    chip.setLol(true, false);
+    TEST_ASSERT_TRUE(si.checkAlive()); // a loss of lock is no lost device
+    TEST_ASSERT_EQUAL(Lock::Unlocked, si.pllLock(Pll::A));
+    TEST_ASSERT_EQUAL(Lock::Locked, si.pllLock(Pll::B));
+    chip.setLol(false, true);
+    TEST_ASSERT_TRUE(si.checkAlive());
+    TEST_ASSERT_EQUAL(Lock::Locked, si.pllLock(Pll::A)); // live bit, not the sticky one
+    TEST_ASSERT_EQUAL(Lock::Unlocked, si.pllLock(Pll::B));
+    // begin() forgets the PLLs.
+    chip.setLol(false, false);
+    TEST_ASSERT_TRUE(si.begin(0));
+    TEST_ASSERT_EQUAL(Lock::Unused, si.pllLock(Pll::A));
 }
 
 static void test_check_alive_detects_bus_failure() {
@@ -1112,8 +1196,9 @@ static void test_begin_fails_cleanly_at_every_transfer() {
         TEST_ASSERT_TRUE_MESSAGE(n < 60, msg);
     }
     // Probe, status, reg183, two SYS_INIT reads, OE write and read-back, off state, 8 CLK
-    // controls, PLL source, SSC block, crystal load: begin() succeeds once failAfter covers all.
-    TEST_ASSERT_EQUAL_INT(19, n);
+    // controls, PLL source, SSC block, crystal load, sticky clear, status read-back (FW-07):
+    // begin() succeeds once failAfter covers all.
+    TEST_ASSERT_EQUAL_INT(21, n);
     TEST_ASSERT_TRUE(si.ready());
     TEST_ASSERT_EQUAL(SI5351Manager::Error::None, si.lastError());
 }
@@ -1129,9 +1214,15 @@ int main() {
     RUN_TEST(test_begin_rejects_device_reading_ff_without_waiting);
     RUN_TEST(test_begin_rejects_device_without_register_readback);
     RUN_TEST(test_begin_tolerates_sys_init_stuck);
+    RUN_TEST(test_begin_clears_sticky_bits);
+    RUN_TEST(test_sticky_bits_kept_by_clone_disable_restart_detection);
     RUN_TEST(test_begin_stops_at_first_io_error);
     RUN_TEST(test_register_access_on_closed_bus_does_not_touch_wire);
     RUN_TEST(test_check_alive_detects_power_cycle);
+    RUN_TEST(test_check_alive_detects_restart_without_output_by_sticky_bit);
+    RUN_TEST(test_check_alive_detects_restart_by_sys_init);
+    RUN_TEST(test_check_alive_adds_one_read_and_no_write);
+    RUN_TEST(test_check_alive_reports_pll_lock);
     RUN_TEST(test_check_alive_detects_bus_failure);
     RUN_TEST(test_failed_transfer_marks_device_lost_and_begin_recovers);
     RUN_TEST(test_standalone_accuracy_1_to_100_mhz);

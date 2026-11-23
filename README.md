@@ -61,6 +61,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - Manual (DE, EN), hardware page and remote API as web pages on GitHub Pages next to the web flasher, rendered from the Markdown at the release tag and deployed with it; the flasher page links them (E-903)
 - Host tools: `device_check.py` and the fake device cover CH2 coupling and screen rotation; CI runs `device_check --outputs` against the fake
 - Planning documents restructured with uniform numbers: the specification by topic in nine chapters (requirements `A-<chapter><nn>`, decisions `E-<chapter><nn>`, the former work-plan decisions and the WEB-HMI concept included), measurements `M-<tier><nn>`, open tasks with area IDs `FW-`, `DOK-`, `REL-`, `MES-`, `USR-nn`; the `device_check.py` profiles are now `M-203` and `M-452`
+- SI5351 supervision detects a restart of the module by the sticky `SYS_INIT` bit also with all outputs off and sets it up again; the CONFIG info card shows the PLL lock (`PLL locked: A ok  B ok`, `LOL` in orange) (FW-07, E-214)
 
 ### 2.1.0
 
