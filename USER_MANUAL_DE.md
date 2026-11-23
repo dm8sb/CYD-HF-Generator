@@ -1841,8 +1841,8 @@ Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt v
 | Out 7.555 000 MHz (+0.3 Hz)                |
 |                                            |
 +--------------------------------------------+
-| [  Free  ]  [      CH1 + offset       ]    |
 | [1M][100k][10k][ 1k ][100][ 10][  1]       |
+| [  Free  ]  [      CH1 + offset       ]    |
 | [   −   ]  [   +   ]  [  NUMPAD  ]         |
 +--------------------------------------------+
 ```

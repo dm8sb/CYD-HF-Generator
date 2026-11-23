@@ -15,11 +15,12 @@ static constexpr int BTN_Y = 170;
 static constexpr int BTN_H = 62;
 static constexpr int BTN_W = 96;
 // CH2 adds the coupling chips Free / CH1 + offset (E-52) as a third row: all rows lower, 4 px apart.
-static constexpr int CPL_Y = 126;
-static constexpr int CPL_H = 32;
-static constexpr int CH2_CHIP_Y = CPL_Y + CPL_H + 4;
+// The step chips stay right below the frequency card (user test), the coupling chips follow.
+static constexpr int CH2_CHIP_Y = 126;
 static constexpr int CH2_CHIP_H = 32;
-static constexpr int CH2_BTN_Y = CH2_CHIP_Y + CH2_CHIP_H + 4;
+static constexpr int CPL_Y = CH2_CHIP_Y + CH2_CHIP_H + 4;
+static constexpr int CPL_H = 32;
+static constexpr int CH2_BTN_Y = CPL_Y + CPL_H + 4;
 static constexpr int CH2_BTN_H = 232 - CH2_BTN_Y;
 
 static const char* STEP_LABELS[DELTA_STEP_COUNT] = {"1", "10", "100", "1k", "10k", "100k", "1M"};

@@ -1841,8 +1841,8 @@ The images are rendered on the PC from the GUI code of the firmware and scaled u
 | Out 7.555 000 MHz (+0.3 Hz)                |
 |                                            |
 +--------------------------------------------+
-| [  Free  ]  [      CH1 + offset       ]    |
 | [1M][100k][10k][ 1k ][100][ 10][  1]       |
+| [  Free  ]  [      CH1 + offset       ]    |
 | [   −   ]  [   +   ]  [  NUMPAD  ]         |
 +--------------------------------------------+
 ```
