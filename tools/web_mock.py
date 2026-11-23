@@ -82,6 +82,45 @@ SCAN_LIST = [("Lab", -48, True), ("Lab-Guest", -55, True), ("Workshop", -61, Tru
              ("far away", -93, True)]
 
 
+def no_duplicates(pairs):
+    """object_pairs_hook: a repeated key of the top-level object is a syntax error like on the
+    device (rest_json.cpp counts the top-level keys); nested objects keep the last value."""
+    keys = [k for k, _ in pairs]
+    d = dict(pairs)
+    if len(d) != len(keys):
+        d[DUPLICATE] = True
+    return d
+
+
+DUPLICATE = object()  # marker of an object that had a repeated key
+
+TCHAR = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,32}$")
+
+
+def broken_authorization(v):
+    """request_guard.cpp wellFormedAuthorization: "scheme credentials", printable, <= 1024 B."""
+    if v is None:
+        return False
+    if not 0 < len(v) <= 1024 or any(not 0x20 <= ord(c) <= 0x7E for c in v):
+        return True
+    scheme, sep, rest = v.partition(" ")
+    return not (TCHAR.match(scheme) and sep and rest.strip(" "))
+
+
+def broken_cookie(v):
+    """Simplified request_guard.cpp parseCookie_: printable ASCII, at most 32 pairs, a cyd_sid
+    only as 32 lower-case hex digits (optionally quoted) and only once."""
+    if v is None:
+        return False
+    if any(not 0x20 <= ord(c) <= 0x7E for c in v):
+        return True
+    pairs = [p.strip() for p in v.split(";") if p.strip()]
+    if len(pairs) > 32:
+        return True
+    sids = [p.split("=", 1)[1].strip('"') for p in pairs if p.split("=", 1)[0].strip() == "cyd_sid" and "=" in p]
+    return len(sids) > 1 or any(not re.fullmatch(r"[0-9a-f]{32}", x) for x in sids)
+
+
 class ApiError(Exception):
     def __init__(self, status, error, extra=None):
         super().__init__(error)
@@ -560,6 +599,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.host_ok():
             return self.send(421, {"error": "-200,Host not allowed"})
         url = urllib.parse.urlsplit(self.path)
+        refusal = self.header_refusal(url.path)
+        if refusal:
+            return self.error(refusal)
         if url.path == "/ws":
             return self.websocket(url)
         if url.path in ("/", "/index.html"):
@@ -593,9 +635,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.error(e)
         self.send(404, {"error": "-200,Not found"})
 
+    def header_refusal(self, path):
+        """The checks of RequestGuard::check after Host and method, in its order (400 Cookie and
+        Authorization, then for /api/ and /ws 403 Origin, Sec-Fetch-Site, /api/token same-origin)."""
+        if broken_cookie(self.headers.get("Cookie")):
+            return ApiError(400, "-200,Bad Cookie header")
+        if broken_authorization(self.headers.get("Authorization")):
+            return ApiError(400, "-200,Bad Authorization header")
+        if path.startswith("/api/") or path == "/ws":
+            origin = self.headers.get("Origin")
+            if origin and origin != self.own_origin():
+                return ApiError(403, "-200,Foreign origin")
+            site = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
+            if site == "cross-site":
+                return ApiError(403, "-200,Cross-site request")
+            if path == "/api/token" and site and site not in ("same-origin", "none"):
+                return ApiError(403, "-200,Same-origin only")
+        return None
+
     def do_POST(self):
         if not self.host_ok():
             return self.send(421, {"error": "-200,Host not allowed"})
+        if not urllib.parse.urlsplit(self.path).path.startswith("/api/"):
+            return self.send(405, {"error": "-200,Method not allowed"})
         m = self.model
         try:
             if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
@@ -605,6 +667,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.close_connection = True
                 raise ApiError(413, "-200,Body too large")
             raw = self.rfile.read(length) if length else b""
+            refusal = self.header_refusal(urllib.parse.urlsplit(self.path).path)
+            if refusal:
+                raise refusal
             ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
             if ctype != "application/json":
                 raise ApiError(415, "-200,Content-Type must be application/json")
@@ -616,9 +681,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not secrets.compare_digest(self.headers.get("X-CYD-Token") or "", self.token):
                 raise ApiError(403, "-200,Invalid token: reload the page")
             try:
-                body = json.loads(raw.decode("utf-8")) if raw else None
+                body = json.loads(raw.decode("utf-8"), object_pairs_hook=no_duplicates) if raw else None
             except (ValueError, UnicodeDecodeError):
                 raise ApiError(400, E_SYNTAX)
+            if isinstance(body, dict) and body.pop(DUPLICATE, False):
+                raise ApiError(400, "-102,Duplicate key")
             path = urllib.parse.urlsplit(self.path).path
             # W-S1 for every body, as the device (login: SEC-3): no passwords over an open AP.
             if self.open_ap_client() and carries_secret(body):
@@ -630,7 +697,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self.session_ok():
                 raise ApiError(401, "-200,Login required")
             with m.lock:
-                self.rate_limit()
+                self.rate_limit(take=False)
                 if body is None:
                     raise ApiError(400, E_SYNTAX)
                 ch = re.fullmatch(r"/api/channel/(\d+)", path)
@@ -656,16 +723,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self.send(204)
                 else:
                     raise ApiError(404, "-200,Not found")
+                self.rate_limit(take=True)
                 return self.send(200, m.state())
         except ApiError as e:
             return self.error(e)
 
-    def rate_limit(self):
+    def rate_limit(self, take):
         now = time.monotonic()
         q = [t for t in self.model.writes.get(self.client_address[0], []) if now - t < 1.0]
-        if len(q) >= WRITES_PER_S:
+        if not take and len(q) >= WRITES_PER_S:
             raise ApiError(429, E_RATE)
-        q.append(now)
+        if take:
+            q.append(now)
         self.model.writes[self.client_address[0]] = q
 
     def login(self, body):
@@ -803,7 +872,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    # AF34: a port in use is an error, not a second server on it (CI starts mocks on free ports).
+    allow_reuse_address = False
 
 
 def main():

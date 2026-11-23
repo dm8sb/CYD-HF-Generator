@@ -7,6 +7,7 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | `scpi_example.py` | Minimal SCPI example: connect, `*IDN?`, CH1 to 7.1 MHz, on, `FREQ:ACT?`, read the error queue, off. |
 | `rest_example.py` | Minimal REST example (urllib only): token from the index page, `GET /api/state`, `POST /api/channel/1`. |
 | `web_check.py` | Contract check of the web server (S55, S56) against the device or `web_mock.py`: page and headers, guard answers (token, origin, host, sizes), REST error codes, writes answered with the state, rate limit, WiFi settings without keys, scan semantics, WebSocket push and limits, login and logout. Never switches an output on or changes WiFi. |
+| `contract_check.py` | Shared contract vectors (AF34): sends every request of `test/contract/vectors.json` to the web server and compares status and SCPI code; the C++ host tests (`test_http_guard`, `test_rest_json`) read the same file, so a drift of mock, firmware or contract shows on both sides. CI runs it against `web_mock.py`, S61 against the device (no web password). |
 | `device_check.py` | Automated SCPI check for the smoke test and the measurement plan (`MESSPLAN.md` 4.3, L6, L-S). |
 | `lxi_example.py` | LXI / VXI-11 example (standard library): discovery by portmapper broadcast like `lxi discover`, `*IDN?` and commands over VXI-11, optionally through PyVISA (`TCPIP::<ip>::INSTR`). |
 | `fake_scpi_device.py` | Fake device (local TCP server, subset of the manual) to try the scripts without hardware; `--vxi11` adds a reduced VXI-11 server (portmapper and core channel 9009). |
@@ -25,7 +26,7 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | `screens/` | Host screen renderer (not a host tool): stand-ins for display, touch, WiFi, LED and build info, the sample state and `lv_conf_host.h`; built by `pio run -e screens-win`. |
 | `build_info.py` | PlatformIO build script (not a host tool). |
 | `sanitize_link.py` | PlatformIO build script of the env `native-asan` (not a host tool): links the ASan/UBSan runtime with the same `-fsanitize` flags as the compile (AF36). |
-| `embed_www.py` | PlatformIO build script: embeds `data/www` into the firmware (`app.js`, `style.css` gzip with ETag, `index.html` for the per-boot token) as `$BUILD_DIR/www/www_assets.h`. |
+| `embed_www.py` | PlatformIO build script: embeds `data/www` into the firmware (`app.js`, `style.css` gzip with ETag, `index.html` for the per-boot token) as `$BUILD_DIR/www/www_assets.h`; stops the build on `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval(` or `new Function` (W-S7, W-S8, AF34). |
 
 ## Install
 
@@ -106,3 +107,7 @@ The mock gives the firmware's answers (S55); where they differ, the firmware is 
 
 Further flags: `--local-only`, `--open-ap`, `--hw`, `--no-ws`, `--confirm-timeout`, `--token` (`--login-all` has no effect any more: with `--password` the state, token and `/ws` always need the login, D25)
 (`--help` explains them).
+
+## CI
+
+The job `Tool checks` of `ci.yml` (AF34) runs `size_report.py --self-test` and `hostport.py`, starts `web_mock.py` on free ports (a port in use is an error: `allow_reuse_address` is off) without and with a password, runs `contract_check.py` and `web_check.py` against both, and `device_check.py --tcp` against `fake_scpi_device.py`.

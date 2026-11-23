@@ -126,6 +126,51 @@ jobs:
       - name: Build the host screen renderer
         run: pio run -e screens
 
+  # AF34 (TEST-8, TEST-1, OPS-6): the Python tools against the mock and the fake device, and the
+  # shared contract vectors (test/contract/vectors.json, also read by the C++ host tests). Not a
+  # required check.
+  tools:
+    name: Tool checks (mock, fake device, vectors)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Self-tests
+        run: |
+          python tools/size_report.py --self-test
+          python tools/hostport.py
+      - name: Web UI without HTML or code from strings
+        run: |
+          if grep -nE 'innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function' data/www/*.js data/www/*.html data/www/*.css; then
+            echo "::error::forbidden in data/www (W-S7, W-S8; embed_www.py stops the build too)"
+            exit 1
+          fi
+      - name: Mock, web check and contract vectors
+        env:
+          CYD_WEB_PASSWORD: ci-bench-secret
+        run: |
+          python tools/web_mock.py --port 18080 > mock.log 2>&1 &
+          python tools/web_mock.py --port 18081 --password "$CYD_WEB_PASSWORD" > mock-pw.log 2>&1 &
+          for p in 18080 18081; do
+            for _ in $(seq 50); do python -c "import socket,sys; socket.create_connection(('127.0.0.1',$p),1)" 2>/dev/null && break; sleep 0.2; done
+          done
+          python tools/contract_check.py 127.0.0.1:18080
+          python tools/web_check.py 127.0.0.1:18080
+          python tools/web_check.py 127.0.0.1:18081 --password
+      - name: Fake device and device check
+        run: |
+          python tools/fake_scpi_device.py --port 15025 > fake.log 2>&1 &
+          for _ in $(seq 50); do python -c "import socket; socket.create_connection(('127.0.0.1',15025),1)" 2>/dev/null && break; sleep 0.2; done
+          python tools/device_check.py --tcp 127.0.0.1:15025
+      - name: Logs
+        if: failure()
+        run: tail -n 50 mock.log mock-pw.log fake.log 2>/dev/null || true
+
   firmware:
     # Required check in the ruleset of main: keep the name.
     name: Firmware build

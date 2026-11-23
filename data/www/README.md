@@ -64,6 +64,8 @@ It simulates the actual frequency per tuning mode (Integer on the 25 MHz × a / 
 
 ## API contract as implemented
 
+`test/contract/vectors.json` pins requests of this contract with their status and code; the C++ host tests and `tools/contract_check.py` (against the mock in CI, against the device in S61) read it (AF34). Change it with the contract.
+
 State (`GET /api/state`, every WebSocket text message, body of every successful POST except `/api/wifi*`, `/api/login`):
 
 ```json
@@ -158,7 +160,7 @@ HTTP status codes (guard: `net/request_guard.cpp`, raw-byte pre-filter: `net/web
 | 503 | `-200,Too many connections` | a 5th HTTP connection (at most 4 at a time; raw answer before parsing) |
 | 503 | `-200,Too many clients (max. 3)` | page or a 4th WebSocket while 3 are open |
 
-Not reproduced by `tools/web_mock.py`: 302 (no captive DNS), 304 (no ETag), 411, 431, 500 (no hardware), the `Too many connections`, `Low memory`/`Out of memory` and `Busy, try again` answers, `-223`, the malformed-request 400s of the guard and `-114` (the mock answers `/api/channel/3` with 404 `-200,Not found`); it answers 413 only by `Content-Length`.
+Not reproduced by `tools/web_mock.py`: 302 (no captive DNS), 304 (no ETag), 411, 431, 500 (no hardware), the `Too many connections`, `Low memory`/`Out of memory` and `Busy, try again` answers, `-223`, the malformed-request 400s of the guard except Cookie and Authorization and `-114` (the mock answers `/api/channel/3` with 404 `-200,Not found`); it answers 413 only by `Content-Length`.
 
 `frequencyText` in the mock: digits with blanks between groups, one `.` or `,`, optional unit `Hz`, `k`/`kHz`, `M`/`MHz` (any case); a decimal needs `k` or `M`; rounded to whole Hz; no sign, exponent or hex.
 
