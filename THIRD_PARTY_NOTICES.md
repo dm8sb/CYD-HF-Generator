@@ -31,7 +31,7 @@ Credit: the CYD dimensions of the case in `case/` were measured from the STEP mo
 
 | Component | Version | License (SPDX) | Copyright | Source | Used in |
 |---|---|---|---|---|---|
-| CYD HF Generator (this project, including the web UI in `data/www`, the flasher page and the OpenSCAD case in `case/`) | see tag | GPL-3.0-or-later | DM8SB | https://github.com/dm8sb/CYD-HF-Generator | Firmware, Flasher, Case |
+| CYD HF Generator (this project, including the web UI in `data/www`, the flasher page, the documentation pages of the Pages site and the OpenSCAD case in `case/`) | see tag | GPL-3.0-or-later | DM8SB | https://github.com/dm8sb/CYD-HF-Generator | Firmware, Flasher, Case |
 | TFT_eSPI | 2.5.43 | BSD-2-Clause-Views AND BSD-2-Clause AND MIT | Bodmer; Adafruit Industries; Limor Fried | https://github.com/Bodmer/TFT_eSPI | Firmware (display driver only; its fonts are not built since 2026-11-10) |
 | LVGL | 8.4.0 | MIT | LVGL Kft | https://github.com/lvgl/lvgl | Firmware |
 | ↳ QR Code generator (lv_qrcode) | in LVGL 8.4.0 | MIT | Project Nayuki | https://www.nayuki.io/page/qr-code-generator-library | Firmware |
@@ -75,6 +75,7 @@ Credit: the CYD dimensions of the case in `case/` were measured from the STEP mo
 | ↳ tslib | 2.8.1 | 0BSD | Microsoft Corporation | https://github.com/microsoft/tslib | Flasher |
 | Unity | 2.6.1 | MIT | Mike Karlesky, Mark VanderVoord, Greg Williams | https://github.com/ThrowTheSwitch/Unity | Tests |
 | PlatformIO Core | 6.2.0 | Apache-2.0 | PlatformIO Labs | https://github.com/platformio | Tools (in CI with its Python dependencies pinned with hashes in `tools/requirements-ci.txt`, each under its own license, not distributed) |
+| markdown-it-py with mdurl (`tools/docs_site.py`, renders the manual, hardware and remote API pages of the Pages site, E-54) | 4.2.0, mdurl 0.1.2 | MIT | ExecutableBookProject; Vitaly Puzrin, Alex Kocharin (markdown-it, mdurl) | https://github.com/executablebooks/markdown-it-py | Tools (in CI, pinned with hashes in `tools/requirements-ci.txt`; not distributed: the pages contain only this project's text, no code of the renderer) |
 | pioarduino platform-espressif32 (E-51) | 55.03.313 | Apache-2.0 | PlatformIO Labs and pioarduino contributors | https://github.com/pioarduino/platform-espressif32 | Tools (not distributed) |
 | pioarduino Core (Python package `pioarduino`, fork of PlatformIO Core) with the platform's Python dependencies (esptool, pyelftools, littlefs-python, cryptography, …), installed by the platform into PlatformIO's `penv` with `uv` | 6.2.0.post1 (minimum versions only, not pinned) | Apache-2.0; each dependency under its own license | PlatformIO Labs and pioarduino contributors | https://github.com/pioarduino/platformio-core | Tools (not distributed) |
 | esp_install (`tool-esp_install`, ESP-IDF `idf_tools.py`, installs the toolchain) | 5.3.5 | Apache-2.0 | Espressif Systems; pioarduino | https://github.com/pioarduino/esp_install | Tools (not distributed) |

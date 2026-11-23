@@ -1,4 +1,5 @@
-# Release (ARBEITSPLAN G1) and web flasher on GitHub Pages (G2, G11).
+# Release (ARBEITSPLAN G1) and web flasher on GitHub Pages (G2, G11) with the manual (DE, EN),
+# the hardware page and the remote API rendered from the Markdown at the tag (G9, E-54).
 # Tag v*: the tagged commit must be on main and pass the host tests (AF7, OPS-4/5, TEST-3); then
 # build, GitHub release with the firmware, the flash parts of the flasher env, license notices
 # and LGPL sources (THIRD_PARTY_NOTICES.md) and SHA256SUMS, build provenance over all assets
@@ -25,6 +26,7 @@ on:
       - .github/workflows/release.yml
       - tools/release_files.py
       - tools/flasher_site.py
+      - tools/docs_site.py
       - tools/dep_check.py
       - tools/requirements-ci.txt
       - tools/advisories_accepted.json
@@ -210,10 +212,18 @@ jobs:
         with:
           name: build-${{ env.FLASHER_ENV }}
           path: parts/
+      # markdown-it-py for the documentation pages (G9), pinned with hashes like PlatformIO.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install the Markdown renderer
+        run: pip install --require-hashes -r tools/requirements-ci.txt
       # ESP Web Tools is served by the site itself (E-36): the pinned modules, license files and
       # flasher stub sources of flasher/esp-web-tools.json, each checked against its hash.
       - name: Download ESP Web Tools
         run: python3 tools/flasher_site.py vendor --out ewt
+      # The documentation pages come from this commit; check fails on a broken link, anchor or
+      # image, so the dry run of a pull request to main catches it before the release.
       - name: Assemble and check the site
         env:
           VERSION: ${{ needs.meta.outputs.version }}

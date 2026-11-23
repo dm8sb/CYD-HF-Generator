@@ -12,6 +12,8 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 
 **[Flash in the browser](https://dm8sb.github.io/CYD-HF-Generator/)** (Chrome or Edge) · **User manual** [English](USER_MANUAL_EN.md) / [Deutsch](USER_MANUAL_DE.md) · **[Hardware: wiring and parts](docs/hardware.md)** · **[Remote control API](docs/REMOTE_API.md)**
 
+As web pages for the latest release: [manual (English)](https://dm8sb.github.io/CYD-HF-Generator/manual/en.html) · [Handbuch (Deutsch)](https://dm8sb.github.io/CYD-HF-Generator/manual/de.html) · [hardware](https://dm8sb.github.io/CYD-HF-Generator/hardware.html) · [remote API](https://dm8sb.github.io/CYD-HF-Generator/remote-api.html)
+
 <p align="center"><img src="docs/img/case-assembly.png" width="720" alt="CYD HF Generator in the 3D-printed case with the MAIN page: CH1 7.1 MHz, CH2 14 MHz, CH3 IQ 90 degrees"></p>
 <p align="center"><sub>Rendered from the OpenSCAD case and the firmware's GUI code (sample values); photos follow.</sub></p>
 
@@ -53,6 +55,10 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 <img src="docs/img/web-desktop.png" width="600" alt="Web interface on the desktop"> <img src="docs/img/web-phone.png" width="180" alt="Web interface on a phone">
 
 ## Changes
+
+### Next release
+
+- Manual (DE, EN), hardware page and remote API as web pages on GitHub Pages next to the web flasher, rendered from the Markdown at the release tag and deployed with it; the flasher page links them (E-54)
 
 ### 2.1.0
 
@@ -210,7 +216,7 @@ pio run -t upload            # both boards
 pio device monitor -b 115200
 ```
 
-Releases (`.github/workflows/release.yml`): a `v*` tag is built only if its commit is on `main` and passes the host tests; the release is never overwritten (tag ruleset and immutable releases on GitHub), and the web flasher goes live only after the release exists. Every release asset is covered by the build provenance; check one with `gh attestation verify <file> --repo dm8sb/CYD-HF-Generator` and the checksums with `sha256sum -c SHA256SUMS`. A manual run of the workflow builds and assembles the flasher site as an artifact but never deploys it. Every pull request to `main` (and every push to `dev` or `agent/**` that changes the release path) runs the same workflow as a dry run: tests, build without cache, flasher site and the job `Release dry run`, which names the assets and writes the notes with the same script as the release (`tools/release_files.py`) without publishing anything.
+Releases (`.github/workflows/release.yml`): a `v*` tag is built only if its commit is on `main` and passes the host tests; the release is never overwritten (tag ruleset and immutable releases on GitHub), and the web flasher goes live only after the release exists. Every release asset is covered by the build provenance; check one with `gh attestation verify <file> --repo dm8sb/CYD-HF-Generator` and the checksums with `sha256sum -c SHA256SUMS`. The site also carries the manual (DE, EN), the hardware page and the remote API, rendered from the Markdown at the tag (`tools/docs_site.py`, E-54); a broken link, anchor or image fails the site check. A manual run of the workflow builds and assembles the flasher site as an artifact but never deploys it. Every pull request to `main` (and every push to `dev` or `agent/**` that changes the release path) runs the same workflow as a dry run: tests, build without cache, flasher site and the job `Release dry run`, which names the assets and writes the notes with the same script as the release (`tools/release_files.py`) without publishing anything.
 
 The controller is read over SPI before the display init at every boot; nothing is stored. For an unrecognized board (display shows only noise), build with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789). `tools/build_info.py` passes branch, commit (`+` = uncommitted changes), the commit time in UTC (`SOURCE_DATE_EPOCH` if set) and, for a tag build, the tag version (e.g. `2.0.0-rc1`) to `src/utils/build_info.cpp` only, so two builds of the same commit give the same image. Partition table `huge_app.csv`; a standard 4 MB module is sufficient.
 
