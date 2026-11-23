@@ -68,44 +68,15 @@ void Gui::refreshCH3_() {
     const Ch3Status status = app.ch3Status();
     setHeaderState_(c3.enabled, StatusText::ch3(status));
     FrequencyUtils::format(app.ch3Frequency(), buf, sizeof(buf));
-    lv_label_set_text(w_.freq, buf);
+    Ui::setText(w_.freq, buf);
 
-    lv_color_t infoColor = Colors::muted();
-    char iqMin[12], iqMax[12];
-    FrequencyUtils::formatIqLimit(app.iqMinHz(), true, 3, false, iqMin, sizeof(iqMin));
-    FrequencyUtils::formatIqLimit(app.iqMaxHz(), false, 3, false, iqMax, sizeof(iqMax));
-    switch (status) {
-        case Ch3Status::Off:
-            snprintf(buf, sizeof(buf), "Off  |  follows CH%u", c3.master);
-            break;
-        case Ch3Status::Active:
-            // Actual frequency of CLK2 instead of a status text; the header shows ON.
-            showOutput_(3, app.ch3Frequency());
-            break;
-        case Ch3Status::MasterOff:
-            snprintf(buf, sizeof(buf), "Master CH%u is off: tap to switch on", c3.master);
-            infoColor = Colors::warn();
-            break;
-        case Ch3Status::FreqTooLow:
-            snprintf(buf, sizeof(buf), "Waiting: CH%u below %s MHz", c3.master, iqMin);
-            infoColor = Colors::warn();
-            break;
-        case Ch3Status::FreqTooHigh:
-            snprintf(buf, sizeof(buf), "Waiting: CH%u above %s MHz", c3.master, iqMax);
-            infoColor = Colors::warn();
-            break;
-        case Ch3Status::Error:
-            snprintf(buf, sizeof(buf), "IQ setup failed, retrying");
-            infoColor = Colors::error();
-            break;
-        case Ch3Status::NoDevice:
-            snprintf(buf, sizeof(buf), "SI5351 not found");
-            infoColor = Colors::error();
-            break;
-    }
-    if (status != Ch3Status::Active) {
-        lv_label_set_text(w_.info, buf);
-        lv_obj_set_style_text_color(w_.info, infoColor, 0);
+    if (status == Ch3Status::Active) {
+        // Actual frequency of CLK2 instead of a status text; the header shows ON.
+        showOutput_(3, app.ch3Frequency());
+    } else {
+        const StatusText::Tone tone = StatusText::ch3Info(status, c3.master, app.iqMinHz(), app.iqMaxHz(), buf, sizeof(buf));
+        Ui::setText(w_.info, buf);
+        Ui::setTextColor(w_.info, Colors::forTone(tone));
     }
 
     showModes_(w_.modes, 3);

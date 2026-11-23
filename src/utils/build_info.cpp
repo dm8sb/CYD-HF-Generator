@@ -15,9 +15,13 @@
 #ifndef BUILD_INFO_TIME
 #define BUILD_INFO_TIME "unknown"
 #endif
+// Only for a build of a release tag v<APP_VERSION>[-suffix], e.g. "2.0.0-rc1" (AF25).
+#ifndef BUILD_INFO_VERSION
+#define BUILD_INFO_VERSION APP_VERSION
+#endif
 
 namespace BuildInfo {
-const char* version() { return APP_VERSION; }
+const char* version() { return BUILD_INFO_VERSION; }
 const char* branch() { return BUILD_INFO_BRANCH; }
 const char* commit() { return BUILD_INFO_COMMIT; }
 const char* time() { return BUILD_INFO_TIME; }

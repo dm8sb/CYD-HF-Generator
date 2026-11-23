@@ -11,6 +11,7 @@
 #include <core/app_controller.h>
 #include <hal/i2c_bus.h>
 #include <pins.h>
+#include <remote/command.h>
 #include <helpers/si5351_model.h>
 #include <string.h>
 
@@ -757,6 +758,62 @@ static void test_reset_for_remote_is_not_saved() {
     TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
 }
 
+// AF17, D26: explicit saves (SYSTem:SAVE, POST /api/save) at most once per 10 s per source;
+// more are merged silently and saved at the latest 10 s after the previous save. A save writes
+// only the keys that changed.
+static void test_explicit_save_rate_limited_per_source() {
+    Device d;
+    d.app.setSource(Source::Scpi);
+    d.app.setChannelFrequency(1, 7100000);
+    unsigned before = nvs.writeCount;
+    TEST_ASSERT_TRUE(d.app.saveNow());
+    TEST_ASSERT_EQUAL_UINT(before + 1, nvs.writeCount); // only ch1_freq
+    // "FREQ ...;:SYST:SAVE" in a loop: 10 per second for 30 s.
+    before = nvs.writeCount;
+    for (int i = 0; i < 300; ++i) {
+        d.app.setSource(Source::Scpi);
+        d.app.setChannelFrequency(1, 7000000 + 1000 * (uint64_t)(i % 7));
+        TEST_ASSERT_TRUE(d.app.saveNow()); // never an error (D26)
+        d.app.setSource(Source::Touch);
+        d.run(100);
+    }
+    TEST_ASSERT_TRUE(nvs.writeCount - before <= 4); // one per 10 s (was 300)
+    TEST_ASSERT_TRUE(nvs.writeCount - before >= 2);
+    // The last value is saved at the latest 10 s after the previous save.
+    const uint64_t last = d.app.channel(1).frequency;
+    d.run(10100);
+    {
+        Device again;
+        TEST_ASSERT_EQUAL_UINT64(last, again.app.channel(1).frequency);
+    }
+    // Another source has its own budget.
+    d.app.setSource(Source::Web);
+    d.app.setChannelFrequency(2, 3600000);
+    before = nvs.writeCount;
+    TEST_ASSERT_TRUE(d.app.saveNow());
+    d.app.setSource(Source::Touch);
+    TEST_ASSERT_EQUAL_UINT(before + 1, nvs.writeCount);
+}
+
+// AF17: SAVE without a change writes nothing (the NVS has every value already).
+static void test_explicit_save_writes_only_changed_keys() {
+    Device d;
+    d.app.setSource(Source::Usb);
+    unsigned before = nvs.writeCount;
+    TEST_ASSERT_TRUE(d.app.saveNow());
+    TEST_ASSERT_EQUAL_UINT(before, nvs.writeCount);
+    d.app.setGlobalDriveStrength(6);
+    d.app.setBacklight(50);
+    d.run(10100); // SCPI autosave waits 30 s: still unsaved
+    before = nvs.writeCount;
+    d.app.setSource(Source::Usb);
+    TEST_ASSERT_TRUE(d.app.saveNow());
+    d.app.setSource(Source::Touch);
+    TEST_ASSERT_EQUAL_UINT(before + 2, nvs.writeCount);
+    d.run(SETTINGS_REMOTE_AUTOSAVE_MS + 100); // nothing left for the autosave
+    TEST_ASSERT_EQUAL_UINT(before + 2, nvs.writeCount);
+}
+
 static void test_config_options_invalid_nvs_values() {
     Preferences p;
     p.begin("hfgen"); // SETTINGS_NAMESPACE
@@ -1055,6 +1112,41 @@ static void test_healthy_link_leaves_bus_setup_alone() {
     TEST_ASSERT_EQUAL_UINT(0, Wire.beginCalls);
     TEST_ASSERT_EQUAL_UINT(0, Wire.endCalls);
     TEST_ASSERT_EQUAL_UINT(0, Wire.setClockCalls);
+}
+
+// AF53 / PERF-11: without a chip the search tears the I2C driver down and up twice per attempt.
+// Every 2 s during the first minute after boot or after losing the chip, then every 10 s.
+static void test_search_backs_off_without_chip() {
+    static_assert(SI5351_SEARCH_FAST_INTERVAL_MS == 2000, "the manual names 2 s");
+    static_assert(SI5351_SEARCH_SLOW_INTERVAL_MS == 10000, "the manual names 10 s");
+    static_assert(SI5351_SEARCH_FAST_PHASE_MS == 60000, "the manual names one minute");
+    chip.present = false;
+    Device d;
+    TEST_ASSERT_FALSE(d.app.hardwareReady());
+    Wire.resetCounters();
+    d.run(20000); // first minute: 10 attempts
+    const uint32_t fast = Wire.beginCalls;
+    TEST_ASSERT_TRUE(fast >= 10);
+    d.run(SI5351_SEARCH_FAST_PHASE_MS);
+    Wire.resetCounters();
+    d.run(20000); // after it: 2 attempts
+    const uint32_t slow = Wire.beginCalls;
+    TEST_ASSERT_TRUE(slow > 0);
+    TEST_ASSERT_EQUAL_UINT32(fast, 5 * slow);
+    // Plugged in later: found within the slow interval, not necessarily within 2 s.
+    chip.present = true;
+    d.run(SI5351_SEARCH_SLOW_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    // Lost again: the fast phase starts over.
+    chip.present = false;
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_FALSE(d.app.hardwareReady());
+    Wire.resetCounters();
+    d.run(20000);
+    TEST_ASSERT_EQUAL_UINT32(fast, Wire.beginCalls);
+    chip.present = true;
+    d.run(SI5351_SEARCH_FAST_INTERVAL_MS + 100);
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
 }
 
 static void test_fake_ack_on_wrong_assignment_is_skipped() {
@@ -1370,6 +1462,157 @@ static void test_settings_load_sanitizes_invalid_values() {
     TEST_ASSERT_EQUAL_INT32(-CORRECTION_MAX, d2.app.system().freq_correction);
 }
 
+// AF35 (TEST-4, M2): CH3 runs exactly at both ends of IQ_MIN_HZ..IQ_MAX_HZ and waits one hertz
+// outside.
+static void test_ch3_at_the_iq_limits() {
+    Device d;
+    startIQ(d);
+    d.app.setChannelFrequency(1, IQ_MAX_HZ);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    TEST_ASSERT_TRUE(enabled(2));
+    assertHz(2, IQ_MAX_HZ);
+    d.app.setChannelFrequency(1, IQ_MAX_HZ + 1);
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooHigh, d.app.ch3Status());
+    TEST_ASSERT_TRUE(poweredDown(2));
+    TEST_ASSERT_TRUE(enabled(0));
+    assertHz(0, IQ_MAX_HZ + 1);
+    d.app.setChannelFrequency(1, IQ_MIN_HZ - 1);
+    TEST_ASSERT_EQUAL(Ch3Status::FreqTooLow, d.app.ch3Status());
+    TEST_ASSERT_TRUE(poweredDown(2));
+    d.app.setChannelFrequency(1, IQ_MIN_HZ);
+    TEST_ASSERT_EQUAL(Ch3Status::Active, d.app.ch3Status());
+    assertHz(2, IQ_MIN_HZ);
+}
+
+// AF35 (TEST-5, M12): Identify blinks the backlight for IDENTIFY_MS, dark first, in
+// IDENTIFY_BLINK_MS phases, and ends with the set brightness.
+static uint32_t dutyOf(uint8_t percent) { return (uint32_t)percent * 255U / 100U; }
+
+static void test_identify_blinks_and_restores_backlight() {
+    Device d;
+    const uint32_t lit = dutyOf(DEFAULT_BACKLIGHT_PERCENT);
+    TEST_ASSERT_EQUAL_UINT32(lit, Fake::ledc().duty);
+    d.app.identify();
+    TEST_ASSERT_TRUE(d.app.identifying());
+    unsigned changes = 0;
+    bool last = true;
+    for (uint32_t t = 25; t <= IDENTIFY_MS; t += 25) {
+        Fake::advanceMs(25);
+        d.app.update();
+        const bool on = t >= IDENTIFY_MS || (t / IDENTIFY_BLINK_MS) % 2 == 1;
+        TEST_ASSERT_EQUAL_MESSAGE(on, d.app.identifyLit(), "blink phase");
+        TEST_ASSERT_EQUAL_UINT32_MESSAGE(on ? lit : 0, Fake::ledc().duty, "duty");
+        changes += on != last;
+        last = on;
+    }
+    TEST_ASSERT_EQUAL_UINT(IDENTIFY_MS / IDENTIFY_BLINK_MS, changes); // dark first, lit at the end
+    TEST_ASSERT_FALSE(d.app.identifying());
+    TEST_ASSERT_TRUE(d.app.identifyLit());
+    TEST_ASSERT_EQUAL_UINT32(lit, Fake::ledc().duty);
+    // Nothing changes after the end.
+    const int writes = Fake::ledc().writes;
+    d.run(2000);
+    TEST_ASSERT_EQUAL_INT(writes, Fake::ledc().writes);
+
+    // A second identify() while blinking starts the IDENTIFY_MS again.
+    d.app.identify();
+    d.run(600);
+    TEST_ASSERT_TRUE(d.app.identifying());
+    d.app.identify();
+    d.run(IDENTIFY_MS - 100);
+    TEST_ASSERT_TRUE(d.app.identifying());
+    d.run(200);
+    TEST_ASSERT_FALSE(d.app.identifying());
+    TEST_ASSERT_EQUAL_UINT32(lit, Fake::ledc().duty);
+
+    // A brightness change while blinking: the lit phases and the end use the new value, the
+    // dark phases stay dark.
+    d.app.identify();
+    d.run(1000);
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setBacklight(40));
+    d.run(IDENTIFY_BLINK_MS);
+    for (uint32_t t = 0; t < 2 * IDENTIFY_BLINK_MS; t += 50) {
+        d.run(50);
+        TEST_ASSERT_EQUAL_UINT32(d.app.identifyLit() ? dutyOf(40) : 0, Fake::ledc().duty);
+    }
+    d.run(IDENTIFY_MS);
+    TEST_ASSERT_FALSE(d.app.identifying());
+    TEST_ASSERT_EQUAL_UINT32(dutyOf(40), Fake::ledc().duty);
+}
+
+// ---------------------------------------------------------------------------
+// Screen rotation (N16, E-53)
+
+// 0 or 180 degrees, stored in NVS (key rot180); Defaults resets it and saves 0, *RST resets it
+// in RAM like the backlight (not saved).
+static void test_rotation_set_persist_and_reset() {
+    Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
+    {
+        Device d;
+        TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+        TEST_ASSERT_EQUAL(Result::Invalid, d.app.setRotation(90));
+        TEST_ASSERT_EQUAL(Result::Invalid, d.app.setRotation(270));
+        TEST_ASSERT_EQUAL(Result::Invalid, d.app.setRotation(360));
+        TEST_ASSERT_EQUAL(Result::NoChange, d.app.setRotation(0));
+        const uint32_t rev = d.app.revision();
+        TEST_ASSERT_EQUAL(Result::Ok, d.app.setRotation(180));
+        TEST_ASSERT_EQUAL_UINT16(180, d.app.system().rotation);
+        TEST_ASSERT_TRUE(d.app.revision() != rev); // the GUI applies it on the revision
+        TEST_ASSERT_EQUAL(Result::NoChange, d.app.setRotation(180));
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+        TEST_ASSERT_EQUAL_UINT8(1, p.getUChar("rot180", 9));
+    }
+    Device d;
+    TEST_ASSERT_EQUAL_UINT16(180, d.app.system().rotation); // a restart keeps it
+    d.app.resetForRemote();
+    TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+    d.run(SETTINGS_REMOTE_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT8(1, p.getUChar("rot180", 9)); // *RST saves nothing
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setRotation(180));
+    d.app.resetToDefaults();
+    TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT8(0, p.getUChar("rot180", 9));
+}
+
+// NVS from before N16 has no key: 0 degrees; a broken value gives 0 degrees too.
+static void test_rotation_old_and_invalid_nvs() {
+    Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
+    p.putULong64("ch1_freq", 7000000);
+    p.putUChar("backlight", 60);
+    {
+        Device d;
+        TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+        TEST_ASSERT_EQUAL_UINT64(7000000, d.app.channel(1).frequency);
+    }
+    p.putUChar("rot180", 7);
+    Device d;
+    TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+}
+
+// SYSTem:DISPlay:ROTation and REST config.rotation: degrees in the full type, only 0 and 180.
+static void test_rotation_remote_command() {
+    Device d;
+    Command c {};
+    c.type = CommandType::Rotation;
+    c.source = Source::Scpi;
+    const int64_t bad[] = {90, 270, -180, 1, 180 + 65536LL, (int64_t)1 << 40};
+    for (int64_t v : bad) {
+        c.value = v;
+        TEST_ASSERT_EQUAL(Result::Invalid, execute(d.app, c));
+    }
+    TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+    c.value = 180;
+    TEST_ASSERT_EQUAL(Result::Ok, execute(d.app, c));
+    TEST_ASSERT_EQUAL_UINT16(180, d.app.system().rotation);
+    c.value = 0;
+    c.source = Source::Web;
+    TEST_ASSERT_EQUAL(Result::Ok, execute(d.app, c));
+    TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_boot_with_defaults_all_outputs_off);
@@ -1406,6 +1649,8 @@ int main() {
     RUN_TEST(test_autosave_writes_only_changed_keys);
     RUN_TEST(test_remote_changes_save_later);
     RUN_TEST(test_reset_for_remote_is_not_saved);
+    RUN_TEST(test_explicit_save_rate_limited_per_source);
+    RUN_TEST(test_explicit_save_writes_only_changed_keys);
     RUN_TEST(test_setter_result_with_hardware_errors);
     RUN_TEST(test_reset_to_defaults_keeps_the_correction);
     RUN_TEST(test_erase_all_settings);
@@ -1425,6 +1670,7 @@ int main() {
     RUN_TEST(test_rewiring_while_running_restores_iq);
     RUN_TEST(test_dropout_reconnects_on_same_assignment);
     RUN_TEST(test_healthy_link_leaves_bus_setup_alone);
+    RUN_TEST(test_search_backs_off_without_chip);
     RUN_TEST(test_fake_ack_on_wrong_assignment_is_skipped);
     RUN_TEST(test_foreign_device_is_not_programmed);
     RUN_TEST(test_si5351_powering_up_is_retried_while_present);
@@ -1442,5 +1688,10 @@ int main() {
     RUN_TEST(test_settings_survive_reboot_but_outputs_start_off);
     RUN_TEST(test_settings_load_sanitizes_invalid_values);
     RUN_TEST(test_actual_frequency_known_only_after_stored_settings);
+    RUN_TEST(test_ch3_at_the_iq_limits);
+    RUN_TEST(test_identify_blinks_and_restores_backlight);
+    RUN_TEST(test_rotation_set_persist_and_reset);
+    RUN_TEST(test_rotation_old_and_invalid_nvs);
+    RUN_TEST(test_rotation_remote_command);
     return UNITY_END();
 }

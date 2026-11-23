@@ -42,7 +42,7 @@ import zlib
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 IMG = os.path.join(ROOT, "docs", "img")
-SCREENS = ["main", "ch1", "numpad", "ch3", "config", "config-freq", "config-net", "config-device", "config-info", "wifi", "wifi-scan", "wifi-device",
+SCREENS = ["main", "ch1", "ch2-coupled", "numpad", "ch3", "config", "config-freq", "config-net", "config-device", "config-info", "wifi", "wifi-scan", "wifi-device",
            "wifi-ap", "dialog-network-change"]
 TOKEN = "render-images-sample-token"
 

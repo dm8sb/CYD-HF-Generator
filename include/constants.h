@@ -15,6 +15,9 @@ static constexpr uint64_t FREQ_MIN_HZ = 8000ULL;
 static constexpr uint64_t FREQ_MAX_HZ = 160000000ULL;
 static constexpr uint64_t DEFAULT_FREQ_CH1 = 10000000ULL;
 static constexpr uint64_t DEFAULT_FREQ_CH2 = 14000000ULL;
+// CH2 coupled to CH1 (E-52): offset range in Hz; CH2 = CH1 + offset must lie in the range above,
+// otherwise CH2 waits.
+static constexpr int32_t CH2_OFFSET_MAX_HZ = 160000000;
 
 // CH3 IQ range: the phase offset register limits the MultiSynth divider to 127, so the VCO
 // stays >= 600 MHz (SI5351 spec) only from 600 MHz / 127 upwards. The fractional-mode divider
@@ -63,8 +66,15 @@ static constexpr uint16_t VXI11_CORE_PORT = 9009;
 static constexpr uint32_t PORTMAP_TCP_IDLE_MS = 10000;
 // MAIN status bar: REMOTE <source> stays this long after the last remote command (W-E14).
 static constexpr uint32_t REMOTE_INDICATOR_MS = 10000;
+// Serial TX buffer of the logger (AF53): lines are queued instead of waiting for the UART.
+static constexpr uint32_t SERIAL_TX_BUFFER_BYTES = 1024;
 // SI5351 health check / reconnect interval.
 static constexpr uint32_t HW_CHECK_INTERVAL_MS = 2000;
+// Search without a chip (AF53, PERF-11): every 2 s during the first minute after boot or after
+// losing the chip, then every 10 s (each attempt reopens the I2C driver for both wirings).
+static constexpr uint32_t SI5351_SEARCH_FAST_INTERVAL_MS = HW_CHECK_INTERVAL_MS;
+static constexpr uint32_t SI5351_SEARCH_FAST_PHASE_MS = 60000;
+static constexpr uint32_t SI5351_SEARCH_SLOW_INTERVAL_MS = 10000;
 // Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).
 static constexpr uint32_t MEM_LOG_INTERVAL_MS = 30000;
 // GUI and touch timing.
@@ -91,14 +101,21 @@ static constexpr uint8_t DISPLAY_PROBE_ATTEMPTS = 3;
 static constexpr uint32_t TEST_TRIGGER_MS = 20000;
 static constexpr const char* SETTINGS_NAMESPACE = "hfgen";
 
-// Touch calibration is fixed; there is no runtime calibration UI.
+// Touch calibration until the wizard (utils/touch_cal.*, CONFIG > Device) stored one for this board.
 static constexpr TouchCalibration TOUCH_CAL_DEFAULT = {300, 3800, 300, 3800};
 
 static constexpr uint8_t CLK_CH1 = 0;
 static constexpr uint8_t CLK_CH2 = 1;
 static constexpr uint8_t CLK_CH3 = 2;
 
-inline bool isValidDrive(uint8_t ma) { return ma == 2 || ma == 4 || ma == 6 || ma == 8; }
+// Drive strength of the outputs: DRIVE_MA_MIN..DRIVE_MA_MAX in steps of DRIVE_MA_STEP (2, 4, 6, 8 mA).
+static constexpr uint8_t DRIVE_MA_MIN = 2;
+static constexpr uint8_t DRIVE_MA_MAX = 8;
+static constexpr uint8_t DRIVE_MA_STEP = 2;
+static constexpr uint8_t DRIVE_OPTION_COUNT = (DRIVE_MA_MAX - DRIVE_MA_MIN) / DRIVE_MA_STEP + 1;
+inline bool isValidDrive(uint8_t ma) {
+    return ma >= DRIVE_MA_MIN && ma <= DRIVE_MA_MAX && (ma - DRIVE_MA_MIN) % DRIVE_MA_STEP == 0;
+}
 inline bool isValidPhase(uint16_t deg) { return deg == 0 || deg == 90 || deg == 180 || deg == 270; }
 // Nearest backlight step within BACKLIGHT_MIN_PERCENT..100.
 inline uint8_t snapBacklight(int percent) {

@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <esp_heap_caps.h>
 #include <esp_random.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
@@ -22,8 +23,10 @@
 #include <remote/rest_wifi.h>
 #include <config.h>
 #include <utils/logger.h>
+#include "ip_address.h"
 #include "request_guard.h"
 #include "web_limits.h"
+#include "web_routes.h"
 #include "web_state.h"
 
 namespace {
@@ -31,21 +34,29 @@ namespace {
 constexpr const char* CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
                             "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 constexpr const char* JSON = "application/json";
+// REST writes and WiFi jobs (AF54, E-50): async_tcp waits at most FAST_REPLY_MS, woken by loop()
+// instead of polling; a slower loop() answers from the connection's poll callback.
+constexpr uint32_t FAST_REPLY_MS = 20;
 constexpr uint32_t JOB_WAIT_MS = 100;        // a job taken by loop() finishes within this
 constexpr uint32_t LOGIN_TIMEOUT_MS = 5000;  // a password check that never ends answers 503
-constexpr uint8_t PING_PAYLOAD[3] = {'c', 'y', 'd'};
 constexpr uint32_t CLEANUP_MS = 1000;
 constexpr uint32_t STACK_LOG_MS = 60000; // debug log of the task stack reserves (W-S23)
 constexpr uint16_t WS_TOO_BIG = 1009;
 constexpr uint16_t WS_POLICY = 1008;
 constexpr uint16_t WS_GOING_AWAY = 1001;
+// Placeholder in index.html replaced by the per-boot token (tools/embed_www.py keeps it).
+constexpr char TOKEN_MARKER[] = "{{TOKEN}}";
+constexpr size_t TOKEN_MARKER_LEN = sizeof(TOKEN_MARKER) - 1;
+// Refusal text for a fourth client; the number is WsClients::MAX.
+#define TOO_MANY_CLIENTS "Too many clients (max. 3)"
+static_assert(WsClients::MAX == 3, "TOO_MANY_CLIENTS names WsClients::MAX");
+static_assert(NetChange::CONFIRM_MS == 120000, "the network change log line says 120 s");
 
 uint32_t hwRandom() { return esp_random(); }
 
 // 64-bit monotonic ms for the request guard (no 49.7-day wrap of millis()).
 uint64_t guardNow() { return (uint64_t)(esp_timer_get_time() / 1000); }
 
-uint32_t ipv4(const IPAddress& a) { return (uint32_t)a[0] << 24 | (uint32_t)a[1] << 16 | (uint32_t)a[2] << 8 | a[3]; }
 
 struct Lock {
     explicit Lock(SemaphoreHandle_t m) : m_(m) { xSemaphoreTake(m_, portMAX_DELAY); }
@@ -115,15 +126,6 @@ const char* header(AsyncWebServerRequest* req, const char* name) {
     return h ? h->value().c_str() : nullptr;
 }
 
-bool waitFor(bool (*cond)(void*), void* ctx, uint32_t budgetMs) {
-    const uint32_t t0 = millis();
-    for (;;) {
-        if (cond(ctx)) return true;
-        if (millis() - t0 >= budgetMs) return false;
-        vTaskDelay(1);
-    }
-}
-
 ScanSession::Radio radioOf(WifiManager::ScanState s) {
     switch (s) {
         case WifiManager::ScanState::Running: return ScanSession::Radio::Running;
@@ -137,6 +139,16 @@ ScanSession::Radio radioOf(WifiManager::ScanState s) {
 } // namespace
 
 // ---------------------------------------------------------------------------
+// The server in four parts by task (AF50, CQ-6). Each part names the task its code runs in;
+// Shared is the only data more than one task touches, and only under `mutex`.
+//   ConnectionGate  async_tcp: accept, connection slots, pre-filter (W-S10)
+//   LoginService    async_tcp (submit, answer from the poll callback) and its own task
+//                   web_login (PBKDF2, W-S23)
+//   Pusher          loop(): WebSocket push, keep-alive, cleanup
+//   Replies         async_tcp: REST writes and WiFi jobs that loop() did not finish within
+//                   FAST_REPLY_MS, answered from the connection's poll callback (AF54)
+//   Impl            the glue: start/listen and the network state in loop(), routing and the
+//                   REST answers in async_tcp, the job mailbox between the two
 
 struct WebHmiServer::Impl {
     // ESPAsyncWebServer with an own accept: connection limit, heap check and the pre-filter
@@ -144,7 +156,7 @@ struct WebHmiServer::Impl {
     class Server : public AsyncWebServer {
     public:
         Server(Impl* impl) : AsyncWebServer(PORT) {
-            _server.onClient([](void* s, AsyncClient* c) { static_cast<Impl*>(s)->accept(c); }, impl);
+            _server.onClient([](void* s, AsyncClient* c) { static_cast<Impl*>(s)->gate.accept(c); }, impl);
         }
         void startListening() { begin(); }
     };
@@ -163,18 +175,501 @@ struct WebHmiServer::Impl {
         Impl* impl_;
     };
 
+    // A job for loop() (JobSlot): WiFi change, confirmation or scan, and its result.
     enum class JobKind : uint8_t { WifiChange, WifiConfirm, Scan };
-    enum class JobState : uint8_t { Free, Queued, Taken, Done, Abandoned };
     struct Job {
         JobKind kind;
-        JobState state;
         RestWifi::Change change;
         uint16_t status;
         RestJson::Reply reply;
         uint16_t confirmWithin;
         char* out; // heap, scan answer
+        static void clear(Job& j) {
+            if (j.out) free(j.out);
+            RestWifi::wipe(&j.change);
+            j.out = nullptr;
+        }
     };
 
+    // ------------------------------------------------------------------ Shared (any task)
+    // Every access holds `mutex`.
+    struct Shared {
+        RequestGuard guard;
+        GuardConfig guardCfg {};
+        bool guardSet = false;
+        char guardName[33] {};
+        WsClients wsc;
+        JobSlot<Job> job;
+        RestJson::DeviceInfo info {};
+        uint32_t infoRev = 0; // counts changes of info
+        char wifiJson[RestWifi::SETTINGS_SIZE] {};
+        char record[WebPassword::RECORD_SIZE] {};
+        bool passwordSet = false;
+        // LXI identification (A-78): the station's address data; the serial is set once at boot.
+        struct LxiNet {
+            uint32_t staIp, staMask, staGateway, apIp;
+            bool dhcp;
+        } lxiNet {};
+        char serial[18] {};
+    };
+
+    // ------------------------------------------------------------------ ConnectionGate (async_tcp)
+    // Takes a connection only with a free slot and enough heap, feeds its raw bytes through the
+    // pre-filter before the library parses them and frees the slot when it closes or becomes a
+    // WebSocket. The slots are also under `mutex` (webClients() and the WebSocket events).
+    struct ConnectionGate {
+        Impl& s;
+        HttpConnections conns;
+        AsyncClient* client[HttpConnections::MAX] {};
+        uint32_t gen[HttpConnections::MAX] {};
+
+        explicit ConnectionGate(Impl& impl) : s(impl) {}
+
+        void accept(AsyncClient* c) {
+            if (!c) return;
+            const uint32_t now = millis();
+            int slot = -1;
+            uint32_t g = 0;
+            // W-S10: < 24 KB free -> 503; AF19: also without a block for the request.
+            const bool heapOk = HeapLimits::acceptOk(ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+            if (heapOk) {
+                Lock l(s.mutex);
+                slot = conns.acquire(now);
+                if (slot >= 0) {
+                    client[slot] = c;
+                    g = ++gen[slot];
+                }
+            }
+            if (slot < 0) {
+                c->onDisconnect([](void*, AsyncClient* cl) { delete cl; }, nullptr);
+                rawRefusal(c, 503, heapOk ? "Too many connections" : "Low memory");
+                return;
+            }
+            c->setRxTimeout(3);
+            std::shared_ptr<AsyncWebServerRequest> r = AsyncWebServerRequest::create(s.server, c);
+            if (!r) {
+                release(slot, g);
+                c->abort();
+                delete c;
+                return;
+            }
+            Impl* impl = &s;
+            r->onDisconnect([impl, slot, g]() { impl->gate.closed(slot, g); });
+            c->onPacket([](void* arg, AsyncClient* cl, pbuf* pb) { static_cast<Impl*>(arg)->gate.packet(cl, pb); }, &s);
+        }
+
+        // Under `mutex`.
+        int slotOf(AsyncClient* c) {
+            for (int i = 0; i < HttpConnections::MAX; ++i) {
+                if (conns.used(i) && client[i] == c) return i;
+            }
+            return -1;
+        }
+
+        void release(int slot, uint32_t g) {
+            Lock l(s.mutex);
+            if (conns.used(slot) && gen[slot] == g) {
+                conns.release(slot);
+                client[slot] = nullptr;
+            }
+        }
+
+        void closed(int slot, uint32_t g) {
+            release(slot, g);
+            s.login.connectionClosed(slot);
+            s.replies.connectionClosed(slot);
+        }
+
+        // An upgraded connection counts as a WebSocket from now on. Under `mutex`.
+        void becameWebSocket(AsyncClient* c) {
+            const int slot = slotOf(c);
+            if (slot >= 0) {
+                conns.release(slot);
+                client[slot] = nullptr;
+            }
+        }
+
+        // Raw bytes before the library parses them (HttpPreFilter, W-S10).
+        void packet(AsyncClient* c, pbuf* pb) {
+            HttpPreFilter::Verdict v = HttpPreFilter::Verdict::TooMuchData;
+            {
+                Lock l(s.mutex);
+                const int slot = slotOf(c);
+                if (slot >= 0) v = conns.filter(slot).feed((const uint8_t*)pb->payload, pb->len, millis());
+            }
+            if (v == HttpPreFilter::Verdict::Pass) {
+                // Hand the packet to the request's data handler, then filter the next one again.
+                c->onPacket(nullptr, nullptr);
+                c->_recv(c->pcb(), pb, 0);
+                c->onPacket([](void* arg, AsyncClient* cl, pbuf* p) { static_cast<Impl*>(arg)->gate.packet(cl, p); }, &s);
+                return;
+            }
+            c->ackPacket(pb);
+            const uint16_t status = HttpPreFilter::status(v);
+            if (status) {
+                const char* reason = status == 414 ? "URL too long" : status == 431 ? "Headers too large" : "Body too large";
+                c->onPacket([](void*, AsyncClient*, pbuf* p) { pbuf_free(p); }, nullptr); // nothing more reaches the parser
+                rawRefusal(c, status, reason);
+            } else {
+                c->onPacket([](void*, AsyncClient*, pbuf* p) { pbuf_free(p); }, nullptr);
+                c->close();
+            }
+        }
+    };
+
+    // ------------------------------------------------------------------ LoginService (W-S11, W-S13, W-S23)
+    // async_tcp: start() submits the check and pauses the request, poll() (the connection's poll
+    // callback, every ~0.5 s) answers it, connectionClosed() drops it. Task web_login: worker()
+    // runs the PBKDF2 check. The queue is under `mutex`; the paused request is async_tcp only.
+    struct LoginService {
+        Impl& s;
+        LoginQueue queue;
+        TaskHandle_t task = nullptr;
+        AsyncWebServerRequestPtr req;
+        uint32_t id = 0;
+        uint32_t startMs = 0;
+        int slot = -1;
+
+        explicit LoginService(Impl& impl) : s(impl) {}
+
+        bool begin() { return xTaskCreatePinnedToCore(worker, "web_login", 4096, this, 1, &task, 0) == pdPASS; }
+
+        void start(AsyncWebServerRequest* r, const char* bodyText, size_t bodyLen) {
+            char pw[LoginQueue::MAX_PASSWORD + 1];
+            size_t pwLen = 0;
+            const RestJson::Reply rep = RestJson::parseLogin(bodyText, bodyLen, pw, sizeof(pw), &pwLen);
+            WebBody::wipe(r->_tempObject);
+            if (!rep.ok()) {
+                wipe(pw, sizeof(pw));
+                return sendReply(r, rep);
+            }
+            const uint32_t now = millis();
+            uint32_t newId = 0;
+            bool set = false;
+            uint32_t retry = 0;
+            {
+                Lock l(s.mutex);
+                set = s.shared.passwordSet;
+                const uint64_t t = guardNow();
+                if (set && s.shared.guard.loginAllowed(t).allowed()) newId = queue.submit(pw, pwLen, s.shared.record);
+                else if (set) retry = s.shared.guard.loginRetryAfterS(t);
+            }
+            wipe(pw, sizeof(pw));
+            if (!set) return sendEmpty(r, 204); // no password: nothing to log in to
+            if (retry) {
+                char buf[RestJson::ERROR_SIZE];
+                RestJson::loginLockedJson(retry, buf, sizeof(buf));
+                return sendJson(r, 429, buf);
+            }
+            if (newId == 0) return sendRefusal(r, 503, "Busy, try again");
+            // Answered later from this connection's poll callback (async_tcp task, every ~0.5 s).
+            req = r->pause();
+            id = newId;
+            startMs = now;
+            {
+                Lock l(s.mutex);
+                slot = s.gate.slotOf(r->client());
+            }
+            r->client()->onPoll([](void* arg, AsyncClient*) { static_cast<LoginService*>(arg)->poll(); }, this);
+            xTaskNotifyGive(task);
+        }
+
+        void connectionClosed(int closedSlot) {
+            if (slot != closedSlot || id == 0) return;
+            Lock l(s.mutex);
+            queue.cancel(id);
+            id = 0;
+            slot = -1;
+        }
+
+        void poll() {
+            std::shared_ptr<AsyncWebServerRequest> r = req.lock();
+            if (!r || id == 0) return;
+            const uint32_t now = millis();
+            bool ok = false;
+            bool done;
+            {
+                Lock l(s.mutex);
+                done = queue.collect(id, &ok);
+            }
+            if (!done) {
+                if (now - startMs < LOGIN_TIMEOUT_MS) return;
+                Lock l(s.mutex);
+                queue.cancel(id);
+            }
+            id = 0;
+            slot = -1;
+            req.reset();
+            if (!done) return sendRefusal(r.get(), 503, "Busy, try again");
+            if (ok) {
+                char cookie[RequestGuard::SET_COOKIE_SIZE];
+                bool started;
+                {
+                    Lock l(s.mutex);
+                    started = s.shared.guard.loginSucceeded(guardNow(), hwRandom, cookie, sizeof(cookie));
+                }
+                Logger::info("WEB", "Login");
+                if (!started) return sendRefusal(r.get(), 500, "Session failed");
+                return sendEmpty(r.get(), 204, cookie);
+            }
+            {
+                Lock l(s.mutex);
+                s.shared.guard.loginFailed(guardNow());
+            }
+            Logger::info("WEB", "Login failed");
+            char buf[RestJson::ERROR_SIZE];
+            RestJson::errorJson(RestJson::Reply {401, RestJson::EXECUTION_ERROR, "Wrong password"}, buf, sizeof(buf));
+            sendJson(r.get(), 401, buf);
+        }
+
+        static void worker(void* arg) {
+            LoginService* self = static_cast<LoginService*>(arg);
+            for (;;) {
+                ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+                LoginQueue::Job j;
+                bool got;
+                {
+                    Lock l(self->s.mutex);
+                    got = self->queue.take(&j);
+                }
+                if (!got) continue;
+                bool ok = false;
+                const uint32_t done = LoginQueue::check(&j, WebPassword::verify, &ok); // wipes j
+                Lock l(self->s.mutex);
+                self->queue.finish(done, ok);
+            }
+        }
+    };
+
+    // ------------------------------------------------------------------ Pusher (loop())
+    // The state to every WebSocket that needs it, at most every 100 ms (AF19), the PING/PONG
+    // keep-alive (AF18) and the cleanup of closed clients. Its own fields are loop() only.
+    struct Pusher {
+        Impl& s;
+        RestJson::PushKey lastPush {};
+        bool pushedOnce = false;
+        PushPacer pacer;          // at most one push per 100 ms (AF19)
+        uint32_t lowMemLogMs = 0; // a skipped push is logged at most once per minute
+        // What the last push looked at: unchanged inputs skip the key and the hash (AF11, PERF-12).
+        uint32_t pushedRevision = 0;
+        uint8_t pushedSave = 0;
+        uint32_t pushedRemoteMs = 0;
+        uint32_t pushedInfoRev = 0;
+        uint32_t lastCleanupMs = 0;
+        uint32_t lastStackLogMs = 0;
+
+        explicit Pusher(Impl& impl) : s(impl) {}
+
+        void push(uint32_t now) {
+            uint8_t clients;
+            uint32_t rev;
+            {
+                Lock l(s.mutex);
+                clients = s.shared.wsc.count();
+                rev = s.shared.infoRev;
+            }
+            if (clients == 0) {
+                pushedOnce = false;
+                pacer.reset();
+                return;
+            }
+            Snapshot snap;
+            if (!s.snapshot.read(&snap)) return;
+            RestJson::DeviceInfo d;
+            const bool inputsChanged = !pushedOnce || snap.revision != pushedRevision ||
+                                       (uint8_t)snap.saveState != pushedSave || snap.lastRemoteMs != pushedRemoteMs ||
+                                       rev != pushedInfoRev || lastPush.remote; // the REMOTE indicator ends by time
+            uint32_t ids[WsClients::MAX];
+            {
+                Lock l(s.mutex);
+                d = s.shared.info;
+                bool changed = false;
+                if (inputsChanged) {
+                    const RestJson::PushKey k = RestJson::pushKey(snap, d, now);
+                    changed = !pushedOnce || k != lastPush;
+                    lastPush = k;
+                }
+                // Merged to one push per 100 ms; a new client gets the state at once (needsState).
+                if (pacer.due(changed, now)) s.shared.wsc.markAll();
+                for (uint8_t i = 0; i < WsClients::MAX; ++i) ids[i] = s.shared.wsc.needingState(i);
+            }
+            if (inputsChanged) {
+                pushedOnce = true;
+                pushedRevision = snap.revision;
+                pushedSave = (uint8_t)snap.saveState;
+                pushedRemoteMs = snap.lastRemoteMs;
+                pushedInfoRev = rev;
+            }
+            AsyncWebSocketSharedBuffer buf;
+            for (uint8_t i = 0; i < WsClients::MAX; ++i) {
+                if (!ids[i] || !s.ws->availableForWrite(ids[i])) continue;
+                if (!buf) {
+                    char text[RestJson::STATE_SIZE];
+                    const size_t n = RestJson::buildState(snap, d, now, text, sizeof(text));
+                    if (!n) return;
+                    // AF19: make_shared throws bad_alloc on a fragmented heap (terminate, restart);
+                    // skipped instead, the clients keep waiting for the state.
+                    if (!HeapLimits::pushOk(n, heap_caps_get_largest_free_block(MALLOC_CAP_8BIT))) {
+                        if (lowMemLogMs == 0 || now - lowMemLogMs >= 60000) {
+                            lowMemLogMs = now ? now : 1;
+                            Logger::error("WEB", "Low memory; WebSocket push skipped");
+                        }
+                        return;
+                    }
+                    buf = std::make_shared<std::vector<uint8_t>>((const uint8_t*)text, (const uint8_t*)text + n);
+                }
+                if (s.ws->text(ids[i], buf)) {
+                    Lock l(s.mutex);
+                    s.shared.wsc.sent(ids[i]);
+                }
+            }
+        }
+
+        void keepAlive(uint32_t now) {
+            uint32_t ping, dead;
+            uint8_t payload[WsClients::PING_PAYLOAD_LEN];
+            {
+                Lock l(s.mutex);
+                ping = s.shared.wsc.duePing(now, esp_random(), payload);
+                dead = s.shared.wsc.expired(now);
+            }
+            if (ping) s.ws->ping(ping, payload, sizeof(payload));
+            if (dead) {
+                Logger::info("WEB", "WebSocket closed: no pong");
+                s.ws->close(dead, 1001);
+            }
+            if (now - lastCleanupMs >= CLEANUP_MS) {
+                lastCleanupMs = now;
+                s.ws->cleanupClients(WsClients::MAX);
+            }
+            if (LOG_DEBUG && now - lastStackLogMs >= STACK_LOG_MS) {
+                lastStackLogMs = now;
+                TaskHandle_t tcp = xTaskGetHandle("async_tcp");
+                if (tcp) Logger::debugValue("WEB", "async_tcp stack free", uxTaskGetStackHighWaterMark(tcp));
+                if (s.login.task) Logger::debugValue("WEB", "web_login stack free", uxTaskGetStackHighWaterMark(s.login.task));
+            }
+        }
+    };
+
+    // ------------------------------------------------------------------ Replies (async_tcp, AF54)
+    // A REST write or WiFi job whose result loop() did not deliver within FAST_REPLY_MS: the
+    // request is paused and answered from its connection's poll callback (every ~0.5 s, async_tcp
+    // like every other answer: the library's response code is not thread-safe, so nothing is
+    // sent from loop()). A write answers once its commands are visible or REPLY_WAIT_MS passed
+    // (then with the state as it is, as before); a job once loop() finished it, or 503 after
+    // REPLY_WAIT_MS + JOB_WAIT_MS. One write per connection slot, one job (the mailbox has one
+    // slot); a closed connection drops its entry (and abandons the job). async_tcp only.
+    struct Replies {
+        struct Write {
+            Impl* s;
+            AsyncWebServerRequestPtr req;
+            uint32_t first;
+            uint8_t count;
+            uint32_t startMs;
+            bool used;
+        };
+        struct PendingJob {
+            Impl* s;
+            AsyncWebServerRequestPtr req;
+            int slot;
+            uint32_t startMs;
+            bool used;
+        };
+        Impl& s;
+        Write writes[HttpConnections::MAX] {};
+        PendingJob job {};
+
+        explicit Replies(Impl& impl) : s(impl) {
+            for (Write& w : writes) w.s = &impl;
+            job.s = &impl;
+        }
+
+        // false: no slot for this connection (the caller answers at once).
+        bool pauseWrite(AsyncWebServerRequest* r, uint32_t first, uint8_t count) {
+            int slot;
+            {
+                Lock l(s.mutex);
+                slot = s.gate.slotOf(r->client());
+            }
+            if (slot < 0 || writes[slot].used) return false;
+            Write& w = writes[slot];
+            w.req = r->pause();
+            w.first = first;
+            w.count = count;
+            w.startMs = millis();
+            w.used = true;
+            r->client()->onPoll([](void* arg, AsyncClient*) { pollWrite(*static_cast<Write*>(arg)); }, &w);
+            return true;
+        }
+
+        static void pollWrite(Write& w) {
+            if (!w.used) return;
+            std::shared_ptr<AsyncWebServerRequest> r = w.req.lock();
+            if (!r) {
+                w.used = false;
+                return;
+            }
+            const bool visible = w.s->commands.visible(w.first + w.count - 1);
+            if (!visible && millis() - w.startMs < REPLY_WAIT_MS) return;
+            w.used = false;
+            w.req.reset();
+            w.s->answerCommands(r.get(), w.first, w.count, visible);
+        }
+
+        bool pauseJob(AsyncWebServerRequest* r) {
+            int slot;
+            {
+                Lock l(s.mutex);
+                slot = s.gate.slotOf(r->client());
+            }
+            if (slot < 0 || job.used) return false;
+            job.req = r->pause();
+            job.slot = slot;
+            job.startMs = millis();
+            job.used = true;
+            r->client()->onPoll([](void* arg, AsyncClient*) { pollJob(*static_cast<PendingJob*>(arg)); }, &job);
+            return true;
+        }
+
+        static void pollJob(PendingJob& p) {
+            if (!p.used) return;
+            Impl& s = *p.s;
+            std::shared_ptr<AsyncWebServerRequest> r = p.req.lock();
+            Job j {};
+            bool ready = false;
+            const bool late = millis() - p.startMs >= REPLY_WAIT_MS + JOB_WAIT_MS;
+            {
+                Lock l(s.mutex);
+                if (r) ready = s.shared.job.collect(&j);
+                // Gone or too late: still queued: dropped; taken: cleared when loop() finishes it.
+                if (!ready && (!r || late)) s.shared.job.abandon();
+            }
+            if (!ready && r && !late) return;
+            p.used = false;
+            p.req.reset();
+            if (!r) return;
+            if (ready) {
+                s.answerJob(r.get(), j);
+                Job::clear(j);
+            } else {
+                sendRefusal(r.get(), 503, "Busy, try again");
+            }
+        }
+
+        void connectionClosed(int slot) {
+            if (slot < 0 || slot >= HttpConnections::MAX) return;
+            writes[slot].used = false;
+            writes[slot].req.reset();
+            if (job.used && job.slot == slot) {
+                job.used = false;
+                job.req.reset();
+                Lock l(s.mutex);
+                s.shared.job.abandon();
+            }
+        }
+    };
+
+    // ------------------------------------------------------------------ Impl
     CommandQueue& commands;
     StateSnapshot& snapshot;
     WifiManager& wifi;
@@ -183,52 +678,35 @@ struct WebHmiServer::Impl {
     Server* server = nullptr;
     AsyncWebSocket* ws = nullptr;
     Handler* handler = nullptr;
-    TaskHandle_t loginTask = nullptr;
     char* indexHtml = nullptr;
     size_t indexLen = 0;
     char token[RequestGuard::TOKEN_LEN + 1] {};
-
-    // --- under mutex
-    RequestGuard guard;
-    GuardConfig guardCfg {};
-    bool guardSet = false;
-    char guardName[33] {};
-    HttpConnections conns;
-    AsyncClient* connClient[HttpConnections::MAX] {};
-    uint32_t connGen[HttpConnections::MAX] {};
-    WsClients wsc;
-    LoginQueue login;
-    Job job {};
-    RestJson::DeviceInfo info {};
-    char wifiJson[RestWifi::SETTINGS_SIZE] {};
-    char record[WebPassword::RECORD_SIZE] {};
-    bool passwordSet = false;
-    // LXI identification (A-78): the station's address data; the serial is set once at boot.
-    struct LxiNet {
-        uint32_t staIp, staMask, staGateway, apIp;
-        bool dhcp;
-    } lxiNet {};
-    char serial[18] {};
-    // --- async_tcp only
-    AsyncWebServerRequestPtr loginReq;
-    uint32_t loginId = 0;
-    uint32_t loginStartMs = 0;
-    int loginSlot = -1;
+    Shared shared;
+    ConnectionGate gate {*this};
+    LoginService login {*this};
+    Pusher pusher {*this};
+    Replies replies {*this};
+    // loop() wakes a request that waits for its commands or job (AF54): given once per loop()
+    // while waiting is set (under mutex).
+    SemaphoreHandle_t replySignal = nullptr;
+    bool waiting = false;
     // --- loop() only
     NetChange netChange;
     ScanSession scan;
-    RestJson::PushKey lastPush {};
-    bool pushedOnce = false;
-    uint32_t lastCleanupMs = 0;
-    uint32_t lastStackLogMs = 0;
+    // updateShared() runs only when the WiFi manager or the confirmation countdown changed.
+    bool sharedKnown = false;
+    uint32_t sharedWifiRev = 0;
+    uint16_t sharedConfirmS = 0;
     NetSettings lastSettings {};
     bool settingsKnown = false;
     bool listening = false;
     bool disconnectRequested = false; // set and served in loop() (GUI)
+    bool closeWs = false;             // the web password changed: WebSockets close (loop)
 
     Impl(CommandQueue& c, StateSnapshot& s, WifiManager& w, bool (*sv)(const NetSettings&))
         : commands(c), snapshot(s), wifi(w), save(sv) {
         mutex = xSemaphoreCreateMutex();
+        replySignal = xSemaphoreCreateBinary();
     }
 
     // ---------------------------------------------------------------- start (loop)
@@ -236,17 +714,16 @@ struct WebHmiServer::Impl {
         RequestGuard::makeToken(hwRandom, token); // the radio runs: esp_random() is a true RNG
         // The page with the token, built once (the token is per boot).
         const WwwAsset& page = WWW_ASSETS[0];
-        const char* marker = "{{TOKEN}}";
         const char* src = (const char*)page.data;
         const char* at = nullptr;
-        for (size_t i = 0; i + 9 <= page.size; ++i) {
-            if (memcmp(src + i, marker, 9) == 0) {
+        for (size_t i = 0; i + TOKEN_MARKER_LEN <= page.size; ++i) {
+            if (memcmp(src + i, TOKEN_MARKER, TOKEN_MARKER_LEN) == 0) {
                 at = src + i;
                 break;
             }
         }
         if (!at) return false;
-        indexLen = page.size - 9 + RequestGuard::TOKEN_LEN;
+        indexLen = page.size - TOKEN_MARKER_LEN + RequestGuard::TOKEN_LEN;
         indexHtml = (char*)malloc(indexLen + 1);
         server = new (std::nothrow) Server(this);
         ws = new (std::nothrow) AsyncWebSocket("/ws");
@@ -255,15 +732,15 @@ struct WebHmiServer::Impl {
         const size_t pre = (size_t)(at - src);
         memcpy(indexHtml, src, pre);
         memcpy(indexHtml + pre, token, RequestGuard::TOKEN_LEN);
-        memcpy(indexHtml + pre + RequestGuard::TOKEN_LEN, at + 9, page.size - pre - 9);
+        memcpy(indexHtml + pre + RequestGuard::TOKEN_LEN, at + TOKEN_MARKER_LEN, page.size - pre - TOKEN_MARKER_LEN);
         indexHtml[indexLen] = '\0';
-        ws->onEvent([this](AsyncWebSocket*, AsyncWebSocketClient* c, AwsEventType t, void* arg, uint8_t*, size_t) {
-            wsEvent(c, t, arg);
+        ws->onEvent([this](AsyncWebSocket*, AsyncWebSocketClient* c, AwsEventType t, void* arg, uint8_t* data, size_t len) {
+            wsEvent(c, t, arg, data, len);
         });
         // The WebSocket is not registered as a handler: Handler checks every request first and
         // passes allowed upgrades of /ws to it.
         server->addHandler(handler);
-        if (xTaskCreatePinnedToCore(loginWorker, "web_login", 4096, this, 1, &loginTask, 0) != pdPASS) return false;
+        if (!login.begin()) return false;
         listen(true);
         return true;
     }
@@ -287,101 +764,13 @@ struct WebHmiServer::Impl {
     void dropClients() {
         ws->closeAll(WS_GOING_AWAY);
         Lock l(mutex);
-        guard.endAllSessions();
-    }
-
-    // ---------------------------------------------------------------- accept (async_tcp)
-    void accept(AsyncClient* c) {
-        if (!c) return;
-        const uint32_t now = millis();
-        int slot = -1;
-        uint32_t gen = 0;
-        const bool heapOk = ESP.getFreeHeap() >= RequestGuard::MIN_FREE_HEAP; // W-S10: < 24 KB -> 503
-        if (heapOk) {
-            Lock l(mutex);
-            slot = conns.acquire(now);
-            if (slot >= 0) {
-                connClient[slot] = c;
-                gen = ++connGen[slot];
-            }
-        }
-        if (slot < 0) {
-            c->onDisconnect([](void*, AsyncClient* cl) { delete cl; }, nullptr);
-            rawRefusal(c, 503, heapOk ? "Too many connections" : "Low memory");
-            return;
-        }
-        c->setRxTimeout(3);
-        std::shared_ptr<AsyncWebServerRequest> r = AsyncWebServerRequest::create(server, c);
-        if (!r) {
-            release(slot, gen);
-            c->abort();
-            delete c;
-            return;
-        }
-        r->onDisconnect([this, slot, gen]() { closed(slot, gen); });
-        c->onPacket([](void* arg, AsyncClient* cl, pbuf* pb) { static_cast<Impl*>(arg)->packet(cl, pb); }, this);
-    }
-
-    int slotOf(AsyncClient* c) {
-        for (int i = 0; i < HttpConnections::MAX; ++i) {
-            if (conns.used(i) && connClient[i] == c) return i;
-        }
-        return -1;
-    }
-
-    void release(int slot, uint32_t gen) {
-        Lock l(mutex);
-        if (conns.used(slot) && connGen[slot] == gen) {
-            conns.release(slot);
-            connClient[slot] = nullptr;
-        }
-    }
-
-    void closed(int slot, uint32_t gen) {
-        release(slot, gen);
-        if (loginSlot == slot && loginId != 0) {
-            Lock l(mutex);
-            login.cancel(loginId);
-            loginId = 0;
-            loginSlot = -1;
-        }
-    }
-
-    // Raw bytes before the library parses them (HttpPreFilter, W-S10).
-    void packet(AsyncClient* c, pbuf* pb) {
-        HttpPreFilter::Verdict v = HttpPreFilter::Verdict::TooMuchData;
-        {
-            Lock l(mutex);
-            const int slot = slotOf(c);
-            if (slot >= 0) v = conns.filter(slot).feed((const uint8_t*)pb->payload, pb->len, millis());
-        }
-        if (v == HttpPreFilter::Verdict::Pass) {
-            // Hand the packet to the request's data handler, then filter the next one again.
-            c->onPacket(nullptr, nullptr);
-            c->_recv(c->pcb(), pb, 0);
-            c->onPacket([](void* arg, AsyncClient* cl, pbuf* p) { static_cast<Impl*>(arg)->packet(cl, p); }, this);
-            return;
-        }
-        c->ackPacket(pb);
-        const uint16_t status = HttpPreFilter::status(v);
-        if (status) {
-            const char* reason = status == 414 ? "URL too long" : status == 431 ? "Headers too large" : "Body too large";
-            c->onPacket([](void*, AsyncClient*, pbuf* p) { pbuf_free(p); }, nullptr); // nothing more reaches the parser
-            rawRefusal(c, status, reason);
-        } else {
-            c->onPacket([](void*, AsyncClient*, pbuf* p) { pbuf_free(p); }, nullptr);
-            c->close();
-        }
+        shared.guard.endAllSessions();
     }
 
     // ---------------------------------------------------------------- body (async_tcp)
     void body(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-        if (total > RequestGuard::MAX_BODY || index + len > total) return; // the guard answers 413
-        if (index == 0) {
-            if (req->_tempObject) free(req->_tempObject);
-            req->_tempObject = calloc(1, total + 1);
-        }
-        if (req->_tempObject) memcpy((char*)req->_tempObject + index, data, len);
+        // Larger bodies are not kept: the guard answers 413 from Content-Length.
+        WebBody::chunk(&req->_tempObject, data, len, index, total, RequestGuard::MAX_BODY);
     }
 
     // ---------------------------------------------------------------- requests (async_tcp)
@@ -417,20 +806,20 @@ struct WebHmiServer::Impl {
         g.authorization = header(req, "Authorization");
         g.upgrade = header(req, "Upgrade");
         g.headerBytes = headerBytes;
-        g.clientIp = ipv4(req->client()->remoteIP());
-        g.localIp = ipv4(req->client()->localIP());
+        g.clientIp = fromIpAddress(req->client()->remoteIP());
+        g.localIp = fromIpAddress(req->client()->localIP());
         g.freeHeap = ESP.getFreeHeap();
 
         GuardDecision d;
         {
             Lock l(mutex);
-            d = guard.check(g, guardNow());
+            d = shared.guard.check(g, guardNow());
         }
         if (d.verdict == Verdict::Redirect) {
             char loc[40];
             {
                 Lock l(mutex);
-                guard.captiveLocation(loc, sizeof(loc));
+                shared.guard.captiveLocation(loc, sizeof(loc));
             }
             AsyncWebServerResponse* r = req->beginResponse(302);
             r->addHeader("Location", loc);
@@ -444,55 +833,58 @@ struct WebHmiServer::Impl {
         }
         const char* path = g.path;
         const bool post = strcmp(g.method, "POST") == 0;
-        const char* bodyText = (const char*)req->_tempObject;
-        const size_t bodyLen = bodyText ? strlen(bodyText) : 0;
+        const char* bodyText = WebBody::text(req->_tempObject);
+        const size_t bodyLen = WebBody::length(req->_tempObject); // embedded NUL bytes included: -102
+        const WebRoutes::Kind route = WebRoutes::find(g.method, path);
 
         if (!post) {
-            if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0) return page(req);
+            if (route == WebRoutes::Kind::Page) return page(req);
             for (const WwwAsset& a : WWW_ASSETS) {
                 if (a.gzip && strcmp(path, a.path) == 0) return asset(req, a);
             }
-            if (strcmp(path, "/api/state") == 0) return state(req, 200);
-            if (strcmp(path, "/lxi/identification") == 0) return lxiIdentification(req, g.localIp);
-            if (strcmp(path, "/api/token") == 0) {
-                char buf[64];
-                snprintf(buf, sizeof(buf), "{\"token\":\"%s\"}", token);
-                return sendJson(req, 200, buf);
-            }
-            if (strcmp(path, "/api/wifi") == 0) {
-                char buf[RestWifi::SETTINGS_SIZE];
-                {
-                    Lock l(mutex);
-                    memcpy(buf, wifiJson, sizeof(buf));
+            switch (route) {
+                case WebRoutes::Kind::State: return state(req, 200);
+                case WebRoutes::Kind::Lxi: return lxiIdentification(req, g.localIp);
+                case WebRoutes::Kind::Token: {
+                    char buf[64];
+                    snprintf(buf, sizeof(buf), "{\"token\":\"%s\"}", token);
+                    return sendJson(req, 200, buf);
                 }
-                return sendJson(req, 200, buf);
-            }
-            if (strcmp(path, "/api/wifi/scan") == 0) return runJob(req, JobKind::Scan, nullptr);
-            if (strcmp(path, "/ws") == 0) {
-                {
-                    Lock l(mutex);
-                    if (wsc.count() >= WsClients::MAX) {
-                        // Released like any HTTP connection; the WebSocket would not get a place.
-                        return sendRefusal(req, 503, "Too many clients (max. 3)");
+                case WebRoutes::Kind::WifiSettings: {
+                    char buf[RestWifi::SETTINGS_SIZE];
+                    {
+                        Lock l(mutex);
+                        memcpy(buf, shared.wifiJson, sizeof(buf));
                     }
+                    return sendJson(req, 200, buf);
                 }
-                ws->handleRequest(req);
-                return;
+                case WebRoutes::Kind::Scan: return runJob(req, JobKind::Scan, nullptr);
+                case WebRoutes::Kind::WebSocket: {
+                    {
+                        Lock l(mutex);
+                        if (shared.wsc.count() >= WsClients::MAX) {
+                            // Released like any HTTP connection; the WebSocket would not get a place.
+                            return sendRefusal(req, 503, TOO_MANY_CLIENTS);
+                        }
+                    }
+                    ws->handleRequest(req);
+                    return;
+                }
+                default: return sendRefusal(req, 404, "Not found");
             }
-            return sendRefusal(req, 404, "Not found");
         }
 
         // POST /api/* (the guard checked type, token, origin and session).
         // W-S1 for every body, whatever the endpoint (login: SEC-3, WiFi settings): no
         // passwords over an open access point.
         {
-            GuardDecision s;
+            GuardDecision sec;
             {
                 Lock l(mutex);
-                s = guard.checkSecrets(g, RestJson::carriesSecret(bodyText, bodyLen));
+                sec = shared.guard.checkSecrets(g, RestJson::carriesSecret(bodyText, bodyLen));
             }
-            if (!s.allowed()) {
-                if (req->_tempObject) wipe(req->_tempObject, bodyLen);
+            if (!sec.allowed()) {
+                WebBody::wipe(req->_tempObject);
                 char buf[RestJson::ERROR_SIZE];
                 RestJson::errorJson(RestJson::Reply {403, RestJson::SETTINGS_CONFLICT, "Passwords cannot be sent over the open access point"},
                                     buf, sizeof(buf));
@@ -501,21 +893,23 @@ struct WebHmiServer::Impl {
         }
         RestJson::Commands cmds {};
         RestJson::Reply rep {200, 0, nullptr};
-        const uint8_t ch = RestJson::channelFromPath(path);
-        if (ch) rep = RestJson::parseChannel(ch, bodyText, bodyLen, &cmds);
-        else if (strcmp(path, "/api/ch3") == 0) rep = RestJson::parseCh3(bodyText, bodyLen, &cmds);
-        else if (strcmp(path, "/api/config") == 0) rep = RestJson::parseConfig(bodyText, bodyLen, &cmds);
-        else if (strcmp(path, "/api/save") == 0) rep = RestJson::parseAction(CommandType::SaveNow, bodyText, bodyLen, &cmds);
-        else if (strcmp(path, "/api/identify") == 0) rep = RestJson::parseAction(CommandType::Identify, bodyText, bodyLen, &cmds);
-        else if (strcmp(path, "/api/login") == 0) return startLogin(req, bodyText, bodyLen);
-        else if (strcmp(path, "/api/logout") == 0) return logout(req, g, bodyText, bodyLen);
-        else if (strcmp(path, "/api/wifi") == 0) return wifiChange(req, bodyText, bodyLen);
-        else if (strcmp(path, "/api/wifi/confirm") == 0) {
-            rep = RestWifi::parseConfirm(bodyText, bodyLen);
-            if (!rep.ok()) return sendReply(req, rep);
-            return runJob(req, JobKind::WifiConfirm, nullptr);
-        } else {
-            return sendRefusal(req, 404, "Not found");
+        switch (route) {
+            case WebRoutes::Kind::Channel1:
+            case WebRoutes::Kind::Channel2:
+                rep = RestJson::parseChannel(WebRoutes::channelOf(route), bodyText, bodyLen, &cmds);
+                break;
+            case WebRoutes::Kind::Ch3: rep = RestJson::parseCh3(bodyText, bodyLen, &cmds); break;
+            case WebRoutes::Kind::Config: rep = RestJson::parseConfig(bodyText, bodyLen, &cmds); break;
+            case WebRoutes::Kind::Save: rep = RestJson::parseAction(CommandType::SaveNow, bodyText, bodyLen, &cmds); break;
+            case WebRoutes::Kind::Identify: rep = RestJson::parseAction(CommandType::Identify, bodyText, bodyLen, &cmds); break;
+            case WebRoutes::Kind::Login: return login.start(req, bodyText, bodyLen);
+            case WebRoutes::Kind::Logout: return logout(req, g, bodyText, bodyLen);
+            case WebRoutes::Kind::WifiChange: return wifiChange(req, bodyText, bodyLen);
+            case WebRoutes::Kind::WifiConfirm:
+                rep = RestWifi::parseConfirm(bodyText, bodyLen);
+                if (!rep.ok()) return sendReply(req, rep);
+                return runJob(req, JobKind::WifiConfirm, nullptr);
+            default: return sendRefusal(req, 404, "Not found");
         }
         if (!rep.ok()) return sendReply(req, rep);
         runCommands(req, cmds);
@@ -524,10 +918,10 @@ struct WebHmiServer::Impl {
     void page(AsyncWebServerRequest* req) {
         {
             Lock l(mutex);
-            if (wsc.count() >= WsClients::MAX) {
+            if (shared.wsc.count() >= WsClients::MAX) {
                 AsyncWebServerResponse* r = req->beginResponse(
                     503, "text/html; charset=utf-8",
-                    "<!DOCTYPE html><title>CYD HF Generator</title><p>Too many clients (max. 3)</p>");
+                    "<!DOCTYPE html><title>CYD HF Generator</title><p>" TOO_MANY_CLIENTS "</p>");
                 secure(r, Cache::NoStore);
                 req->send(r);
                 return;
@@ -566,7 +960,7 @@ struct WebHmiServer::Impl {
         RestJson::DeviceInfo d;
         {
             Lock l(mutex);
-            d = info;
+            d = shared.info;
         }
         return RestJson::buildState(s, d, millis(), out, outSize);
     }
@@ -577,18 +971,18 @@ struct WebHmiServer::Impl {
         char name[33];
         {
             Lock l(mutex);
-            snprintf(name, sizeof(name), "%s", info.name);
-            i.serial = serial;
-            if (localIp != 0 && localIp == lxiNet.apIp) {
-                i.ip = lxiNet.apIp;
+            snprintf(name, sizeof(name), "%s", shared.info.name);
+            i.serial = shared.serial;
+            if (localIp != 0 && localIp == shared.lxiNet.apIp) {
+                i.ip = shared.lxiNet.apIp;
                 i.mask = 0xFFFFFF00; // 192.168.4.1/24, no router (W-S3)
                 i.gateway = 0;
                 i.dhcp = false;
             } else {
-                i.ip = localIp ? localIp : lxiNet.staIp;
-                i.mask = lxiNet.staMask;
-                i.gateway = lxiNet.staGateway;
-                i.dhcp = lxiNet.dhcp;
+                i.ip = localIp ? localIp : shared.lxiNet.staIp;
+                i.mask = shared.lxiNet.staMask;
+                i.gateway = shared.lxiNet.staGateway;
+                i.dhcp = shared.lxiNet.dhcp;
             }
         }
         i.name = name;
@@ -614,8 +1008,43 @@ struct WebHmiServer::Impl {
         sendJson(req, status, buf);
     }
 
-    // REST writes: one batch, wait until it is in the snapshot, answer with the first error or
-    // the state (W-S23: at most REPLY_WAIT_MS; then the state as it is, the push follows).
+    // ---------------------------------------------------------------- waiting for loop() (AF54)
+    // async_tcp: waits at most budgetMs for cond; loop() wakes it once per pass (wakeWaiter)
+    // instead of a 1-ms poll.
+    bool waitLoop(bool (*cond)(void*), void* ctx, uint32_t budgetMs) {
+        const uint32_t t0 = millis();
+        {
+            Lock l(mutex);
+            waiting = true;
+        }
+        xSemaphoreTake(replySignal, 0); // drop a stale wake-up
+        bool ok;
+        for (;;) {
+            ok = cond(ctx);
+            if (ok) break;
+            const uint32_t elapsed = millis() - t0;
+            if (elapsed >= budgetMs) break;
+            TickType_t ticks = pdMS_TO_TICKS(budgetMs - elapsed);
+            xSemaphoreTake(replySignal, ticks ? ticks : 1);
+        }
+        Lock l(mutex);
+        waiting = false;
+        return ok;
+    }
+
+    // loop(), after the commands became visible and the job was served.
+    void wakeWaiter() {
+        bool w;
+        {
+            Lock l(mutex);
+            w = waiting;
+        }
+        if (w) xSemaphoreGive(replySignal);
+    }
+
+    // REST writes: one batch; answered with the first error or the state once it is in the
+    // snapshot: at once when loop() is fast (FAST_REPLY_MS), else from the poll callback
+    // (Replies; after REPLY_WAIT_MS with the state as it is, the push follows).
     void runCommands(AsyncWebServerRequest* req, const RestJson::Commands& cmds) {
         uint32_t first = 0;
         const PushResult p = commands.pushBatch(cmds.list, cmds.count, &first);
@@ -624,10 +1053,16 @@ struct WebHmiServer::Impl {
             CommandQueue* q;
             uint32_t last;
         } ctx {&commands, first + cmds.count - 1};
-        const bool done = waitFor([](void* c) { return static_cast<Ctx*>(c)->q->visible(static_cast<Ctx*>(c)->last); }, &ctx,
-                                  REPLY_WAIT_MS);
+        const bool done = waitLoop([](void* c) { return static_cast<Ctx*>(c)->q->visible(static_cast<Ctx*>(c)->last); }, &ctx,
+                                   FAST_REPLY_MS);
+        if (!done && replies.pauseWrite(req, first, cmds.count)) return;
+        answerCommands(req, first, cmds.count, done);
+    }
+
+    // done: the commands are in the snapshot (their results count), else the state as it is.
+    void answerCommands(AsyncWebServerRequest* req, uint32_t first, uint8_t count, bool done) {
         if (done) {
-            for (uint8_t i = 0; i < cmds.count; ++i) {
+            for (uint8_t i = 0; i < count; ++i) {
                 Result r = Result::Ok;
                 if (!commands.result(first + i, &r)) continue;
                 const RestJson::Reply rep = RestJson::fromResult(r);
@@ -639,52 +1074,42 @@ struct WebHmiServer::Impl {
 
     // ---------------------------------------------------------------- jobs for loop()
     void runJob(AsyncWebServerRequest* req, JobKind kind, const RestWifi::Change* change) {
+        Job in {};
+        in.kind = kind;
+        if (change) in.change = *change;
+        bool queued;
         {
             Lock l(mutex);
-            if (job.state != JobState::Free) return sendRefusal(req, 503, "Busy, try again");
-            job.kind = kind;
-            job.state = JobState::Queued;
-            job.out = nullptr;
-            if (change) job.change = *change;
+            queued = shared.job.submit(in);
         }
-        const bool done = waitFor(
+        RestWifi::wipe(&in.change);
+        if (!queued) return sendRefusal(req, 503, "Busy, try again");
+        const bool done = waitLoop(
             [](void* p) {
                 Impl* s = static_cast<Impl*>(p);
                 Lock l(s->mutex);
-                return s->job.state == JobState::Done;
+                return s->shared.job.state() == JobSlot<Job>::State::Done;
             },
-            this, REPLY_WAIT_MS);
-        if (!done) {
-            // Taken: loop() is on it and needs no more than a few ms more.
-            waitFor(
-                [](void* p) {
-                    Impl* s = static_cast<Impl*>(p);
-                    Lock l(s->mutex);
-                    return s->job.state != JobState::Taken;
-                },
-                this, JOB_WAIT_MS);
-        }
-        Job j;
+            this, FAST_REPLY_MS);
+        // loop() is slow: answered from the poll callback (Replies).
+        if (!done && replies.pauseJob(req)) return;
+        Job j {};
         bool ready;
         {
             Lock l(mutex);
-            ready = job.state == JobState::Done;
-            if (ready) {
-                j = job;
-                job.state = JobState::Free;
-                job.out = nullptr;
-            } else {
-                // Still queued: dropped; taken: loop() frees it when it is done.
-                job.state = job.state == JobState::Taken ? JobState::Abandoned : JobState::Free;
-            }
-            RestWifi::wipe(&job.change);
+            ready = shared.job.collect(&j);
+            // Still queued: dropped; taken: cleared when loop() finishes it.
+            if (!ready) shared.job.abandon();
         }
         if (!ready) return sendRefusal(req, 503, "Busy, try again");
-        RestWifi::wipe(&j.change);
+        answerJob(req, j);
+        Job::clear(j);
+    }
+
+    void answerJob(AsyncWebServerRequest* req, const Job& j) {
         if (j.kind == JobKind::Scan && j.out) {
             if (j.status == 200) sendJson(req, 200, j.out);
             else sendReply(req, j.reply);
-            free(j.out);
             return;
         }
         if (!j.reply.ok()) return sendReply(req, j.reply);
@@ -703,48 +1128,7 @@ struct WebHmiServer::Impl {
         else sendReply(req, rep);
         RestWifi::wipe(c);
         delete c;
-        if (req->_tempObject) wipe(req->_tempObject, bodyLen);
-    }
-
-    // ---------------------------------------------------------------- login (W-S11, W-S13, W-S23)
-    void startLogin(AsyncWebServerRequest* req, const char* bodyText, size_t bodyLen) {
-        char pw[LoginQueue::MAX_PASSWORD + 1];
-        size_t pwLen = 0;
-        const RestJson::Reply rep = RestJson::parseLogin(bodyText, bodyLen, pw, sizeof(pw), &pwLen);
-        if (req->_tempObject) wipe(req->_tempObject, bodyLen);
-        if (!rep.ok()) {
-            wipe(pw, sizeof(pw));
-            return sendReply(req, rep);
-        }
-        const uint32_t now = millis();
-        uint32_t id = 0;
-        bool set = false;
-        uint32_t retry = 0;
-        {
-            Lock l(mutex);
-            set = passwordSet;
-            const uint64_t t = guardNow();
-            if (set && guard.loginAllowed(t).allowed()) id = login.submit(pw, pwLen, record);
-            else if (set) retry = guard.loginRetryAfterS(t);
-        }
-        wipe(pw, sizeof(pw));
-        if (!set) return sendEmpty(req, 204); // no password: nothing to log in to
-        if (retry) {
-            char buf[RestJson::ERROR_SIZE];
-            RestJson::loginLockedJson(retry, buf, sizeof(buf));
-            return sendJson(req, 429, buf);
-        }
-        if (id == 0) return sendRefusal(req, 503, "Busy, try again");
-        // Answered later from this connection's poll callback (async_tcp task, every ~0.5 s).
-        loginReq = req->pause();
-        loginId = id;
-        loginStartMs = now;
-        {
-            Lock l(mutex);
-            loginSlot = slotOf(req->client());
-        }
-        req->client()->onPoll([](void* arg, AsyncClient*) { static_cast<Impl*>(arg)->loginPoll(); }, this);
-        xTaskNotifyGive(loginTask);
+        WebBody::wipe(req->_tempObject);
     }
 
     // POST /api/logout {}: ends the session of this cookie (if any) and expires the cookie.
@@ -753,7 +1137,7 @@ struct WebHmiServer::Impl {
         if (!rep.ok()) return sendReply(req, rep);
         {
             Lock l(mutex);
-            guard.logout(g.cookie);
+            shared.guard.logout(g.cookie);
         }
         char cookie[RequestGuard::SET_COOKIE_SIZE];
         RequestGuard::clearCookie(cookie, sizeof(cookie));
@@ -761,92 +1145,45 @@ struct WebHmiServer::Impl {
         sendEmpty(req, 204, cookie);
     }
 
-    void loginPoll() {
-        std::shared_ptr<AsyncWebServerRequest> req = loginReq.lock();
-        if (!req || loginId == 0) return;
-        const uint32_t now = millis();
-        bool ok = false;
-        bool done;
-        {
-            Lock l(mutex);
-            done = login.collect(loginId, &ok);
-        }
-        if (!done) {
-            if (now - loginStartMs < LOGIN_TIMEOUT_MS) return;
-            Lock l(mutex);
-            login.cancel(loginId);
-        }
-        loginId = 0;
-        loginSlot = -1;
-        loginReq.reset();
-        if (!done) return sendRefusal(req.get(), 503, "Busy, try again");
-        if (ok) {
-            char cookie[RequestGuard::SET_COOKIE_SIZE];
-            bool started;
-            {
-                Lock l(mutex);
-                started = guard.loginSucceeded(guardNow(), hwRandom, cookie, sizeof(cookie));
-            }
-            Logger::info("WEB", "Login");
-            if (!started) return sendRefusal(req.get(), 500, "Session failed");
-            return sendEmpty(req.get(), 204, cookie);
-        }
-        {
-            Lock l(mutex);
-            guard.loginFailed(guardNow());
-        }
-        Logger::info("WEB", "Login failed");
-        char buf[RestJson::ERROR_SIZE];
-        RestJson::errorJson(RestJson::Reply {401, RestJson::EXECUTION_ERROR, "Wrong password"}, buf, sizeof(buf));
-        sendJson(req.get(), 401, buf);
-    }
-
-    static void loginWorker(void* arg) {
-        Impl* s = static_cast<Impl*>(arg);
-        for (;;) {
-            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-            LoginQueue::Job j;
-            bool got;
-            {
-                Lock l(s->mutex);
-                got = s->login.take(&j);
-            }
-            if (!got) continue;
-            bool ok = false;
-            const uint32_t id = LoginQueue::check(&j, WebPassword::verify, &ok); // wipes j
-            Lock l(s->mutex);
-            s->login.finish(id, ok);
-        }
-    }
-
     // ---------------------------------------------------------------- WebSocket (async_tcp)
-    void wsEvent(AsyncWebSocketClient* c, AwsEventType t, void* arg) {
+    void wsEvent(AsyncWebSocketClient* c, AwsEventType t, void* arg, const uint8_t* data, size_t len) {
         const uint32_t now = millis();
         switch (t) {
             case WS_EVT_CONNECT: {
                 bool ok;
                 {
                     Lock l(mutex);
-                    const int slot = slotOf(c->client());
-                    if (slot >= 0) {
-                        conns.release(slot); // counts as a WebSocket from now on
-                        connClient[slot] = nullptr;
-                    }
-                    ok = wsc.add(c->id(), now);
+                    gate.becameWebSocket(c->client());
+                    ok = shared.wsc.add(c->id(), now);
                 }
                 c->client()->onPacket(nullptr, nullptr);
                 c->setCloseClientOnQueueFull(false);
-                if (!ok) c->close(WS_POLICY, "Too many clients (max. 3)");
+                if (!ok) c->close(WS_POLICY, TOO_MANY_CLIENTS);
                 break;
             }
             case WS_EVT_DISCONNECT: {
                 Lock l(mutex);
-                wsc.remove(c->id());
+                shared.wsc.remove(c->id());
                 break;
             }
             case WS_EVT_PONG: {
+                // Only the answer to our PING (its random payload) counts (AF18).
                 Lock l(mutex);
-                wsc.pong(c->id(), now);
+                shared.wsc.pong(c->id(), now, data, len);
+                break;
+            }
+            case WS_EVT_PING: {
+                // The library queues a PONG for every PING in an unbounded queue; the UI never
+                // pings, so a flood closes the client (AF18, SEC-V-2).
+                bool ok;
+                {
+                    Lock l(mutex);
+                    ok = shared.wsc.clientPing(c->id(), now);
+                }
+                if (!ok) {
+                    Logger::info("WEB", "WebSocket closed: ping flood");
+                    c->close(WS_POLICY, "Ping flood");
+                }
                 break;
             }
             case WS_EVT_DATA: {
@@ -861,20 +1198,10 @@ struct WebHmiServer::Impl {
 
     // ---------------------------------------------------------------- loop()
     void serveJob(uint32_t now) {
-        Job j;
+        Job j {};
         {
             Lock l(mutex);
-            if (job.state != JobState::Queued) {
-                if (job.state == JobState::Abandoned) {
-                    if (job.out) free(job.out);
-                    job.out = nullptr;
-                    job.state = JobState::Free;
-                }
-                return;
-            }
-            job.state = JobState::Taken;
-            j = job;
-            RestWifi::wipe(&job.change);
+            if (!shared.job.take(&j)) return;
         }
         j.reply = RestJson::Reply {200, 0, nullptr};
         j.status = 200;
@@ -935,16 +1262,7 @@ struct WebHmiServer::Impl {
         }
         RestWifi::wipe(&j.change);
         Lock l(mutex);
-        if (job.state == JobState::Abandoned) {
-            if (j.out) free(j.out);
-            job.state = JobState::Free;
-            return;
-        }
-        job.reply = j.reply;
-        job.status = j.status;
-        job.confirmWithin = j.confirmWithin;
-        job.out = j.out;
-        job.state = JobState::Done;
+        shared.job.finish(j); // abandoned meanwhile: cleared there
     }
 
     void runNetChange(uint32_t now) {
@@ -964,14 +1282,19 @@ struct WebHmiServer::Impl {
                 Logger::info("WEB", "Network change confirmed");
                 break;
             case NetChange::Action::Revert:
+                // Nothing was saved while the change was open (AF16): NVS still has these.
                 Logger::info("WEB", "Network change not confirmed: previous settings restored");
                 wifi.apply(netChange.previous());
-                if (save && !save(netChange.previous())) Logger::error("WEB", "Saving the network settings failed");
                 break;
         }
     }
 
     void updateShared(uint32_t now) {
+        const uint16_t confirmS = netChange.confirmWithinS(now);
+        if (sharedKnown && wifi.revision() == sharedWifiRev && confirmS == sharedConfirmS) return;
+        sharedKnown = true;
+        sharedWifiRev = wifi.revision();
+        sharedConfirmS = confirmS;
         const WifiManager::Status& st = wifi.status();
         const NetSettings& ns = wifi.settings();
         RestJson::DeviceInfo d {};
@@ -986,7 +1309,7 @@ struct WebHmiServer::Impl {
         d.apOpen = st.apOpen;
         d.apStations = st.apStations;
         d.version = nullptr;
-        d.confirmWithin = netChange.confirmWithinS(now);
+        d.confirmWithin = confirmS;
         d.passwordSet = NetConfig::webPasswordSet(ns);
 
         GuardConfig cfg {};
@@ -997,112 +1320,64 @@ struct WebHmiServer::Impl {
         cfg.deviceName = ns.deviceName;
         cfg.token = token;
         cfg.passwordSet = d.passwordSet;
-        cfg.loginForReads = false; // ARBEITSPLAN 3.6 point 7: state and /ws readable without login
+        // D25 (AF18): with a web password the state, the token and the WebSocket need a session as
+        // well; /lxi/identification stays open (D33, not under /api/).
+        cfg.loginForReads = d.passwordSet;
 
         const bool settingsChanged = !settingsKnown || memcmp(&lastSettings, &ns, sizeof(ns)) != 0;
         char json[RestWifi::SETTINGS_SIZE];
         if (settingsChanged && !RestWifi::buildSettings(ns, st.apSsid, json, sizeof(json))) json[0] = '\0';
 
         Lock l(mutex);
-        info = d;
-        lxiNet.staIp = st.staConnected ? st.staIp : 0;
-        lxiNet.staMask = st.staMask;
-        lxiNet.staGateway = st.staGateway;
-        lxiNet.apIp = st.apActive ? st.apIp : 0;
-        lxiNet.dhcp = !ns.staticIp.enabled;
-        const bool cfgChanged = !guardSet || cfg.staIp != guardCfg.staIp || cfg.apIp != guardCfg.apIp || cfg.apOpen != guardCfg.apOpen ||
-                                cfg.captive != guardCfg.captive || cfg.passwordSet != guardCfg.passwordSet ||
-                                strcmp(ns.deviceName, guardName) != 0;
+        Shared& sh = shared;
+        if (memcmp(&sh.info, &d, sizeof(d)) != 0) {
+            sh.info = d; // both zero-initialized: memcmp compares the padding as well
+            ++sh.infoRev;
+        }
+        sh.lxiNet.staIp = st.staConnected ? st.staIp : 0;
+        sh.lxiNet.staMask = st.staMask;
+        sh.lxiNet.staGateway = st.staGateway;
+        sh.lxiNet.apIp = st.apActive ? st.apIp : 0;
+        sh.lxiNet.dhcp = !ns.staticIp.enabled;
+        const bool cfgChanged = !sh.guardSet || cfg.staIp != sh.guardCfg.staIp || cfg.apIp != sh.guardCfg.apIp ||
+                                cfg.apOpen != sh.guardCfg.apOpen || cfg.captive != sh.guardCfg.captive ||
+                                cfg.passwordSet != sh.guardCfg.passwordSet || strcmp(ns.deviceName, sh.guardName) != 0;
         if (cfgChanged) {
-            guard.configure(cfg);
-            guardCfg = cfg;
-            guardSet = true;
-            snprintf(guardName, sizeof(guardName), "%s", ns.deviceName);
+            sh.guard.configure(cfg);
+            sh.guardCfg = cfg;
+            sh.guardSet = true;
+            snprintf(sh.guardName, sizeof(sh.guardName), "%s", ns.deviceName);
         }
         if (settingsChanged) {
-            if (strcmp(record, ns.webPassword) != 0) guard.endAllSessions(); // password changed or removed
-            snprintf(record, sizeof(record), "%s", ns.webPassword);
-            passwordSet = d.passwordSet;
-            memcpy(wifiJson, json, sizeof(wifiJson));
+            if (strcmp(sh.record, ns.webPassword) != 0) {
+                // Password set, changed or removed: every session ends, and the open WebSockets
+                // close so that they come back under the new rule (D25).
+                sh.guard.endAllSessions();
+                if (settingsKnown) closeWs = true;
+            }
+            snprintf(sh.record, sizeof(sh.record), "%s", ns.webPassword);
+            sh.passwordSet = d.passwordSet;
+            memcpy(sh.wifiJson, json, sizeof(sh.wifiJson));
             memcpy(&lastSettings, &ns, sizeof(lastSettings)); // with padding, for memcmp
             settingsKnown = true;
-        }
-        wipe(json, sizeof(json));
-    }
-
-    void push(uint32_t now) {
-        uint8_t clients;
-        RestJson::DeviceInfo d;
-        {
-            Lock l(mutex);
-            clients = wsc.count();
-            d = info;
-        }
-        if (clients == 0) {
-            pushedOnce = false;
-            return;
-        }
-        Snapshot s;
-        if (!snapshot.read(&s)) return;
-        const RestJson::PushKey k = RestJson::pushKey(s, d, now);
-        uint32_t ids[WsClients::MAX];
-        {
-            Lock l(mutex);
-            if (!pushedOnce || k != lastPush) wsc.markAll();
-            for (uint8_t i = 0; i < WsClients::MAX; ++i) ids[i] = wsc.needingState(i);
-        }
-        lastPush = k;
-        pushedOnce = true;
-        AsyncWebSocketSharedBuffer buf;
-        for (uint8_t i = 0; i < WsClients::MAX; ++i) {
-            if (!ids[i] || !ws->availableForWrite(ids[i])) continue;
-            if (!buf) {
-                char text[RestJson::STATE_SIZE];
-                const size_t n = RestJson::buildState(s, d, now, text, sizeof(text));
-                if (!n) return;
-                buf = std::make_shared<std::vector<uint8_t>>((const uint8_t*)text, (const uint8_t*)text + n);
-            }
-            if (ws->text(ids[i], buf)) {
-                Lock l(mutex);
-                wsc.sent(ids[i]);
-            }
+            wipe(json, sizeof(json));
         }
     }
 
     void serveDisconnect() {
+        if (closeWs) {
+            closeWs = false;
+            ws->closeAll(WS_GOING_AWAY);
+        }
         if (!disconnectRequested) return;
         disconnectRequested = false;
         uint8_t n;
         {
             Lock l(mutex);
-            n = wsc.count();
+            n = shared.wsc.count();
         }
         dropClients();
         Logger::value("WEB", "Disconnected at the device, WebSockets", n);
-    }
-
-    void keepAlive(uint32_t now) {
-        uint32_t ping, dead;
-        {
-            Lock l(mutex);
-            ping = wsc.duePing(now);
-            dead = wsc.expired(now);
-        }
-        if (ping) ws->ping(ping, PING_PAYLOAD, sizeof(PING_PAYLOAD));
-        if (dead) {
-            Logger::info("WEB", "WebSocket closed: no pong");
-            ws->close(dead, 1001);
-        }
-        if (now - lastCleanupMs >= CLEANUP_MS) {
-            lastCleanupMs = now;
-            ws->cleanupClients(WsClients::MAX);
-        }
-        if (LOG_DEBUG && now - lastStackLogMs >= STACK_LOG_MS) {
-            lastStackLogMs = now;
-            TaskHandle_t tcp = xTaskGetHandle("async_tcp");
-            if (tcp) Logger::debugValue("WEB", "async_tcp stack free", uxTaskGetStackHighWaterMark(tcp));
-            if (loginTask) Logger::debugValue("WEB", "web_login stack free", uxTaskGetStackHighWaterMark(loginTask));
-        }
     }
 };
 
@@ -1113,7 +1388,7 @@ WebHmiServer::WebHmiServer(CommandQueue& commands, StateSnapshot& snapshot, Wifi
 
 void WebHmiServer::loop() {
     Impl* s = impl_;
-    if (!s || !s->mutex) return;
+    if (!s || !s->mutex || !s->replySignal) return;
     const uint32_t now = millis();
     const WifiManager::Status& st = s->wifi.status();
     const bool up = st.staConnected || st.apActive;
@@ -1132,12 +1407,15 @@ void WebHmiServer::loop() {
     s->serveDisconnect();
     s->updateShared(now);
     s->serveJob(now);
+    s->wakeWaiter();
     s->runNetChange(now);
-    s->push(now);
-    s->keepAlive(now);
+    s->pusher.push(now);
+    s->pusher.keepAlive(now);
 }
 
 bool WebHmiServer::touchConfirmNeeded() const { return impl_ && impl_->netChange.waitingForTouch(); }
+
+uint16_t WebHmiServer::netChangePendingS() const { return impl_ ? impl_->netChange.pendingS(millis()) : 0; }
 
 void WebHmiServer::touchConfirm(bool keep) {
     if (impl_) impl_->netChange.confirmTouch(keep);
@@ -1146,7 +1424,7 @@ void WebHmiServer::touchConfirm(bool keep) {
 void WebHmiServer::setSerial(const char* serial) {
     if (!impl_ || !impl_->mutex) return;
     Lock l(impl_->mutex);
-    snprintf(impl_->serial, sizeof(impl_->serial), "%s", serial ? serial : "0");
+    snprintf(impl_->shared.serial, sizeof(impl_->shared.serial), "%s", serial ? serial : "0");
 }
 
 void WebHmiServer::disconnectAll() {
@@ -1156,5 +1434,5 @@ void WebHmiServer::disconnectAll() {
 uint8_t WebHmiServer::webClients() const {
     if (!impl_ || !impl_->mutex) return 0;
     Lock l(impl_->mutex);
-    return impl_->wsc.count();
+    return impl_->shared.wsc.count();
 }

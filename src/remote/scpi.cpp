@@ -7,6 +7,7 @@
 #include <string.h>
 #include <config.h>
 #include <constants.h>
+#include <utils/frequency_utils.h>
 #include <utils/logger.h>
 
 // ---------------------------------------------------------------------------
@@ -20,13 +21,6 @@ bool blank(char c) { return c == ' ' || c == '\t'; }
 char up(char c) { return (c >= 'a' && c <= 'z') ? (char)(c - 32) : c; }
 
 const Unit FREQ_UNITS[] = {{"HZ", 0}, {"KHZ", 3}, {"MHZ", 6}, {nullptr, 0}};
-
-// 10^e for 0 <= e <= 19.
-uint64_t pow10u(int e) {
-    uint64_t p = 1;
-    while (e-- > 0) p *= 10;
-    return p;
-}
 }
 
 Parse decimal(const char* s, size_t n, int8_t scaleExp, const Unit* units, int64_t* out) {
@@ -110,20 +104,11 @@ Parse decimal(const char* s, size_t n, int8_t scaleExp, const Unit* units, int64
         *out = 0;
         return Parse::Ok;
     }
-    uint64_t magnitude;
-    if (exp10 >= 0) {
-        if (exp10 > 18) return Parse::Range;
-        const uint64_t p = pow10u((int)exp10);
-        if (mantissa > (uint64_t)INT64_MAX / p) return Parse::Range;
-        magnitude = mantissa * p;
-    } else if (exp10 < -19) {
-        magnitude = 0; // below half a unit
-    } else {
-        const uint64_t p = pow10u((int)-exp10);
-        magnitude = mantissa / p;
-        const uint64_t rest = mantissa % p;
-        if (rest >= p - rest) ++magnitude; // half away from zero
-    }
+    // Rounding of the magnitude half up = half away from zero (AF46: same core as the numpad).
+    uint64_t magnitude = 0;
+    if (exp10 > 19) return Parse::Range;
+    const int e = exp10 < -20 ? -20 : (int)exp10; // below -19 the result is 0 anyway
+    if (!FrequencyUtils::scaleDecimal(mantissa, e, &magnitude)) return Parse::Range;
     if (magnitude > (uint64_t)INT64_MAX) return Parse::Range;
     *out = negative ? -(int64_t)magnitude : (int64_t)magnitude;
     return Parse::Ok;
@@ -169,6 +154,7 @@ scpi_result_t answer(scpi_t* c, const ScpiBackend::Outcome& o) {
         case Result::Conflict: error(c, SCPI_ERROR_SETTINGS_CONFLICT, "Not in Integer tuning"); break;
         case Result::Denied: error(c, SCPI_ERROR_SETTINGS_CONFLICT, "Remote outputs: local only"); break;
         case Result::HwError: error(c, SCPI_ERROR_HARDWARE_ERROR, "SI5351"); break;
+        case Result::Coupled: error(c, SCPI_ERROR_SETTINGS_CONFLICT, "CH2 is coupled to CH1"); break;
     }
     return SCPI_RES_ERR;
 }
@@ -267,6 +253,11 @@ const scpi_choice_def_t OFFSTATE_CHOICES[] = {
     {"LOW", (int32_t)OffState::Low}, {"HIGH", (int32_t)OffState::High}, {"HIZ", (int32_t)OffState::HighZ},
     SCPI_CHOICE_LIST_END};
 const char* const TUNING_NAMES[] = {"FRAC", "LNO", "INT"};
+constexpr uint8_t TUNING_COUNT = sizeof(TUNING_NAMES) / sizeof(TUNING_NAMES[0]);
+static_assert(TUNING_COUNT == (uint8_t)TuningMode::Integer + 1, "one name per TuningMode");
+static_assert(sizeof(TUNING_CHOICES) / sizeof(TUNING_CHOICES[0]) == TUNING_COUNT + 1, "TUNING_CHOICES");
+static_assert(sizeof(SPREAD_CHOICES) / sizeof(SPREAD_CHOICES[0]) == (size_t)Spread::Center05 + 2, "SPREAD_CHOICES");
+static_assert(sizeof(OFFSTATE_CHOICES) / sizeof(OFFSTATE_CHOICES[0]) == (size_t)OffState::HighZ + 2, "OFFSTATE_CHOICES");
 
 scpi_result_t choice(scpi_t* c, const scpi_choice_def_t* choices, CommandType type) {
     int32_t v = 0;
@@ -304,6 +295,8 @@ scpi_result_t outputStatusQ(scpi_t* c) {
             case ChannelStatus::On: text = "ON"; break;
             case ChannelStatus::Error: text = "ERR"; break;
             case ChannelStatus::NoDevice: text = "NOHW"; break;
+            case ChannelStatus::FreqTooLow:
+            case ChannelStatus::FreqTooHigh: text = "WAIT"; break;
         }
     } else {
         switch (s.ch3Status) {
@@ -320,7 +313,7 @@ scpi_result_t outputStatusQ(scpi_t* c) {
     return SCPI_RES_OK;
 }
 
-const NumberSpec DRIVE_SPEC {0, nullptr, 2, 8, DEFAULT_DRIVE_MA};
+const NumberSpec DRIVE_SPEC {0, nullptr, DRIVE_MA_MIN, DRIVE_MA_MAX, DEFAULT_DRIVE_MA};
 
 scpi_result_t drive(scpi_t* c) {
     int64_t v;
@@ -390,6 +383,15 @@ scpi_result_t frequency(scpi_t* c) {
     if (ch == 3) {
         error(c, SCPI_ERROR_SETTINGS_CONFLICT, "CH3 follows its master");
         return SCPI_RES_ERR;
+    }
+    // The controller refuses it too (Result::Coupled); checked here for the clearer order.
+    Snapshot s;
+    if (ch == 2) {
+        if (!state(c, &s)) return SCPI_RES_ERR;
+        if (s.state.ch2c.coupled) {
+            error(c, SCPI_ERROR_SETTINGS_CONFLICT, "CH2 is coupled to CH1");
+            return SCPI_RES_ERR;
+        }
     }
     return submit(c, CommandType::SetFrequency, ch, hz);
 }
@@ -483,7 +485,7 @@ scpi_result_t tuningQ(scpi_t* c) {
     Snapshot s;
     if (!state(c, &s)) return SCPI_RES_ERR;
     const uint8_t t = (uint8_t)s.state.sys.tuning_mode;
-    SCPI_ResultMnemonic(c, TUNING_NAMES[t <= 2 ? t : 0]);
+    SCPI_ResultMnemonic(c, TUNING_NAMES[t < TUNING_COUNT ? t : 0]);
     return SCPI_RES_OK;
 }
 
@@ -520,6 +522,42 @@ scpi_result_t stepQ(scpi_t* c) {
     return SCPI_RES_OK;
 }
 
+// --- CH2 coupled to CH1 (E-52) -----------------------------------------------
+
+const NumberSpec OFFSET_SPEC {0, HZ_UNITS, -(int64_t)CH2_OFFSET_MAX_HZ, (int64_t)CH2_OFFSET_MAX_HZ, 0};
+const scpi_choice_def_t COUPLE_CHOICES[] = {{"OFF", 0}, {"CH1", 1}, SCPI_CHOICE_LIST_END};
+
+scpi_result_t couple(scpi_t* c) {
+    uint8_t ch;
+    if (!suffix(c, 2, 2, &ch)) return SCPI_RES_ERR;
+    int32_t v = 0;
+    if (!SCPI_ParamChoice(c, COUPLE_CHOICES, &v, TRUE)) return SCPI_RES_ERR; // -224 / -109 pushed
+    return submit(c, CommandType::Ch2Couple, 2, v);
+}
+
+scpi_result_t coupleQ(scpi_t* c) {
+    uint8_t ch;
+    Snapshot s;
+    if (!suffix(c, 2, 2, &ch) || !state(c, &s)) return SCPI_RES_ERR;
+    SCPI_ResultMnemonic(c, s.state.ch2c.coupled ? "CH1" : "OFF");
+    return SCPI_RES_OK;
+}
+
+scpi_result_t offset(scpi_t* c) {
+    uint8_t ch;
+    int64_t v;
+    if (!suffix(c, 2, 2, &ch) || !number(c, OFFSET_SPEC, &v)) return SCPI_RES_ERR;
+    return submit(c, CommandType::Ch2Offset, 2, v);
+}
+
+scpi_result_t offsetQ(scpi_t* c) {
+    uint8_t ch;
+    Snapshot s;
+    if (!suffix(c, 2, 2, &ch) || !state(c, &s)) return SCPI_RES_ERR;
+    SCPI_ResultInt64(c, s.state.ch2c.offset);
+    return SCPI_RES_OK;
+}
+
 const Unit PCT_UNITS[] = {{"PCT", 0}, {nullptr, 0}};
 const NumberSpec BACKLIGHT_SPEC {0, PCT_UNITS, BACKLIGHT_MIN_PERCENT, 100, DEFAULT_BACKLIGHT_PERCENT};
 
@@ -533,6 +571,22 @@ scpi_result_t backlightQ(scpi_t* c) {
     Snapshot s;
     if (!state(c, &s)) return SCPI_RES_ERR;
     SCPI_ResultUInt32(c, s.state.sys.backlight);
+    return SCPI_RES_OK;
+}
+
+// Screen rotation in degrees (E-53): 0 or 180; other values are refused by the controller (-224).
+const NumberSpec ROTATION_SPEC {0, DEG_UNITS, 0, 180, 0};
+
+scpi_result_t rotation(scpi_t* c) {
+    int64_t v;
+    if (!number(c, ROTATION_SPEC, &v)) return SCPI_RES_ERR;
+    return submit(c, CommandType::Rotation, 0, v);
+}
+
+scpi_result_t rotationQ(scpi_t* c) {
+    Snapshot s;
+    if (!state(c, &s)) return SCPI_RES_ERR;
+    SCPI_ResultUInt32(c, s.state.sys.rotation);
     return SCPI_RES_OK;
 }
 
@@ -617,6 +671,10 @@ const scpi_command_t COMMANDS[] = {
     {"SOURce#:FREQuency[:CW]", frequency, 0},
     {"SOURce#:FREQuency[:CW]?", frequencyQ, 0},
     {"SOURce#:FREQuency:ACTual?", actualQ, 0},
+    {"SOURce#:FREQuency:OFFSet", offset, 0},
+    {"SOURce#:FREQuency:OFFSet?", offsetQ, 0},
+    {"SOURce#:COUPle", couple, 0},
+    {"SOURce#:COUPle?", coupleQ, 0},
     {"SOURce#:IQ:MASTer", iqMaster, 0},
     {"SOURce#:IQ:MASTer?", iqMasterQ, 0},
     {"SOURce#:IQ:RANGe?", iqRangeQ, 0},
@@ -635,6 +693,8 @@ const scpi_command_t COMMANDS[] = {
     {"SYSTem:STEP?", stepQ, 0},
     {"SYSTem:BACKlight", backlight, 0},
     {"SYSTem:BACKlight?", backlightQ, 0},
+    {"SYSTem:DISPlay:ROTation", rotation, 0},
+    {"SYSTem:DISPlay:ROTation?", rotationQ, 0},
     {"SYSTem:SI5351?", si5351Q, 0},
     {"SYSTem:HEAP?", heapQ, 0},
     {"SYSTem:IDENtify", identify, 0},

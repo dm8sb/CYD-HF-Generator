@@ -68,7 +68,7 @@ void DisplayPanel::begin() {
 
     tft_.init(); // ILI9341 sequence
     DisplayDetect::postInit(bus, panel_);
-    setRotation_(1);
+    setRotation_(DisplayDetect::landscapeRotation(turned_));
     tft_.fillScreen(TFT_BLACK);
 
     char a[9], b[9], id[9], line[128];
@@ -82,6 +82,14 @@ void DisplayPanel::begin() {
     if (probe_.panel == PanelType::ST7789 && !DisplayDetect::knownId(probe_.id)) {
         Logger::error("DISPLAY", "Unknown controller ID; assuming ST7789");
     }
+}
+
+void DisplayPanel::setTurned(bool turned) {
+    if (turned == turned_) return;
+    turned_ = turned;
+    // Only MADCTL changes: the next flush writes the rotated image (LVGL flushes synchronously,
+    // so no transfer is running here).
+    setRotation_(DisplayDetect::landscapeRotation(turned_));
 }
 
 void DisplayPanel::setRotation_(uint8_t r) {

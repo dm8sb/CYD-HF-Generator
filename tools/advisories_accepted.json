@@ -1,0 +1,14 @@
+{
+  "GHSA-9w88-r2vm-qfc4": {
+    "dependency": "ESP-IDF",
+    "reason": "BluFi example application, not linked into the firmware (no Bluetooth)"
+  },
+  "GHSA-h52q-xhg2-6jw8": {
+    "dependency": "Arduino-ESP32",
+    "reason": "upstream GitHub workflows of arduino-esp32 (CI pipeline), not code in the firmware"
+  },
+  "GHSA-rhcj-7qrh-rrwh": {
+    "dependency": "Arduino-ESP32",
+    "reason": "upstream DangerJS workflow of arduino-esp32 (CI pipeline), not code in the firmware"
+  }
+}

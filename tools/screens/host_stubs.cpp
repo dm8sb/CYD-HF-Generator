@@ -6,9 +6,7 @@
 #include <Arduino.h>
 #include <app_fatal.h>
 #include <config.h>
-#include <esp_heap_caps.h>
 #include <drivers/display_panel.h>
-#include <drivers/status_led.h>
 #include <drivers/touch.h>
 #include <net/net_settings.h>
 #include <utils/build_info.h>
@@ -32,18 +30,15 @@ extern "C" void app_fatal_restart(const char* reason) {
     exit(3);
 }
 
-// CONFIG info card: plausible numbers of a running device.
-HostEsp ESP;
-uint32_t HostEsp::getFreeHeap() const { return 118u * 1024u; }
-uint32_t HostEsp::getMinFreeHeap() const { return 96u * 1024u; }
-size_t heap_caps_get_largest_free_block(uint32_t) { return 72u * 1024u; }
-
 // --- Display: the frame buffer ------------------------------------------------
 
 void DisplayPanel::begin() {
     panel_ = PanelType::ST7789; // CYD2USB, as in the case
     source_ = PanelSource::Detected;
 }
+
+// The images show the upright screen; a turned one would only be the same image upside down.
+void DisplayPanel::setTurned(bool turned) { turned_ = turned; }
 
 void DisplayPanel::flush(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels) {
     for (int16_t row = 0; row < h; ++row) {
@@ -70,6 +65,8 @@ void TouchDriver::setCalibration(const TouchCalibration& cal, bool stored) {
     calibrated_ = stored;
 }
 
+void TouchDriver::setTurned(bool turned) { turned_ = turned; }
+
 bool TouchDriver::readRaw(int16_t*, int16_t*) { return false; }
 
 void TouchDriver::readLvgl(lv_indev_drv_t*, lv_indev_data_t* data) {
@@ -80,13 +77,7 @@ void TouchDriver::readLvgl(lv_indev_drv_t*, lv_indev_data_t* data) {
 
 bool TouchDriver::pressed() { return Screens::touch.pressed; }
 
-// --- Status LED and build info --------------------------------------------------
-
-namespace StatusLed {
-void begin() {}
-void showPage(PageId) {}
-void showAll(bool) {}
-}
+// --- Build info -------------------------------------------------------------------
 
 namespace BuildInfo {
 const char* version() { return APP_VERSION; }

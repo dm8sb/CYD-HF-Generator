@@ -59,9 +59,14 @@ bool TouchDriver::begin(const TouchCalibration& cal, bool stored) {
 }
 
 void TouchDriver::setCalibration(const TouchCalibration& cal, bool stored) {
-    filter_ = TouchFilter::Filter(cal);
+    filter_ = TouchFilter::Filter(cal, turned_);
     cal_ = cal;
     calibrated_ = stored;
+}
+
+void TouchDriver::setTurned(bool turned) {
+    turned_ = turned;
+    filter_ = TouchFilter::Filter(cal_, turned_); // a running press ends
 }
 
 bool TouchDriver::readRaw(int16_t* rawX, int16_t* rawY) {

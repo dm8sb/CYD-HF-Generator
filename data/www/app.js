@@ -7,9 +7,7 @@
 const D = document;
 const $ = (id) => D.getElementById(id);
 const TOKEN = (D.querySelector('meta[name="cyd-token"]') || {}).content || '';
-const FMIN = 8000, FMAX = 160000000, CMAX = 5000;
-const STEPS = [1000000, 100000, 10000, 1000, 100, 10, 1];
-const STEP_L = ['1M', '100k', '10k', '1k', '100', '10', '1'];
+const CMAX = 5000;
 const CSTEP = [1, 10, 100], CSTEP_L = ['0.01', '0.1', '1'];
 const OPT = {
   drive: [[2, '2 mA'], [4, '4 mA'], [6, '6 mA'], [8, '8 mA']],
@@ -24,17 +22,35 @@ const SAVE = {saved: 'Saved', pending: 'Saving...', failed: 'Save failed', unava
 const HW = {CONN: 'SI5351 connected', NFO: 'SI5351 not found', BLOC: 'I2C bus blocked (line held low)', UNKN: 'Unknown device at 0x60'};
 const KEY = {set: 'password set', open: 'open network', none: 'empty'};
 const IPK = ['ip', 'mask', 'gateway', 'dns'];
-const IPRE = /^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$/;
+// Dotted quad as the firmware accepts it (utils/ipv4.h): 0..255, no leading zeros.
+const IPRE = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
 const NAMERE = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/;
 
-let S = null, NET = null, first = true, sel = 1, online = false, cstep = 1;
-let ws = null, wsLive = false, wsRetry = 2000, polling = false, fails = 0, lastWrite = 0;
-let pendEnd = 0, pendAt = 0, pendT = 0, toastT = 0, loginP = null, loginRes = null, loginRej = null;
-// This browser has a login session (the cookie is HttpOnly): set by a login or by a request that
-// needs one, cleared by 401 and the logout. Only shown while a web password is set.
-let authed = false, pwSet = false, pwKnown = false;
+// Frequency range and step list of the firmware (state.limits, AF48); steps largest first.
+let L = null;
+// S: last device state; NET: WiFi settings (GET /api/wifi); first: before the first render (no
+// change flash); sel: selected channel; cstep: index into CSTEP; Q/busy: coalesced writes and
+// dropdowns waiting for an answer; U: the widgets.
+let S = null, NET = null, first = true, sel = 1, cstep = 1, toastTimer = 0;
 const Q = {}, busy = {};
 const U = {ch: {}, card: {}, cardEl: {}, cfg: {}, wifi: {}};
+// A hidden tab closes its WebSocket after HIDDEN_CLOSE_MS and polls nothing (AF18): it would
+// hold one of the three slots.
+const HIDDEN_CLOSE_MS = 60000;
+// Link to the device: online (state readable), WebSocket (live: open), its retry delay, the
+// polling loop, failed polls, the last write (writes at most every 60 ms), hidden tab (paused,
+// hideT: the timer that pauses it).
+const conn = {online: false, ws: null, live: false, retry: 2000, polling: false, fails: 0, lastWrite: 0,
+  paused: false, hideT: 0};
+// Login. session: this browser has a login session (the cookie is HttpOnly): set by a login or
+// by a request that needs one, cleared by 401 and the logout; only shown while a web password is
+// set (pwSet, known from the first state: pwKnown). D25: with a web password even reading needs
+// the login. needLogin: a read was refused (401); declined: the login dialog was cancelled, so
+// reads stop asking until "Log in" is pressed. prompt/resolve/reject: the open login dialog.
+const auth = {session: false, pwSet: false, pwKnown: false, needLogin: false, declined: false,
+  prompt: null, resolve: null, reject: null};
+// Network change waiting for Confirm: end and start time, countdown timer.
+const pending = {end: 0, at: 0, timer: 0};
 
 // ---- DOM helpers
 function h(tag, p, ...kids) {
@@ -79,8 +95,8 @@ function toast(m, ok) {
   el.textContent = m;
   el.dataset.t = ok ? 'ok' : 'err';
   el.hidden = false;
-  clearTimeout(toastT);
-  toastT = setTimeout(() => { el.hidden = true; }, 5000);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 5000);
 }
 const fail = (e) => toast(e.msg || String(e));
 
@@ -105,8 +121,35 @@ function outLine(a, f, ssc) {
   return ['Out ' + fmtF(a) + ' (' + (d < 0 ? '' : '+') + d.toFixed(1) + ' Hz)', Math.abs(d) >= 1];
 }
 const rangeNote = (f) => (f > 1e8 ? '>100MHz: low level' : f < 1e6 ? '<1MHz: harmonics' : '');
-const clampF = (v) => Math.min(FMAX, Math.max(FMIN, v));
-const snap = (s) => STEPS.find((x) => x <= s) || 1;
+// 8000 -> "8 kHz", 160000000 -> "160 MHz"; step chips: 1000000 -> "1M", 1000 -> "1k".
+const fmtLimit = (hz) => (hz >= 1e6 ? hz / 1e6 + ' MHz' : hz / 1e3 + ' kHz');
+const rangeText = () => fmtLimit(L.fmin) + ' - ' + fmtLimit(L.fmax);
+const stepLabel = (s) => (s >= 1e6 ? s / 1e6 + 'M' : s >= 1e3 ? s / 1e3 + 'k' : String(s));
+const clampF = (v) => Math.min(L.fmax, Math.max(L.fmin, v));
+const snap = (s) => L.steps.find((x) => x <= s) || 1;
+// CH2 coupled to CH1 (E-52): offset -offsetMax..+offsetMax, shown with its sign.
+const oMax = () => L.offsetMax || 160000000;
+const clampO = (v) => Math.min(oMax(), Math.max(-oMax(), v));
+const fmtO = (v) => (v < 0 ? '-' : '+') + fmtF(Math.abs(v));
+// Compact as on the MAIN card: +455 kHz, -10.7 MHz, +25 Hz.
+function fmtOc(v) {
+  const a = Math.abs(v), s = v < 0 ? '-' : '+';
+  if (a >= 1e6) return s + String(a / 1e6) + ' MHz';
+  if (a >= 1e3) return s + String(a / 1e3) + ' kHz';
+  return s + a + ' Hz';
+}
+// "+455k", "-10.7 MHz", "-455000": an integer in Hz, a decimal needs its unit; null otherwise.
+function parseOff(text) {
+  const m = /^([+-]?)\s*(\d{1,9})(?:[.,](\d{1,6}))?\s*(hz|k|khz|m|mhz)?$/i.exec(text.trim());
+  if (!m || (m[3] && !m[4])) return null;
+  const u = (m[4] || 'hz').toLowerCase(), e = u[0] === 'm' ? 6 : u[0] === 'k' ? 3 : 0;
+  const d = (m[3] || '').padEnd(e + 1, '0');
+  if (m[3] && m[3].length > e + 1) return null;
+  const v = +m[2] * 10 ** e + (+d.slice(0, e) || 0) + (d[e] >= '5' ? 1 : 0);
+  return m[1] === '-' ? -v : v;
+}
+const waitText = (t) => (t < L.fmin ? 'Waiting: CH1 + offset below ' + fmtLimit(L.fmin)
+  : t > L.fmax ? 'Waiting: CH1 + offset above ' + fmtLimit(L.fmax) : '');
 
 // ---- State access
 const chOf = (n) => S.ch.find((c) => c.n === n) || S.ch[n - 1];
@@ -116,6 +159,9 @@ const spreadOf = (n) => ((n === 1 || (n === 3 && S.ch3.master === 1)) && SSC[S.c
 // The channel whose frequency n shows: CH3 follows its master. Only 1 or 2, whatever the state
 // holds (the result goes into a REST path).
 const master = (n) => ((n === 3 ? S.ch3.master : n) === 2 ? 2 : 1);
+const coupledM = (m) => m === 2 && !!chOf(2).coupled;
+// The offset of a coupled CH2 with a pending change.
+const offset = () => pend('o2', chOf(2).offset || 0);
 // Request paths are fixed strings, never built from state or page input (CodeQL js/request-forgery).
 const CH_PATH = {1: '/api/channel/1', 2: '/api/channel/2', 3: '/api/ch3'};
 const chPath = (n) => CH_PATH[n === 3 ? 3 : n === 2 ? 2 : 1];
@@ -132,10 +178,10 @@ function apiErr(status, j) {
 async function api(path, body, retried) {
   const post = body !== undefined;
   if (post) {
-    if (!online) throw apiErr(0);
+    if (!conn.online) throw apiErr(0);
     // The device takes at most 20 writes/s per source (W-S11).
-    const t = Math.max(Date.now(), lastWrite + 60);
-    lastWrite = t;
+    const t = Math.max(Date.now(), conn.lastWrite + 60);
+    conn.lastWrite = t;
     if (t > Date.now()) await sleep(t - Date.now());
   }
   const o = {cache: 'no-store', credentials: 'same-origin'};
@@ -147,8 +193,12 @@ async function api(path, body, retried) {
   }
   let r, j = null;
   try { r = await fetch(path, o); } catch (e) { throw apiErr(0); }
-  if (r.status === 401) setAuthed(false);
-  if (r.status === 401 && !retried && path !== '/api/login' && path !== '/api/logout') {
+  if (r.status === 401) {
+    setAuthed(false);
+    auth.needLogin = true;
+    syncLogin();
+  }
+  if (r.status === 401 && !retried && path !== '/api/login' && path !== '/api/logout' && !(auth.declined && !post)) {
     await login();
     return api(path, body, true);
   }
@@ -157,6 +207,8 @@ async function api(path, body, retried) {
   // Writes and the WiFi settings need the session while a password is set (without one the flag
   // means nothing and the button stays hidden).
   if (path !== '/api/logout' && (post || path.startsWith('/api/wifi'))) setAuthed(true);
+  // A state read while a password is set needs the session as well (D25).
+  if (path === '/api/state' && j && j.device && j.device.passwordSet) setAuthed(true);
   if (j && j.ch && j.config) apply(j);
   return j;
 }
@@ -164,7 +216,7 @@ const act = (p) => p.catch(fail);
 
 // Coalesced writes: steps typed or held faster than the device answers are merged.
 function queue(k, cur, fn, send) {
-  if (!S || !online) return;
+  if (!S || !conn.online) return;
   const q = Q[k] || (Q[k] = {t: null, busy: false});
   const base = q.t != null ? q.t : cur;
   const t = fn(base);
@@ -184,23 +236,32 @@ async function pump(q, send) {
 }
 
 // ---- Actions
+// fn(base, isOffset) gives the new value (clamped here) or null; a coupled CH2 (also as the master
+// of CH3) changes its offset (E-52).
 function tune(n, fn) {
   if (!S) return;
   const m = master(n);
-  queue('f' + m, chOf(m).frequency, fn, (v) => api(chPath(m), {frequency: v}));
+  if (coupledM(m)) {
+    queue('o2', chOf(2).offset || 0, (b) => { const v = fn(b, true); return v == null ? v : clampO(v); },
+      (v) => api(CH_PATH[2], {offset: v}));
+  } else {
+    queue('f' + m, chOf(m).frequency, (b) => { const v = fn(b, false); return v == null ? v : clampF(v); },
+      (v) => api(chPath(m), {frequency: v}));
+  }
 }
-const stepF = (n, k) => tune(n, (b) => clampF(b + k * step()));
+const stepF = (n, k) => tune(n, (b) => b + k * step());
 function decade(up) {
-  tune(sel, (b) => {
+  tune(sel, (b, o) => {
     const v = up ? b * 10 : Math.round(b / 10);
-    if (v < FMIN || v > FMAX) { toast('8 kHz - 160 MHz'); return null; }
+    if (o ? Math.abs(v) > oMax() : v < L.fmin || v > L.fmax) { toast(o ? 'Offset ±' + fmtLimit(oMax()) : rangeText()); return null; }
     return v;
   });
 }
 const setStep = (s) => S && queue('step', S.config.step, () => s, (v) => api('/api/config', {step: v}));
 function moveStep(d) {
   if (!S) return;
-  queue('step', S.config.step, (b) => STEPS[Math.max(0, Math.min(6, STEPS.indexOf(snap(b)) + d))],
+  const k = L.steps.length - 1;
+  queue('step', S.config.step, (b) => L.steps[Math.max(0, Math.min(k, L.steps.indexOf(snap(b)) + d))],
     (v) => api('/api/config', {step: v}));
 }
 const setEnabled = (n, on) => act(api(chPath(n), {enabled: on}));
@@ -215,12 +276,19 @@ async function applyText(n) {
   const w = U.ch[n], v = w.in.value.trim();
   if (!S) return;
   if (!v) { line(w.err, 'Enter a number', 'err'); return; }
+  const off = coupledM(master(n));
+  const o = off ? parseOff(v) : 0;
+  if (off && (o == null || Math.abs(o) > oMax())) {
+    line(w.err, o == null ? 'Offset e.g. +455k, -10.7M' : 'Offset ±' + fmtLimit(oMax()), 'err');
+    w.in.classList.add('bad');
+    return;
+  }
   try {
-    await api(chPath(master(n)), {frequencyText: v});
+    await api(chPath(master(n)), off ? {offset: o} : {frequencyText: v});
     discard(n);
     w.in.blur();
   } catch (e) {
-    line(w.err, e.code === -222 ? e.msg + ': 8 kHz - 160 MHz' : e.msg, 'err');
+    line(w.err, e.code === -222 ? e.msg + ': ' + rangeText() : e.msg, 'err');
     w.in.classList.add('bad');
   }
 }
@@ -270,12 +338,12 @@ function ask(title, text, ok) {
   });
 }
 function login() {
-  if (!loginP) {
-    loginP = new Promise((res, rej) => { loginRes = res; loginRej = rej; });
+  if (!auth.prompt) {
+    auth.prompt = new Promise((res, rej) => { auth.resolve = res; auth.reject = rej; });
     $('loginErr').textContent = '';
     $('dlgLogin').showModal();
   }
-  return loginP;
+  return auth.prompt;
 }
 async function doLogin(e) {
   e.preventDefault();
@@ -291,13 +359,16 @@ async function doLogin(e) {
       headers: {'Content-Type': 'application/json', 'X-CYD-Token': TOKEN}, body: JSON.stringify({password: pw.value})});
     pw.value = '';
     if (r.ok) {
-      const res = loginRes;
-      loginP = null;
+      const res = auth.resolve;
+      auth.prompt = null;
+      auth.declined = false;
       $('dlgLogin').close();
       setAuthed(true);
       res();
-      wsRetry = 2000;
+      conn.retry = 2000;
+      poll();
       connectWs();
+      if (!NET) loadNet();
       return;
     }
     let j = null;
@@ -307,8 +378,14 @@ async function doLogin(e) {
   } catch (x) { err.textContent = 'No connection to the device'; }
 }
 function setAuthed(v) {
-  authed = v;
-  $('bLogout').hidden = !(pwSet && authed);
+  auth.session = v;
+  if (v) auth.needLogin = false;
+  $('bLogout').hidden = !(auth.pwSet && auth.session);
+  syncLogin();
+}
+// "Log in" while the device refuses reads without a session (D25) and none is open.
+function syncLogin() {
+  $('bLogin').hidden = !(auth.needLogin && !auth.session);
 }
 // Ends this browser's session; the state stays readable, the next write asks for the password.
 async function logout() {
@@ -327,67 +404,92 @@ async function logout() {
 
 // ---- Connection: WebSocket push, polling as fallback
 function setOnline(v) {
-  online = v;
+  conn.online = v;
   $('ui').disabled = !v;
   $('bIdent').disabled = $('bSave').disabled = $('bLogout').disabled = !v;
   D.body.classList.toggle('offline', !v);
   const c = $('conn');
-  c.textContent = wsLive ? 'Live' : v ? 'Polling' : 'Offline';
-  c.dataset.t = wsLive ? 'ok' : v ? '' : 'err';
+  c.textContent = conn.live ? 'Live' : v ? 'Polling' : 'Offline';
+  c.dataset.t = conn.live ? 'ok' : v ? '' : 'err';
 }
 function apply(st) {
-  if (!st || !Array.isArray(st.ch) || !st.ch3 || !st.config) return;
+  if (!st || !Array.isArray(st.ch) || !st.ch3 || !st.config || !st.limits || !Array.isArray(st.limits.steps)) return;
+  L = {fmin: st.limits.fmin, fmax: st.limits.fmax, steps: st.limits.steps.slice().sort((a, b) => b - a)};
   S = st;
   render();
   first = false;
 }
 async function poll() {
-  if (polling) return;
-  polling = true;
-  while (!wsLive) {
+  if (conn.polling) return;
+  conn.polling = true;
+  while (!conn.live && !conn.paused) {
     try {
       apply(await api('/api/state'));
-      fails = 0;
+      conn.fails = 0;
       setOnline(true);
     } catch (e) {
-      if (++fails >= 2) setOnline(false);
+      if (e.status === 401) {
+        // Login refused or cancelled: nothing to read until "Log in" (D25).
+        setOnline(false);
+        set($('conn'), 'Login required');
+        break;
+      }
+      if (++conn.fails >= 2) setOnline(false);
     }
     await sleep(1000);
   }
-  polling = false;
+  conn.polling = false;
 }
 function connectWs() {
-  if (ws || !window.WebSocket) return;
+  if (conn.ws || !window.WebSocket || conn.paused) return;
   try {
-    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?t=' + encodeURIComponent(TOKEN));
-  } catch (e) { ws = null; return; }
-  ws.onopen = () => { wsLive = true; wsRetry = 2000; fails = 0; setOnline(true); };
-  ws.onmessage = (e) => { try { apply(JSON.parse(e.data)); } catch (x) { /* not a state */ } };
-  ws.onclose = () => {
-    ws = null;
-    wsLive = false;
-    setOnline(online);
+    conn.ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?t=' + encodeURIComponent(TOKEN));
+  } catch (e) { conn.ws = null; return; }
+  conn.ws.onopen = () => { conn.live = true; conn.retry = 2000; conn.fails = 0; setOnline(true); };
+  conn.ws.onmessage = (e) => { try { apply(JSON.parse(e.data)); } catch (x) { /* not a state */ } };
+  conn.ws.onclose = () => {
+    conn.ws = null;
+    conn.live = false;
+    setOnline(conn.online);
+    if (conn.paused) return; // hidden tab: back when it is shown
     poll();
-    setTimeout(connectWs, wsRetry);
-    wsRetry = Math.min(wsRetry * 2, 30000);
+    setTimeout(connectWs, conn.retry);
+    conn.retry = Math.min(conn.retry * 2, 30000);
   };
+}
+// Hidden for HIDDEN_CLOSE_MS: the WebSocket closes and nothing polls; shown again: reconnect.
+function onVisibility() {
+  clearTimeout(conn.hideT);
+  if (D.hidden) {
+    conn.hideT = setTimeout(() => {
+      conn.paused = true;
+      if (conn.ws) conn.ws.close();
+    }, HIDDEN_CLOSE_MS);
+    return;
+  }
+  if (!conn.paused) return;
+  conn.paused = false;
+  conn.retry = 2000;
+  poll();
+  connectWs();
 }
 // Push only on change: a slow GET confirms the link and catches a missed message.
 async function heartbeat() {
-  if (!wsLive) return;
-  try { apply(await api('/api/state')); } catch (e) { if (e.status !== 401 && ws) ws.close(); }
+  if (!conn.live || D.hidden) return; // no heartbeat in the background (AF18)
+  try { apply(await api('/api/state')); } catch (e) { if (e.status !== 401 && conn.ws) conn.ws.close(); }
 }
 
 // ---- Render
 function modeLine(el, modes, ...extra) {
   line(el, modes.concat(extra).filter(Boolean).join(' | '), modes.includes('OFF=High') ? 'warn' : '');
 }
-function showDigits(el, hz, st) {
-  const k = hz + '/' + st;
+// signed: the offset of a coupled CH2 with its sign (E-52).
+function showDigits(el, hz, st, signed) {
+  const k = (signed ? 'o' : '') + hz + '/' + st;
   if (el.dataset.k === k) return;
-  const chg = el.dataset.k && el.dataset.k.split('/')[0] !== String(hz);
+  const chg = el.dataset.k && el.dataset.k.split('/')[0] !== k.split('/')[0];
   el.dataset.k = k;
-  const t = fmtF(hz), se = Math.round(Math.log10(st));
+  const t = signed ? fmtO(hz) : fmtF(hz), se = Math.round(Math.log10(st));
   let left = t.replace(/\D/g, '').length;
   const kids = [];
   for (const c of t.slice(0, -4)) {
@@ -404,13 +506,22 @@ const approx = (a, f) => S.config.tuning === 'integer' && S.hw === 'CONN' && a >
 
 function render() {
   if (!S) return;
-  const cf = S.config, c3 = S.ch3, wf = S.wifi || {}, st = step();
+  const wf = S.wifi || {}, st = step();
+  renderHeader(wf);
+  renderChannel(1, st);
+  renderChannel(2, st);
+  renderCh3(st);
+  renderConfig(wf);
+  renderWifi(wf);
+}
+
+function renderHeader(wf) {
   // A password set or removed at the device ends every session (S55b); the first state only
   // tells whether one is set.
-  const ps = !!(S.device && S.device.passwordSet), changed = pwKnown && ps !== pwSet;
-  pwSet = ps;
-  pwKnown = true;
-  setAuthed(changed ? false : authed);
+  const ps = !!(S.device && S.device.passwordSet), changed = auth.pwKnown && ps !== auth.pwSet;
+  auth.pwSet = ps;
+  auth.pwKnown = true;
+  setAuthed(changed ? false : auth.session);
   set($('dev'), [wf.name, S.device && S.device.version && 'v' + S.device.version].filter(Boolean).join(' · '));
   line($('save'), SAVE[S.save] || S.save, S.save === 'failed' || S.save === 'unavailable' ? 'err' : '');
   const rem = $('remote'), hw = $('hw');
@@ -418,74 +529,86 @@ function render() {
   if (S.remote) set(rem, 'REMOTE ' + String(S.remote).toUpperCase());
   hw.hidden = S.hw === 'CONN';
   set(hw, HW[S.hw] || S.hw);
+}
 
-  for (const n of [1, 2]) {
-    const c = chOf(n), f = pend('f' + n, c.frequency), card = U.card[n], w = U.ch[n], modes = c.modes || [];
-    const iq = c3.master === n && c3.status !== 'OFF';
-    badge(card.st, c.status);
-    badge(w.st, c.status);
-    setSw(card.sw, c.enabled);
-    setSw(w.sw, c.enabled);
-    set(card.f, (approx(c.actual, c.frequency) && f === c.frequency ? '~' : '') + fmtF(f));
-    modeLine(card.d, modes, iq ? (modes.length ? 'IQ master' : 'IQ master of CH3') : '');
-    showDigits(w.f, f, st);
-    if (c.status === 'NOHW' || c.status === 'ERR') {
-      line(w.out, c.status === 'NOHW' ? 'SI5351 not found' : 'Output error, retrying', 'err');
-    } else {
-      const o = outLine(c.actual, c.frequency, spreadOf(n));
-      line(w.out, (c.status === 'OFF' ? 'Off | ' : '') + o[0], o[1] ? 'warn' : '');
-    }
-    modeLine(w.m, modes, iq ? 'IQ master (' + c3.phase + '°)' : '', rangeNote(f));
-    w.steps.forEach((b, i) => press(b, STEPS[i] === snap(st)));
+// CH1/CH2: MAIN card and channel page.
+function renderChannel(n, st) {
+  const c3 = S.ch3, c = chOf(n), card = U.card[n], w = U.ch[n], modes = c.modes || [];
+  const iq = c3.master === n && c3.status !== 'OFF';
+  // Coupled CH2 (E-52): the digits show the offset, card and Out line the CH2 frequency.
+  const cpl = coupledM(n), o = cpl ? offset() : 0, t = chOf(1).frequency + o;
+  const f = cpl ? Math.max(0, pend('f1', chOf(1).frequency) + o) : pend('f' + n, c.frequency);
+  badge(card.st, c.status);
+  badge(w.st, c.status);
+  setSw(card.sw, c.enabled);
+  setSw(w.sw, c.enabled);
+  set(card.f, (approx(c.actual, c.frequency) && f === c.frequency ? '~' : '') + fmtF(f));
+  if (cpl) modeLine(card.d, modes, 'CH1 ' + fmtOc(o), iq ? 'IQ master' : '');
+  else modeLine(card.d, modes, iq ? (modes.length ? 'IQ master' : 'IQ master of CH3') : '');
+  showDigits(w.f, cpl ? o : f, st, cpl);
+  if (n === 2) {
+    w.cpl.forEach((b, i) => press(b, (i === 1) === cpl));
+    set(w.flbl, cpl ? 'Offset' : 'Frequency');
+    w.in.placeholder = cpl ? '+455k, -10.7M, -455000' : '10.7M, 455k, 7 100 000';
   }
-
-  const m = c3.master, mc = chOf(m), w = U.ch[3], card = U.card[3], f3 = pend('f' + m, c3.frequency);
-  const lo = c3.iqMin, hi = c3.iqMax;
-  let reason = '', info = '', tone = '', wake = false;
-  if (c3.status === 'WAIT') {
-    tone = 'warn';
-    if (!mc.enabled) {
-      reason = ' / master off';
-      info = 'Master CH' + m + ' is off: click to switch on';
-      wake = true;
-    } else if (mc.frequency < lo) {
-      reason = ' / < ' + iqLim(lo, 1, 2) + ' MHz';
-      info = 'Waiting: CH' + m + ' below ' + iqLim(lo, 1, 3) + ' MHz';
-    } else {
-      reason = ' / > ' + iqLim(hi, 0, 2) + ' MHz';
-      info = 'Waiting: CH' + m + ' above ' + iqLim(hi, 0, 3) + ' MHz';
-    }
-  } else if (c3.status === 'ERR') {
-    reason = ' / setup failed';
-    info = 'IQ setup failed, retrying';
-    tone = 'err';
-  } else if (c3.status === 'NOHW') {
-    info = 'SI5351 not found';
-    tone = 'err';
-  } else if (c3.status === 'OFF') {
-    info = 'Off  |  follows CH' + m;
+  if (c.status === 'NOHW' || c.status === 'ERR') {
+    line(w.out, c.status === 'NOHW' ? 'SI5351 not found' : 'Output error, retrying', 'err');
+  } else if (cpl && waitText(t)) {
+    line(w.out, waitText(t), 'warn');
   } else {
-    const o = outLine(c3.actual, c3.frequency, spreadOf(3));
-    info = o[0];
-    tone = o[1] ? 'warn' : '';
+    const o = outLine(c.actual, c.frequency, spreadOf(n));
+    line(w.out, (c.status === 'OFF' ? 'Off | ' : '') + o[0], o[1] ? 'warn' : '');
   }
+  modeLine(w.m, modes, iq ? 'IQ master (' + c3.phase + '°)' : '', cpl && waitText(t) ? '' : rangeNote(f));
+  syncSteps(w);
+  w.steps.forEach((b, i) => press(b, L.steps[i] === snap(st)));
+}
+
+// CH3 status as on the device (StatusText::ch3Info, "click" instead of "tap"): the reason for
+// the MAIN card, the status line, its tone and whether it offers to switch the master on.
+function ch3Info(c3, m, mc) {
+  const lo = c3.iqMin, hi = c3.iqMax;
+  switch (c3.status) {
+    case 'WAIT':
+      if (!mc.enabled) return {reason: ' / master off', info: 'Master CH' + m + ' is off: click to switch on', tone: 'warn', wake: true};
+      if (mc.frequency < lo) {
+        return {reason: ' / < ' + iqLim(lo, 1, 2) + ' MHz', info: 'Waiting: CH' + m + ' below ' + iqLim(lo, 1, 3) + ' MHz', tone: 'warn'};
+      }
+      return {reason: ' / > ' + iqLim(hi, 0, 2) + ' MHz', info: 'Waiting: CH' + m + ' above ' + iqLim(hi, 0, 3) + ' MHz', tone: 'warn'};
+    case 'ERR': return {reason: ' / setup failed', info: 'IQ setup failed, retrying', tone: 'err'};
+    case 'NOHW': return {reason: '', info: 'SI5351 not found', tone: 'err'};
+    case 'OFF': return {reason: '', info: 'Off  |  follows CH' + m, tone: ''};
+    default: {
+      const o = outLine(c3.actual, c3.frequency, spreadOf(3));
+      return {reason: '', info: o[0], tone: o[1] ? 'warn' : ''};
+    }
+  }
+}
+
+function renderCh3(st) {
+  const c3 = S.ch3, m = c3.master, mc = chOf(m), w = U.ch[3], card = U.card[3];
+  // A coupled master CH2 moves with its offset (E-52).
+  const f3 = coupledM(m) ? Math.max(0, c3.frequency + offset() - (mc.offset || 0)) : pend('f' + m, c3.frequency);
+  const s = ch3Info(c3, m, mc);
   badge(card.st, c3.status);
   badge(w.st, c3.status);
   setSw(card.sw, c3.enabled);
   setSw(w.sw, c3.enabled);
   set(card.f, (approx(c3.actual, c3.frequency) ? '~' : '') + fmtF(f3));
-  line(card.d, 'CH' + m + ' / ' + c3.phase + '°' + reason, '');
+  line(card.d, 'CH' + m + ' / ' + c3.phase + '°' + s.reason, '');
   showDigits(w.f, f3, st);
-  w.wake.hidden = !wake;
-  w.out.hidden = wake;
-  if (wake) set(w.wake, info); else line(w.out, info, tone);
+  w.wake.hidden = !s.wake;
+  w.out.hidden = !!s.wake;
+  if (s.wake) set(w.wake, s.info); else line(w.out, s.info, s.tone);
   modeLine(w.m, mc.modes || []);
   w.ms.forEach((b, i) => press(b, m === i + 1));
   w.ph.forEach((b, i) => press(b, c3.phase === i * 90));
-  set(w.note, 'IQ range ' + iqLim(lo, 1, 3) + ' - ' + iqLim(hi, 0, 3, 1) +
+  set(w.note, 'IQ range ' + iqLim(c3.iqMin, 1, 3) + ' - ' + iqLim(c3.iqMax, 0, 3, 1) +
     ' MHz. 180°/270° use output inversion. Drive strength is set globally in CONFIG.');
+}
 
-  const C = U.cfg, lock = cf.tuning === 'integer';
+function renderConfig(wf) {
+  const cf = S.config, C = U.cfg, lock = cf.tuning === 'integer';
   selVal(C.drive, 'drive', cf.drive);
   selVal(C.offState, 'offState', cf.offState);
   selVal(C.tuning, 'tuning', cf.tuning);
@@ -495,13 +618,13 @@ function render() {
   const pv = fmtPpm(pend('corr', cf.correction));
   if (D.activeElement !== C.corr && C.corr.value !== pv) { C.corr.value = pv; flash(C.corr); }
   set(C.bl, pend('bl', cf.backlight) + ' %');
+  C.rot.forEach((b, i) => press(b, cf.rotation === i * 180));
   const local = cf.remoteOutputs === 'local';
   line(C.remote, local ? 'local only — switch on at the device' : 'allowed', local ? 'warn' : '');
   U.local.hidden = !local;
   set(C.fw, (S.device && S.device.version) || '-');
   line(C.hw, HW[S.hw] || S.hw, S.hw === 'CONN' ? '' : 'err');
   set(C.name, wf.name || '-');
-  renderWifi(wf);
 }
 
 function renderWifi(wf) {
@@ -516,8 +639,8 @@ function renderWifi(wf) {
   W.pendTouch.hidden = !!(S.device && S.device.passwordSet);
   // Optional (proposed) field: a pending change is also visible over the new connection.
   if (typeof wf.confirmWithin === 'number') {
-    if (wf.confirmWithin > 0 && !pendEnd) startPending(wf.confirmWithin, '');
-    else if (wf.confirmWithin <= 0 && pendEnd && Date.now() - pendAt > 3000) stopPending();
+    if (wf.confirmWithin > 0 && !pending.end) startPending(wf.confirmWithin, '');
+    else if (wf.confirmWithin <= 0 && pending.end && Date.now() - pending.at > 3000) stopPending();
   }
 }
 
@@ -531,7 +654,7 @@ function rep(text, fn, label, cls) {
   let tm = 0, t0 = 0;
   const stop = () => { clearTimeout(tm); tm = 0; };
   const tick = () => {
-    if (!online) return stop();
+    if (!conn.online) return stop();
     const el = Date.now() - t0;
     fn(el >= 6000 ? 2 : 1);
     tm = setTimeout(tick, el >= 3000 ? 100 : 300);
@@ -559,7 +682,7 @@ function digits(n) {
   });
   el.addEventListener('wheel', (e) => {
     const d = e.target.closest('.dg');
-    if (!d || !online || !S) return;
+    if (!d || !conn.online || !S) return;
     e.preventDefault();
     const now = Date.now();
     if (now - last > 400) acc = 0;
@@ -568,13 +691,13 @@ function digits(n) {
     if (Math.abs(acc) < 50) return;
     const dir = acc < 0 ? 1 : -1;
     acc = 0;
-    tune(n, (b) => clampF(b + dir * 10 ** +d.dataset.e));
+    tune(n, (b) => b + dir * 10 ** +d.dataset.e);
   }, {passive: false});
   return el;
 }
 function freqForm(n, w) {
   return h('form', {class: 'fin', autocomplete: 'off', onsubmit: (e) => { e.preventDefault(); applyText(n); }},
-    h('label', {for: 'f' + n, text: n === 3 ? 'Master frequency' : 'Frequency'}),
+    w.flbl = h('label', {for: 'f' + n, text: n === 3 ? 'Master frequency' : 'Frequency'}),
     h('div', {class: 'row'},
       w.in = h('input', {id: 'f' + n, type: 'text', class: 'fi', 'data-ch': n, maxlength: 32, spellcheck: 'false',
         autocapitalize: 'off', enterkeyhint: 'done', placeholder: '10.7M, 455k, 7 100 000'}),
@@ -596,6 +719,14 @@ function buildMain() {
     h('div', {class: 'cards'}, [1, 2, 3].map(card)),
     U.local = h('p', {class: 'note', hidden: true, text: 'Remote outputs: local only — switch on at the device'}));
 }
+// Step chips of a channel page, built from L.steps (the first state) and again if they change.
+function syncSteps(w) {
+  const key = L.steps.join();
+  if (w.stepsKey === key) return;
+  w.stepsKey = key;
+  w.steps = L.steps.map((s) => h('button', {type: 'button', class: 'chip', text: stepLabel(s), onclick: () => setStep(s)}));
+  w.stepBox.replaceChildren(...w.steps);
+}
 function buildCh(n) {
   const w = U.ch[n] = {};
   return h('section', {class: 'area c' + n, id: 'ch' + n, onpointerdown: () => select(n), onfocusin: () => select(n)},
@@ -612,8 +743,11 @@ function buildCh(n) {
           h('div', {class: 'chips'}, w.ph = [0, 90, 180, 270].map((p) => h('button', {type: 'button', class: 'chip', text: String(p), onclick: () => post3({phase: p})}))))),
       w.note = h('p', {class: 'mu sm'})
     ] : [
-      h('div', {class: 'chips steps', role: 'group', 'aria-label': 'Step'},
-        w.steps = STEPS.map((s, i) => h('button', {type: 'button', class: 'chip', text: STEP_L[i], onclick: () => setStep(s)}))),
+      // CH2: free or coupled to CH1 (E-52).
+      n === 2 && h('div', {class: 'chips cpl', role: 'group', 'aria-label': 'Coupling'},
+        w.cpl = ['Free', 'CH1 + offset'].map((t, i) => h('button', {type: 'button', class: 'chip', text: t,
+          onclick: () => act(api(CH_PATH[2], {coupled: i === 1}))}))),
+      w.stepBox = h('div', {class: 'chips steps', role: 'group', 'aria-label': 'Step'}),
       h('div', {class: 'pm'}, rep('−', (k) => stepF(n, -k), 'Frequency down'), rep('+', (k) => stepF(n, k), 'Frequency up'))
     ],
     freqForm(n, w));
@@ -641,6 +775,10 @@ function buildCfg() {
       h('button', {type: 'button', class: 'big sm', text: '−', 'aria-label': 'Backlight down', onclick: () => tuneBl(-1)}),
       C.bl = h('span', {class: 'val'}),
       h('button', {type: 'button', class: 'big sm', text: '+', 'aria-label': 'Backlight up', onclick: () => tuneBl(1)}))),
+    // Screen rotation of the device (E-53).
+    row('Screen', h('div', {class: 'chips', role: 'group', 'aria-label': 'Screen rotation'},
+      C.rot = [0, 180].map((d) => h('button', {type: 'button', class: 'chip', text: d + '°',
+        onclick: () => act(api('/api/config', {rotation: d}))})))),
     row('Remote outputs', C.remote = h('span', {class: 'val'})),
     h('dl', {class: 'info'},
       h('dt', {text: 'Firmware'}), C.fw = h('dd'),
@@ -792,20 +930,20 @@ function newAddr(b) {
     'If this page loses the connection, open http://' + name + '.local/' + (ip ? ' or http://' + ip + '/' : '') + ' and confirm there.';
 }
 function startPending(sec, addr) {
-  pendEnd = Date.now() + sec * 1000;
-  pendAt = Date.now();
+  pending.end = Date.now() + sec * 1000;
+  pending.at = Date.now();
   U.wifi.addr.textContent = addr;
   U.wifi.pend.hidden = false;
-  clearTimeout(pendT);
+  clearTimeout(pending.timer);
   tickPending();
 }
 function stopPending() {
-  pendEnd = 0;
-  clearTimeout(pendT);
+  pending.end = 0;
+  clearTimeout(pending.timer);
   U.wifi.pend.hidden = true;
 }
 function tickPending() {
-  const s = Math.ceil((pendEnd - Date.now()) / 1000);
+  const s = Math.ceil((pending.end - Date.now()) / 1000);
   if (s <= 0) {
     stopPending();
     line(U.wifi.err, 'Not confirmed: the previous settings return.', 'err');
@@ -813,7 +951,7 @@ function tickPending() {
     return;
   }
   U.wifi.pendT.textContent = 'Confirm within ' + s + ' s, otherwise the previous settings return.';
-  pendT = setTimeout(tickPending, 1000);
+  pending.timer = setTimeout(tickPending, 1000);
 }
 async function confirmNet() {
   try {
@@ -875,7 +1013,7 @@ function onKey(e) {
     return;
   }
   if (k === '?') { $('dlgHelp').showModal(); e.preventDefault(); return; }
-  if (!S || !online) return;
+  if (!S || !conn.online) return;
   switch (k) {
     case '1': case '2': case '3': select(+k, true); break;
     case 'ArrowUp': case '+': stepF(sel, 1); break;
@@ -914,13 +1052,22 @@ function init() {
   $('bIdent').addEventListener('click', () => act(api('/api/identify', {}).then(() => toast('Identify: display and LED blink for 5 s', true))));
   $('bSave').addEventListener('click', () => act(api('/api/save', {})));
   $('bLogout').addEventListener('click', logout);
+  $('bLogin').addEventListener('click', () => {
+    auth.declined = false;
+    login().catch(() => {});
+  });
+  D.addEventListener('visibilitychange', onVisibility);
   $('bHelp').addEventListener('click', () => $('dlgHelp').showModal());
   $('helpX').addEventListener('click', () => $('dlgHelp').close());
   $('askOk').addEventListener('click', () => $('dlgAsk').close('ok'));
   $('askNo').addEventListener('click', () => $('dlgAsk').close('no'));
   $('fLogin').addEventListener('submit', doLogin);
   $('dlgLogin').addEventListener('close', () => {
-    if (loginP) { loginP = null; loginRej(apiErr(401)); }
+    if (auth.prompt) {
+      auth.prompt = null;
+      auth.declined = true; // reads stop asking; "Log in" in the header asks again
+      auth.reject(apiErr(401));
+    }
   });
   D.querySelectorAll('nav a[data-ch]').forEach((a) => a.addEventListener('click', () => select(+a.dataset.ch)));
   D.addEventListener('keydown', onKey);

@@ -16,6 +16,9 @@ namespace TouchFilter {
 bool plausibleRaw(int16_t rawX, int16_t rawY);
 // Raw values to screen coordinates (clamped); false for an unusable calibration.
 bool mapPoint(const TouchCalibration& cal, int16_t rawX, int16_t rawY, int16_t* x, int16_t* y);
+// Screen turned by 180 degrees (E-53): x' = 319 - x, y' = 239 - y. The calibration stays in raw
+// coordinates of the upright screen, so it serves both rotations.
+void rotate180(int16_t* x, int16_t* y);
 
 struct Sample {
     bool touched;   // the controller reports a touch
@@ -33,12 +36,14 @@ struct Output {
 
 class Filter {
 public:
-    explicit Filter(const TouchCalibration& cal) : cal_(cal) {}
+    // rotated: the screen is turned by 180 degrees; positions are mirrored after the calibration.
+    explicit Filter(const TouchCalibration& cal, bool rotated = false) : cal_(cal), rotated_(rotated) {}
     // One read of the input device at time nowMs.
     Output update(const Sample& s, uint32_t nowMs);
 
 private:
     TouchCalibration cal_;
+    bool rotated_;
     bool lastPressed_ = false;
     int16_t x_ = 0;
     int16_t y_ = 0;

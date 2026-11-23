@@ -89,6 +89,8 @@ nav a:hover{background:var(--prs)}
 .chip[aria-pressed=true]{background:var(--c);border-color:var(--c);color:var(--txd)}
 .steps{margin:8px 0}
 .steps .chip{flex:1 1 0;padding:0 2px}
+.cpl{margin-bottom:6px}
+.cpl .chip{flex:1 1 0}
 .pm{display:flex;gap:8px}
 .pm .big{flex:1}
 .big{font-size:28px;line-height:1;min-height:56px;background:var(--c);border-color:var(--c);color:var(--txd)}

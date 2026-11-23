@@ -17,8 +17,22 @@ static constexpr double FIXED_PLL_KEEP_ERR_HZ = 0.25;
 static constexpr uint64_t FIXED_PLL_ONLY_MAX_HZ = 100000000ULL;
 static constexpr uint32_t MS_MIN_HZ = 1000000;    // lower outputs use the R divider
 static constexpr uint32_t MS_MAX_DIV = 2048;
+// Smallest MultiSynth with a fractional ratio (AN619 4.1.2.1); 4 and 6 only as even integers.
+static constexpr uint32_t MS_MIN_FRACTIONAL_DIV = 8;
+static constexpr uint32_t MS_MIN_INTEGER_DIV = 4;
 static constexpr uint32_t IQ_MIN_DIV = 9;         // fractional-mode MultiSynth
 static constexpr uint32_t IQ_MAX_DIV = 127;       // 7-bit phase offset register
+static constexpr uint8_t R_MAX_LOG2 = 7;          // R divider up to 128
+
+// Integer MultiSynth dividers min, min + step, ... <= max.
+struct DividerRange {
+    uint32_t min;
+    uint32_t max;
+    uint32_t step;
+};
+// Standalone outputs: even integer dividers 4..2048 (MS_INT); IQ: every divider 9..127.
+static constexpr DividerRange STANDALONE_EVEN_DIVS {MS_MIN_INTEGER_DIV, MS_MAX_DIV, 2};
+static constexpr DividerRange IQ_DIVS {IQ_MIN_DIV, IQ_MAX_DIV, 1};
 
 static uint64_t absDiff(uint64_t a, uint64_t b) { return a > b ? a - b : b - a; }
 
@@ -95,15 +109,15 @@ static void integerDivider(SynthPlan& p, uint32_t div, uint64_t msHz, uint64_t x
 }
 
 // The point xtal * a / div nearest to msHz with an integer PLL a (24..36 x 25 MHz within the VCO
-// range) and div = divMin, divMin + divStep, ... <= divMax. On a tie the even a wins (FBx_INT).
-static void nearestIntegerPoint(SynthPlan& p, uint64_t msHz, uint64_t xtal4, const VcoRange& range, uint32_t divMin,
-                                uint32_t divMax, uint32_t divStep) {
+// range) and div from `divs`. On a tie the even a wins (FBx_INT).
+static void nearestIntegerPoint(SynthPlan& p, uint64_t msHz, uint64_t xtal4, const VcoRange& range,
+                                const DividerRange& divs) {
     // From the corrected crystal (xtal4 / 4), so the VCO stays in range at +-50 ppm (audit C-7).
     const uint32_t aMin = (uint32_t)((4 * range.min + xtal4 - 1) / xtal4);
     const uint32_t aMax = (uint32_t)(4 * range.max / xtal4);
     uint64_t bestErr = 0;
     uint32_t bestA = 0, bestDiv = 0;
-    for (uint32_t div = divMin; div <= divMax; div += divStep) {
+    for (uint32_t div = divs.min; div <= divs.max; div += divs.step) {
         const uint64_t vco4 = 4 * msHz * div; // wanted VCO in 0.25 Hz
         const uint64_t nearest = (2 * vco4 + xtal4) / (2 * xtal4);
         const uint32_t a = nearest < aMin ? aMin : nearest > aMax ? aMax : (uint32_t)nearest;
@@ -124,87 +138,102 @@ static void nearestIntegerPoint(SynthPlan& p, uint64_t msHz, uint64_t xtal4, con
     p.divBy4 = bestDiv == 4;
 }
 
+// LowNoise: even integer MultiSynth, fractional PLL. false if no divider keeps the VCO in range.
+static bool planLowNoise_(SynthPlan& p, uint64_t msHz, const SynthRatio* currentMs, uint64_t xtal4,
+                          const VcoRange& range) {
+    // Keep the divider while the VCO stays in range: then only the PLL changes, without a reset.
+    uint64_t div = 0;
+    if (currentMs && isEvenInteger(*currentMs) && currentMs->a >= MS_MIN_INTEGER_DIV &&
+        range.contains(currentMs->a * msHz)) {
+        div = currentMs->a;
+    }
+    if (div == 0) div = (range.max / msHz) & ~1ULL; // largest even divider
+    if (div < MS_MIN_INTEGER_DIV || div > MS_MAX_DIV || div * msHz < range.min) return false;
+    integerDivider(p, (uint32_t)div, msHz, xtal4);
+    return true;
+}
+
+// Integer: integer PLL and even integer MultiSynth, the nearest point.
+static bool planInteger_(SynthPlan& p, uint64_t msHz, uint64_t xtal4, const VcoRange& range) {
+    nearestIntegerPoint(p, msHz, xtal4, range, STANDALONE_EVEN_DIVS);
+    p.msInt = true;
+    return true;
+}
+
+// Fractional: fixed PLL, fractional MultiSynth; above the fixed PLLs' range an even integer divider.
+static bool planFractional_(SynthPlan& p, uint64_t freq, uint64_t msHz, const SynthRatio* currentPll,
+                            uint64_t xtal4, const VcoRange& range) {
+    // Near 900 MHz / n the MultiSynth fraction cannot get close enough (up to 5 Hz error at
+    // 100 MHz); the second PLL value has its weak spots elsewhere. The current PLL is kept while
+    // it is good enough, so the PLL rarely changes.
+    double bestErr = 1e9;
+    uint8_t used = 0;
+    for (const SynthRatio& cand : FIXED_PLLS) {
+        if (!range.contains(XTAL_HZ * ((uint64_t)cand.a * cand.c + cand.b) / cand.c)) continue;
+        if (++used > 2) break;
+        const SynthRatio ms = approxRatio(((uint64_t)cand.a * cand.c + cand.b) * xtal4, 4 * msHz * cand.c);
+        if (ms.a < MS_MIN_FRACTIONAL_DIV) continue;
+        const double err = fabs(synthesizedHz(cand, ms, p.rLog2, xtal4) - (double)freq);
+        if (currentPll && sameRatio(*currentPll, cand) && err <= FIXED_PLL_KEEP_ERR_HZ) {
+            p.pll = cand;
+            p.ms = ms;
+            bestErr = err;
+            break;
+        }
+        if (err < bestErr) {
+            bestErr = err;
+            p.pll = cand;
+            p.ms = ms;
+        }
+    }
+    // Above 112.5 MHz the fixed PLLs would need a MultiSynth below MS_MIN_FRACTIONAL_DIV; next to
+    // it the ratio rounds to exactly that and misses by up to 5 Hz. The largest even integer
+    // divider in the VCO range with a fractional PLL is then better (1.5 / 2 / 3 Hz with 8 / 6 / 4).
+    const bool noFractional = p.ms.a < MS_MIN_FRACTIONAL_DIV;
+    if (noFractional || (msHz > FIXED_PLL_ONLY_MAX_HZ && bestErr > FIXED_PLL_KEEP_ERR_HZ)) {
+        bool found = false;
+        static constexpr uint32_t EVEN_DIVS[] = {MS_MIN_FRACTIONAL_DIV, 6, MS_MIN_INTEGER_DIV};
+        for (uint32_t div : EVEN_DIVS) {
+            if (!range.contains(div * msHz)) continue;
+            SynthPlan q = p;
+            integerDivider(q, div, msHz, xtal4);
+            const double err = fabs(synthesizedHz(q.pll, q.ms, p.rLog2, xtal4) - (double)freq);
+            if (noFractional || err < bestErr) {
+                p.pll = q.pll;
+                p.ms = q.ms;
+                p.divBy4 = q.divBy4;
+            }
+            found = true;
+            break;
+        }
+        if (!found && noFractional) return false; // only with spread spectrum, next to 150 MHz
+    }
+    p.msInt = isEvenInteger(p.ms);
+    return true;
+}
+
 SynthPlan planStandalone(uint64_t freq, TuningMode mode, const SynthRatio* currentPll, const SynthRatio* currentMs,
                          uint64_t xtal4, Spread spread) {
     SynthPlan p {};
     p.ms = p.pll = SynthRatio {0, 0, 1};
     if (freq == 0) return p;
-    p.ok = true;
     const VcoRange range = vcoRange(spread);
 
     // R divider for low frequencies keeps the MultiSynth input >= 1 MHz.
     uint64_t msHz = freq;
-    while (msHz < MS_MIN_HZ && p.rLog2 < 7) {
+    while (msHz < MS_MIN_HZ && p.rLog2 < R_MAX_LOG2) {
         msHz <<= 1;
         ++p.rLog2;
     }
 
-    if (mode == TuningMode::LowNoise) {
-        // Keep the divider while the VCO stays in range: then only the PLL changes, without a reset.
-        uint64_t div = 0;
-        if (currentMs && isEvenInteger(*currentMs) && currentMs->a >= 4 && range.contains(currentMs->a * msHz)) {
-            div = currentMs->a;
-        }
-        if (div == 0) div = (range.max / msHz) & ~1ULL; // largest even divider
-        if (div < 4 || div > MS_MAX_DIV || div * msHz < range.min) {
-            p.ok = false;
-            return p;
-        }
-        integerDivider(p, (uint32_t)div, msHz, xtal4);
-    } else if (mode == TuningMode::Integer) {
-        nearestIntegerPoint(p, msHz, xtal4, range, 4, MS_MAX_DIV, 2);
-        p.msInt = true;
-    } else {
-        // Fixed PLL, fractional MultiSynth. Near 900 MHz / n the MultiSynth fraction cannot get
-        // close enough (up to 5 Hz error at 100 MHz); the second PLL value has its weak spots
-        // elsewhere. The current PLL is kept while it is good enough, so the PLL rarely changes.
-        double bestErr = 1e9;
-        uint8_t used = 0;
-        for (const SynthRatio& cand : FIXED_PLLS) {
-            if (!range.contains(XTAL_HZ * ((uint64_t)cand.a * cand.c + cand.b) / cand.c)) continue;
-            if (++used > 2) break;
-            const SynthRatio ms = approxRatio(((uint64_t)cand.a * cand.c + cand.b) * xtal4, 4 * msHz * cand.c);
-            if (ms.a < 8) continue;
-            const double err = fabs(synthesizedHz(cand, ms, p.rLog2, xtal4) - (double)freq);
-            if (currentPll && sameRatio(*currentPll, cand) && err <= FIXED_PLL_KEEP_ERR_HZ) {
-                p.pll = cand;
-                p.ms = ms;
-                bestErr = err;
-                break;
-            }
-            if (err < bestErr) {
-                bestErr = err;
-                p.pll = cand;
-                p.ms = ms;
-            }
-        }
-        // Above 112.5 MHz the fixed PLLs would need a MultiSynth below 8; next to it the ratio
-        // rounds to exactly 8 and misses by up to 5 Hz. The largest even integer divider in the
-        // VCO range with a fractional PLL is then better (1.5 / 2 / 3 Hz with 8 / 6 / 4).
-        if (p.ms.a < 8 || (msHz > FIXED_PLL_ONLY_MAX_HZ && bestErr > FIXED_PLL_KEEP_ERR_HZ)) {
-            bool found = false;
-            static constexpr uint32_t EVEN_DIVS[] = {8, 6, 4};
-            for (uint32_t div : EVEN_DIVS) {
-                if (!range.contains(div * msHz)) continue;
-                SynthPlan q = p;
-                integerDivider(q, div, msHz, xtal4);
-                const double err = fabs(synthesizedHz(q.pll, q.ms, p.rLog2, xtal4) - (double)freq);
-                if (p.ms.a < 8 || err < bestErr) {
-                    p.pll = q.pll;
-                    p.ms = q.ms;
-                    p.divBy4 = q.divBy4;
-                }
-                found = true;
-                break;
-            }
-            if (!found && p.ms.a < 8) {
-                p.ok = false; // only with spread spectrum, next to 150 MHz
-                return p;
-            }
-        }
-        p.msInt = isEvenInteger(p.ms);
+    bool ok;
+    switch (mode) {
+        case TuningMode::LowNoise: ok = planLowNoise_(p, msHz, currentMs, xtal4, range); break;
+        case TuningMode::Integer: ok = planInteger_(p, msHz, xtal4, range); break;
+        default: ok = planFractional_(p, freq, msHz, currentPll, xtal4, range); break;
     }
-    p.actualHz = synthesizedHz(p.pll, p.ms, p.rLog2, xtal4);
+    p.ok = ok;
+    if (ok) p.actualHz = synthesizedHz(p.pll, p.ms, p.rLog2, xtal4);
     return p;
 }
 
@@ -214,7 +243,7 @@ SynthPlan planIQ(uint64_t freq, TuningMode mode, uint64_t xtal4, Spread spread) 
     if (freq == 0) return p;
     const VcoRange range = vcoRange(spread);
     if (mode == TuningMode::Integer) {
-        nearestIntegerPoint(p, freq, xtal4, range, IQ_MIN_DIV, IQ_MAX_DIV, 1);
+        nearestIntegerPoint(p, freq, xtal4, range, IQ_DIVS);
     } else {
         // Integer divider (fractional mode) with the VCO as close to the top of its range as possible.
         uint64_t div = range.max / freq;

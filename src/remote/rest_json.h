@@ -33,13 +33,13 @@
 // Several keys give several Commands in a fixed order (independent of the key order), so a
 // body applies like the device would: channel frequency before enabled; CH3 master and phase
 // before enabled; config tuning before spread (spread in Integer is a conflict), then off
-// state, drive, correction, step, backlight. Not atomic: the server stops at the first
+// state, drive, correction, step, backlight, rotation. Not atomic: the server stops at the first
 // refused push and answers with the first error.
 namespace RestJson {
 
 static constexpr size_t MAX_BODY = 1024;   // W-S10; the guard refuses larger with 413
 static constexpr uint8_t MAX_NESTING = 10; // ARBEITSPLAN 3.3
-static constexpr uint8_t MAX_COMMANDS = 8;
+static constexpr uint8_t MAX_COMMANDS = 9;
 static constexpr size_t STATE_SIZE = 1280;  // buildState() with the longest escaped texts (typical ~800 B)
 static constexpr size_t ERROR_SIZE = 96;    // enough for errorJson()
 
@@ -66,13 +66,15 @@ struct Commands {
     uint8_t count;
 };
 
-// POST /api/channel/<1|2>: {"enabled":bool,"frequency":int,"frequencyText":string}.
+// POST /api/channel/<1|2>: {"enabled":bool,"frequency":int,"frequencyText":string}; channel 2
+// also {"coupled":bool,"offset":int} (E-52; order: offset, coupled, frequency, enabled).
+// A CH2 frequency while coupled: 400/-221 "CH2 is coupled to CH1" (Result::Coupled).
 Reply parseChannel(uint8_t channel, const char* body, size_t len, Commands* out);
 // POST /api/ch3: {"enabled":bool,"master":int,"phase":int}.
 Reply parseCh3(const char* body, size_t len, Commands* out);
 // POST /api/config: {"drive":int,"tuning":"fractional|lownoise|integer",
 // "spread":"off|down05|down15|center05","offState":"low|high|hiz","correction":int (0.01 ppm),
-// "step":int,"backlight":int}.
+// "step":int,"backlight":int,"rotation":0|180 (degrees, E-53)}.
 Reply parseConfig(const char* body, size_t len, Commands* out);
 // POST /api/save (SaveNow) and /api/identify (Identify): the body is {}.
 Reply parseAction(CommandType type, const char* body, size_t len, Commands* out);

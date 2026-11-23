@@ -10,7 +10,7 @@
 
 // State machines of the web server (S55). Pure and host-tested; the device glue
 // (net/web_server.*) runs them in loop() (NetChange, ScanSession) or under its lock
-// (LoginQueue). Time comes in as nowMs.
+// (LoginQueue, JobSlot). Time comes in as nowMs.
 
 // Two-stage network change from the web (W-E9, W-S12): the new settings are applied
 // APPLY_DELAY_MS after the request (so the 202 answer leaves before the radio restarts), then
@@ -18,6 +18,11 @@
 // also at the touch screen; otherwise the previous settings return. A final change (mode Off:
 // no new connection to confirm over) is applied and saved without confirmation.
 // Holds both settings (with keys) in RAM while a change runs; wiped when it ends.
+// One owner (AF16, concept 2): while a change is open the touch screen may not change the
+// network settings (acceptsTouchChange(), the device shows "Web change pending" with Revert and
+// Keep), the WiFi manager does not save (managerMaySave(): a created AP password is saved with
+// the confirmation), and only a confirmed state is saved (saves()). After a power loss the
+// previous settings are therefore always the ones in NVS.
 class NetChange {
 public:
     static constexpr uint32_t APPLY_DELAY_MS = 500;
@@ -29,8 +34,10 @@ public:
         Apply,        // apply next() (not saved yet)
         ApplyAndSave, // final change: apply and save next()
         Save,         // confirmed: save next() (already applied)
-        Revert        // not confirmed or refused at the touch: apply and save previous()
+        Revert        // not confirmed or refused at the touch: apply previous() (NVS has it)
     };
+    // The action writes NVS (only confirmed or final states).
+    static bool saves(Action a) { return a == Action::Save || a == Action::ApplyAndSave; }
     enum class Confirm : uint8_t { Committed, NeedsTouch, NothingPending };
 
     // prev: the settings now (saved); next: the new ones. needsTouch: no web password is set.
@@ -40,8 +47,16 @@ public:
     Action update(uint32_t nowMs);
     // POST /api/wifi/confirm.
     Confirm confirmWeb();
-    // Answer at the touch screen: keep = confirm, otherwise back to the previous settings now.
+    // Answer at the touch screen: keep confirms when the touch must confirm (no web password),
+    // otherwise it changes nothing; !keep goes back to the previous settings now, with or
+    // without a web password (before the change was applied: it is dropped).
     void confirmTouch(bool keep);
+    // The touch screen may change the network settings (no web change open).
+    bool acceptsTouchChange() const { return !busy(); }
+    // The WiFi manager may save its own changes (AP password) now.
+    bool managerMaySave() const { return !busy(); }
+    // Seconds the open change still waits (at least 1 while one is open), 0 = none.
+    uint16_t pendingS(uint32_t nowMs) const;
     // A request is scheduled or waits for confirmation (a second one is refused).
     bool busy() const { return state_ != State::Idle; }
     // The touch screen should ask now (applied, needs the touch, not answered yet).
@@ -88,7 +103,7 @@ private:
 };
 
 // One web password check at a time (W-S23): the async_tcp task submits it, a worker task runs
-// the slow PBKDF2 (WebPassword::verify, ~0.2-0.3 s) outside of it, and the async_tcp task
+// the slow PBKDF2 (WebPassword::verify, about 1.3 s) outside of it, and the async_tcp task
 // collects the result. Ids tell a late result of a cancelled check from the current one.
 class LoginQueue {
 public:
@@ -168,4 +183,72 @@ private:
     bool ok_ = false;
     Job job_ {};
     char record_[WebPassword::RECORD_SIZE] {};
+};
+
+// The job mailbox of the web server (AF33, CQ-6): one WiFi change, confirmation or scan at a
+// time. The async_tcp task submits a job and later collects the result or gives up (abandon),
+// loop() takes it and finishes it. Every call holds the server's lock; nothing blocks here.
+// Job::clear(Job&) frees what a job owns (the scan text) and wipes its input (keys); the slot
+// calls it for the input once loop() took the job, for a result nobody collects (abandoned
+// before or after loop() finished it) and for a dropped queued job. A collected result belongs
+// to the caller, which clears it after answering.
+template <typename Job>
+class JobSlot {
+public:
+    enum class State : uint8_t { Free, Queued, Taken, Done, Abandoned };
+
+    // async_tcp: false while another job is in the slot.
+    bool submit(const Job& in) {
+        if (state_ != State::Free) return false;
+        job_ = in;
+        state_ = State::Queued;
+        return true;
+    }
+    // loop(): the queued job into *out; Taken until finish(). The slot's copy is cleared.
+    bool take(Job* out) {
+        if (state_ != State::Queued) return false;
+        *out = job_;
+        Job::clear(job_);
+        state_ = State::Taken;
+        return true;
+    }
+    // loop(): the result of the taken job. false when the requester gave up meanwhile: the
+    // result is cleared (its scan text freed) and the slot is free again.
+    bool finish(Job& result) {
+        if (state_ != State::Taken) {
+            Job::clear(result);
+            if (state_ == State::Abandoned) state_ = State::Free;
+            return false;
+        }
+        job_ = result;
+        state_ = State::Done;
+        return true;
+    }
+    // async_tcp: the finished result into *out (the caller owns it now); false while it runs.
+    bool collect(Job* out) {
+        if (state_ != State::Done) return false;
+        *out = job_;
+        job_ = Job();
+        state_ = State::Free;
+        return true;
+    }
+    // async_tcp gives up (timeout, connection closed): a queued job is dropped, a taken one is
+    // cleared when loop() finishes it, a finished one is cleared now.
+    void abandon() {
+        switch (state_) {
+            case State::Queued:
+            case State::Done:
+                Job::clear(job_);
+                state_ = State::Free;
+                break;
+            case State::Taken: state_ = State::Abandoned; break;
+            case State::Free:
+            case State::Abandoned: break;
+        }
+    }
+    State state() const { return state_; }
+
+private:
+    State state_ = State::Free;
+    Job job_ {};
 };

@@ -3,7 +3,8 @@
 
 // State machines of the web server (S55): two-stage network change with fallback (W-S12),
 // scan semantics (ARBEITSPLAN 3.6 point 6, W-S11), one password check at a time outside the
-// async_tcp task (W-S23), and the byte and connection limits (W-S6, W-S10).
+// async_tcp task (W-S23), the byte and connection limits (W-S6, W-S10) and the job mailbox
+// (AF33: abandon, late finish, double collect).
 
 #include <unity.h>
 #include <string.h>
@@ -113,13 +114,88 @@ static void test_change_without_password_needs_the_touch() {
         TEST_ASSERT_EQUAL(NetChange::Action::Revert, c.update(1000));
     }
     {
-        // With a password the touch has no say.
+        // With a password the touch need not confirm, Keep changes nothing, but Revert works
+        // (AF16, concept 2: the device shows a hint with Revert).
         NetChange c;
         c.request(a, b, false, false, 0);
         c.update(NetChange::APPLY_DELAY_MS);
-        c.confirmTouch(false);
+        c.confirmTouch(true);
         TEST_ASSERT_EQUAL(NetChange::Action::None, c.update(1000));
+        TEST_ASSERT_TRUE(c.busy());
+        c.confirmTouch(false);
+        TEST_ASSERT_EQUAL(NetChange::Action::Revert, c.update(1100));
     }
+}
+
+// --- AF16: one owner of the network settings (concept 2) ----------------------------------
+
+// While a web change is open the touch screen may not change the network settings ("Web change
+// pending"); afterwards it may again.
+static void test_touch_change_refused_while_pending() {
+    const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::Client, "new");
+    NetChange c;
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+    c.request(a, b, false, false, 0);
+    TEST_ASSERT_FALSE(c.acceptsTouchChange()); // scheduled
+    TEST_ASSERT_EQUAL_UINT16(121, c.pendingS(0));
+    c.update(NetChange::APPLY_DELAY_MS);
+    TEST_ASSERT_FALSE(c.acceptsTouchChange()); // waiting for the confirmation
+    TEST_ASSERT_EQUAL(NetChange::Confirm::Committed, c.confirmWeb());
+    TEST_ASSERT_FALSE(c.acceptsTouchChange()); // until the save is done
+    TEST_ASSERT_TRUE(c.pendingS(1000) >= 1);
+    TEST_ASSERT_EQUAL(NetChange::Action::Save, c.update(1000));
+    c.update(1001);
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+    TEST_ASSERT_EQUAL_UINT16(0, c.pendingS(1001));
+    // After a timeout as well.
+    c.request(a, b, false, false, 2000);
+    c.update(2000 + NetChange::APPLY_DELAY_MS);
+    TEST_ASSERT_EQUAL(NetChange::Action::Revert, c.update(2000 + NetChange::APPLY_DELAY_MS + NetChange::CONFIRM_MS));
+    c.update(2000 + NetChange::APPLY_DELAY_MS + NetChange::CONFIRM_MS + 1);
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+}
+
+// Revert at the touch before the change was even applied: nothing is applied, nothing saved.
+static void test_touch_revert_before_apply() {
+    const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::Client, "new");
+    NetChange c;
+    c.request(a, b, false, false, 0);
+    c.confirmTouch(false);
+    TEST_ASSERT_FALSE(c.busy());
+    TEST_ASSERT_EQUAL(NetChange::Action::None, c.update(NetChange::APPLY_DELAY_MS));
+    TEST_ASSERT_TRUE(c.acceptsTouchChange());
+}
+
+// The NVS model: only a confirmed state is ever saved (W-S12). A power loss at any moment of
+// the window finds the previous settings; the manager's own saves (AP password) wait.
+static void test_power_loss_finds_the_previous_settings() {
+    const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::AccessPoint, "new");
+    for (int ending = 0; ending < 3; ++ending) { // 0 timeout, 1 touch revert, 2 web confirm
+        NetSettings nvs = a;
+        NetChange c;
+        c.request(a, b, false, false, 0);
+        uint32_t t = 0;
+        bool sawApply = false;
+        while (t <= NetChange::APPLY_DELAY_MS + NetChange::CONFIRM_MS + 300) {
+            if (t == 5000) {
+                TEST_ASSERT_FALSE(c.managerMaySave()); // an AP password created now is not saved yet
+                if (ending == 1) c.confirmTouch(false);
+                if (ending == 2) TEST_ASSERT_EQUAL(NetChange::Confirm::Committed, c.confirmWeb());
+            }
+            const NetChange::Action act = c.update(t);
+            if (act == NetChange::Action::Apply) sawApply = true;
+            if (NetChange::saves(act)) nvs = c.next();
+            // "Power loss" here: NVS holds the previous settings until the confirmation.
+            if (ending != 2 || t < 5000) TEST_ASSERT_EQUAL_STRING("old", nvs.deviceName);
+            t += 100;
+        }
+        TEST_ASSERT_TRUE(sawApply);
+        TEST_ASSERT_TRUE(c.managerMaySave());
+        TEST_ASSERT_EQUAL_STRING(ending == 2 ? "new" : "old", nvs.deviceName);
+    }
+    TEST_ASSERT_FALSE(NetChange::saves(NetChange::Action::Revert)); // NVS still has prev
+    TEST_ASSERT_FALSE(NetChange::saves(NetChange::Action::Apply));
+    TEST_ASSERT_TRUE(NetChange::saves(NetChange::Action::ApplyAndSave));
 }
 
 // Mode Off over the web (ARBEITSPLAN 3.6 point 2): final, applied and saved, nothing to confirm.
@@ -311,6 +387,85 @@ static void test_web_password_job() {
 
 // --- Limits --------------------------------------------------------------------------------
 
+// AF18 (SEC-V-2, PERF-18): unsolicited PONGs do not keep a dead client alive, so its slot is
+// freed (displaced) after PONG_TIMEOUT_MS; a PING flood closes the client (the web UI never
+// pings; every PING queues a PONG in the library's unbounded control queue).
+static void test_ws_unsolicited_pongs_do_not_hold_a_slot() {
+    WsClients w;
+    TEST_ASSERT_TRUE(w.add(1, 0));
+    TEST_ASSERT_TRUE(w.add(2, 0));
+    TEST_ASSERT_TRUE(w.add(3, 0));
+    TEST_ASSERT_FALSE(w.add(4, 0)); // full
+    // Client 3 sends a PONG every second on its own and never answers a PING.
+    const uint8_t junk[4] = {'c', 'y', 'd', 0};
+    uint8_t answer[3][4] {};
+    uint32_t t = 0;
+    for (; t <= WsClients::PONG_TIMEOUT_MS + 1000; t += 1000) {
+        w.pong(3, t, junk, sizeof(junk)); // unsolicited: not the payload of our PING
+        uint32_t id = 0;
+        uint8_t payload[WsClients::PING_PAYLOAD_LEN];
+        while ((id = w.duePing(t, 0x5A000000u + t + id, payload)) != 0) {
+            if (id != 3) memcpy(answer[id - 1], payload, sizeof(payload));
+        }
+        w.pong(1, t, answer[0], 4); // 1 and 2 answer (repeating an answer changes nothing)
+        w.pong(2, t, answer[1], 4);
+        if (w.expired(t) == 3) break;
+    }
+    TEST_ASSERT_TRUE(t <= WsClients::PONG_TIMEOUT_MS + 1000);
+    TEST_ASSERT_EQUAL_UINT8(2, w.count());
+    TEST_ASSERT_TRUE(w.add(4, t)); // the freed slot takes a new client
+    TEST_ASSERT_EQUAL_UINT32(0, w.expired(t));
+}
+
+static void test_ws_ping_flood_closes() {
+    WsClients w;
+    w.add(7, 0);
+    for (uint8_t i = 0; i < WsClients::PING_BUDGET; ++i) TEST_ASSERT_TRUE(w.clientPing(7, 100 * i));
+    TEST_ASSERT_FALSE(w.clientPing(7, 1000)); // one more within the window
+    // Slow PINGs (a proxy keeping the link) stay allowed.
+    WsClients s;
+    s.add(8, 0);
+    for (uint32_t t = 0; t < 10 * WsClients::PING_WINDOW_MS; t += WsClients::PING_WINDOW_MS / 2) {
+        TEST_ASSERT_TRUE(s.clientPing(8, t));
+    }
+    TEST_ASSERT_FALSE(s.clientPing(99, 0)); // unknown client
+}
+
+// AF19 (PERF-6): WebSocket pushes at most every 100 ms; the first change goes at once, changes
+// in between are merged and the latest state follows at the end of the interval.
+static void test_push_pacer() {
+    PushPacer p;
+    TEST_ASSERT_FALSE(p.due(false, 0));      // nothing changed
+    TEST_ASSERT_TRUE(p.due(true, 1000));     // first change at once
+    TEST_ASSERT_FALSE(p.due(true, 1010));    // within 100 ms: merged
+    TEST_ASSERT_FALSE(p.due(true, 1050));
+    TEST_ASSERT_FALSE(p.due(false, 1099));
+    TEST_ASSERT_TRUE(p.due(false, 1100));    // the latest state at the end of the interval
+    TEST_ASSERT_FALSE(p.due(false, 1200));   // nothing left
+    TEST_ASSERT_TRUE(p.due(true, 1500));     // quiet before: at once again
+    // A flood of 80 changes/s gives at most 10 pushes/s.
+    int pushes = 0;
+    for (uint32_t t = 2000; t < 3000; t += 12) pushes += p.due(true, t) ? 1 : 0;
+    TEST_ASSERT_TRUE(pushes <= 10);
+    TEST_ASSERT_TRUE(pushes >= 9);
+    // Across the millis() wrap.
+    PushPacer w;
+    TEST_ASSERT_TRUE(w.due(true, 0xFFFFFFC0u));
+    TEST_ASSERT_FALSE(w.due(true, 0xFFFFFFF0u));
+    TEST_ASSERT_TRUE(w.due(false, 0xFFFFFFC0u + PushPacer::MIN_INTERVAL_MS));
+    p.reset();
+    TEST_ASSERT_FALSE(p.due(false, 5000));
+}
+
+// AF19 (PERF-8): allocations depend on the largest free block, not on the free heap.
+static void test_heap_block_limits() {
+    TEST_ASSERT_FALSE(HeapLimits::acceptOk(200000, HeapLimits::MIN_BLOCK_ACCEPT - 1));
+    TEST_ASSERT_TRUE(HeapLimits::acceptOk(200000, HeapLimits::MIN_BLOCK_ACCEPT));
+    TEST_ASSERT_FALSE(HeapLimits::acceptOk(RequestGuard::MIN_FREE_HEAP - 1, 100000)); // W-S10 stays
+    TEST_ASSERT_FALSE(HeapLimits::pushOk(1000, 1000 + HeapLimits::PUSH_RESERVE - 1));
+    TEST_ASSERT_TRUE(HeapLimits::pushOk(1000, 1000 + HeapLimits::PUSH_RESERVE));
+}
+
 static HttpPreFilter::Verdict feedAll(HttpPreFilter& f, const std::string& s, uint32_t now = 0) {
     return f.feed((const uint8_t*)s.data(), s.size(), now);
 }
@@ -399,13 +554,15 @@ static void test_connection_tables() {
     TEST_ASSERT_EQUAL_UINT32(13, w.needingState(2));
     TEST_ASSERT_EQUAL_UINT32(0, w.needingState(3));
     // Ping every 15 s, closed after 30 s without pong.
-    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS - 1));
-    TEST_ASSERT_EQUAL_UINT32(11, w.duePing(WsClients::PING_MS));
-    TEST_ASSERT_EQUAL_UINT32(12, w.duePing(WsClients::PING_MS));
-    TEST_ASSERT_EQUAL_UINT32(13, w.duePing(WsClients::PING_MS));
-    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS));
-    w.pong(11, 20000);
-    w.pong(12, 20000);
+    uint8_t p11[4], p12[4], p13[4];
+    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS - 1, 1, p11));
+    TEST_ASSERT_EQUAL_UINT32(11, w.duePing(WsClients::PING_MS, 0x11111111u, p11));
+    TEST_ASSERT_EQUAL_UINT32(12, w.duePing(WsClients::PING_MS, 0x22222222u, p12));
+    TEST_ASSERT_EQUAL_UINT32(13, w.duePing(WsClients::PING_MS, 0x33333333u, p13));
+    TEST_ASSERT_EQUAL_UINT32(0, w.duePing(WsClients::PING_MS, 4, p13));
+    w.pong(11, 20000, p11, 4);
+    w.pong(12, 20000, p12, 4);
+    w.pong(13, 20000, p11, 4); // the payload of another client's PING: ignored
     TEST_ASSERT_EQUAL_UINT32(0, w.expired(WsClients::PONG_TIMEOUT_MS));
     TEST_ASSERT_EQUAL_UINT32(13, w.expired(WsClients::PONG_TIMEOUT_MS + 1));
     TEST_ASSERT_EQUAL_UINT8(2, w.count());
@@ -418,17 +575,245 @@ static void test_connection_tables() {
     TEST_ASSERT_FALSE(WsClients::frameAllowed(513));
 }
 
+
+// --- JobSlot (AF33) --------------------------------------------------------------------------
+
+// A job like the server's: a secret input and an owned output buffer; counts what is still owned.
+static int g_owned = 0;
+struct TestJob {
+    int kind;
+    char secret[8];
+    char* out;
+    int status;
+    static void clear(TestJob& j) {
+        if (j.out) {
+            delete[] j.out;
+            --g_owned;
+        }
+        memset(&j, 0, sizeof(j));
+    }
+};
+
+static TestJob job(int kind, const char* secret) {
+    TestJob j;
+    memset(&j, 0, sizeof(j));
+    j.kind = kind;
+    snprintf(j.secret, sizeof(j.secret), "%s", secret);
+    return j;
+}
+
+static void result(TestJob& j, int status, bool withOut) {
+    j.status = status;
+    if (withOut) {
+        j.out = new char[4];
+        ++g_owned;
+    }
+}
+
+static void test_job_slot_runs_one_job() {
+    g_owned = 0;
+    JobSlot<TestJob> slot;
+    TestJob t;
+    TEST_ASSERT_FALSE(slot.take(&t)); // nothing queued
+    TEST_ASSERT_TRUE(slot.submit(job(1, "key")));
+    TEST_ASSERT_FALSE(slot.submit(job(2, "x"))); // one at a time
+    TestJob out;
+    TEST_ASSERT_FALSE(slot.collect(&out)); // still queued
+    TEST_ASSERT_TRUE(slot.take(&t));
+    TEST_ASSERT_EQUAL(1, t.kind);
+    TEST_ASSERT_EQUAL_STRING("key", t.secret);
+    TEST_ASSERT_FALSE(slot.take(&t)); // taken once
+    TEST_ASSERT_FALSE(slot.collect(&out)); // still running
+    TEST_ASSERT_FALSE(slot.submit(job(2, "x")));
+    result(t, 200, true);
+    TEST_ASSERT_TRUE(slot.finish(t));
+    TEST_ASSERT_TRUE(slot.collect(&out));
+    TEST_ASSERT_EQUAL(200, out.status);
+    TEST_ASSERT_NOT_NULL(out.out);
+    TEST_ASSERT_FALSE(slot.collect(&out)); // collected once: no double free
+    TEST_ASSERT_EQUAL(JobSlot<TestJob>::State::Free, slot.state());
+    TestJob::clear(out); // the caller owns the result
+    TEST_ASSERT_EQUAL(0, g_owned);
+    TEST_ASSERT_TRUE(slot.submit(job(2, "x"))); // free again
+}
+
+static void test_job_slot_abandon_in_every_state() {
+    g_owned = 0;
+    TestJob t, out;
+    // Queued: dropped at once, loop() finds nothing.
+    JobSlot<TestJob> a;
+    a.submit(job(1, "key"));
+    a.abandon();
+    TEST_ASSERT_EQUAL(JobSlot<TestJob>::State::Free, a.state());
+    TEST_ASSERT_FALSE(a.take(&t));
+    // Taken: the late result is cleared by finish() (its buffer freed), the slot is free.
+    JobSlot<TestJob> b;
+    b.submit(job(1, "key"));
+    b.take(&t);
+    b.abandon();
+    TEST_ASSERT_EQUAL(JobSlot<TestJob>::State::Abandoned, b.state());
+    TEST_ASSERT_FALSE(b.submit(job(2, "x"))); // busy until loop() is done with it
+    result(t, 200, true);
+    TEST_ASSERT_FALSE(b.finish(t));
+    TEST_ASSERT_NULL(t.out);
+    TEST_ASSERT_EQUAL(0, g_owned);
+    TEST_ASSERT_FALSE(b.collect(&out));
+    TEST_ASSERT_TRUE(b.submit(job(2, "x")));
+    // Done but never collected: cleared at abandon.
+    JobSlot<TestJob> c;
+    c.submit(job(1, "key"));
+    c.take(&t);
+    result(t, 200, true);
+    c.finish(t);
+    TEST_ASSERT_EQUAL(1, g_owned);
+    c.abandon();
+    TEST_ASSERT_EQUAL(0, g_owned);
+    TEST_ASSERT_FALSE(c.collect(&out));
+    TEST_ASSERT_EQUAL(JobSlot<TestJob>::State::Free, c.state());
+    // Abandon twice or on a free slot changes nothing.
+    c.abandon();
+    TEST_ASSERT_EQUAL(JobSlot<TestJob>::State::Free, c.state());
+}
+
+static void test_job_slot_wipes_inputs() {
+    g_owned = 0;
+    JobSlot<TestJob> slot;
+    TestJob t, out;
+    slot.submit(job(1, "secret"));
+    slot.take(&t);
+    // The slot keeps no copy of the key while loop() works on it, nor after the answer.
+    result(t, 202, false);
+    memset(t.secret, 0, sizeof(t.secret));
+    slot.finish(t);
+    slot.collect(&out);
+    TEST_ASSERT_EQUAL_STRING("", out.secret);
+    TEST_ASSERT_EQUAL(202, out.status);
+    // A finish without a taken job (programming error) clears the result instead of leaking.
+    TestJob stray = job(3, "k");
+    result(stray, 200, true);
+    TEST_ASSERT_FALSE(slot.finish(stray));
+    TEST_ASSERT_EQUAL(0, g_owned);
+}
+
+// AF33: random interleavings of the two sides as the server runs them, async_tcp (submit,
+// collect, give up after a timeout) and loop() (take, work for a while, finish), with a fixed
+// seed. Every request gets its own result or none, no result goes to a later request, every
+// buffer is freed exactly once, and the slot never keeps a key once loop() took the job.
+static uint32_t jobRngState = 12345;
+static uint32_t jobRng() {
+    jobRngState ^= jobRngState << 13;
+    jobRngState ^= jobRngState >> 17;
+    jobRngState ^= jobRngState << 5;
+    return jobRngState;
+}
+
+static void test_job_slot_random_interleavings() {
+    g_owned = 0;
+    jobRngState = 12345;
+    JobSlot<TestJob> slot;
+    int nextId = 1;
+    int waiting = 0;       // id of the request async_tcp waits for, 0 = none
+    bool working = false;  // loop() holds a taken job
+    TestJob work;
+    memset(&work, 0, sizeof(work));
+    unsigned collected = 0, abandoned = 0, late = 0;
+    for (int step = 0; step < 200000; ++step) {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "seed 12345, step %d", step);
+        switch (jobRng() % 6) {
+            case 0: { // async_tcp: a new request
+                if (waiting) break;
+                char secret[8];
+                snprintf(secret, sizeof(secret), "k%d", nextId % 100000);
+                if (slot.submit(job(nextId, secret))) waiting = nextId++;
+                else TEST_ASSERT_TRUE_MESSAGE(working && slot.state() == JobSlot<TestJob>::State::Abandoned, msg); // busy only with a given-up job
+                break;
+            }
+            case 1: { // async_tcp: is the answer there?
+                TestJob out;
+                memset(&out, 0, sizeof(out));
+                if (slot.collect(&out)) {
+                    TEST_ASSERT_TRUE_MESSAGE(waiting != 0, msg);
+                    TEST_ASSERT_EQUAL_INT_MESSAGE(waiting, out.kind, msg); // its own result
+                    TEST_ASSERT_EQUAL_INT_MESSAGE(200 + waiting % 7, out.status, msg);
+                    TestJob::clear(out);
+                    waiting = 0;
+                    ++collected;
+                }
+                break;
+            }
+            case 2: // async_tcp: timeout or connection closed
+                if (waiting && jobRng() % 4 == 0) {
+                    slot.abandon();
+                    waiting = 0;
+                    ++abandoned;
+                }
+                break;
+            case 3: // loop(): take a job
+                if (!working && slot.take(&work)) {
+                    working = true;
+                    char expect[8];
+                    snprintf(expect, sizeof(expect), "k%d", work.kind % 100000);
+                    TEST_ASSERT_EQUAL_STRING_MESSAGE(expect, work.secret, msg);
+                }
+                break;
+            case 4: // loop(): finish it (a scan has an output buffer)
+                if (working) {
+                    const int id = work.kind;
+                    memset(work.secret, 0, sizeof(work.secret));
+                    result(work, 200 + id % 7, id % 2 == 0);
+                    if (!slot.finish(work)) {
+                        TEST_ASSERT_NULL_MESSAGE(work.out, msg); // cleared by the slot
+                        ++late;
+                    }
+                    memset(&work, 0, sizeof(work));
+                    working = false;
+                }
+                break;
+            default: // a stray abandon while nobody waits (free, or loop() works on a given-up job)
+                if (!waiting) {
+                    const JobSlot<TestJob>::State before = slot.state();
+                    slot.abandon();
+                    TEST_ASSERT_EQUAL_MESSAGE(before, slot.state(), msg);
+                }
+                break;
+        }
+        // At most the one result in the slot owns a buffer; the worker's is not created yet.
+        TEST_ASSERT_TRUE_MESSAGE(g_owned == 0 || g_owned == 1, msg);
+        if (g_owned == 1) TEST_ASSERT_EQUAL_MESSAGE(JobSlot<TestJob>::State::Done, slot.state(), msg);
+    }
+    // Drain: loop() finishes, async_tcp gives up.
+    if (working) {
+        result(work, 200, true);
+        slot.finish(work);
+    }
+    slot.abandon();
+    TEST_ASSERT_EQUAL(0, g_owned);
+    TEST_ASSERT_TRUE(collected > 1000 && abandoned > 1000 && late > 100);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_change_applies_after_the_answer_and_reverts_without_confirmation);
     RUN_TEST(test_change_confirmed_over_the_web);
     RUN_TEST(test_change_without_password_needs_the_touch);
     RUN_TEST(test_final_change);
+    RUN_TEST(test_touch_change_refused_while_pending);
+    RUN_TEST(test_touch_revert_before_apply);
+    RUN_TEST(test_power_loss_finds_the_previous_settings);
     RUN_TEST(test_change_across_the_millis_wrap);
     RUN_TEST(test_scan_semantics);
     RUN_TEST(test_login_queue);
     RUN_TEST(test_web_password_job);
     RUN_TEST(test_prefilter_limits);
     RUN_TEST(test_connection_tables);
+    RUN_TEST(test_ws_unsolicited_pongs_do_not_hold_a_slot);
+    RUN_TEST(test_ws_ping_flood_closes);
+    RUN_TEST(test_push_pacer);
+    RUN_TEST(test_heap_block_limits);
+    RUN_TEST(test_job_slot_runs_one_job);
+    RUN_TEST(test_job_slot_abandon_in_every_state);
+    RUN_TEST(test_job_slot_wipes_inputs);
+    RUN_TEST(test_job_slot_random_interleavings);
     return UNITY_END();
 }

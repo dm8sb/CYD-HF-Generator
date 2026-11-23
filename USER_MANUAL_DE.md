@@ -1,6 +1,6 @@
 # Benutzeranleitung – CYD HF Generator
 
-Firmware-Version: 2.0.0
+Firmware-Version: 2.1.0
 
 Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_EN.md](USER_MANUAL_EN.md) ist ihre Übersetzung.
 
@@ -23,6 +23,8 @@ Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_E
 - [14. Sicherheitshinweis](#14-sicherheitshinweis)
 - [15. Fernsteuerung über USB und Netz (SCPI)](#15-fernsteuerung-über-usb-und-netz-scpi)
 - [16. Weboberfläche](#16-weboberfläche)
+- [17. Firmware aktualisieren](#17-firmware-aktualisieren)
+- [18. Mischer-Experimente](#18-mischer-experimente)
 - [Anhang A: Seitenbilder](#anhang-a-seitenbilder)
 - [Anhang B: Glossar](#anhang-b-glossar)
 - [Anhang C: Symptome und Abhilfe](#anhang-c-symptome-und-abhilfe)
@@ -39,7 +41,7 @@ Für den Laborplatz; Einzelheiten in den genannten Abschnitten, Bilder der Seite
 6. **Vor dem Messen:** Steht unter einer Frequenz eine Moduszeile (z. B. `OFF=High`, `SSC -0.5%`, `Integer`), weicht CONFIG von den Werkseinstellungen ab (Abschnitt 2).
 7. **Bei Fehlern:** `! NO HW` = SI5351 nicht verbunden; `! ERR` = Einstellen fehlgeschlagen, die Firmware versucht es alle 2 s erneut (Abschnitt 11, Anhang C).
 
-Werkseinstellungen in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; Frequenzen 10 MHz (CH1) und 14 MHz (CH2), Schritt 1 kHz. Für die nächste Gruppe: CONFIG `Device` → `Reset` → `Defaults` (die Kalibrierung bleibt); gegen Verstellen: CONFIG `Device` → `Screen` → `Lock`.
+Werkseinstellungen in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %, Bild aufrecht (`Rotate` 0°); Frequenzen 10 MHz (CH1) und 14 MHz (CH2), CH2 `Free` (Offset 0), Schritt 1 kHz. Für die nächste Gruppe: CONFIG `Device` → `Reset` → `Defaults` (die Kalibrierung bleibt); gegen Verstellen: CONFIG `Device` → `Screen` → `Lock`.
 
 ---
 
@@ -85,7 +87,7 @@ Die Hauptseite zeigt für jeden Kanal eine Karte mit:
 - Kanalname und Status
 - eingestellter Frequenz (Sollfrequenz)
 - eigenem ON/OFF-Schalter
-- Zusatzzeile: bei CH1/CH2 die Moduszeile (siehe unten) und `IQ master of CH3`, wenn CH3 eingeschaltet ist und diesem Kanal folgt (mit Moduszeile kurz `| IQ master`); bei CH3 Master und Phase, z. B. `CH1 / 90°`, bei `WAIT` und `! ERR` mit dem Grund (z. B. `CH1 / 90° / master off`)
+- Zusatzzeile: bei CH1/CH2 die Moduszeile (siehe unten) und `IQ master of CH3`, wenn CH3 eingeschaltet ist und diesem Kanal folgt (mit Moduszeile kurz `| IQ master`); bei gekoppeltem CH2 der Offset kurz, z. B. `CH1 +455 kHz` (Abschnitt 4); bei CH3 Master und Phase, z. B. `CH1 / 90°`, bei `WAIT` und `! ERR` mit dem Grund (z. B. `CH1 / 90° / master off`)
 
 Im Modus `Tuning` = `Integer` steht vor der Frequenz ein `~`, wenn die tatsächliche Frequenz um 1 Hz oder mehr von der Sollfrequenz abweicht (Abschnitt 8). Ab 100 MHz passt das `~` nicht mehr in die Karte und entfällt; die Moduszeile zeigt dann `Integer`.
 
@@ -120,12 +122,12 @@ Statusanzeige unter dem Kanalnamen (in der Titelzeile der Kanalseiten ebenso). J
 | `ON` (grünes Feld) | Ausgang aktiv |
 | `OFF` (graue Schrift, kein Feld) | Ausgang aus |
 | `! ERR` (rotes Feld) | Einstellen des Ausgangs ist fehlgeschlagen, obwohl der SI5351 antwortet; die Firmware versucht es alle 2 s erneut. Der Schalter zeigt weiter die gewünschte Einstellung |
-| `WAIT` (oranges Feld) | CH3 ist eingeschaltet, kann aber gerade nicht laufen (Master aus oder Masterfrequenz außerhalb des IQ-Bereichs: unter 4,730 MHz, mit `Spread CH1` auf Master CH1 etwas enger, Abschnitt 8) |
+| `WAIT` (oranges Feld) | CH3 ist eingeschaltet, kann aber gerade nicht laufen (Master aus oder Masterfrequenz außerhalb des IQ-Bereichs: unter 4,730 MHz, mit `Spread CH1` auf Master CH1 etwas enger, Abschnitt 8); oder CH2 ist an CH1 gekoppelt und eingeschaltet, CH1 + Offset liegt aber außerhalb 8 kHz – 160 MHz (Abschnitt 4) |
 | `! NO HW` (rotes Feld) | SI5351 nicht gefunden oder Verbindung verloren; die Firmware verbindet automatisch neu |
 
 Die Farben der Kanäle: CH1 rot, CH2 grün, CH3 blau, CONFIG gelb.
 
-Alle Seiten außer der Hauptseite haben dieselbe Titelzeile: links oben `◀` geht eine Ebene zurück (von CH1, CH2, CH3 und CONFIG zur Hauptseite, von den WIFI-Seiten zu CONFIG bzw. zur WIFI-Übersicht, vom NUMPAD ohne Änderung zur Seite davor), dahinter steht der Titel, rechts gegebenenfalls eine Taste der Seite (z. B. `Device`, `Scan`). Auf den Kanalseiten enthält die Titelzeile zusätzlich den ON/OFF-Schalter und daneben den tatsächlichen Zustand wie auf der Hauptseite: `ON`, `OFF`, `WAIT` (nur CH3), `! ERR` oder `! NO HW`. Der Schalter zeigt, was eingestellt ist, der Text, was der Ausgang gerade tut; bei CH3 kann der Schalter also auf ON stehen, während der Text `WAIT` zeigt. Das NUMPAD hat stattdessen die Taste `◀` (Abschnitt 6).
+Alle Seiten außer der Hauptseite haben dieselbe Titelzeile: links oben `◀` geht eine Ebene zurück (von CH1, CH2, CH3 und CONFIG zur Hauptseite, von den WIFI-Seiten zu CONFIG bzw. zur WIFI-Übersicht, vom NUMPAD ohne Änderung zur Seite davor), dahinter steht der Titel, rechts gegebenenfalls eine Taste der Seite (z. B. `Device`, `Scan`). Auf den Kanalseiten enthält die Titelzeile zusätzlich den ON/OFF-Schalter und daneben den tatsächlichen Zustand wie auf der Hauptseite: `ON`, `OFF`, `WAIT` (CH3 und gekoppelter CH2), `! ERR` oder `! NO HW`. Der Schalter zeigt, was eingestellt ist, der Text, was der Ausgang gerade tut; bei CH3 und gekoppeltem CH2 kann der Schalter also auf ON stehen, während der Text `WAIT` zeigt. Das NUMPAD hat stattdessen die Taste `◀` (Abschnitt 6).
 
 Die RGB-LED zeigt auf den Kanal-Seiten ebenfalls die Kanal-Farbe:
 
@@ -192,6 +194,29 @@ Alternativ kann der Kanal direkt mit dem Schalter auf seiner Karte der Hauptseit
 2. ON/OFF-Schalter ausschalten.
 3. Die Anzeige wechselt auf `OFF`.
 4. Der Ausgang wird abgeschaltet und nimmt den unter `Off state` gewählten Zustand an (Standard `Low`, Abschnitt 8).
+
+### CH2 an CH1 koppeln (`CH1 + offset`)
+
+CH2 kann CH1 mit festem Abstand (Offset) folgen, z. B. als LO oder Testsignal eines Überlagerungsempfängers mit fester ZF (Abschnitt 18). Auf der CH2-Seite stehen unter der Frequenzkarte zwei Chips; die übrigen Zeilen rücken dafür etwas zusammen:
+
+| Chip | Wirkung |
+|---|---|
+| `Free` | CH2 ist frei einstellbar (Standard) |
+| `CH1 + offset` | CH2 läuft auf CH1 + Offset |
+
+Gekoppelt gilt:
+
+- Die Frequenzkarte zeigt den Offset, immer mit Vorzeichen, z. B. `+455.000 kHz` oder `-10.700 000 MHz`. `+`/`−`, die Schritt-Chips, ein Tipp auf eine Ziffer und das NUMPAD (Abschnitt 6) ändern den Offset. Die Zeile `Out` zeigt die tatsächliche Frequenz von CH2.
+- Offset −160 MHz bis +160 MHz in 1-Hz-Schritten; `+`/`−` halten an diesen Grenzen an.
+- CH1 bleibt frei einstellbar. Jede Änderung von CH1 stellt CH2 mit (eigene PLL B; im Modus `Fractional` ohne Aussetzer, Abschnitt 5).
+- Liegt CH1 + Offset außerhalb von 8 kHz – 160 MHz, **wartet** CH2: Der Ausgang CLK1 bleibt aus, der Status zeigt `WAIT` (bei eingeschaltetem CH2), die Zeile unter dem Offset `Waiting: CH1 + offset below 8 kHz` bzw. `Waiting: CH1 + offset above 160 MHz` (auch bei ausgeschaltetem CH2). Kommt CH1 + Offset wieder in den Bereich, startet CH2 **von selbst**; es erscheint keine Fehlermeldung.
+- Die Hauptseite zeigt auf der CH2-Karte die Frequenz CH1 + Offset (unter 0 Hz `0.000 kHz`) und in der Zusatzzeile den Offset kurz, z. B. `CH1 +455 kHz` oder `CH1 -10.7 MHz`.
+- `Free` antippen: CH2 bleibt auf der Frequenz, auf der er zuletzt lief (wartete er, auf der letzten gültigen), und ist wieder frei einstellbar. Der Offset bleibt erhalten und gilt beim nächsten `CH1 + offset` wieder; er lässt sich über SCPI und REST auch im Modus `Free` vorab setzen.
+- Mit CH3: Ist CH2 Master von CH3, folgt CH3 der gekoppelten CH2-Frequenz, der IQ-Bereich (4,730 – 100 MHz) gilt dann für CH1 + Offset. Wartet CH2, wartet auch CH3 (`Waiting: CH2 below 4.730 MHz` bzw. `above 100 MHz`). Jede CH1-Änderung stellt dann das IQ-Paar neu ein, mit dem kurzen Aussetzer aus Abschnitt 7. Ein Tipp auf die Frequenz der CH3-Seite öffnet in diesem Fall das NUMPAD für den Offset.
+- `Spread CH1` wirkt nicht auf CH2 (PLL B), auch nicht gekoppelt.
+- Kopplung und Offset werden gespeichert (Abschnitt 9); `Defaults` und `*RST` setzen `Free` und Offset 0. Fernsteuerung: SCPI `SOUR2:COUP` und `SOUR2:FREQ:OFFS` (Abschnitt 15), REST `coupled` und `offset` (Abschnitt 16). Solange CH2 gekoppelt ist, lehnt das Gerät eine CH2-Frequenz von außen mit −221 `CH2 is coupled to CH1` ab.
+
+Beispiel: CH1 7,100 MHz, CH2 `CH1 + offset` mit Offset `+455.000 kHz` → CH2 läuft auf 7,555 MHz; CH1 auf 7,200 MHz verstellen → CH2 7,655 MHz. Mit Offset `-7.100 000 MHz` wartet CH2 (0 Hz liegt unter 8 kHz), bis CH1 über 7,108 MHz steht.
 
 ---
 
@@ -288,6 +313,15 @@ Die Einheit bestätigt die Eingabe direkt und kehrt zur Kanalseite zurück.
 
 Mit der Taste `◀` oben links geht es **ohne Änderung** zurück zur Kanalseite.
 
+Bei gekoppeltem CH2 (Abschnitt 4) gibt das NUMPAD den **Offset** ein: Titel `Offs.`, darunter `Now +455.000 kHz`, in der unteren Reihe zusätzlich `+/-` für das Vorzeichen (das Feld zeigt dann ein `-`). `0` ist erlaubt, `C` löscht auch das Vorzeichen. Außerhalb von ±160 MHz erscheint `-160 to +160 MHz`.
+
+```text
+ 7    8   9   MHz
+ 4    5   6   kHz
+ 1    2   3   Hz
++/-   .   0   ⌫   C
+```
+
 ### Tastenfeld
 
 ```text
@@ -310,6 +344,8 @@ Mit der Taste `◀` oben links geht es **ohne Änderung** zurück zur Kanalseite
 
 Maximal 10 Zeichen sind erlaubt (z. B. `150.000001`); ein elftes zeigt `Max. 10 characters`.
 
+Die Frequenz wird auf ganze Hz gerundet, ab einem halben Hz aufwärts, genau wie bei SCPI und REST: `7.1000005` `MHz` ergibt 7 100 001 Hz, `7.10000049` `MHz` 7 100 000 Hz.
+
 ### Ungültige Eingabe
 
 Liegt der Wert außerhalb von 8 kHz – 160 MHz oder ist die Eingabe leer bzw. ungültig, wird sie **nicht übernommen**. Die Eingabe bleibt stehen, der Rahmen wird rot und rechts unter dem Feld erscheint der Grund in Rot:
@@ -319,6 +355,7 @@ Liegt der Wert außerhalb von 8 kHz – 160 MHz oder ist die Eingabe leer bzw. u
 | `8 kHz - 160 MHz` | Wert außerhalb des Bereichs, z. B. `500` `MHz` |
 | `Enter a number` | keine Ziffer eingegeben (leer oder nur `.`) |
 | `Max. 10 characters` | Feld voll |
+| `-160 to +160 MHz` | Offset eines gekoppelten CH2 außerhalb von ±160 MHz |
 
 Die Eingabe lässt sich mit `⌫` korrigieren oder mit `C` löschen; die nächste Taste löscht den Hinweis.
 
@@ -447,6 +484,8 @@ Master und CH3 teilen sich eine PLL. Jede Änderung der Masterfrequenz oder der 
 
 Spread Spectrum (`Spread CH1`) wirkt auch auf CH3, wenn CH1 sein Master ist; mit Master CH2 ist CH3 nicht betroffen.
 
+Ist der Master CH2 an CH1 gekoppelt (Abschnitt 4), folgt CH3 der Frequenz CH1 + Offset; jede Änderung von CH1 oder des Offsets ist dann eine Änderung der Masterfrequenz.
+
 ### Beispiel: CH3 folgt CH1 mit 90° Phase
 
 1. CH1 auf 10 MHz einstellen.
@@ -500,7 +539,7 @@ Die Titelzeile mit `◀` bleibt stehen. Darunter zeigt CONFIG höchstens drei Ze
 | | `Remote out.` | Auswahlliste `allowed`, `local only` |
 | | `Clients` | Taste `Reconnect all` (Fernsteuer-Verbindungen trennen) |
 | `Device` | `Backlight` | `−`, Wert, `+` |
-| | `Screen` | Tasten `Lock` (Bildschirmsperre) und `Touch cal.` (Touch-Abgleich) |
+| | `Screen` | Tasten `Lock` (Bildschirmsperre), `Touch cal.` (Touch-Abgleich) und `Rotate` (Bild um 180° drehen) |
 | | `Reset` | Tasten `Defaults` und `Factory` (rot) |
 | `Info` | Info-Karte | Firmware, Build, Display, Touch, SI5351, WLAN, Fernsteuerung, Speicher |
 
@@ -535,7 +574,7 @@ Die Ausgänge des SI5351 sind CMOS-Rechtecktreiber. Die Drive-Strength legt fest
 - An einer 50-Ω-Last oder einem langen Koaxkabel bringen 6 oder 8 mA mehr Pegel und sauberere Flanken.
 - Ein Rechteck enthält immer ungerade Oberwellen (3., 5., … Vielfaches). Wer ein sauberes Sinussignal braucht, filtert mit einem Tiefpass; eine kleinere Drive-Strength mildert die Oberwellen nur.
 - Die Änderung wirkt sofort und ohne Aussetzer, auch bei einem laufenden IQ-Paar.
-- Die gemessenen Pegel je Stufe stehen nach der Messung F2 in `MESSPLAN.md`.
+- Typische Pegel je Stufe an 50 Ω (noch nicht gemessen) stehen in Abschnitt 18; die Messwerte folgen nach der Messung F2 in `MESSPLAN.md`.
 
 ### Off state (Zustand abgeschalteter Ausgänge)
 
@@ -709,6 +748,7 @@ Auswahlliste `Off` (Standard), `Client`, `Access point`. Die Einstellung wird so
 
 - `Off`: Der Funk ist aus (für die sauberste HF).
 - `Client`: Das Gerät sucht die gespeicherten WLANs und verbindet sich mit dem stärksten. Findet es 60 s lang keines, öffnet es zusätzlich einen eigenen Access Point (Rückfall) und sucht weiter; sobald es verbunden ist, geht der Access Point aus.
+  Gesucht wird zuerst alle 15 s; solange keines der gespeicherten Netze zu sehen ist, verdoppelt sich der Abstand bis auf 5 min (15 s, 30 s, 1 min, 2 min, 4 min, 5 min). Ein verstecktes Netz wird im selben Takt angewählt. Sind Geräte mit dem Rückfall-Access-Point verbunden, sucht es höchstens alle 2 min, weil der Access Point dafür jedes Mal kurz seinen Kanal verlässt. Ohne gespeichertes Netz sucht es gar nicht. Nach einem Ausfall des Routers kann das Wiederverbinden daher bis zu 5 min dauern; `Change` auf der Seite WIFI oder ein neu gespeichertes Netz startet die Suche sofort wieder mit 15 s.
 - `Access point`: Das Gerät öffnet ein eigenes WLAN `CYD-HF-<4 Stellen>` mit Passwort.
 
 Netze, Passwörter und die Daten des Access Points werden auf der Seite WIFI eingerichtet (Taste `Setup` rechts in der Zeile). Statusleiste und Info-Karte zeigen den Zustand.
@@ -724,9 +764,9 @@ Oben links führt `◀` zurück zu CONFIG. Darunter stehen die beiden Netzplätz
 
 Die Tastatur hat Buchstaben, Ziffern und Sonderzeichen, aber keine Umlaute, `ß` und `€`. Netznamen werden bereinigt angezeigt (Steuerzeichen und ungültige Zeichen als `?`). Ein gespeichertes Passwort wird nie wieder angezeigt.
 
-Unten zeigt eine Zeile, was das WLAN gerade tut: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, grün `Connected <Netz>` mit Adresse und `<Gerätename>.local`, rot `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <Name> active`, `Access point <Name> active`, `No network stored. Tap Change.`
+Unten zeigt eine Zeile, was das WLAN gerade tut: `WiFi is Off. Choose Client in CONFIG > WiFi.`, `Searching...`, `Connecting...`, grün `Connected <Netz>` mit Adresse und `<Gerätename>.local`, rot `Wrong password`, `Network not found`, `Connection failed`, `Fallback: AP <Name> active`, `Access point <Name> active`, `No network stored. Tap Change.`, orange `Web change pending (<Sekunden> s)` (eine Änderung aus dem Browser wartet auf die Bestätigung, Abschnitt 16)
 
-Nach einem Speichern startet das WLAN mit den neuen Daten neu. Sind beide Plätze belegt, verbindet sich das Gerät mit dem stärkeren Netz; scheitert es dort (z. B. falsches Passwort), versucht es beim nächsten Mal das andere.
+Nach einem Speichern startet das WLAN mit den neuen Daten neu. Sind beide Plätze belegt, verbindet sich das Gerät mit dem stärkeren Netz (bei gleicher Stärke mit dem ersten); scheitert es dort (z. B. falsches Passwort), versucht es beim nächsten Mal das andere.
 
 Die dritte Karte `AP  CYD-HF-<4 Stellen>` zeigt den eigenen Access Point (`WPA2` oder orange `open`, `active` oder `off`); `Show` öffnet seine Seite. `Device` oben rechts öffnet Gerätename und IP-Einstellungen.
 
@@ -781,6 +821,7 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 - Sonst erscheint unter dem Kreuz in Orange der Grund (`Check cross off by … px. Again, please.` oder `The corners did not match. Again, please.`) und der Abgleich beginnt von vorn.
 - Ohne Berührung für 30 s endet der Abgleich: beim ersten Start mit den festen Werten (er erscheint beim nächsten Start wieder), aus CONFIG ohne Änderung.
 - Während des Abgleichs warten Meldungen (z. B. `SI5351 not found`), bis er beendet ist.
+- Der Abgleich funktioniert auch bei gedrehtem Bild (`Rotate`): Die Kreuze erscheinen in den Ecken des angezeigten Bildes. Gespeichert werden die Rohwerte der Bildränder des aufrechten Bildschirms, deshalb gilt ein Abgleich in beiden Lagen; nach `Rotate` ist kein neuer Abgleich nötig. Ändert sich die Lage während des Abgleichs (z. B. über SCPI), beginnt er in der neuen Lage von vorn.
 
 ### Screen (Bildschirmsperre)
 
@@ -792,11 +833,21 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 - Die Sperre gilt bis zum Entsperren oder Ausschalten (sie wird nicht gespeichert).
 - Dialoge erscheinen auch bei gesperrtem Bildschirm; zum Schließen mit `OK` erst entsperren.
 
+### Rotate (Bild um 180° drehen)
+
+Für den Einbau in ein Gehäuse, in dem USB- und SMA-Buchsen auf der anderen Seite liegen: `Rotate` (Register `Device`, Zeile `Screen`) dreht Bild und Touch um 180°; der nächste Tipp stellt beides wieder aufrecht (0°, Standard).
+
+- Die Drehung wirkt sofort ohne Neustart: Die angezeigte Seite wird in der neuen Lage neu gezeichnet (auch ein offener Dialog), Tipps treffen die gedrehten Bedienelemente bis in die Ecken. Die Ausgänge laufen unverändert weiter.
+- Die Lage wird gespeichert (nach 5 s wie jede Änderung, Abschnitt 9) und gilt nach dem Einschalten schon für das erste Bild.
+- `Defaults` und `Factory` stellen das Bild aufrecht (0°). `*RST` über SCPI tut das wie beim `Backlight` nur im RAM: nicht gespeichert, nach einem Neustart gilt wieder die gespeicherte Lage.
+- Der Touch-Abgleich bleibt gültig und lässt sich in beiden Lagen ausführen (Abschnitt „Touch“).
+- Fernsteuerung: SCPI `SYST:DISP:ROT 0|180` (Abschnitt 15), REST `rotation` (Abschnitt 16); die Weboberfläche zeigt sie in CONFIG als Zeile `Screen` mit `0°` und `180°`.
+
 ### Reset (Grundzustand, Werksreset)
 
 | Taste | Wirkung |
 |---|---|
-| `Defaults` | Nach Bestätigung (`Reset`) gelten alle Werkseinstellungen (Kurzanleitung), auch die Frequenzen, CH3-Master und -Phase und der Schritt; alle Ausgänge gehen aus. **Frequenzkorrektur und Touch-Abgleich bleiben.** Gespeichert wird nach 5 s wie bei jeder Änderung. |
+| `Defaults` | Nach Bestätigung (`Reset`) gelten alle Werkseinstellungen (Kurzanleitung), auch die Frequenzen, CH3-Master und -Phase, der Schritt und das aufrechte Bild (`Rotate` 0°); alle Ausgänge gehen aus. **Frequenzkorrektur und Touch-Abgleich bleiben.** Gespeichert wird nach 5 s wie bei jeder Änderung. |
 | `Factory` (rot) | Nach Bestätigung (`Erase`) löscht das Gerät alle gespeicherten Einstellungen einschließlich Frequenzkorrektur, Touch-Abgleich, `Remote outputs` und WLAN-Einstellungen (auch die des WLAN-Treibers) und startet neu. Danach erscheint der Touch-Abgleich wie beim ersten Start. |
 
 `Cancel` lässt alles unverändert.
@@ -806,8 +857,8 @@ Er startet automatisch, solange kein Abgleich gespeichert ist (erster Start, nac
 Das Register `Info` zeigt Angaben für die Fehlersuche ohne seriellen Monitor, zum Beispiel:
 
 ```text
-Firmware 2.0.0 | main 1a2b3c4
-Build 2026-11-05 15:00
+Firmware 2.1.0 | main 1a2b3c4
+Build 2026-11-05 14:00 UTC
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
@@ -817,14 +868,16 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 
 | Zeile | Inhalt |
 |---|---|
-| `Firmware` | Version, Branch und Commit, aus dem die Firmware gebaut wurde. `+` hinter dem Commit: mit nicht eingecheckten Änderungen gebaut. Ohne git steht `unknown` |
-| `Build` | Datum und Uhrzeit des Builds |
+| `Firmware` | Version, Branch und Commit, aus dem die Firmware gebaut wurde. Ein Release-Kandidat zeigt die Version seines Tags mit Zusatz, z. B. `Firmware 2.0.0-rc1 | v2.0.0-rc1 1a2b3c4` (statt des Branches steht bei Release-Builds der Tag). `+` hinter dem Commit: mit nicht eingecheckten Änderungen gebaut. Ohne git steht `unknown` |
+| `Build` | Datum und Uhrzeit des Commits in UTC, nicht des Bauens: zwei Builds desselben Commits sind gleich, und die Firmware eines Releases lässt sich Byte für Byte nachbauen. Nur ein Build mit `+` zeigt die Zeit des Bauens |
 | `Display` | Display-Controller (`ILI9341` oder `ST7789`) und Herkunft: `detected` (erkannt), `default` (nichts erkannt, ILI9341 angenommen), `build flag` (beim Bauen festgelegt) |
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
-| `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke; `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
+| `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke (neu angezeigt erst bei einer Änderung um mindestens 3 dB, abgefragt etwa einmal pro Sekunde); `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
 | `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-Client über TCP 5025 oder, wenn dort keiner verbunden ist, über VXI-11. Die Taste `Reconnect all` (Register `Net`, Zeile `Clients`) trennt alle Browser-Verbindungen, beendet die Web-Anmeldungen, die SCPI-TCP- und die VXI-11-Verbindung. Die Gegenstellen verbinden sich danach von selbst neu (ein Browser ohne Web-Passwort nach wenigen Sekunden, ein SCPI-Programm sofort). Aussperren lässt sich niemand damit. Ein Web-Passwort sperrt nur Weboberfläche und REST; SCPI über TCP 5025 und VXI-11 bleiben ohne Anmeldung (Abschnitt 15). Gegen das Einschalten der Ausgänge aus dem Netz `Remote out.` auf `local only` stellen, gegen fremde Clients ein eigenes, gesichertes Netz verwenden oder das WLAN abschalten (Abschnitt 14). |
-| `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB |
+| `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB; alle 5 s gemessen, neu angezeigt, wenn sich der freie Speicher um mindestens 4 KB ändert oder die Seite ohnehin neu gezeichnet wird |
+
+Das Display zeichnet nur, was sich ändert: Ohne Bedienung und ohne Änderung von außen bleibt der Bildschirm unverändert (keine SPI-Übertragung zum Display neben dem SI5351).
 
 ---
 
@@ -854,11 +907,13 @@ Gespeichert werden:
 - Frequenzkorrektur
 - globale Drive-Strength
 - `Tuning`, `Spread CH1` und `Off state`
+- CH2-Kopplung (`Free` / `CH1 + offset`) und Offset
+- die Lage des Bildes (`Rotate`: 0° oder 180°)
 - der Touch-Abgleich (sofort nach dem Abgleich, nicht über Autosave)
 - `Remote out.` (sofort beim Ändern, nicht über Autosave)
 - die WLAN-Einstellungen: Betriebsart, Netze mit Passwort, Access Point, Gerätename, statische IP und das Web-Passwort (als Hash); sofort beim Ändern in einem eigenen Speicherbereich, nicht über Autosave (Änderungen aus dem Browser erst nach der Bestätigung, Abschnitt 16)
 
-Fehlen die drei neuen Optionen im Speicher (Einstellungen aus Firmware 1.2.0), gelten die Standardwerte `Fractional`, `Off` und `Low`, also das Verhalten von 1.2.0. Ungültige gespeicherte Werte werden beim Start durch den Standardwert ersetzt.
+Fehlen die drei neuen Optionen im Speicher (Einstellungen aus Firmware 1.2.0), gelten die Standardwerte `Fractional`, `Off` und `Low`, also das Verhalten von 1.2.0. Fehlen Kopplung und Offset (Einstellungen aus einer Firmware ohne Kopplung), bleibt CH2 `Free` mit seiner gespeicherten Frequenz, Offset 0. Fehlt die Lage des Bildes (Einstellungen aus einer Firmware ohne `Rotate`), steht das Bild aufrecht (0°). Ungültige gespeicherte Werte werden beim Start durch den Standardwert ersetzt.
 
 Der Display-Controller wird nicht gespeichert, sondern bei jedem Start erkannt (Abschnitt 13).
 
@@ -982,7 +1037,7 @@ Für Rückfragen mit zwei Tasten (z. B. `Delete network`, `Open fallback AP`, `N
 
 Wird der SI5351 beim Start nicht gefunden, erscheint **eine** Meldung. Danach zeigen die Kanäle auf der Hauptseite `! NO HW`, die Kanalseiten `SI5351 not found`. Einstellungen lassen sich trotzdem ändern und werden gespeichert.
 
-Die Firmware prüft alle 2 Sekunden, ob der SI5351 antwortet. Wird er nachträglich angeschlossen oder ist ein Wackelkontakt behoben, verbindet sie automatisch neu, stellt die eingestellten Frequenzen und ON/OFF-Zustände wieder her und schließt die Verbindungsmeldung. Geht die Verbindung im Betrieb verloren (oder verliert der SI5351 kurz die Versorgung), erscheint die Meldung `Connection lost` und die Kanäle zeigen `! NO HW`, bis die Verbindung wieder steht. Die Firmware versucht sofort nach dem Erkennen neu zu verbinden; nach einem kurzen Versorgungsausfall laufen die Ausgänge daher spätestens nach etwa 2 s wieder.
+Die Firmware prüft alle 2 Sekunden, ob der SI5351 antwortet. Ohne SI5351 sucht sie in der ersten Minute nach dem Start bzw. nach dem Verbindungsverlust alle 2 s, danach alle 10 s (jeder Suchschritt baut den I2C-Treiber für beide Zuordnungen neu auf); ein später angeschlossenes Modul wird dann nach spätestens etwa 10 s gefunden. Wird er nachträglich angeschlossen oder ist ein Wackelkontakt behoben, verbindet sie automatisch neu, stellt die eingestellten Frequenzen und ON/OFF-Zustände wieder her und schließt die Verbindungsmeldung. Geht die Verbindung im Betrieb verloren (oder verliert der SI5351 kurz die Versorgung), erscheint die Meldung `Connection lost` und die Kanäle zeigen `! NO HW`, bis die Verbindung wieder steht. Die Firmware versucht sofort nach dem Erkennen neu zu verbinden; nach einem kurzen Versorgungsausfall laufen die Ausgänge daher spätestens nach etwa 2 s wieder.
 
 SDA und SCL dürfen an CN1 beliebig angeschlossen sein (GPIO22/GPIO27). Die Firmware probiert beide Zuordnungen, auch nach dem Umstecken im Betrieb. Die Info-Karte auf CONFIG und der Serial Monitor zeigen die gefundene Zuordnung, bei vertauschten Adern mit dem Zusatz `(swapped)`.
 
@@ -1062,6 +1117,12 @@ Lösung:
 
 CH3 startet dann automatisch; der Schalter muss nicht erneut betätigt werden.
 
+### CH2 zeigt WAIT bzw. „Waiting: CH1 + offset …“
+
+CH2 ist an CH1 gekoppelt (Abschnitt 4), und CH1 + Offset liegt unter 8 kHz oder über 160 MHz.
+
+Lösung: CH1 oder den Offset so ändern, dass CH1 + Offset im Bereich liegt, oder `Free` wählen. CH2 startet dann automatisch.
+
 ### Grenzen
 
 - Der Touch-Abgleich ist linear je Achse (Versatz und Steigung); eine Verdrehung des Touch-Panels gegen das Display gleicht er nicht aus.
@@ -1078,17 +1139,20 @@ Serial Monitor:
 pio device monitor -b 115200
 ```
 
+Die Firmware schreibt Log-Zeilen in einen Sendepuffer von 1 KB und wartet nicht auf die serielle Schnittstelle. Kommen mehr Zeilen, als bei 115 200 Bd hinausgehen (etwa 11 KB/s), wartet sie erst, wenn der Puffer voll ist.
+
 Wichtige Meldungen:
 
 | Meldung | Bedeutung |
 |---|---|
-| `[BOOT] CYD HF Generator 2.0.0 (main 1a2b3c4, 2026-11-10 12:00)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
+| `[BOOT] CYD HF Generator 2.1.0 (main 1a2b3c4, 2026-11-10 11:00 UTC)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
 | `[I2C] Line held low; releasing bus` | Eine I2C-Leitung lag beim Start auf LOW und wurde freigegeben |
 | `[SETTINGS] Loaded from NVS` | Einstellungen geladen |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Einmalig nach dem Update von 1.3.0/1.3.1: die Wahl der früheren Boot-Geste wurde gelöscht (Abschnitt 13) |
 | `[SI5351] Init OK; all outputs off` | SI5351 initialisiert, alle Ausgänge aus |
 | `[APP] SI5351 at 0x60, SDA=22 SCL=27` | Verbunden; bei vertauschten Adern `SDA=27 SCL=22 (swapped)` |
 | `[APP] SI5351 not found` | Kein SI5351 gefunden, die Suche läuft weiter |
+| `[APP] SI5351 search every 10 s` | Eine Minute ohne SI5351: die Suche läuft nur noch alle 10 s (Abschnitt 11) |
 | `[TOUCH] XPT2046 init OK on VSPI` | Touch bereit |
 | `[TOUCH] Calibration started` | Touch-Abgleich beginnt |
 | `[TOUCH] Calibrated: x 161..3778, y 245..3830, check -2/+2 px` | Abgleich gespeichert: Rohwerte der Bildränder, Abweichung des Prüfkreuzes |
@@ -1115,12 +1179,16 @@ Wichtige Meldungen:
 | `[WEB] Server stopped (WiFi off)` | WLAN `Off`: der Webserver nimmt nichts mehr an, offene Seiten werden getrennt |
 | `[WEB] Network change from the web; confirm within 120 s` / `Network change from the web: WiFi off` | Netzänderung aus dem Browser angenommen; sie wird gleich angewendet (`WiFi off`: endgültig, Abschnitt 16) |
 | `[WEB] Network change applied; waiting for confirmation`, `[WEB] Network change confirmed`, `[WEB] Network change not confirmed: previous settings restored` | Netzänderung aus dem Browser (Abschnitt 16) |
+| `[GUI] Network change refused: web change pending` | Eine Netzeinstellung am Gerät wurde abgelehnt, weil eine Änderung aus dem Browser auf die Bestätigung wartet (Abschnitt 16) |
 | `[WEB] WebSocket closed: no pong` | Browser antwortet nicht mehr |
+| `[WEB] WebSocket closed: ping flood` | Ein Client hat mehr als 3 WebSocket-Pings in 10 s geschickt (die Weboberfläche schickt keine) und wurde getrennt |
 | `[APP] Remote outputs: allowed` / `Remote outputs: local only` | CONFIG `Remote out.` geändert (sofort gespeichert) |
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` über SCPI ausgeführt |
 | `[APP] Identify` | `SYST:IDEN`: Backlight und LED blinken 5 s |
+| `[APP] CH2 coupled to CH1` / `CH2 free` | CH2-Chip `CH1 + offset` bzw. `Free` (auch über SCPI und REST) |
+| `[APP] Screen rotated by 180 degrees` / `Screen upright` | `Rotate` (auch über SCPI und REST; `Defaults` und `*RST` ohne diese Zeile) |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WLAN-Betriebsart beim Start bzw. nach einer Änderung und Gerätename; Standard `Off` (Funk aus) |
-| `[WIFI] Seen <Netz>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen` | Ergebnis der Netzsuche für die gespeicherten Netze |
+| `[WIFI] Seen <Netz>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen; next scan in 30 s` | Ergebnis der Netzsuche für die gespeicherten Netze; ohne Treffer mit dem Abstand bis zur nächsten Suche (Abschnitt 8, `WiFi`) |
 | `[WIFI] Connecting to <Netz>`, `[WIFI] Connected to <Netz>, 192.168.1.50, RSSI -60 dBm` | Verbindungsaufbau und Verbindung mit Adresse |
 | `[WIFI] Network not reached (reason 201)` | Nach 15 s keine Verbindung; Grund des WLAN-Treibers (201 = Netz nicht gefunden, 2/15/202 = Anmeldung bzw. Passwort abgelehnt) |
 | `[WIFI] Connection lost; searching` | Verbindung verloren, die Suche läuft weiter |
@@ -1138,7 +1206,7 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | Meldung | Bedeutung |
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Überwachung: SI5351 antwortet nicht oder hat seine Einstellung verloren |
-| `[ERROR][SI5351] I2C transfer failed; device lost` | Eine I2C-Übertragung zum SI5351 ist gescheitert; die Suche nach dem SI5351 beginnt (alle 2 s) |
+| `[ERROR][SI5351] I2C transfer failed; device lost` | Eine I2C-Übertragung zum SI5351 ist gescheitert; die Suche nach dem SI5351 beginnt (eine Minute alle 2 s, dann alle 10 s) |
 | `[E][esp32-hal-i2c-ng.c:372] i2cWriteReadNonStop(): i2c_master_transmit_receive failed: [259] ESP_ERR_INVALID_STATE`, danach `[E][Wire.cpp:532] requestFrom(): i2cWriteReadNonStop returned Error 259` | Meldung des Arduino-Cores (I2C-Treiber) zum selben Ausfall, zusammen mit `[ERROR][SI5351] I2C transfer failed; device lost` |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Ungewöhnliches Register 183, z. B. Nachbau; das Modul wird trotzdem verwendet |
 | `[ERROR][APP] I2C fails at 400 kHz; staying at 100 kHz` | Bus läuft nur mit 100 kHz (z. B. schwache Pull-ups) |
@@ -1146,8 +1214,8 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | `[ERROR][BOOT] NVS unavailable; using defaults, changes will not be saved` | Flash-Speicher (NVS) beim Start nicht verfügbar: Werkseinstellungen, nichts wird gespeichert (CONFIG `Not saved`) |
 | `[ERROR][BOOT] SI5351 init failed`, `[ERROR][BOOT] Touch init failed`, `[ERROR][TOUCH] XPT2046 init failed` | Beim Start antwortet der SI5351 bzw. der Touch-Controller nicht; der SI5351 wird weiter gesucht |
 | `[ERROR][BOOT] No memory for SCPI over TCP` / `No memory for VXI-11` / `No memory for the web server` | Zu wenig Speicher beim Start: SCPI über TCP, VXI-11 bzw. die Weboberfläche bleibt aus |
-| `[ERROR][WEB] No memory for the web server`, `[ERROR][WEB] Saving the network settings failed` | Weboberfläche: zu wenig Speicher beim Start des Servers; Netzeinstellungen aus dem Browser nicht gespeichert |
-| `[ERROR][WIFI] Saving the AP password failed`, `[ERROR][WIFI] AP DHCP server start failed`, `[ERROR][WIFI] mDNS start failed` | WLAN: Zufallspasswort nicht gespeichert; Access Point ohne DHCP-Server; `<Gerätename>.local` nicht erreichbar (die Adresse geht weiter) |
+| `[ERROR][WEB] No memory for the web server`, `[ERROR][WEB] Saving the network settings failed`, `[ERROR][WEB] Low memory; WebSocket push skipped` | Weboberfläche: zu wenig Speicher beim Start des Servers; Netzeinstellungen aus dem Browser nicht gespeichert; kein zusammenhängender Speicher für eine Aktualisierung der offenen Seiten (sie kommt, sobald wieder Platz ist; höchstens einmal pro Minute geloggt) |
+| `[ERROR][WIFI] Saving the AP password failed`, `[ERROR][WIFI] AP DHCP server start failed`, `[ERROR][WIFI] mDNS start failed`, `[ERROR][WIFI] Power save off failed` / `TX power not set` | WLAN: Zufallspasswort nicht gespeichert; Access Point ohne DHCP-Server; `<Gerätename>.local` nicht erreichbar (die Adresse geht weiter); der Treiber hat Energiesparen aus bzw. volle Sendeleistung nicht angenommen (das WLAN läuft trotzdem, antwortet aber womöglich langsamer, Abschnitt 16) |
 | `[ERROR][FATAL] LVGL assert; restarting` | Speicher der Bedienoberfläche erschöpft o. Ä.; das Gerät startet neu |
 | `task_wdt: Task watchdog got triggered … loopTask` | Firmware hing 5 s; das Gerät startet neu |
 
@@ -1181,7 +1249,7 @@ Unter der Bezeichnung ESP32-2432S028R werden zwei Boards verkauft, die sich nur 
 | Original-CYD | nur Micro-USB-Buchse | ILI9341 |
 | CYD2USB | zusätzliche USB-C-Buchse | ST7789 |
 
-Die Info-Karte auf CONFIG und der Serial Monitor zeigen das Ergebnis, zum Beispiel `Display ST7789 (detected)` bzw. `[DISPLAY] ST7789 (detected); ...`. Pinbelegung, Touch und Bedienung sind bei beiden Varianten gleich.
+Die Info-Karte auf CONFIG und der Serial Monitor zeigen das Ergebnis, zum Beispiel `Display ST7789 (detected)` bzw. `[DISPLAY] ST7789 (detected); ...`. Pinbelegung, Touch und Bedienung sind bei beiden Varianten gleich, auch `Rotate` (Bild um 180° drehen, Abschnitt 8).
 
 Eine Berührung beim Einschalten hat keine Wirkung und wird nicht als Tipp in die Bedienung übernommen. Die Boot-Geste der Firmware 1.3.0 und 1.3.1 (Display beim Einschalten gedrückt halten) gibt es nicht mehr; eine damit gespeicherte Wahl löscht die Firmware beim ersten Start (Log `[SETTINGS] Stored display choice removed; the controller is detected`).
 
@@ -1206,6 +1274,7 @@ Zum Betrieb:
 - **Netz ohne Anmeldung:** Mit WLAN kann jeder, der das Gerät im Netz erreicht, es über SCPI (TCP 5025 und VXI-11) ohne Passwort steuern: Frequenzen und Einstellungen ändern, `*RST` und `SYST:SAVE` ausführen, Ausgänge ausschalten und bei `Remote out.` `allowed` auch einschalten. Das Web-Passwort schützt nur Weboberfläche und REST (Abschnitt 16). Weder SCPI noch die Weboberfläche sind verschlüsselt (kein HTTPS).
 - **Empfehlung für das Netz:** Das Gerät nur in einem vertrauenswürdigen Netz betreiben, am besten in einem eigenen Gast- oder IoT-WLAN, das vom übrigen Heimnetz getrennt ist, oder im eigenen Access Point mit Passwort (nie offen). `Remote out.` auf `local only` stellen, wenn aus dem Netz nichts eingeschaltet werden darf; WLAN `Off`, wenn das Gerät nicht aus dem Netz bedient werden soll.
 - **Fremdgerät an 0x60:** Antwortet auf der I2C-Adresse 0x60 ein anderes Gerät, liest die Firmware seine Kennung und schreibt höchstens ein Testbyte in dessen Register 3, bevor sie es als „kein SI5351“ erkennt (Abschnitt 11). Andere Geräte an CN1 mit dieser Adresse nicht anschließen.
+- **Stromaufnahme mit WLAN:** Mit WLAN `Client` oder `Access point` bleibt der Funk dauernd empfangsbereit (kein Energiesparen) und sendet mit voller Leistung, damit das Gerät im Netz sofort antwortet (Abschnitt 16). Das Board braucht dann etwa 80–100 mA mehr als mit WLAN `Off` (Datenblattwert, typisch, nicht gemessen); das USB-Netzteil bzw. der USB-Port muss das liefern. Mit `Off` ist der Funk ganz aus.
 
 Funk und Konformität:
 
@@ -1218,7 +1287,7 @@ Funk und Konformität:
 
 ## 15. Fernsteuerung über USB und Netz (SCPI)
 
-Der Generator versteht SCPI-Befehle über dieselbe USB-Verbindung, die auch das Log ausgibt. Jede Änderung erscheint sofort auf dem Display; Touch und SCPI sind gleichberechtigt, die letzte Änderung gilt.
+Der Generator versteht SCPI-Befehle über dieselbe USB-Verbindung, die auch das Log ausgibt. Jede Änderung erscheint sofort auf dem Display; Touch und SCPI sind gleichberechtigt, die letzte Änderung gilt. Alle Schnittstellen zum Fernsteuern mit Einrichtung und Beispielen fasst die englische API-Seite [docs/REMOTE_API.md](docs/REMOTE_API.md) zusammen.
 
 ### Verbindung
 
@@ -1298,12 +1367,14 @@ Kurzform groß geschrieben, Groß-/Kleinschreibung beliebig (`FREQ`, `freq`, `FR
 | Befehl | Abfrage-Antwort | Bedeutung |
 |---|---|---|
 | `*IDN?` | `CYD,HF-Generator,<MAC>,<Version>` | Kennung |
-| `*RST` | – | Alle Ausgänge aus, Grundzustand im RAM (Korrektur bleibt), **nicht gespeichert** bis `SYST:SAVE` oder zur nächsten Änderung (dann nur deren Wert) |
+| `*RST` | – | Alle Ausgänge aus, Grundzustand im RAM (Korrektur bleibt; auch `Backlight` 80 % und Bild aufrecht), **nicht gespeichert** bis `SYST:SAVE` oder zur nächsten Änderung (dann nur deren Wert) |
 | `*CLS`, `*ESE`, `*ESE?`, `*ESR?`, `*SRE`, `*SRE?`, `*STB?`, `*OPC`, `*OPC?`, `*WAI` | | Statusregister nach IEEE 488.2; Befehle laufen sofort, `*OPC?` antwortet `1` |
 | `*TST?` | `0` / `1` | `1`: kein SI5351 verbunden |
 | `OUTPut<n>[:STATe] ON\|OFF\|1\|0` | `1` / `0` | Ausgang ein/aus (CH3: Anforderung wie der Schalter) |
-| `OUTPut<n>:CONDition?` | `ON`, `OFF`, `ERR`, `WAIT`, `NOHW` | Tatsächlicher Zustand wie die Anzeige (`WAIT`: CH3 wartet, `NOHW`: kein SI5351) |
-| `[SOURce<n>:]FREQuency[:CW] <f>` | Hz | Frequenz CH1/CH2; CH3 nur Abfrage (Frequenz des Masters), Setzen auf CH3 ergibt −221 `CH3 follows its master` |
+| `OUTPut<n>:CONDition?` | `ON`, `OFF`, `ERR`, `WAIT`, `NOHW` | Tatsächlicher Zustand wie die Anzeige (`WAIT`: CH3 oder gekoppelter CH2 wartet, `NOHW`: kein SI5351) |
+| `[SOURce<n>:]FREQuency[:CW] <f>` | Hz | Frequenz CH1/CH2; CH3 nur Abfrage (Frequenz des Masters), Setzen auf CH3 ergibt −221 `CH3 follows its master`. Gekoppelter CH2: Abfrage CH1 + Offset (unter 0 Hz `0`), Setzen ergibt −221 `CH2 is coupled to CH1` |
+| `SOURce2:COUPle OFF\|CH1` | `OFF` / `CH1` | CH2 frei bzw. an CH1 gekoppelt (Abschnitt 4) |
+| `SOURce2:FREQuency:OFFSet <f>` | Hz mit Vorzeichen | Offset von CH2 zu CH1, −160 MHz bis +160 MHz; Vorzeichen, Einheiten `HZ`, `KHZ`, `MHZ`, Exponent und `MIN`/`MAX`/`DEF` (0) wie bei der Frequenz; auch im Modus `OFF` setzbar |
 | `[SOURce<n>:]FREQuency:ACTual?` | Hz mit 0,1 Hz | Tatsächliche Frequenz wie die Zeile `Out` |
 | `SOURce3:IQ:MASTer 1\|2` | `1` / `2` | Master von CH3 |
 | `SOURce3:PHASe 0\|90\|180\|270` | Grad | Phase von CH3; Einheit `DEG` erlaubt |
@@ -1316,23 +1387,24 @@ Kurzform groß geschrieben, Groß-/Kleinschreibung beliebig (`FREQ`, `freq`, `FR
 | `SYSTem:CORRection <ppm>` | ppm mit 2 Stellen | Frequenzkorrektur, ±50 ppm, auf 0,01 ppm gerundet; Einheit `PPM` erlaubt |
 | `SYSTem:STEP <Hz>` | Hz | Frequenzschritt (1 Hz … 1 MHz, Zehnerpotenzen); Einheiten `HZ`, `KHZ`, `MHZ` erlaubt (`STEP 1KHZ`) |
 | `SYSTem:BACKlight <%>` | % | Helligkeit (10–100 %), auf 10 % gerundet (`55` → 60); Einheit `PCT` erlaubt |
+| `SYSTem:DISPlay:ROTation 0\|180` | `0` / `180` | Lage des Bildes in Grad (`Rotate`), wirkt sofort; andere Werte −224; Einheit `DEG` erlaubt |
 | `SYSTem:SI5351?` | `CONN`, `NFO`, `BLOC`, `UNKN` | Verbindung: verbunden, nicht gefunden, Leitung auf LOW, fremdes Gerät |
-| `SYSTem:HEAP?` | `<frei>,<Minimum>,<größter Block>` | Speicher in Byte |
+| `SYSTem:HEAP?` | `<frei>,<Minimum>,<größter Block>` | Speicher in Byte (höchstens 0,1 s alt) |
 | `SYSTem:IDENtify` | – | Backlight und RGB-LED blinken 5 s |
 | `SYSTem:LOG?` | `"<Zeile>"` | Älteste gepufferte Logzeile, `""` wenn keine mehr da ist; nur über USB, über TCP und VXI-11 immer `""` (der Puffer bleibt der USB-Sitzung) |
-| `SYSTem:SAVE` | – | Alle Einstellungen sofort speichern |
+| `SYSTem:SAVE` | – | Geänderte Einstellungen sofort speichern (höchstens einmal je 10 s, siehe unten) |
 | `SYSTem:ERRor[:NEXT]?`, `SYSTem:ERRor:COUNt?` | `<Code>,"<Text>"` | Fehlerwarteschlange (16 Einträge), `0,"No error"` wenn leer |
 | `SYSTem:VERSion?` | `1999.0` | SCPI-Version |
 
 Zahlen: ganze Hz (`7100000`), Dezimalzahl mit oder ohne Einheit `HZ`, `KHZ`, `MHZ` (`7.1 MHZ`, `455khz`) oder mit Exponent (`7.1E6`); gerundet auf 1 Hz. `MIN`, `MAX` und `DEF` setzen Grenze bzw. Standardwert. Nichts wird abgeschnitten: Werte außerhalb des Bereichs ergeben −222, `NAN`, `INF`, Hex-Zahlen, unbekannte Einheiten und nicht erlaubte Werte −224, Zeichenketten −104. Ungültige Zeichen, z. B. zwei Werte ohne Komma (`FREQ 7MHZ 8MHZ`) oder `0x10`, ergeben einmal −101 für diesen Befehl; Befehle nach dem nächsten `;` laufen weiter. Ein abgelehnter Befehl ändert nichts.
 
-Weitere Fehler: −113 unbekannter Befehl; −114 Kanal-Suffix außerhalb des Bereichs (`OUTP4`, `SOUR2:PHAS`); −108 ein Parameter zu viel (`FREQ 7MHZ,1`); −109 fehlender Parameter (`FREQ`); −221 Einstellungskonflikt (`CH3 follows its master`, `Not in Integer tuning`, `Remote outputs: local only`); −240 `Hardware error;SI5351` (der SI5351 hat die Einstellung nicht angenommen); −200 `Execution error;Too many commands` (mehr als 20 einstellende Befehle pro Sekunde) bzw. `Execution error;Busy` (die Befehlswarteschlange ist voll, gleich noch einmal senden).
+Weitere Fehler: −113 unbekannter Befehl; −114 Kanal-Suffix außerhalb des Bereichs (`OUTP4`, `SOUR2:PHAS`); −108 ein Parameter zu viel (`FREQ 7MHZ,1`); −109 fehlender Parameter (`FREQ`); −221 Einstellungskonflikt (`CH3 follows its master`, `CH2 is coupled to CH1`, `Not in Integer tuning`, `Remote outputs: local only`); −240 `Hardware error;SI5351` (der SI5351 hat die Einstellung nicht angenommen); −200 `Execution error;Too many commands` (mehr als 20 einstellende Befehle pro Sekunde) bzw. `Execution error;Busy` (die Befehlswarteschlange ist voll, gleich noch einmal senden).
 
 Mehrere Befehle in einer Zeile: `FREQ 7.1MHZ;:OUTP1 ON` (`;:` beginnt wieder an der Wurzel), Abfragen antworten in einer Zeile, getrennt durch `;`: `FREQ?;:OUTP1?` → `7100000;1`.
 
 ### Speichern, Grundzustand und Fehler
 
-- Über SCPI geänderte Einstellungen werden nach 30 s ohne weitere Änderung gespeichert (am Touch nach 5 s). `SYST:SAVE` speichert sofort.
+- Über SCPI geänderte Einstellungen werden nach 30 s ohne weitere Änderung gespeichert (am Touch nach 5 s). `SYST:SAVE` speichert sofort, aber nur die geänderten Werte (ohne Änderung schreibt es nichts) und höchstens einmal je 10 s je Schnittstelle (USB, Netz-SCPI, Weboberfläche/REST). Ein weiteres `SYST:SAVE` innerhalb dieser 10 s wird ohne Fehler angenommen und mit dem vorigen zusammengefasst: Gespeichert wird dann 10 s nach dem vorigen Speichern. So kann kein Programm den Flash-Speicher durch Dauer-Speichern abnutzen.
 - Fehler, die ein SCPI-Befehl auslöst (z. B. Ausgangsfehler), öffnen keinen Dialog auf dem Display; sie stehen in der Fehlerwarteschlange (`-240,"Hardware error;SI5351"`) und im Log.
 - `Remote outputs`: Steht die Option auf `local only`, lehnt das Gerät `OUTP<n> ON` und `OUTP:OFFS HIGH` mit `-221,"Settings conflict;Remote outputs: local only"` ab; Ausschalten sowie `OUTP:OFFS LOW` und `HIZ` bleiben erlaubt. Die Option lässt sich nur am Gerät ändern (CONFIG-Zeile `Remote out.`).
 
@@ -1373,20 +1445,24 @@ Weitere Skripte liegen im Ordner `tools/` (Anleitung in `tools/README.md`):
 
 Mit WLAN (Abschnitt 8, Seite WIFI) lässt sich der Generator auch im Browser bedienen: `http://<Gerätename>.local/` oder die Adresse aus der Statuszeile der Seite WIFI; im eigenen Access Point `http://192.168.4.1/` (ein Handy öffnet die Seite beim Verbinden meist von selbst). Die Seite liegt im Gerät, es braucht keine Internetverbindung. Kein HTTPS: nur in einem vertrauenswürdigen Netz (am besten einem eigenen Gast- oder IoT-WLAN) oder im eigenen Access Point mit Passwort benutzen (Abschnitt 14).
 
+Das WLAN läuft ohne Energiesparen und mit voller Sendeleistung: Das Gerät antwortet im Netz (Weboberfläche, REST, SCPI über TCP, VXI-11, `ping`) meist nach wenigen Millisekunden, mit Energiesparen wären es bis zu etwa 0,4 s gewesen. Dafür braucht es mehr Strom (Abschnitt 14).
+
 ### Bedienen
 
 - Oben Name, Version und Verbindung (`Live`, `Polling`, `Offline`), Speicherzustand, `REMOTE <Quelle>`, `Identify`, `Save`, `?` (Hilfe) und die Links MAIN/CH1/CH2/CH3/CONFIG/WiFi; diese Kopfzeile bleibt beim Scrollen stehen, auch auf dem Handy. Darunter die Bereiche MAIN, CH1, CH2, CH3 IQ, CONFIG und WiFi wie am Gerät. Auf dem Handy liegen die Bereiche untereinander, die Ein/Aus-Schalter der Kanäle stehen fest am unteren Rand.
 - Frequenzen: Ziffer antippen bzw. anklicken wählt den Schritt, Mausrad über einer Ziffer ändert sie, die Einheit öffnet ein Eingabefeld (`10.7M`, `455k`, `7 100 000`, `10,7 MHz`; ein Fehler bleibt neben dem Feld stehen).
+- CH2 hat die Chips `Free` und `CH1 + offset` wie am Gerät (Abschnitt 4). Gekoppelt zeigen die Ziffern den Offset mit Vorzeichen, Tasten, Mausrad und Eingabefeld (`Offset`, z. B. `+455k`, `-10.7M`, `-455000`) ändern ihn; die MAIN-Karte zeigt CH1 + Offset und `CH1 +455 kHz`, wartet CH2, steht `Waiting: CH1 + offset below 8 kHz` bzw. `above 160 MHz` unter den Ziffern. Auf CH3 mit gekoppeltem Master CH2 ändern die Frequenztasten den Offset.
 - Tastatur: `↑`/`↓` (auch `+`/`−`) Frequenz im Schritt, `←`/`→` Schritt größer/kleiner, `Bild↑`/`Bild↓` Frequenz × 10 / ÷ 10, `1`/`2`/`3` Kanal, `F` oder `Enter` Eingabefeld, `O` Ausgang ein/aus, `?` Hilfe.
-- Änderungen am Gerät oder per SCPI erscheinen nach etwa 1 s und werden kurz hervorgehoben; ein Feld mit Fokus wird nicht überschrieben. Ohne Verbindung ist alles grau.
+- Änderungen am Gerät oder per SCPI erscheinen nach etwa 1 s und werden kurz hervorgehoben; ein Feld mit Fokus wird nicht überschrieben. Ohne Verbindung ist alles grau. Bei sehr schnellen Änderungen (z. B. eine SCPI-Schleife) schickt das Gerät höchstens 10 Zustände pro Sekunde; der letzte Stand kommt immer an. Ist der Speicher des Geräts knapp, lässt es einzelne Aktualisierungen aus bzw. nimmt neue Verbindungen nicht an (`Low memory`), statt neu zu starten.
 - Die Statusleiste am Gerät zeigt nach einer Änderung aus dem Browser 10 s lang `REMOTE WEB`. `Remote out.` `local only` (Abschnitt 8) gilt auch hier: Einschalten und `Off state` `High` werden abgelehnt (dann ohne Rückfrage, die Meldung steht neben der Auswahl).
-- Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`.
+- Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`. Ein Tab im Hintergrund (verdeckt oder minimiert) gibt seinen Platz nach 60 s frei und verbindet sich wieder, sobald er sichtbar wird. Eine Verbindung, die auf die Prüfanfragen des Geräts (alle 15 s) nicht antwortet, trennt das Gerät nach 30 s; eine, die das Gerät selbst mit Prüfanfragen (WebSocket-Ping) überflutet, sofort.
+- CONFIG zeigt die Lage des Bildes am Gerät als Zeile `Screen` mit `0°` und `180°`; ein Klick dreht das Bild am Gerät sofort (Abschnitt 8).
 - Nur am Gerät: Grundzustand und Werksreset, Touch-Abgleich, Bildschirmsperre, neues Access-Point-Passwort, Web-Passwort (WIFI → `Device`, Zeile `Web pw.`).
-- Die Fußzeile am Ende der Seite zeigt `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` und `licenses` öffnen das Repository bzw. `THIRD_PARTY_NOTICES.md` auf GitHub im Stand des Release-Tags der Firmware (z. B. `v2.0.0`) in einem neuen Tab (dafür braucht der Browser Internet, Abschnitt 1, „Lizenzen“).
+- Die Fußzeile am Ende der Seite zeigt `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` und `licenses` öffnen das Repository bzw. `THIRD_PARTY_NOTICES.md` auf GitHub im Stand des Release-Tags der Firmware (z. B. `v2.1.0`) in einem neuen Tab (dafür braucht der Browser Internet, Abschnitt 1, „Lizenzen“).
 
 ### Web-Passwort
 
-Ist ein Web-Passwort gesetzt, fragt die Seite vor dem ersten Ändern danach (Lesen geht ohne). Die Anmeldung dauert etwa 1,5 s und gilt 12 h. Nach 5 falschen Versuchen ist die Anmeldung 30 s gesperrt, jede weitere Sperre dauert doppelt so lang (bis 16 min). `Log out` in der Kopfzeile (nur mit Web-Passwort und Anmeldung) beendet die Anmeldung; die nächste Änderung fragt wieder nach dem Passwort. Das Web-Passwort wird am Gerät auf der Seite Device festgelegt (Abschnitt 8); ohne Web-Passwort kann jeder im Netz das Gerät bedienen. Es schützt **nur Weboberfläche und REST**: SCPI über TCP 5025 und VXI-11 fragen nach keinem Passwort und bleiben auch mit Web-Passwort für jeden im Netz bedienbar (Abschnitt 15). Über einen offenen Access Point (ohne Passwort) ist die Anmeldung gesperrt, weil das Passwort dort unverschlüsselt über Funk ginge: Die Seite schickt es nicht ab und zeigt `Passwords cannot be sent over the open access point`, das Gerät lehnt `POST /api/login` ebenso ab (403). Mit Web-Passwort lässt sich das Gerät über einen offenen Access Point daher nur ansehen, nicht bedienen.
+Ist ein Web-Passwort gesetzt, fragt die Seite schon beim Öffnen danach: Ohne Anmeldung zeigt sie keine Werte, auch Zustand (`GET /api/state`), Token und Live-Werte (WebSocket) gibt das Gerät nur mit Anmeldung heraus. Wird die Abfrage abgebrochen, steht in der Kopfzeile `Login required` und die Taste `Log in` fragt erneut. Ohne Anmeldung lesbar bleibt nur die LXI-Kennung `/lxi/identification` (Hersteller, Modell, Seriennummer, Version, Adresse; dasselbe, was `*IDN?` über SCPI ohnehin liefert). Die Anmeldung dauert etwa 1,5 s und gilt 12 h. Nach 5 falschen Versuchen ist die Anmeldung 30 s gesperrt, jede weitere Sperre dauert doppelt so lang (bis 16 min). `Log out` in der Kopfzeile (nur mit Web-Passwort und Anmeldung) beendet die Anmeldung; die Seite fragt danach wieder nach dem Passwort. Setzen, Ändern oder Entfernen des Web-Passworts am Gerät beendet alle Anmeldungen und trennt die offenen Seiten; sie verbinden sich neu (mit Passwort nach erneuter Anmeldung). Das Web-Passwort wird am Gerät auf der Seite Device festgelegt (Abschnitt 8); ohne Web-Passwort kann jeder im Netz das Gerät bedienen. Es schützt **nur Weboberfläche und REST**: SCPI über TCP 5025 und VXI-11 fragen nach keinem Passwort und bleiben auch mit Web-Passwort für jeden im Netz bedienbar (Abschnitt 15). Über einen offenen Access Point (ohne Passwort) ist die Anmeldung gesperrt, weil das Passwort dort unverschlüsselt über Funk ginge: Die Seite schickt es nicht ab und zeigt `Passwords cannot be sent over the open access point`, das Gerät lehnt `POST /api/login` ebenso ab (403). Mit Web-Passwort lässt sich das Gerät über einen offenen Access Point daher weder ansehen noch bedienen.
 
 ### Netzeinstellungen aus dem Browser
 
@@ -1397,6 +1473,12 @@ Betriebsart, Gerätename, Netze, statische IP und Access Point lassen sich auch 
 3. Ohne Web-Passwort fragt zusätzlich das Gerät `Network change` (`Revert`/`Keep`); erst `Keep` am Gerät und `Confirm` im Browser zusammen behalten die Änderung.
 4. Ohne Bestätigung innerhalb von 120 s oder mit `Revert` kehren die vorherigen Einstellungen zurück.
 
+Solange eine Änderung aus dem Browser auf die Bestätigung wartet, gehören die Netzeinstellungen ihr allein:
+
+- Gespeichert wird erst der bestätigte Stand. Fällt in dieser Zeit der Strom aus, gelten nach dem Einschalten die vorherigen Einstellungen. Auch ein in dieser Zeit erzeugtes Access-Point-Passwort wird erst mit der Bestätigung gespeichert.
+- Am Gerät lassen sich Netzeinstellungen (Betriebsart, Netze, Access Point, Gerätename, IP, Web-Passwort) dann nicht ändern. Jeder Versuch öffnet die Frage `Web change pending` mit `Revert` (die vorherigen Einstellungen sofort zurück) und `Keep` (die Änderung bleibt offen; ohne Web-Passwort zählt `Keep` als Bestätigung am Gerät wie bei `Network change`). Die Statuszeile der Seite WIFI zeigt orange `Web change pending (<Sekunden> s)`.
+- Mit Web-Passwort muss das Gerät nicht bestätigen, zeigt die offene Änderung aber trotzdem mit derselben Frage an, damit sie sich am Gerät mit `Revert` zurücknehmen lässt.
+
 `Off` aus dem Browser gilt sofort und ohne Bestätigung (über eine neue Verbindung ließe sie sich nicht bestätigen); einschalten lässt sich das WLAN danach nur am Gerät. `Off` übernimmt nur die Betriebsart: Wer zugleich Netze, Gerätenamen, statische IP oder Access Point ändert, bekommt `WiFi off takes no other changes: apply them first` und es ändert sich nichts. Solche Änderungen erst mit `Apply` übernehmen und bestätigen, danach `Off` wählen (REST: `{"mode":"off"}` allein, sonst `-108,Parameter not allowed`). Passwortfelder sind über einen offenen Access Point gesperrt.
 
 ### Fernsteuerung über REST
@@ -1405,16 +1487,307 @@ Programme können dieselben Funktionen über HTTP und JSON nutzen; Beispiel in `
 
 | Aufruf | Inhalt |
 |---|---|
-| `GET /api/state` | Zustand als JSON (Kanäle, CH3, CONFIG, WLAN, Speichern, `REMOTE`) |
-| `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` oder `{"frequencyText":"7.1M"}` |
+| `GET /api/state` | Zustand als JSON (Kanäle, CH3, Frequenzbereich und Schrittliste, CONFIG, WLAN, Speichern, `REMOTE`); mit Web-Passwort nur mit Anmeldung |
+| `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` oder `{"frequencyText":"7.1M"}`; CH2 zusätzlich `{"coupled":true,"offset":-455000}` (Offset in Hz, ±160 MHz; Reihenfolge Offset, Kopplung, Frequenz, Ein/Aus). Gekoppelt ergibt eine CH2-Frequenz 400 `-221,CH2 is coupled to CH1`; im Zustand stehen `coupled` und `offset` bei CH2, `frequency` ist dann CH1 + Offset |
 | `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
-| `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` bei `local only` 403), `correction` (0,01 ppm), `step`, `backlight` |
-| `POST /api/save`, `/api/identify` | `{}` |
+| `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` bei `local only` 403), `correction` (0,01 ppm), `step`, `backlight`, `rotation` (0 oder 180) |
+| `POST /api/save`, `/api/identify` | `{}`; Speichern wie `SYST:SAVE` höchstens einmal je 10 s (Abschnitt 15) |
 | `POST /api/login`, `POST /api/logout` | `{"password":"…"}` bzw. `{}`, Antwort mit Sitzungs-Cookie bzw. abgelaufenem Cookie |
 | `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Netzeinstellungen (Passwörter nur schreibend; `slot` 0 und 1 = Netz 1 und 2 am Gerät; Netzpasswort 8–63 Zeichen oder 64 Hex-Zeichen), Bestätigung, Netzsuche (höchstens alle 10 s) |
-| WebSocket `/ws?t=<Token>` | Zustand bei jeder Änderung |
+| WebSocket `/ws?t=<Token>` | Zustand bei jeder Änderung; mit Web-Passwort nur mit Anmeldung |
 
 Jeder `POST` braucht `Content-Type: application/json` und den Kopf `X-CYD-Token` mit dem Token aus der Seite (neu bei jedem Neustart, `GET /api/token`). Fehler kommen wie bei SCPI als `{"error":"-222,Data out of range"}` (HTTP 400); `-221,Remote outputs: local only` (Einschalten, `offState` `high`) 403, zu viele Befehle 429, Gerät beschäftigt 503, nicht angemeldet 401. Grenzen: Anfrage höchstens 1 KB, Adresse 256 Zeichen, 20 Schreibbefehle pro Sekunde. `backlight` nimmt jeden Wert von 10 bis 100 und rundet auf 10 % (55 → 60). Alle Fehlercodes und HTTP-Statuscodes stehen in `data/www/README.md`.
+
+---
+
+## 17. Firmware aktualisieren
+
+Neue Versionen erscheinen als Release auf GitHub: https://github.com/dm8sb/CYD-HF-Generator/releases. Am einfachsten installiert sie der Webflasher direkt aus dem Browser. Die installierte Version steht in CONFIG → `Info`, Zeile `Firmware` (Abschnitt 8).
+
+Eine Firmware gilt für beide Boards (CYD mit ILI9341 und CYD2USB mit ST7789); der Display-Controller wird beim Start erkannt (Abschnitt 13).
+
+### Voraussetzungen
+
+| Was | Hinweis |
+|---|---|
+| Browser | Chrome oder Edge auf einem Desktop-Rechner (Windows, macOS, Linux). Firefox, Safari und Browser auf Smartphones und Tablets können nicht flashen: Ihnen fehlt Web Serial. |
+| USB-Kabel | Ein Datenkabel. Manche Kabel führen nur die Versorgung; dann erscheint kein Port. |
+| Treiber | Der USB-Seriell-Chip des CYD ist ein CH340. Unter Windows braucht er den CH340-Treiber von WCH, wenn kein COM-Port erscheint. Linux bringt den Treiber mit. |
+| Freier Port | Seriellen Monitor (PlatformIO, Arduino IDE, Terminalprogramm) und SCPI-Programme über USB schließen; sie belegen den Port. |
+| Gespeicherte Einstellungen | Nach der letzten Änderung 5 s warten, damit sie gespeichert ist; nach SCPI-Änderungen 30 s oder `SYST:SAVE` (Abschnitt 9). |
+
+### Mit dem Webflasher
+
+1. https://dm8sb.github.io/CYD-HF-Generator/ öffnen. Die Seite nennt die Version des aktuellen Release und den Commit, aus dem sie gebaut ist.
+2. Das Board über USB anschließen.
+3. `Connect` klicken und den Port des Boards wählen (Windows: `COMx`, „USB-SERIAL CH340“; Linux: `/dev/ttyUSB0`).
+4. Installieren wählen. Der Flasher fragt, ob das Gerät vorher gelöscht werden soll (`Erase`):
+   - **Erstinstallation:** Löschen bestätigen.
+   - **Update:** nicht löschen.
+5. Die Installation abwarten; der Flasher zeigt den Fortschritt. Danach startet das Board neu.
+
+Nach jedem Start, auch nach einem Update, sind alle Ausgänge aus (Abschnitt 9).
+
+### Erstinstallation oder Update
+
+| | Erstinstallation (mit Löschen) | Update (ohne Löschen) |
+|---|---|---|
+| Flash-Speicher | ganz gelöscht, dann neu beschrieben | nur Bootloader, Partitionstabelle, `boot_app0` und Firmware neu |
+| Touch-Abgleich | gelöscht; der Abgleich startet beim ersten Start (Abschnitt 8) | bleibt |
+| Frequenzkorrektur (`Corr.`) | gelöscht (0 ppm) | bleibt |
+| WLAN, Web-Passwort, `Remote out.` | gelöscht | bleiben |
+| Frequenzen und übrige Einstellungen | Werkseinstellungen (Kurzanleitung) | bleiben |
+| Wann | erstes Flashen, Board mit fremder Firmware, Neubeginn | neue Version derselben Firmware |
+
+Das Update schreibt vier Teile einzeln an ihre Adressen. Der Einstellungsspeicher (NVS) liegt dazwischen und bleibt unberührt; ein einziges Gesamtabbild ab Adresse 0 würde ihn mit überschreiben.
+
+| Adresse | Teil |
+|---|---|
+| `0x1000` | Bootloader (`…-bootloader.bin`) |
+| `0x8000` | Partitionstabelle (`…-partitions.bin`) |
+| `0xE000` | `boot_app0` (`…-boot_app0.bin`) |
+| `0x10000` | Firmware (`…-firmware.bin`) |
+
+Alle Einstellungen löschen geht auch ohne Flashen: CONFIG `Device` → `Reset` → `Factory` (Abschnitt 8).
+
+### Wenn die Verbindung nicht klappt
+
+| Symptom | Abhilfe |
+|---|---|
+| Der Browser meldet, dass er nicht flashen kann | Chrome oder Edge am Desktop verwenden; die Seite nur über `https://` öffnen. |
+| Kein Port in der Liste | Datenkabel statt Ladekabel; unter Windows den CH340-Treiber installieren; anderen USB-Anschluss versuchen. |
+| Der Port lässt sich nicht öffnen | Seriellen Monitor, SCPI-Programm oder einen zweiten Flasher-Tab schließen. |
+| Die Verbindung bricht ab oder kommt nicht zustande | Die Taste `BOOT` am Board halten, während `Connect` geklickt und der Port gewählt wird; loslassen, sobald der Fortschritt läuft. |
+| Nach dem Flashen bleibt das Display dunkel oder zeigt Rauschen | USB ab- und wieder anstecken. Hilft das nicht: Erstinstallation mit Löschen. Bei Rauschen auf einem unbekannten Board: Abschnitt 13. |
+
+### Download prüfen
+
+Jedes Release enthält die Flash-Teile, Prüfsummen und einen Herkunftsnachweis (Build Provenance) für jede Datei:
+
+| Datei | Inhalt |
+|---|---|
+| `cyd-hf-generator-<Version>-esp32-2432S028R-firmware.bin` | Firmware ab `0x10000` (dieselbe wie im Webflasher) |
+| `…-bootloader.bin`, `…-partitions.bin`, `…-boot_app0.bin` | übrige Flash-Teile desselben Builds |
+| `SHA256SUMS` | SHA-256-Prüfsummen aller Dateien |
+| `cyd-hf-generator-<Version>-licenses.tar.gz`, `…-lgpl-sources.tar.gz` | Lizenzen und Quellcode der LGPL-Bibliotheken (Abschnitt 1) |
+
+Prüfsummen der heruntergeladenen Dateien vergleichen (im Ordner mit den Dateien):
+
+```bash
+sha256sum -c --ignore-missing SHA256SUMS
+```
+
+Unter Windows ohne `sha256sum`: `Get-FileHash <Datei> -Algorithm SHA256` in PowerShell und den Wert mit der Zeile in `SHA256SUMS` vergleichen (Groß- und Kleinschreibung spielt keine Rolle).
+
+Herkunft prüfen mit der GitHub CLI (`gh`, angemeldet): Die Prüfung bestätigt, dass die Datei vom Release-Workflow dieses Repositorys gebaut wurde.
+
+```bash
+gh attestation verify <Datei> --repo dm8sb/CYD-HF-Generator
+```
+
+### Mit esptool
+
+Ohne Browser installiert esptool dieselben Teile. esptool 5 installieren (`pip install esptool`), die vier Flash-Teile des Release in einen Ordner laden und dort aufrufen (Beispiel für 2.0.0; den Befehl für jede Version enthalten die Release-Notizen):
+
+```bash
+esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.1.0-esp32-2432S028R-bootloader.bin 0x8000 cyd-hf-generator-2.1.0-esp32-2432S028R-partitions.bin 0xE000 cyd-hf-generator-2.1.0-esp32-2432S028R-boot_app0.bin 0x10000 cyd-hf-generator-2.1.0-esp32-2432S028R-firmware.bin
+```
+
+- Der Befehl löscht den Einstellungsspeicher nicht; Touch-Abgleich, Korrektur und WLAN bleiben (wie das Update im Webflasher).
+- Erstinstallation: vorher `esptool --chip esp32 erase-flash`.
+- esptool sucht den Port selbst; sonst `--port COMx` (Linux: `--port /dev/ttyUSB0`) nach `--chip esp32` angeben.
+- esptool 4: `esptool.py` statt `esptool`, `write_flash` und `erase_flash` statt `write-flash` und `erase-flash`.
+
+### Aus dem Quellcode bauen
+
+Wer selbst baut, braucht PlatformIO; Bauen und Flashen beschreibt das README (Abschnitt [Build and Flash](README.md#build-and-flash)). `pio run -t upload` schreibt dieselben Teile an dieselben Adressen und behält die Einstellungen.
+
+---
+
+## 18. Mischer-Experimente
+
+Der Generator eignet sich als Lokaloszillator (LO) und als Testsignal für Mischer- und Empfängerversuche. Dieser Abschnitt sammelt Pegel, Filter und Einstellungen dafür und zeigt zwei Aufbauten.
+
+**Zu den Zahlen:** Werte mit dem Vermerk *typisch, nicht gemessen* sind Rechen- oder Erfahrungswerte, keine Messungen an diesem Gerät. Sie werden durch Messwerte ersetzt, sobald die Messungen F2, G1, G2 und E10 in `MESSPLAN.md` vorliegen. Werte mit *gerechnet* folgen aus der Formel, Werte mit *Datenblatt* aus dem Datenblatt des genannten Bauteils.
+
+### Einstellungen
+
+| Einstellung | Empfehlung | Grund |
+|---|---|---|
+| `Tuning` | `Low noise` | weniger Nebenlinien im LO; ganzzahliger Teiler am Ausgang (Abschnitt 8) |
+| `Spread CH1` | `Off` | mit Spread ist der LO kein einzelner Träger mehr, sondern ein Band |
+| `Off state` | `Low` oder `High-Z` | keine Gleichspannung an einem DC-gekoppelten Mischer; nie `High` |
+| `Drive all` | nach Pegel (Tabelle unten) | gilt für alle drei Ausgänge zugleich |
+| `Corr.` | abgleichen (Abschnitt 8) | der LO trifft die Frequenz, die ZF liegt genau |
+
+### Ausgangspegel an 50 Ω
+
+Der SI5351 liefert ein CMOS-Rechteck zwischen 0 V und etwa 3,3 V. An 50 Ω begrenzt die Drive-Strength den Pegel. Das Datenblatt nennt keine Pegel an 50 Ω.
+
+| `Drive all` | Grundwelle an 50 Ω (typisch, nicht gemessen) | entspricht Rechteck Uss (gerechnet) |
+|---|---:|---:|
+| 2 mA | ≈ 0 dBm | ≈ 0,5 V |
+| 4 mA | ≈ +5 dBm | ≈ 0,9 V |
+| 6 mA | ≈ +8 dBm | ≈ 1,25 V |
+| 8 mA | ≈ +10 dBm | ≈ 1,6 V |
+
+- Die Werte gelten um 10 MHz. Über 100 MHz sinkt der Pegel (Abschnitt 1).
+- Obergrenze: Ein ideales Rechteck mit 3,3 V Uss ergäbe an 50 Ω eine Grundwelle von +16,4 dBm (gerechnet). Der Innenwiderstand des Treibers senkt den Pegel deutlich darunter.
+- An einem hochohmigen Eingang (Logik, Schalter, NE612) liegt fast das volle Rechteck an, unabhängig von der Drive-Strength.
+- Der Ausgang führt einen Gleichanteil (Mittelwert ≈ 1,65 V). An einem 50-Ω-Eingang oder einer Übertragerwicklung einen Koppelkondensator in Reihe schalten (z. B. 100 nF).
+- Vor einem Spektrumanalysator immer erst 20 dB Dämpfung und eine DC-Sperre.
+
+### Oberwellen und Tiefpass
+
+Ein Rechteck mit genau 50 % Tastverhältnis enthält nur ungerade Oberwellen. Ihr Pegel fällt mit 1/n:
+
+| Oberwelle | Pegel (gerechnet, ideales Rechteck 50 %) |
+|---|---:|
+| 2. | keine |
+| 3. | −9,5 dBc |
+| 5. | −14,0 dBc |
+| 7. | −16,9 dBc |
+| 9. | −19,1 dBc |
+
+- Das Tastverhältnis ist noch nicht gemessen (MESSPLAN E5). Weicht es ab, entstehen gerade Oberwellen: Bei 49 % liegt die 2. Oberwelle bei ≈ −30 dBc, bei 48 % bei ≈ −24 dBc (gerechnet).
+- Reale Flanken sind endlich steil; die hohen Oberwellen liegen deshalb etwas unter der Tabelle. Eine kleinere Drive-Strength mildert sie nur wenig.
+- **Sinus gebraucht:** Tiefpass hinter den Ausgang. Für −50 dBc braucht die 3. Oberwelle ≥ 40 dB Dämpfung: z. B. ein Tiefpass 5. bis 7. Ordnung (Tschebyscheff oder Cauer) mit Grenzfrequenz etwa 1,2- bis 1,5-mal über der Nutzfrequenz, je Band ein Filter.
+- **Schaltmischer** (Diodenring, FST3253) arbeiten mit einem Rechteck-LO sogar besser als mit einem Sinus. Die Oberwellen des LO mischen aber Signale bei 3 × LO ± ZF, 5 × LO ± ZF usw. in die ZF. Dagegen hilft ein Bandpass oder Tiefpass vor dem HF-Eingang des Mischers, nicht am LO.
+
+### Diodenringmischer
+
+Beispiele: SBL-1, ADE-1, TUF-1 und andere „Level 7“-Mischer.
+
+- **LO-Pegel:** +7 dBm (Datenblatt der Mischer). Nach der Pegeltabelle: `Drive all` 8 mA (≈ +10 dBm) und ein 3-dB-Dämpfungsglied, oder 6 mA (≈ +8 dBm) und 1 dB (typisch, nicht gemessen). Pegel vorher am Analysator prüfen.
+- Das Dämpfungsglied verbessert zugleich die Anpassung: Die Impedanz des LO-Tors ändert sich mit dem Pegel, eine Fehlanpassung verschlechtert die Isolation.
+- Zu wenig LO (unter etwa +4 dBm) erhöht den Konversionsverlust. Mischer für +13 dBm oder +17 dBm brauchen einen Verstärker hinter dem Generator.
+- **Gleichstrom:** Das LO-Tor ist meist eine Übertragerwicklung gegen Masse, für Gleichstrom also ein Kurzschluss. Immer einen Koppelkondensator (z. B. 100 nF) in Reihe schalten; `Off state` `Low` oder `High-Z`, nie `High` (Abschnitt 8).
+- **Konversionsverlust:** ≈ 6–7 dB (Datenblatt, typisch für Level-7-Mischer).
+- **Testsignal:** CH2 über 30–40 dB Dämpfung an das HF-Tor. Das HF-Signal soll mindestens 20 dB unter dem LO-Pegel liegen.
+- **Übersprechen:** CH1 und CH2 sitzen im selben Chip. Bei kleinen HF-Pegeln kann das Übersprechen des LO auf CH2 in derselben Größenordnung liegen wie das Testsignal (Abschnitt 8, `Drive all`). Kleinere Drive-Strength und externe Dämpfung am Testsignal helfen.
+- Das ZF-Tor breitbandig mit 50 Ω abschließen (z. B. Diplexer); das verbessert die Großsignalfestigkeit.
+
+### NE612 / SA612
+
+Der NE612 (SA612, NE602) ist ein Gilbertzellen-Mischer mit eigenem Oszillator. Der Generator ersetzt den Oszillator: LO über einen Koppelkondensator an Pin 6, Pin 7 bleibt offen.
+
+- **LO-Pegel:** mindestens 200 mVss an Pin 6 (Datenblatt); etwa 200–300 mVss genügen. Mehr Pegel bringt keinen Gewinn, nur mehr Nebenprodukte.
+- Pin 6 ist hochohmig. Dort läge fast das volle Rechteck von 3,3 V an; deshalb einen Spannungsteiler verwenden:
+
+```text
+CLK0 ── 1 kΩ ──┬── 100 nF ── Pin 6 (NE612)
+               │
+             100 Ω
+               │
+              GND
+```
+
+- Der Teiler 1 kΩ / 100 Ω ergibt aus 3,3 V etwa 0,3 Vss (gerechnet). `Drive all` 2 oder 4 mA; den Pegel an Pin 6 mit dem Oszilloskop prüfen.
+- Pin 6 führt eine interne Vorspannung; der Koppelkondensator ist deshalb Pflicht.
+
+### IQ-Mischer mit FST3253 / 74CBT3253 (Tayloe-Detektor)
+
+Der FST3253 (oder 74CBT3253) ist ein doppelter 1-aus-4-Analogschalter. Als Tayloe-Detektor tastet er das HF-Signal in vier Viertelperioden ab und liefert I und Q im NF-Bereich. Die Auswahleingänge S0 und S1 brauchen zwei Rechtecke mit der LO-Frequenz, um 90° versetzt; sie durchlaufen dann die Folge 00, 01, 11, 10. Genau das liefert CH3 im IQ-Betrieb, ohne Teiler durch 4:
+
+| Generator | FST3253 |
+|---|---|
+| CH1 / CLK0 (0°) | S0 |
+| CH3 / CLK2 (Master CH1, Phase `90`) | S1 |
+| GND | GND |
+
+- **Bereich:** CH3 IQ arbeitet von 4,730 bis 100 MHz (Abschnitt 7). Für tiefere Frequenzen (160 m, 80 m, 60 m) CH1 auf die vierfache Frequenz stellen und mit einem Johnson-Zähler aus zwei D-Flipflops (z. B. 74AC74) durch 4 teilen; Beispiel: 3,6 MHz aus 14,4 MHz.
+- **Seitenband:** Ein Wechsel von `90` auf `270` invertiert Q und vertauscht damit oberes und unteres Seitenband. Der Wechsel kommt ohne Aussetzer aus (Abschnitt 7). `0` und `180` ergeben keine Quadratur und sind für den Tayloe-Detektor ungeeignet.
+- **Ungerade Teiler:** Im IQ-Betrieb mit `Fractional` oder `Low noise` ist der Teiler min(127, ⌊900 MHz / f⌋), z. B. 63 bei 14,2 MHz oder 9 bei 99 MHz. 180° und 270° entstehen durch Invertieren des CH3-Ausgangs (Abschnitt 7). Ob die Phase bei ungeradem Teiler so genau ist wie bei geradem, ist noch nicht gemessen (MESSPLAN E4). Wer die beste Spiegelunterdrückung braucht, nimmt `90` und vertauscht das Seitenband in der Software (I und Q tauschen).
+- **Tastverhältnis:** Jede Flanke von S0 und S1 legt ein Abtastfenster fest. Eine Abweichung vom 50-%-Tastverhältnis (MESSPLAN E5) verschiebt die Fenster und kostet Spiegelunterdrückung.
+- **Logikpegel:** Bei 5 V Versorgung erkennt der FST3253 ab 2,0 V HIGH (Datenblatt); die 3,3-V-Rechtecke reichen direkt. Die Eingänge sind hochohmig; `Drive all` 2 oder 4 mA genügt.
+- **Ausgeschaltet:** Mit `Off state` `Low` liegen S0 und S1 auf LOW; der Schalter bleibt auf Kanal 0 stehen. Das schadet nicht.
+
+### Gleich lange Leitungen
+
+Ein Laufzeitunterschied zwischen den Leitungen von CLK0 und CLK2 wirkt wie ein Phasenfehler. 1° entspricht (gerechnet, Koax mit Verkürzungsfaktor 0,66 wie RG-58 und RG-174):
+
+| Frequenz | 1° entspricht | Koax-Länge |
+|---|---:|---:|
+| 7,1 MHz | 391 ps | 77 mm |
+| 10 MHz | 278 ps | 55 mm |
+| 30 MHz | 93 ps | 18 mm |
+| 100 MHz | 28 ps | 5,5 mm |
+
+- Beide Leitungen gleich lang, aus demselben Kabeltyp und gleich belastet. Eine ungleiche Last (Kapazität am Eingang) verschiebt die Flanken ebenso.
+- Auf einer Platine die Leiterbahnen von S0 und S1 gleich lang führen.
+
+### Phasenfehler und Spiegelunterdrückung
+
+Die Spiegelunterdrückung (IRR) eines IQ-Empfängers hängt von Phasen- und Amplitudenfehler zwischen I und Q ab:
+
+```text
+IRR = 10 · log10( (1 + 2g · cos φ + g²) / (1 − 2g · cos φ + g²) )
+
+g = Amplitudenverhältnis von I zu Q (1 = gleich groß)
+φ = Phasenfehler (Abweichung von 90°)
+mit g = 1:  IRR = 20 · log10( cot(φ/2) )
+```
+
+| Phasenfehler φ (g = 1) | IRR (gerechnet) |
+|---|---:|
+| 0,5° | 47 dB |
+| 1° | 41 dB |
+| 2° | 35 dB |
+| 3° | 32 dB |
+| 5° | 27 dB |
+| 10° | 21 dB |
+
+| Amplitudenfehler (φ = 0) | IRR (gerechnet) |
+|---|---:|
+| 0,1 dB | 45 dB |
+| 0,2 dB | 39 dB |
+| 0,5 dB | 31 dB |
+| 1 dB | 25 dB |
+
+- Der Phasenfehler des Generators selbst ist noch nicht gemessen (MESSPLAN E1 bis E4). Zum Gesamtfehler tragen auch Mischer, Abtastkondensatoren, NF-Verstärker und Soundkarte bei.
+- SDR-Programme gleichen IQ-Fehler oft automatisch aus; ohne Ausgleich zeigt die Tabelle, was die Phase allein erlaubt.
+
+### Beispiel: Überlagerungsempfänger für 7,1 MHz mit 455-kHz-ZF
+
+Ein Diodenringmischer setzt 7,1 MHz auf die ZF 455 kHz um; CH1 ist der LO, CH2 das Testsignal (wie MESSPLAN G1).
+
+```text
+CH2 7,100 MHz ── 30 dB ──────────► HF ┐
+                                      ├ Diodenring (Level 7) ── ZF ──► Analysator
+CH1 7,555 MHz ── 3 dB ── 100 nF ─► LO ┘
+```
+
+1. CONFIG `Signal`: `Drive all` `8 mA`, `Off state` `Low`, `Tuning` `Low noise`; Register `Freq`: `Spread CH1` `Off`.
+2. CH1 auf 7,555 MHz stellen (LO oberhalb: 7,100 + 0,455 MHz) und einschalten.
+3. CH2 auf 7,100 MHz stellen und einschalten. Alternativ CH2 auf `CH1 + offset` mit Offset `-455.000 kHz` stellen (Abschnitt 4): Dann folgt das Testsignal jeder Änderung des LO, die ZF bleibt 455 kHz.
+4. LO über 3 dB und 100 nF an das LO-Tor: ≈ +7 dBm (typisch, nicht gemessen; am Analysator prüfen).
+5. Testsignal über 30 dB an das HF-Tor: ≈ −20 dBm (typisch, nicht gemessen).
+6. Am ZF-Tor erscheinen die Mischprodukte:
+
+```text
+ZF       = 7,555 − 7,100 = 0,455 MHz
+Summe    = 7,555 + 7,100 = 14,655 MHz
+Spiegel  = 7,555 + 0,455 = 8,010 MHz   (ergibt ebenfalls 455 kHz)
+```
+
+7. CH2 auf 8,010 MHz stellen: Auch der Spiegel erscheint bei 455 kHz. Erst ein Bandpass für 7 MHz vor dem HF-Tor unterdrückt ihn.
+8. Ablesen: Konversionsverlust (ZF-Pegel gegen HF-Pegel, ≈ 6–7 dB nach Datenblatt) und LO-Durchschlag bei 7,555 MHz am ZF-Tor.
+
+### Beispiel: Direktmischempfänger mit Tayloe-Detektor für 7,1 MHz
+
+1. CONFIG `Signal`: `Drive all` `4 mA`, `Off state` `Low`, `Tuning` `Low noise`; Register `Freq`: `Spread CH1` `Off`.
+2. CH1 auf 7,100 MHz stellen und einschalten.
+3. CH3-Seite: Master `CH1`, Phase `90`, einschalten. Die Statuszeile zeigt `Out 7.100 000 MHz …`.
+4. CLK0 an S0, CLK2 an S1, mit gleich langen Leitungen.
+5. I und Q (hinter den NF-Verstärkern) an den Stereo-Line-Eingang einer Soundkarte; ein SDR-Programm im IQ-Betrieb, Mittenfrequenz 7,100 MHz. Mit 48 kHz Abtastrate sind 7,076–7,124 MHz zu sehen.
+6. Ist das Spektrum gespiegelt, Phase `270` wählen oder I und Q im Programm tauschen.
+7. Testsignal: CH2 auf 7,101 MHz über 40–60 dB Dämpfung an den HF-Eingang. Die Linie erscheint 1 kHz über der Mitte, ihr Spiegel 1 kHz darunter; der Abstand beider ist die Spiegelunterdrückung (Tabelle oben, MESSPLAN E10).
+
+### Nie ungefiltert an eine Antenne
+
+- Der Generator ist kein Sender (Abschnitt 14). Das Rechteck enthält starke Oberwellen (3. Oberwelle −9,5 dBc).
+- Auch ein Empfängeraufbau strahlt ab: Der LO gelangt über das HF-Tor des Mischers an die Antenne. Bei einem Diodenring mit +7 dBm LO und typisch 30–45 dB LO-HF-Isolation (Datenblatt) sind das etwa −38 bis −23 dBm. Ein Bandpass vor dem Mischer und ein Vorverstärker mit guter Rückwärtsisolation senken das.
+- Abstrahlen nur mit Amateurfunkzulassung, in den zugelassenen Bändern, innerhalb der Grenzwerte für Nebenaussendungen und mit geeignetem Tiefpass.
 
 ## Anhang A: Seitenbilder
 
@@ -1452,6 +1825,24 @@ Die Bilder sind auf dem PC aus dem GUI-Code der Firmware gerendert und doppelt v
 | SSC -0.5% | IQ master (90°)                |
 +--------------------------------------------+
 | [1M][100k][10k][ 1k ][100][ 10][  1]       |
+| [   −   ]  [   +   ]  [  NUMPAD  ]         |
++--------------------------------------------+
+```
+
+### CH2 gekoppelt
+
+![CH2: an CH1 gekoppelt, Offset +455.000 kHz, Out 7,555 MHz](docs/img/screen-ch2-coupled.png)
+
+```text
++--------------------------------------------+
+| [◀] CH2  [==o]  ON                         |
++--------------------------------------------+
+| +455.000 kHz                               |
+| Out 7.555 000 MHz (+0.3 Hz)                |
+|                                            |
++--------------------------------------------+
+| [1M][100k][10k][ 1k ][100][ 10][  1]       |
+| [  Free  ]  [      CH1 + offset       ]    |
 | [   −   ]  [   +   ]  [  NUMPAD  ]         |
 +--------------------------------------------+
 ```
@@ -1539,7 +1930,7 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 |---|---|---|
 | `ON` (grünes Feld) | Ausgang läuft | 2 |
 | `OFF` (graue Schrift) | Ausgang aus | 2 |
-| `WAIT` (oranges Feld) | CH3 eingeschaltet, wartet auf Master oder IQ-Bereich | 2, 7 |
+| `WAIT` (oranges Feld) | CH3 eingeschaltet, wartet auf Master oder IQ-Bereich; gekoppelter CH2 wartet, bis CH1 + Offset im Bereich liegt | 2, 4, 7 |
 | `! ERR` (rotes Feld) | Einstellen fehlgeschlagen, Wiederholung alle 2 s | 11 |
 | `! NO HW` (rotes Feld) | SI5351 nicht gefunden oder Verbindung verloren | 11 |
 | `~` vor der Frequenz | tatsächliche Frequenz weicht um 1 Hz oder mehr ab (`Integer`) | 2, 8 |
@@ -1548,6 +1939,8 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 | `Off \| Out …` | Kanal aus; so läuft er nach dem Einschalten | 5 |
 | `IQ master (90°)` | CH3 folgt diesem Kanal mit der angegebenen Phase | 2, 5 |
 | `CH1 / 90° / master off` | CH3: Master, Phase und Grund des Wartens | 2, 7 |
+| `CH1 +455 kHz`, `+455.000 kHz` | CH2 an CH1 gekoppelt: Offset (MAIN bzw. CH2-Seite) | 2, 4 |
+| `Waiting: CH1 + offset below 8 kHz` | gekoppelter CH2: CH1 + Offset außerhalb von 8 kHz – 160 MHz | 4 |
 | Moduszeile | Einstellungen, die vom Werkszustand abweichen | 2 |
 | `OFF=High` / `OFF=High-Z` | ausgeschaltete Ausgänge führen HIGH (Gleichspannung) bzw. sind hochohmig | 8 |
 | `SSC -0.5 %` usw. | Spread Spectrum: Frequenz wird absichtlich verteilt | 8 |
@@ -1559,6 +1952,7 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 | `Now …` | NUMPAD: aktuelle Frequenz | 6 |
 | `8 kHz - 160 MHz`, `Enter a number`, `Max. 10 characters` | NUMPAD: Grund einer abgelehnten Eingabe | 6 |
 | `-50.00 to +50.00 ppm` | NUMPAD der Korrektur: Wert außerhalb des Bereichs | 8 |
+| `-160 to +160 MHz` | NUMPAD des Offsets: Wert außerhalb des Bereichs | 4, 6 |
 | `>100MHz: low level` / `<1MHz: harmonics` | Kanalseite: Hinweis außerhalb von 1–100 MHz | 1, 5 |
 | `Touch calibrated …` / `Touch not calibrated (default)` | Info-Karte: Touch-Abgleich | 8 |
 | `detected` / `default` / `build flag` | Info-Karte: Herkunft des Display-Controllers | 8, 13 |
@@ -1577,6 +1971,7 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 | Starke Oberwellen unter 1 MHz | Rechteck mit steilen Flanken | Tiefpass am Ausgang | 1 |
 | Frequenzzähler zeigt einige Hz Abweichung bei allen Frequenzen | Quarztoleranz | `Corr.` abgleichen | 8 |
 | CH3 bleibt bei `WAIT` | Master aus oder Masterfrequenz außerhalb des IQ-Bereichs | Master einschalten, Frequenz ≥ 4,730 MHz | 7, 11 |
+| CH2 bleibt bei `WAIT`, CH2-Frequenz von außen abgelehnt (−221) | CH2 an CH1 gekoppelt (`CH1 + offset`) | CH1 oder Offset ändern bzw. `Free` wählen | 4, 11 |
 | `! NO HW` auf allen Karten | Kabel, 3,3 V oder GND an CN1 | Verbindung prüfen; SDA/SCL dürfen vertauscht sein | 11 |
 | Tipps landen neben der Taste, Rand schwer zu treffen | Touch-Abgleich fehlt oder passt nicht | CONFIG `Device` → `Touch cal.` | 8 |
 | Display zeigt nur Rauschen | Controller nicht erkannt | Firmware mit `DISPLAY_FORCE_PANEL` bauen | 13 |

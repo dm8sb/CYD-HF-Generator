@@ -10,6 +10,13 @@ struct Channel {
     bool enabled;
 };
 
+// CH2 coupled to CH1 (CH2 page "CH1 + offset", E-52): while coupled CH2 runs at CH1 + offset;
+// outside FREQ_MIN_HZ..FREQ_MAX_HZ it waits. Both values are stored in NVS.
+struct Ch2Coupling {
+    bool coupled;
+    int32_t offset;     // Hz, -CH2_OFFSET_MAX_HZ..+CH2_OFFSET_MAX_HZ
+};
+
 struct Channel3 {
     bool enabled;       // requested by the user; see Ch3Status for the actual output state
     uint8_t master;     // 1 or 2
@@ -38,7 +45,8 @@ enum class Result : uint8_t {
     Invalid,    // not one of the allowed values (channel index, phase, drive, enum, step)
     Conflict,   // not possible in the current state (spread spectrum in Integer)
     Denied,     // not allowed for this source (Remote outputs: local only, W-E25)
-    HwError     // applied, but the SI5351 could not be set up (ERR or connection lost)
+    HwError,    // applied, but the SI5351 could not be set up (ERR or connection lost)
+    Coupled     // CH2 frequency while CH2 is coupled to CH1 (set the offset or decouple first)
 };
 
 struct SystemSettings {
@@ -49,6 +57,7 @@ struct SystemSettings {
     TuningMode tuning_mode;
     Spread spread;      // always Off in TuningMode::Integer
     OffState off_state;
+    uint16_t rotation;  // screen rotation in degrees: 0 or 180 (CONFIG "Rotate", E-53)
 };
 
 struct TouchCalibration {
@@ -63,6 +72,7 @@ struct PersistentState {
     Channel ch2;
     Channel3 ch3;
     SystemSettings sys;
+    Ch2Coupling ch2c;
 };
 
 // Actual state of CH1 / CH2; the switch shows the requested state.
@@ -70,7 +80,9 @@ enum class ChannelStatus : uint8_t {
     Off,
     On,
     Error,      // setup failed although the SI5351 answers; retried every HW_CHECK_INTERVAL_MS
-    NoDevice    // SI5351 not found or lost
+    NoDevice,   // SI5351 not found or lost
+    FreqTooLow, // CH2 coupled and on, but CH1 + offset below FREQ_MIN_HZ: CH2 waits
+    FreqTooHigh // CH2 coupled and on, but CH1 + offset above FREQ_MAX_HZ: CH2 waits
 };
 
 enum class Ch3Status : uint8_t {

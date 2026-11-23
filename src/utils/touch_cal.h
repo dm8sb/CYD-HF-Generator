@@ -44,7 +44,10 @@ enum class Failure : uint8_t { None, Inconsistent, Check };
 
 class Wizard {
 public:
-    void start(uint32_t nowMs);
+    // rotated: the screen is turned by 180 degrees (E-53). The crosses stay at TARGETS in screen
+    // coordinates, so the finger presses the panel at the mirrored point; the result is the
+    // same raw calibration as upright and the check cross is judged where it is drawn.
+    void start(uint32_t nowMs, bool rotated = false);
     // One raw read: touched = the controller reports a plausible touch.
     void update(bool touched, int16_t rawX, int16_t rawY, uint32_t nowMs);
     Phase phase() const { return phase_; }
@@ -62,6 +65,7 @@ private:
 
     Phase phase_ = Phase::Touch;
     Failure failure_ = Failure::None;
+    bool rotated_ = false;
     uint8_t target_ = 0;
     bool pressing_ = false;
     uint32_t pressStartMs_ = 0;

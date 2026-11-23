@@ -6,22 +6,31 @@
 name: CI
 
 on:
+  # Pushes only on the working branches (D49): main, dev and the agent branches; tags run only
+  # in release.yml. Pull requests to main always (the ruleset requires the checks), to dev for
+  # Dependabot.
   push:
+    branches: [main, dev, "agent/**"]
   pull_request:
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# One run per branch or pull request and event; a newer push cancels the older run, except on
+# main, where every merge keeps its complete run (AF21, OPS-2).
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
+  # Cache key only; the installed version comes from tools/requirements-ci.txt (with hashes).
   PLATFORMIO_VERSION: "6.2.0"
 
 jobs:
   host-tests:
+    # Required check in the ruleset of main: keep the name.
     name: Host tests (native)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -29,24 +38,145 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # AF27: the local WiFi credentials of test builds and Python caches are never versioned.
+      - name: Check tracked files
+        run: |
+          bad="$(git ls-files -- include/test_wifi_local.h '*.pyc' '*__pycache__*')"
+          if [ -n "$bad" ]; then printf 'must not be tracked:\n%s\n' "$bad" >&2; exit 1; fi
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # The package cache is read everywhere but written only by pushes to main and dev (AF22), so
+      # a pull request or an agent branch cannot plant packages for later runs.
+      - id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: pio-native-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
       - name: Install PlatformIO
-        run: pip install "platformio==${PLATFORMIO_VERSION}"
+        run: pip install --require-hashes -r tools/requirements-ci.txt
       - name: Host unit tests
         run: pio test -e native
       - name: Host tests of the IQ error state
         run: pio test -e native-fault
-      # The firmware on Arduino 3.x is C++20: the host tests in the same standard.
+      # The firmware on Arduino 3.x is C++20: the host tests in the same standard. -Werror: a
+      # warning in the tested sources, the tests or the fakes fails the job (AF24).
       - name: Host tests in C++20
         run: pio test -e native-cpp20
+      # AF36: the same tests under ASan and UBSan; any report fails the job.
+      - name: Host tests under ASan/UBSan
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: pio test -e native-asan
+      # The probe must be caught: a deliberate overflow has to fail the sanitizer run.
+      # pio test does not show the program's stderr: ASan writes its report to asan-probe.<pid>.
+      - name: Sanitizer probe
+        env:
+          PLATFORMIO_BUILD_FLAGS: -DSANITIZER_PROBE=1
+          ASAN_OPTIONS: log_path=/tmp/asan-probe
+        run: |
+          set +e
+          pio test -e native-asan -f test_sanitizer > probe.log 2>&1
+          status=$?
+          set -e
+          tail -n 8 probe.log
+          cat /tmp/asan-probe.* 2>/dev/null | head -n 12
+          if [ "$status" -eq 0 ] || ! grep -qs "AddressSanitizer: heap-buffer-overflow" /tmp/asan-probe.*; then
+            echo "::error::the deliberate overflow was not reported by native-asan"
+            exit 1
+          fi
+          echo "sanitizer probe reported as expected"
+      - if: steps.cache.outputs.cache-hit != 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-native-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
+
+  # Not a required check (AF24): the touch log build and the host screen renderer of
+  # tools/render_images.py must keep compiling; the touch log build also without warnings.
+  test-builds:
+    name: Test builds (touchlog, screens)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      # The package cache is read everywhere but written only by pushes to main and dev (AF22), so
+      # a pull request or an agent branch cannot plant packages for later runs.
+      - id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-esp32-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
+      - name: Install PlatformIO
+        run: pip install --require-hashes -r tools/requirements-ci.txt
+      - name: Build touch log firmware
+        run: |
+          set -o pipefail
+          pio run -e esp32-2432S028R-touchlog 2>&1 | tee touchlog.log
+          if grep -E '^(src|include)/[^:]+:[0-9]+:([0-9]+:)? warning:' touchlog.log; then
+            echo "::error::compiler warnings in src/ or include/ (gate: 0)"
+            exit 1
+          fi
+      - name: Build the host screen renderer
+        run: pio run -e screens
+
+  # AF34 (TEST-8, TEST-1, OPS-6): the Python tools against the mock and the fake device, and the
+  # shared contract vectors (test/contract/vectors.json, also read by the C++ host tests). Not a
+  # required check.
+  tools:
+    name: Tool checks (mock, fake device, vectors)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Self-tests
+        run: |
+          python tools/size_report.py --self-test
+          python tools/hostport.py
+      - name: Web UI without HTML or code from strings
+        run: |
+          if grep -nE 'innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function' data/www/*.js data/www/*.html data/www/*.css; then
+            echo "::error::forbidden in data/www (W-S7, W-S8; embed_www.py stops the build too)"
+            exit 1
+          fi
+      # web_check logs in when CYD_WEB_PASSWORD is set (--password without a value would prompt).
+      - name: Mock, web check and contract vectors
+        env:
+          PW: ci-bench-secret
+        run: |
+          python tools/web_mock.py --port 18080 > mock.log 2>&1 &
+          python tools/web_mock.py --port 18081 --password "$PW" > mock-pw.log 2>&1 &
+          for p in 18080 18081; do
+            for _ in $(seq 50); do python -c "import socket,sys; socket.create_connection(('127.0.0.1',$p),1)" 2>/dev/null && break; sleep 0.2; done
+          done
+          python tools/contract_check.py 127.0.0.1:18080
+          python tools/web_check.py 127.0.0.1:18080
+          CYD_WEB_PASSWORD="$PW" python tools/web_check.py 127.0.0.1:18081
+          python tools/slowloris.py 127.0.0.1:18080 -n 5 --hold 2 --trickle 1
+      - name: Fake device and device check
+        run: |
+          python tools/fake_scpi_device.py --port 15025 > fake.log 2>&1 &
+          for _ in $(seq 50); do python -c "import socket; socket.create_connection(('127.0.0.1',15025),1)" 2>/dev/null && break; sleep 0.2; done
+          python tools/device_check.py --tcp 127.0.0.1:15025
+          python tools/device_check.py --tcp 127.0.0.1:15025 --profile L22
+          python tools/counter_log.py --tcp 127.0.0.1:15025 --query "FREQ:ACT?" --interval 0.2 --count 3
+      - name: Logs
+        if: failure()
+        run: tail -n 50 mock.log mock-pw.log fake.log 2>/dev/null || true
 
   firmware:
+    # Required check in the ruleset of main: keep the name.
     name: Firmware build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -60,12 +190,15 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # The package cache is read everywhere but written only by pushes to main and dev (AF22), so
+      # a pull request or an agent branch cannot plant packages for later runs.
+      - id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: pio-esp32-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
       - name: Install PlatformIO
-        run: pip install "platformio==${PLATFORMIO_VERSION}"
+        run: pip install --require-hashes -r tools/requirements-ci.txt
       # The logs let the size report cross-check its numbers with PlatformIO's (G7).
       - name: Build firmware
         run: |
@@ -74,7 +207,34 @@ jobs:
           pio run -e esp32-2432S028R 2>&1 | tee size-logs/esp32-2432S028R.log
       # The touch test build (hit map + touch log) must keep compiling.
       - name: Build touch test firmware
-        run: pio run -e esp32-2432S028R-hitmap
+        run: |
+          set -o pipefail
+          mkdir -p logs
+          pio run -e esp32-2432S028R-hitmap 2>&1 | tee logs/esp32-2432S028R-hitmap.log
+      # AF24: the own sources stay at 0 warnings (-Wall -Wextra via build_src_flags; libraries
+      # keep their defaults and are not checked).
+      - name: Zero-warning gate
+        run: |
+          if grep -E '^(src|include)/[^:]+:[0-9]+:([0-9]+:)? warning:' size-logs/esp32-2432S028R.log logs/esp32-2432S028R-hitmap.log; then
+            echo "::error::compiler warnings in src/ or include/ (gate: 0)"
+            exit 1
+          fi
+          echo "no compiler warnings in src/ or include/"
+      # AF22: the resolved framework, toolchain and libraries are exactly the pinned ones and the
+      # ones THIRD_PARTY_NOTICES.md names (Arduino-ESP32, ESP-IDF tag and commit, GCC runtime).
+      - name: Check pinned packages
+        env:
+          # E-51: the SHA-256 digests of the pinned release assets are read over the GitHub API.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          pio pkg list -e esp32-2432S028R > pkg-list.txt
+          pio project metadata -e esp32-2432S028R --json-output > metadata.json
+          python tools/dep_check.py packages --pkg-list pkg-list.txt --metadata metadata.json --env esp32-2432S028R --summary "$GITHUB_STEP_SUMMARY"
+      - if: steps.cache.outputs.cache-hit != 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-esp32-${{ env.PLATFORMIO_VERSION }}-${{ hashFiles('platformio.ini') }}
       # Audit T-16: the image must carry the checked-out commit without the dirty mark.
       - name: Check build information
         run: |
@@ -82,7 +242,10 @@ jobs:
           bin=.pio/build/esp32-2432S028R/firmware.bin
           grep -a -q -- "$commit" "$bin" || { echo "commit $commit not found in $bin"; exit 1; }
           if grep -a -q -- "$commit+" "$bin"; then echo "image is marked dirty"; exit 1; fi
-          echo "build information OK: $commit"
+          # AF25: the build time is the commit time in UTC, so a rebuild gives the same image.
+          stamp="$(date -u -d "@$(git log -1 --format=%ct HEAD)" '+%Y-%m-%d %H:%M UTC')"
+          grep -a -q -- "$stamp" "$bin" || { echo "build time $stamp not found in $bin"; exit 1; }
+          echo "build information OK: $commit, $stamp"
       # G7: Flash and static RAM of the firmware as job summary and artifact (tools/size_report.py).
       - name: Measure firmware size
         env:

@@ -31,6 +31,11 @@ bool mapPoint(const TouchCalibration& cal, int16_t rawX, int16_t rawY, int16_t* 
     return true;
 }
 
+void rotate180(int16_t* x, int16_t* y) {
+    *x = (int16_t)(SCREEN_WIDTH - 1 - *x);
+    *y = (int16_t)(SCREEN_HEIGHT - 1 - *y);
+}
+
 Output Filter::update(const Sample& s, uint32_t nowMs) {
     Output o {false, x_, y_, false};
     // Weak pressure counts as a dropout, so a light hold is not cut into taps (U-20).
@@ -48,6 +53,7 @@ Output Filter::update(const Sample& s, uint32_t nowMs) {
         o.calibrationError = true;
         return o;
     }
+    if (rotated_) rotate180(&x, &y);
     // IIR jitter filter; a new press starts at its own position.
     if (!lastPressed_) {
         x_ = x;

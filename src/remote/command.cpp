@@ -79,16 +79,22 @@ Result run(AppController& app, const Command& c) {
         case CommandType::Identify:
             app.identify();
             return Result::Ok;
+        case CommandType::Ch2Couple:
+            if (v != 0 && v != 1) return Result::Invalid;
+            return app.setCh2Coupled(v == 1);
+        case CommandType::Ch2Offset:
+            return app.setCh2Offset(v);
+        case CommandType::Rotation:
+            if (!inRange(v, 0, 0xFFFF)) return Result::Invalid;
+            return app.setRotation((uint16_t)v);
     }
     return Result::Invalid;
 }
 }
 
 Result execute(AppController& app, const Command& c) {
-    app.setSource(c.source);
-    const Result r = run(app, c);
-    app.setSource(Source::Touch);
-    return r;
+    AppController::SourceScope scope(app, c.source);
+    return run(app, c);
 }
 
 bool CommandQueue::take_(Source s, uint8_t n) {
@@ -181,6 +187,9 @@ void StateSnapshot::publish(const AppController& app) {
     Snapshot& s = data_;
     s.state.ch1 = app.channel(1);
     s.state.ch2 = app.channel(2);
+    // Remote readers see the frequency CH2 is set to: CH1 + offset while coupled (E-52).
+    s.state.ch2.frequency = app.frequency(2);
+    s.state.ch2c = app.ch2Coupling();
     s.state.ch3 = app.ch3();
     s.state.sys = app.system();
     s.status[0] = app.channelStatus(1);

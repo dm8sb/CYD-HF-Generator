@@ -21,6 +21,16 @@ import subprocess
 Import("env")
 
 REF_RE = re.compile(r"^v[0-9A-Za-z.+-]{1,63}$")
+# W-S7, W-S8 (AF34): the build stops on HTML from strings or code from strings in the web UI.
+FORBIDDEN = (b"innerHTML", b"outerHTML", b"insertAdjacentHTML", b"document.write", b"eval(", b"new Function")
+
+
+def check_forbidden(name, raw):
+    """Raises if data/www/<name> uses one of FORBIDDEN (also in comments: no exceptions)."""
+    for word in FORBIDDEN:
+        if word in raw:
+            line = raw[:raw.index(word)].count(b"\n") + 1
+            raise Exception("data/www/%s:%d: %s is not allowed (W-S7, W-S8)" % (name, line, word.decode()))
 
 
 def source_ref():
@@ -82,6 +92,7 @@ def generate():
     for name, cname, ctype, compress in FILES:
         with open(os.path.join(src, name), "rb") as f:
             raw = f.read()
+        check_forbidden(name, raw)
         if name == "index.html":
             if b"{{TOKEN}}" not in raw or b"{{SRC_REF}}" not in raw:
                 raise Exception("data/www/index.html: {{TOKEN}} or {{SRC_REF}} placeholder missing")

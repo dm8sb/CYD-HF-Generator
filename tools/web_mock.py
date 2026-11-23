@@ -10,7 +10,7 @@ make (token, content type, origin, body size, unknown keys, types, ranges, rate 
 UI meets the same answers as on the device.
 
     python tools/web_mock.py                     # http://127.0.0.1:8080/
-    python tools/web_mock.py --password secret1  # login required for writes and WiFi
+    python tools/web_mock.py --password secret1  # login required for everything but the page (D25)
     python tools/web_mock.py --local-only        # Remote outputs: local only (switch-on, off state High -> 403)
     python tools/web_mock.py --open-ap           # client sits on the open AP (passwords -> 403)
     python tools/web_mock.py --hw NFO --no-ws --demo --confirm-timeout 20
@@ -36,17 +36,21 @@ import time
 import urllib.parse
 from decimal import Decimal, ROUND_HALF_UP
 
+import device_constants as dc
+import hostport
+
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "www")
 # Firmware version of the mock (device.version; the footer links its tag like the firmware, E-39).
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 STATIC = {"/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8")}
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 
-FREQ_MIN, FREQ_MAX = 8_000, 160_000_000
-IQ_MIN, IQ_MAX = 4_730_000, 100_000_000
-STEPS = (1, 10, 100, 1000, 10000, 100000, 1000000)
+# Limits and defaults from include/constants.h (AF48).
+FREQ_MIN, FREQ_MAX = dc.FREQ_MIN, dc.FREQ_MAX
+IQ_MIN, IQ_MAX = dc.IQ_MIN, dc.IQ_MAX
+STEPS = dc.STEPS
 SPREAD = {"down05": (0.005, 0.0), "down15": (0.015, 0.0), "center05": (0.005, 0.005)}
 SSC_TEXT = {"down05": "SSC -0.5%", "down15": "SSC -1.5%", "center05": "SSC +/-0.5%"}
 
@@ -67,7 +71,8 @@ SCAN_TIME, SCAN_EVERY = 2.0, 10.0
 LOGIN_FAILS, LOGIN_LOCK = 5, 30
 
 NAME_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$")
-IP_RE = re.compile(r"^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$")
+# Dotted quad as the firmware accepts it (utils/ipv4.h): 0..255, no leading zeros.
+IP_RE = re.compile(r"^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\Z")
 FREQ_RE = re.compile(r"^\s*(\d[\d ]*(?:[.,][\d ]*)?|[.,]\d[\d ]*)\s*(hz|khz|mhz|k|m)?\s*$", re.I)
 
 SCAN_LIST = [("Lab", -48, True), ("Lab-Guest", -55, True), ("Workshop", -61, True), ("FRITZ!Box 7590 XY", -67, True),
@@ -75,6 +80,45 @@ SCAN_LIST = [("Lab", -48, True), ("Lab-Guest", -55, True), ("Workshop", -61, Tru
              ('"quoted" & <b>bold</b>', -78, True), ("DIRECT-4F-Printer", -80, True), ("iot", -82, True),
              ("Nachbar", -85, True), ("HamNet", -86, True), ("x" * 32, -88, True), ("Guest", -90, False),
              ("far away", -93, True)]
+
+
+def no_duplicates(pairs):
+    """object_pairs_hook: a repeated key of the top-level object is a syntax error like on the
+    device (rest_json.cpp counts the top-level keys); nested objects keep the last value."""
+    keys = [k for k, _ in pairs]
+    d = dict(pairs)
+    if len(d) != len(keys):
+        d[DUPLICATE] = True
+    return d
+
+
+DUPLICATE = object()  # marker of an object that had a repeated key
+
+TCHAR = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,32}$")
+
+
+def broken_authorization(v):
+    """request_guard.cpp wellFormedAuthorization: "scheme credentials", printable, <= 1024 B."""
+    if v is None:
+        return False
+    if not 0 < len(v) <= 1024 or any(not 0x20 <= ord(c) <= 0x7E for c in v):
+        return True
+    scheme, sep, rest = v.partition(" ")
+    return not (TCHAR.match(scheme) and sep and rest.strip(" "))
+
+
+def broken_cookie(v):
+    """Simplified request_guard.cpp parseCookie_: printable ASCII, at most 32 pairs, a cyd_sid
+    only as 32 lower-case hex digits (optionally quoted) and only once."""
+    if v is None:
+        return False
+    if any(not 0x20 <= ord(c) <= 0x7E for c in v):
+        return True
+    pairs = [p.strip() for p in v.split(";") if p.strip()]
+    if len(pairs) > 32:
+        return True
+    sids = [p.split("=", 1)[1].strip('"') for p in pairs if p.split("=", 1)[0].strip() == "cyd_sid" and "=" in p]
+    return len(sids) > 1 or any(not re.fullmatch(r"[0-9a-f]{32}", x) for x in sids)
 
 
 class ApiError(Exception):
@@ -154,10 +198,12 @@ class Model:
         self.lock = threading.RLock()
         self.rev = 1
         self.hw = args.hw
-        self.ch = [{"enabled": False, "frequency": 10_000_000}, {"enabled": False, "frequency": 14_000_000}]
+        self.ch = [{"enabled": False, "frequency": dc.DEFAULT_FREQ[1]},
+                   {"enabled": False, "frequency": dc.DEFAULT_FREQ[2], "coupled": False, "offset": 0}]
         self.ch3 = {"enabled": False, "master": 1, "phase": 90}
-        self.cfg = {"drive": 4, "tuning": "fractional", "spread": "off", "offState": "low", "correction": 0,
-                    "step": 1000, "backlight": 80, "remoteOutputs": "local" if args.local_only else "allowed"}
+        self.cfg = {"drive": dc.DEFAULT_DRIVE, "tuning": "fractional", "spread": "off", "offState": "low", "correction": 0,
+                    "step": dc.DEFAULT_STEP, "backlight": 80, "rotation": 0,
+                    "remoteOutputs": "local" if args.local_only else "allowed"}
         self.save, self.save_due = "saved", 0.0
         self.remote, self.remote_until = None, 0.0
         self.net = {"mode": "ap" if args.open_ap else "client",
@@ -210,7 +256,7 @@ class Model:
             m.append(SSC_TEXT[sp])
         if self.cfg["tuning"] != "fractional":
             m.append("Low noise" if self.cfg["tuning"] == "lownoise" else "Integer")
-        if self.cfg["drive"] != 4:
+        if self.cfg["drive"] != dc.DEFAULT_DRIVE:
             m.append("%dmA" % self.cfg["drive"])
         return m
 
@@ -223,10 +269,28 @@ class Model:
             hi = min(hi, math.floor(IQ_MAX / (1 + up)))
         return lo, hi
 
+    # CH2 coupled to CH1 (E-52): CH1 + offset, waits outside FREQ_MIN..FREQ_MAX.
+    def target(self):
+        return self.ch[0]["frequency"] + self.ch[1]["offset"]
+
+    def waiting(self):
+        return self.ch[1]["coupled"] and not FREQ_MIN <= self.target() <= FREQ_MAX
+
+    def freq(self, i):
+        if i == 1 and self.ch[1]["coupled"]:
+            return max(0, self.target())
+        return self.ch[i]["frequency"]
+
+    def sync(self):
+        if self.ch[1]["coupled"] and not self.waiting():
+            self.ch[1]["frequency"] = self.target()
+
     def ch_status(self, i):
         if self.hw != "CONN":
             return "NOHW"
-        return "ON" if self.ch[i]["enabled"] else "OFF"
+        if not self.ch[i]["enabled"]:
+            return "OFF"
+        return "WAIT" if i == 1 and self.waiting() else "ON"
 
     def ch3_status(self):
         if not self.ch3["enabled"]:
@@ -235,7 +299,7 @@ class Model:
             return "NOHW"
         m = self.ch[self.ch3["master"] - 1]
         lo, hi = self.iq_range()
-        if not m["enabled"] or not lo <= m["frequency"] <= hi:
+        if not m["enabled"] or not lo <= self.freq(self.ch3["master"] - 1) <= hi:
             return "WAIT"
         return "ON"
 
@@ -258,14 +322,22 @@ class Model:
         with self.lock:
             lo, hi = self.iq_range()
             s3 = self.ch3_status()
-            m = self.ch[self.ch3["master"] - 1]
+            mf = self.freq(self.ch3["master"] - 1)
+            chs = []
+            for i, c in enumerate(self.ch):
+                f = self.freq(i)
+                wait = i == 1 and self.waiting()
+                o = {"n": i + 1, "enabled": c["enabled"], "frequency": f,
+                     "actual": 0.0 if wait else self.actual(i + 1, f), "status": self.ch_status(i), "modes": self.modes(i + 1)}
+                if i == 1:
+                    o.update(coupled=c["coupled"], offset=c["offset"])
+                chs.append(o)
             return {"rev": self.rev, "hw": self.hw, "save": self.save, "remote": self.remote,
-                    "ch": [{"n": i + 1, "enabled": c["enabled"], "frequency": c["frequency"],
-                            "actual": self.actual(i + 1, c["frequency"]), "status": self.ch_status(i), "modes": self.modes(i + 1)}
-                           for i, c in enumerate(self.ch)],
+                    "ch": chs,
                     "ch3": {"enabled": self.ch3["enabled"], "master": self.ch3["master"], "phase": self.ch3["phase"],
-                            "status": s3, "frequency": m["frequency"],
-                            "actual": self.actual(3, m["frequency"]) if s3 == "ON" else 0.0, "iqMin": lo, "iqMax": hi},
+                            "status": s3, "frequency": mf,
+                            "actual": self.actual(3, mf) if s3 == "ON" else 0.0, "iqMin": lo, "iqMax": hi},
+                    "limits": {"fmin": FREQ_MIN, "fmax": FREQ_MAX, "steps": list(STEPS), "offsetMax": dc.OFFSET_MAX},
                     "config": dict(self.cfg), "wifi": self.wifi_status(),
                     "device": {"version": VERSION, "passwordSet": bool(self.args.password)}}
 
@@ -281,9 +353,25 @@ class Model:
             raise ApiError(403, "-221,Remote outputs: local only")
 
     def post_channel(self, n, b):
-        check_obj(b, {"enabled": bool, "frequency": int, "frequencyText": str}, need_one=True)
+        keys = {"enabled": bool, "frequency": int, "frequencyText": str}
+        if n == 2:
+            keys.update(coupled=bool, offset=int)
+        check_obj(b, keys, need_one=True)
         if "frequency" in b and "frequencyText" in b:
             raise ApiError(400, "-108,frequency or frequencyText, not both")
+        c = self.ch[n - 1]
+        # Order as on the device: offset, coupled, frequency, enabled; stops at the first error.
+        if "offset" in b:
+            if not -dc.OFFSET_MAX <= b["offset"] <= dc.OFFSET_MAX:
+                raise ApiError(400, E_RANGE)
+            if b["offset"] != c["offset"]:
+                c["offset"] = b["offset"]
+                self.sync()
+                self.changed(True)
+        if "coupled" in b and b["coupled"] != c["coupled"]:
+            c["coupled"] = b["coupled"]
+            self.sync()
+            self.changed(True)
         f = None
         if "frequency" in b:
             f = b["frequency"]
@@ -291,12 +379,15 @@ class Model:
                 raise ApiError(400, E_RANGE)
         elif "frequencyText" in b:
             f = parse_freq(b["frequencyText"])
-        c = self.ch[n - 1]
+        if f is not None and c.get("coupled"):
+            raise ApiError(400, "-221,CH2 is coupled to CH1")
         if "enabled" in b:
             self.switch_on_allowed(c["enabled"], b["enabled"])
         save = f is not None and f != c["frequency"]
         if f is not None:
             c["frequency"] = f
+            if n == 1:
+                self.sync()
         if "enabled" in b:
             c["enabled"] = b["enabled"]
         self.changed(save)
@@ -316,13 +407,15 @@ class Model:
     def post_config(self, b):
         if isinstance(b, dict) and "remoteOutputs" in b:
             raise ApiError(403, "-221,Remote outputs can only be changed at the device")
-        check_obj(b, {"drive": int, "tuning": str, "spread": str, "offState": str, "correction": int, "step": int, "backlight": int}, need_one=True)
-        enums = {"drive": (2, 4, 6, 8), "tuning": ("fractional", "lownoise", "integer"),
-                 "spread": ("off", "down05", "down15", "center05"), "offState": ("low", "high", "hiz"), "step": STEPS}
+        check_obj(b, {"drive": int, "tuning": str, "spread": str, "offState": str, "correction": int, "step": int, "backlight": int,
+                       "rotation": int}, need_one=True)
+        enums = {"drive": dc.DRIVES, "tuning": ("fractional", "lownoise", "integer"),
+                 "spread": ("off", "down05", "down15", "center05"), "offState": ("low", "high", "hiz"), "step": STEPS,
+                 "rotation": (0, 180)}  # degrees (E-53)
         for k, allowed in enums.items():
             if k in b and b[k] not in allowed:
                 raise ApiError(400, E_ILLEGAL)
-        if "correction" in b and abs(b["correction"]) > 5000:
+        if "correction" in b and abs(b["correction"]) > dc.CORRECTION_MAX:
             raise ApiError(400, E_RANGE)
         if "backlight" in b and not 10 <= b["backlight"] <= 100:
             raise ApiError(400, E_RANGE)
@@ -497,7 +590,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # ---- checks shared by all requests
     def host_ok(self):
-        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]").lower()
+        host = hostport.host_only(self.headers.get("Host") or "")
         name = self.model.net["name"]
         allowed = {"localhost", "127.0.0.1", self.connection.getsockname()[0], name, name + ".local", self.server.bind_host}
         return host in allowed
@@ -516,7 +609,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'xsi:schemaLocation="http://www.lxistandard.org/InstrumentIdentification/1.0 '
                 'http://www.lxistandard.org/InstrumentIdentification/1.0/LXIIdentification.xsd">\n'
                 '<Manufacturer>DM8SB</Manufacturer>\n<Model>CYD HF Generator</Model>\n'
-                '<SerialNumber>0123456789AB</SerialNumber>\n<FirmwareRevision>2.0.0</FirmwareRevision>\n'
+                '<SerialNumber>0123456789AB</SerialNumber>\n<FirmwareRevision>2.1.0</FirmwareRevision>\n'
                 '<ManufacturerDescription>3-channel SI5351 HF square-wave generator</ManufacturerDescription>\n'
                 '<HomepageURL>%s</HomepageURL>\n<DriverURL>%s</DriverURL>\n'
                 '<UserDescription>%s</UserDescription>\n'
@@ -554,6 +647,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.host_ok():
             return self.send(421, {"error": "-200,Host not allowed"})
         url = urllib.parse.urlsplit(self.path)
+        refusal = self.header_refusal(url.path)
+        if refusal:
+            return self.error(refusal)
         if url.path == "/ws":
             return self.websocket(url)
         if url.path in ("/", "/index.html"):
@@ -572,11 +668,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         m = self.model
         try:
             with m.lock:
+                # D25: with a web password the token and the state need a session as well.
+                if url.path in ("/api/token", "/api/state") and not self.session_ok():
+                    raise ApiError(401, "-200,Login required")
                 if url.path == "/api/token":
                     return self.send(200, {"token": self.token})
                 if url.path == "/api/state":
-                    if self.server.login_all and not self.session_ok():
-                        raise ApiError(401, "-200,Login required")
                     return self.send(200, m.state())
                 if url.path in ("/api/wifi", "/api/wifi/scan"):
                     if not self.session_ok():
@@ -586,9 +683,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.error(e)
         self.send(404, {"error": "-200,Not found"})
 
+    def header_refusal(self, path):
+        """The checks of RequestGuard::check after Host and method, in its order (400 Cookie and
+        Authorization, then for /api/ and /ws 403 Origin, Sec-Fetch-Site, /api/token same-origin)."""
+        if broken_cookie(self.headers.get("Cookie")):
+            return ApiError(400, "-200,Bad Cookie header")
+        if broken_authorization(self.headers.get("Authorization")):
+            return ApiError(400, "-200,Bad Authorization header")
+        if path.startswith("/api/") or path == "/ws":
+            origin = self.headers.get("Origin")
+            if origin and origin != self.own_origin():
+                return ApiError(403, "-200,Foreign origin")
+            site = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
+            if site == "cross-site":
+                return ApiError(403, "-200,Cross-site request")
+            if path == "/api/token" and site and site not in ("same-origin", "none"):
+                return ApiError(403, "-200,Same-origin only")
+        return None
+
     def do_POST(self):
         if not self.host_ok():
             return self.send(421, {"error": "-200,Host not allowed"})
+        if not urllib.parse.urlsplit(self.path).path.startswith("/api/"):
+            return self.send(405, {"error": "-200,Method not allowed"})
         m = self.model
         try:
             if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
@@ -598,6 +715,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.close_connection = True
                 raise ApiError(413, "-200,Body too large")
             raw = self.rfile.read(length) if length else b""
+            refusal = self.header_refusal(urllib.parse.urlsplit(self.path).path)
+            if refusal:
+                raise refusal
             ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
             if ctype != "application/json":
                 raise ApiError(415, "-200,Content-Type must be application/json")
@@ -609,9 +729,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not secrets.compare_digest(self.headers.get("X-CYD-Token") or "", self.token):
                 raise ApiError(403, "-200,Invalid token: reload the page")
             try:
-                body = json.loads(raw.decode("utf-8")) if raw else None
+                body = json.loads(raw.decode("utf-8"), object_pairs_hook=no_duplicates) if raw else None
             except (ValueError, UnicodeDecodeError):
                 raise ApiError(400, E_SYNTAX)
+            if isinstance(body, dict) and body.pop(DUPLICATE, False):
+                raise ApiError(400, "-102,Duplicate key")
             path = urllib.parse.urlsplit(self.path).path
             # W-S1 for every body, as the device (login: SEC-3): no passwords over an open AP.
             if self.open_ap_client() and carries_secret(body):
@@ -623,7 +745,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self.session_ok():
                 raise ApiError(401, "-200,Login required")
             with m.lock:
-                self.rate_limit()
+                self.rate_limit(take=False)
                 if body is None:
                     raise ApiError(400, E_SYNTAX)
                 ch = re.fullmatch(r"/api/channel/(\d+)", path)
@@ -649,16 +771,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self.send(204)
                 else:
                     raise ApiError(404, "-200,Not found")
+                self.rate_limit(take=True)
                 return self.send(200, m.state())
         except ApiError as e:
             return self.error(e)
 
-    def rate_limit(self):
+    def rate_limit(self, take):
         now = time.monotonic()
         q = [t for t in self.model.writes.get(self.client_address[0], []) if now - t < 1.0]
-        if len(q) >= WRITES_PER_S:
+        if not take and len(q) >= WRITES_PER_S:
             raise ApiError(429, E_RATE)
-        q.append(now)
+        if take:
+            q.append(now)
         self.model.writes[self.client_address[0]] = q
 
     def login(self, body):
@@ -707,7 +831,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(400, {"error": "-200,WebSocket upgrade expected"})
         if q.get("t", [""])[0] != self.token or (origin and origin != self.own_origin()):
             return self.send(403, {"error": "-200,Forbidden"})
-        if self.server.login_all and not self.session_ok():
+        if not self.session_ok():  # D25
             return self.send(401, {"error": "-200,Login required"})
         with m.lock:
             if m.ws_count >= MAX_WS:
@@ -744,6 +868,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         sock, m = self.connection, self.model
         sock.settimeout(5)
         last_rev, last_ping, last_pong = None, time.monotonic(), time.monotonic()
+        nonce = None                # payload of our unanswered PING (AF18)
+        pings, ping_window = 0, time.monotonic()
         while True:
             with m.lock:
                 rev = m.rev
@@ -753,7 +879,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 last_rev = rev
             now = time.monotonic()
             if now - last_ping >= 15:
-                self.ws_send(0x9, b"cyd")
+                nonce = secrets.token_bytes(4)
+                self.ws_send(0x9, nonce)
                 last_ping = now
             if now - last_pong > 30:
                 self.ws_send(0x8, struct.pack(">H", 1001))
@@ -775,15 +902,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.ws_send(0x8, data[:2])
                 return
             if op == 0x9:
+                # The UI never pings: more than 3 PINGs in 10 s close the socket (AF18).
+                if time.monotonic() - ping_window >= 10:
+                    pings, ping_window = 0, time.monotonic()
+                pings += 1
+                if pings > 3:
+                    self.ws_send(0x8, struct.pack(">H", 1008) + b"Ping flood")
+                    return
                 self.ws_send(0xA, data)
             elif op == 0xA:
-                last_pong = time.monotonic()
+                # Only the answer to our PING counts (its random payload), not unsolicited PONGs.
+                if nonce is not None and data == nonce:
+                    last_pong = time.monotonic()
+                    nonce = None
             # Text and binary frames are ignored: the socket is push only.
 
 
 class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    # AF34: a port in use is an error, not a second server on it (CI starts mocks on free ports).
+    allow_reuse_address = False
 
 
 def main():
@@ -791,7 +929,7 @@ def main():
     ap.add_argument("--host", default="127.0.0.1", help="bind address (0.0.0.0 for phones in the LAN)")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--password", default="", help="web password: login required for writes and WiFi settings")
-    ap.add_argument("--login-all", action="store_true", help="with --password: also /api/state and /ws need the login")
+    ap.add_argument("--login-all", action="store_true", help="no effect: with --password the state, token and /ws always need the login (D25)")
     ap.add_argument("--local-only", action="store_true", help="Remote outputs: local only (switch-on and off state High answer 403)")
     ap.add_argument("--open-ap", action="store_true", help="the client sits on the open AP: password fields answer 403")
     ap.add_argument("--hw", default="CONN", choices=("CONN", "NFO", "BLOC", "UNKN"), help="SI5351 link state")
@@ -807,7 +945,7 @@ def main():
     Handler.model = Model(args)
     Handler.token = args.token or secrets.token_hex(16)
     srv = Server((args.host, args.port), Handler)
-    srv.bind_host, srv.password, srv.login_all = args.host, args.password, args.login_all and bool(args.password)
+    srv.bind_host, srv.password = args.host, args.password
     srv.open_ap, srv.no_ws, srv.verbose = args.open_ap, args.no_ws, args.verbose
 
     def ticker():

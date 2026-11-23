@@ -16,6 +16,7 @@
 #include <hal/i2c_bus.h>
 #include <remote/scpi.h>
 #include <remote/scpi_usb.h>
+#include <utils/frequency_utils.h>
 #include <utils/logger.h>
 
 static Fake::Si5351Chip& chip = Fake::si5351();
@@ -221,6 +222,43 @@ static void test_number_parser() {
     TEST_ASSERT_EQUAL(Parse::Range, frequency("160.000001MHZ", 13, &hz));
 }
 
+// AF46 / CQ-11: half a hertz rounds up the same way on the numpad, REST/web (frequencyText)
+// and SCPI; the numpad used to compute in double and could end 1 Hz lower.
+static void expectSamePaths(const char* number, const char* unit, uint64_t expected) {
+    char msg[48];
+    snprintf(msg, sizeof(msg), "%s %s", number, unit);
+    uint64_t pad = 0, rest = 0, scpi = 0;
+    TEST_ASSERT_TRUE_MESSAGE(FrequencyUtils::parseFrequency(number, unit, &pad), msg);
+    TEST_ASSERT_TRUE_MESSAGE(FrequencyUtils::parseRemoteFrequency(msg, &rest), msg);
+    char upper[48];
+    snprintf(upper, sizeof(upper), "%s%s", number, strcmp(unit, "MHz") == 0 ? "MHZ" : strcmp(unit, "kHz") == 0 ? "KHZ" : "HZ");
+    TEST_ASSERT_EQUAL_MESSAGE(ScpiNumber::Parse::Ok, ScpiNumber::frequency(upper, strlen(upper), &scpi), msg);
+    TEST_ASSERT_EQUAL_UINT64_MESSAGE(expected, pad, msg);
+    TEST_ASSERT_EQUAL_UINT64_MESSAGE(expected, rest, msg);
+    TEST_ASSERT_EQUAL_UINT64_MESSAGE(expected, scpi, msg);
+}
+
+static void test_half_hertz_rounds_alike_on_all_paths() {
+    expectSamePaths("7.1000005", "MHz", 7100001ULL);
+    expectSamePaths("455.0005", "kHz", 455001ULL);
+    expectSamePaths("10.0000005", "MHz", 10000001ULL);
+    expectSamePaths("14.0740015", "MHz", 14074002ULL);
+    expectSamePaths("1000000.5", "Hz", 1000001ULL);
+    expectSamePaths("7.10000049", "MHz", 7100000ULL);
+    // Every x.5 Hz in MHz and kHz notation over the range (sampled).
+    char text[24];
+    for (uint64_t hz = FREQ_MIN_HZ; hz < FREQ_MAX_HZ; hz += 99991ULL) {
+        snprintf(text, sizeof(text), "%llu.%06llu5", (unsigned long long)(hz / 1000000ULL),
+                 (unsigned long long)(hz % 1000000ULL));
+        expectSamePaths(text, "MHz", hz + 1);
+        if (hz < 100000000ULL) {
+            snprintf(text, sizeof(text), "%llu.%03llu5", (unsigned long long)(hz / 1000ULL),
+                     (unsigned long long)(hz % 1000ULL));
+            expectSamePaths(text, "kHz", hz + 1);
+        }
+    }
+}
+
 static void test_outputs_and_condition() {
     Device d;
     ASSERT_ANSWER("0", d.q("OUTP1?"));
@@ -246,6 +284,65 @@ static void test_outputs_and_condition() {
     ASSERT_ANSWER("NOHW", d.q("OUTP2:COND?"));
     ASSERT_ANSWER("NFO", d.q("SYST:SI5351?"));
     ASSERT_ANSWER("1", d.q("*TST?"));
+}
+
+// CH2 coupled to CH1 (E-52): SOURce2:COUPle and SOURce2:FREQuency:OFFSet.
+static void test_coupled_ch2() {
+    Device d;
+    auto w = [&](const char* line) {
+        Fake::advanceMs(100); // below the rate limit
+        return d.q(line);
+    };
+    ASSERT_ANSWER("OFF", w("SOUR2:COUP?"));
+    ASSERT_ANSWER("0", w("SOUR2:FREQ:OFFS?"));
+    ASSERT_ANSWER("", w("SOURce2:FREQuency:OFFSet 455 kHz"));
+    ASSERT_ANSWER("455000", w("SOUR2:FREQ:OFFS?"));
+    ASSERT_ANSWER("", w("SOUR2:FREQ:OFFS -10.7MHZ"));
+    ASSERT_ANSWER("-10700000", w("SOUR2:FREQ:OFFS?"));
+    ASSERT_ANSWER("", w("SOUR2:FREQ:OFFS +0.0000005 MHZ")); // 0.5 Hz: half up
+    ASSERT_ANSWER("1", w("SOUR2:FREQ:OFFS?"));
+    ASSERT_ANSWER("", w("SOUR2:FREQ:OFFS -1.5E3"));
+    ASSERT_ANSWER("-1500", w("SOUR2:FREQ:OFFS?"));
+    ASSERT_ANSWER("", w("SOUR2:FREQ:OFFS MIN"));
+    ASSERT_ANSWER("-160000000", w("SOUR2:FREQ:OFFS?"));
+    ASSERT_ANSWER("", w("SOUR2:FREQ:OFFS MAX"));
+    ASSERT_ANSWER("160000000", w("SOUR2:FREQ:OFFS?"));
+    ASSERT_ANSWER("", w("SOUR2:FREQ:OFFS DEF"));
+    ASSERT_ANSWER("0", w("SOUR2:FREQ:OFFS?"));
+    ASSERT_ANSWER("0,\"No error\"", d.err());
+    w("SOUR2:FREQ:OFFS 160000001");
+    ASSERT_ANSWER("-222,\"Data out of range\"", d.err());
+    w("SOUR2:FREQ:OFFS 1 PPM");
+    ASSERT_ANSWER("-224,\"Illegal parameter value\"", d.err());
+    w("SOUR1:FREQ:OFFS 1000");
+    ASSERT_ANSWER("-114,\"Header suffix out of range\"", d.err());
+    w("SOUR2:COUP CH2");
+    ASSERT_ANSWER("-224,\"Illegal parameter value\"", d.err());
+    ASSERT_ANSWER("0,\"No error\"", d.err());
+
+    ASSERT_ANSWER("", w("SOUR2:FREQ:OFFS 455KHZ;:SOUR2:COUP CH1"));
+    ASSERT_ANSWER("CH1", w("SOURce2:COUPle?"));
+    TEST_ASSERT_TRUE(d.app.ch2Coupled());
+    ASSERT_ANSWER("10455000", w("SOUR2:FREQ?"));
+    w("FREQ 7MHZ");
+    ASSERT_ANSWER("7455000", w("SOUR2:FREQ?"));
+    w("SOUR2:FREQ 7MHZ");
+    ASSERT_ANSWER("-221,\"Settings conflict;CH2 is coupled to CH1\"", d.err());
+    // Waiting: OUTP2:COND? says WAIT while on.
+    w("OUTP2 ON");
+    w("SOUR2:FREQ:OFFS -7MHZ");
+    ASSERT_ANSWER("WAIT", w("OUTP2:COND?"));
+    ASSERT_ANSWER("0", w("SOUR2:FREQ?"));
+    w("SOUR2:FREQ:OFFS -6.99MHZ");
+    ASSERT_ANSWER("ON", w("OUTP2:COND?"));
+    ASSERT_ANSWER("0,\"No error\"", d.err());
+    w("*RST");
+    ASSERT_ANSWER("OFF", w("SOUR2:COUP?"));
+    ASSERT_ANSWER("0", w("SOUR2:FREQ:OFFS?"));
+    ASSERT_ANSWER("", w("SOUR2:COUP CH1"));
+    ASSERT_ANSWER("", w("SOUR2:COUP OFF"));
+    ASSERT_ANSWER("OFF", w("SOUR2:COUP?"));
+    ASSERT_ANSWER("0,\"No error\"", d.err());
 }
 
 static void test_compound_lines() {
@@ -306,6 +403,33 @@ static void test_remote_outputs_local_only() {
     d.app.setRemoteOutputsAllowed(true);
     d.q("OUTP:OFFS HIGH");
     ASSERT_ANSWER("HIGH", d.q("OUTP:OFFS?"));
+    ASSERT_ANSWER("0,\"No error\"", d.err());
+}
+
+// N16 (E-53): SYSTem:DISPlay:ROTation 0|180 in degrees (unit DEG allowed); *RST sets 0 like the
+// backlight.
+static void test_display_rotation() {
+    Device d;
+    ASSERT_ANSWER("0", d.q("SYST:DISP:ROT?"));
+    d.q("SYST:DISP:ROT 180");
+    ASSERT_ANSWER("180", d.q("SYSTem:DISPlay:ROTation?"));
+    TEST_ASSERT_EQUAL_UINT16(180, d.app.system().rotation);
+    d.q("SYST:DISP:ROT 0 DEG");
+    ASSERT_ANSWER("0", d.q("SYST:DISP:ROT?"));
+    d.q("SYST:DISP:ROT MAX");
+    ASSERT_ANSWER("180", d.q("SYST:DISP:ROT?"));
+    d.q("SYST:DISP:ROT DEF");
+    ASSERT_ANSWER("0", d.q("SYST:DISP:ROT?"));
+    ASSERT_ANSWER("0,\"No error\"", d.err());
+    d.q("SYST:DISP:ROT 90");
+    ASSERT_ANSWER("-224,\"Illegal parameter value\"", d.err());
+    d.q("SYST:DISP:ROT 1E30");
+    ASSERT_ANSWER("-222,\"Data out of range\"", d.err());
+    d.q("SYST:DISP:ROT ON");
+    ASSERT_ANSWER("-224,\"Illegal parameter value\"", d.err());
+    ASSERT_ANSWER("0", d.q("SYST:DISP:ROT?"));
+    d.q("SYST:DISP:ROT 180;*RST");
+    ASSERT_ANSWER("0", d.q("SYST:DISP:ROT?"));
     ASSERT_ANSWER("0,\"No error\"", d.err());
 }
 
@@ -428,13 +552,16 @@ int main(int, char**) {
     RUN_TEST(test_number_parser);
     RUN_TEST(test_outputs_and_condition);
     RUN_TEST(test_compound_lines);
+    RUN_TEST(test_coupled_ch2);
     RUN_TEST(test_settings_commands);
     RUN_TEST(test_remote_outputs_local_only);
+    RUN_TEST(test_display_rotation);
     RUN_TEST(test_rst_and_save);
     RUN_TEST(test_status_registers);
     RUN_TEST(test_rate_limit_gives_execution_error);
     RUN_TEST(test_log_query_gives_one_line);
     RUN_TEST(test_log_query_only_over_usb);
     RUN_TEST(test_usb_session_and_log);
+    RUN_TEST(test_half_hertz_rounds_alike_on_all_paths);
     return UNITY_END();
 }

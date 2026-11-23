@@ -20,11 +20,13 @@ an ASan or UBSan report. The harnesses are C++11 and build three ways:
 | `scpi` | `ScpiSession::execute` behind the `LineFramer` (scpi-parser, `blankAfterInvalid`, all handlers) | `[flags][seed ×4][variant]` + connection bytes | commands carry the session's source; channels, enum values and frequencies in range (W-S19); ≤ 16 commands and ≤ 5120 bytes of printable output ending in LF per framed line; error queue ≤ 16 entries and drains to `0,"No error"` |
 | `scpi_number` | `ScpiNumber::decimal`, `ScpiNumber::frequency` | `[scale][unit table]` + token | against an independent reference (grammar + `long double`): `Ok` only for the grammar, `Syntax` only with > 18 significant digits, the value within ½ of the exact one, `Range` only outside int64, never `INT64_MIN`; nothing written on failure; `frequency` = `decimal` with HZ/KHZ/MHZ plus the range |
 | `remote_frequency` | `FrequencyUtils::parseRemoteFrequency` | C string | true only in 8 kHz … 160 MHz, value = the number read independently rounded half up; no sign, exponent or hex; blanks around change nothing; false leaves `*out` alone |
-| `net_settings` | `NetConfig::parseIpv4`/`formatIpv4`, `checkStaticIp`, `setNetwork`, `wifiQrText`, name and passphrase checks | `[op]` + data | `parseIpv4` accepts exactly the canonical quads (round trip both ways); `checkStaticIp` Ok exactly per W-S12; `setNetwork` stores exactly what it accepted and nothing otherwise; `wifiQrText` never writes past `outSize` and its fields unescape to the input; validators agree with independent checks |
+| `net_settings` | `Ipv4::parse`/`format`, `checkStaticIp`, `setNetwork`, `wifiQrText`, name and passphrase checks | `[op]` + data | `Ipv4::parse` accepts exactly the canonical quads (round trip both ways); `checkStaticIp` Ok exactly per W-S12; `setNetwork` stores exactly what it accepted and nothing otherwise; `wifiQrText` never writes past `outSize` and its fields unescape to the input; validators agree with independent checks |
 | `scan_list` | `ScanList::add` | records `[len/flags][rssi][ssid]` | ≤ 15 entries sorted by RSSI, one per SSID with its strongest RSSI, exactly the strongest 15 of a model; `shown` = `Sanitize::text(ssid)` |
 | `request_guard` | `RequestGuard::check`, login lock, sessions, `scanAllowed`, `checkSecrets`, `captiveLocation`, `WebPassword::valid` | `[config ×6]` + script: HTTP requests (request line, headers, body) and `!` operations (login, wait, logout, scan) | every decision equals an independent reference of the documented order (503, 414 URL > 256 B, 431 headers > 2 KB, 421/302 Host allowlist without IPv6, captive 302 only for page GET/HEAD over the AP, 405, 415, 400/413 Content-Length > 1 KB, 400 broken Cookie/Authorization, 400 upgrade, 403 Origin/Sec-Fetch-Site/token, 411, 401) and does not change with the case of or blanks around values HTTP compares case-insensitively; a session only with the cookie of a live session the guard issued (≤ 4, LRU); Set-Cookie exact; the login lock follows a W-S11 model and never shortens or grows within its window; scan ≤ every 10 s; W-S1 403 exactly over an open AP |
 | `vxi11` | `RpcTcpLink` (record marking), `Vxi11Core` (VXI-11 core channel on `ScpiSession` and `LineFramer`), `Portmap::handle` | `[cfg][seed ×4]` + a script of operations: calls encoded by the harness and mutated (truncated arguments, another link id, RPC version, program, version or credential flavor, fragment splits), raw bytes, time, reconnect; the whole input also as one datagram and one TCP record | the glue contract holds (never more than `wantBytes()` read, one reply waiting); replies are whole records of at most 1060 bytes, decode as RPC replies and answer the calls in order; device_read data at most 1024 bytes and `requestSize`, printable text and LF, reason bits only REQCNT/CHR/END and at least one on success; at most 2048 bytes of answers wait; commands carry source SCPI; error queue at most 16 entries; over UDP no reply longer than its request, every reply echoes the xid |
 | `rest_json` | `parseChannel`, `parseCh3`, `parseConfig`, `parseAction`, `parseLogin`, `carriesSecret`, `buildState`, `errorJson`, `fromOutcome`, `channelFromPath` | `[function/flags]` + body, or snapshot bytes | against an independent RFC 8259 parser (strings decoded as ArduinoJson does): 413/-223, -102 invalid JSON and duplicate keys, -104 types, -108 unknown keys, -109 no key, -222, -224, 403/-221, 404/-114, first problem in key order; Ok gives exactly the expected commands (≤ 8, documented order, source Web, values inside their types); `carriesSecret` finds pass/psk/secret/key at any depth of what ArduinoJson keeps; `errorJson` fits; the state JSON fits `STATE_SIZE` with device values, parses again, strict UTF-8 without control characters, foreign strings = `Sanitize::text`, values as in the snapshot, never written past its buffer |
+| `prefilter` | `HttpPreFilter::feed`, `check`, `headComplete`, `status` (the byte filter in front of the HTTP parser) | `[start ×4][chunk seed][time mode]` + connection bytes, fed in chunks of 1 to 700 bytes with a clock that only moves forward (also across the 32-bit wrap) | after every chunk the verdict equals an independent reference that reads the whole stream at once (414: target > 256 B or request line > 288 B; 431 at header byte 2049; 413 at the empty line for a Content-Length value above 1024, its digits read as one number of any length; close at byte 2049 after the head) and is decided at the same byte; Timeout for a chunk more than 10 s after `begin()`; once decided it never changes; `headComplete()` exactly when the reference reached the empty line; the stream in one chunk decides the same; differential against `RequestGuard::check`: a 414 or a 413 of the guard means the pre-filter refused too, a passed head never gets 414/413 from the guard |
+| `rest_wifi` | `RestWifi::parseChange`, `merge`, `wipe`, `buildSettings` (POST and GET `/api/wifi`) | `[current settings][mode]` + generator bytes (structured) or a raw body | structured: a generator writes bodies with known and unknown keys, wrong types, overlong strings, too many entries and values outside the rules, and an independent model of `rest_wifi.h` gives the expected status and code (first problem in key order; unknown key −108, final `off` with other keys −108, nothing −109, more than two entries −222, values −224, implausible static IP −221, 413 above 1 KB) and on success the expected settings; both modes: a refusal leaves `next == cur` byte for byte and the `Change` zeroed, `wipe()` zeroes it, a success passes NetConfig's checks and keeps the web password, the GET answer has exactly its documented fields (keys only as `set`/`open`/`none`, the AP password only as `passwordSet`), the reply info never points into the body |
 
 The SCPI backend in `fuzz_scpi.cpp` is a fake (no `AppController`): it checks every command it
 gets and answers with outcomes drawn from the seed bytes (refused, rate limited, every `Result`,
@@ -36,7 +38,7 @@ Seed corpora are in `corpus/<target>/` (`.gitattributes` keeps them byte-exact),
 taken from `USER_MANUAL_EN.md` section 15, the requests and bodies from `ARBEITSPLAN.md` 3.6,
 `test_http_guard`, `test_rest_json` and `tools/web_mock.py`, the VXI-11 sessions from `test_vxi11` and the discovery datagram of liblxi (`lxi discover`). `scpi.dict` is the libFuzzer
 dictionary for `scpi` and `scpi_number`, `request_guard.dict` and `rest_json.dict` those of the
-web targets.
+web targets (`prefilter` uses `request_guard.dict`, `rest_wifi` `rest_json.dict`).
 
 `request_guard` reads a script: after six configuration bytes (password, loginForReads, own
 addresses, open AP, captive DNS, connection over the AP, start time, seed) each line starting
@@ -82,7 +84,8 @@ the host tests: `pio test -e native-win -f test_fuzz_random`.
 
 `.github/workflows/fuzz.yml`:
 
-- Every push and pull request: each target 60 s under libFuzzer (`-max_total_time=60`, one
+- Every push to `main`, `dev` or an `agent/**` branch and every pull request to `main` or `dev`
+  (D49): each target 60 s under libFuzzer (`-max_total_time=60`, one
   matrix job per target), plus the standalone driver built with gcc in C++11 with ASan/UBSan
   (seed corpus and 100 000 inputs per target). The job summary lists the executions.
 - Release (W-S25): start the workflow by hand (`workflow_dispatch`) with `runs` ≥ 10 000 000
@@ -107,6 +110,10 @@ the host tests: `pio test -e native-win -f test_fuzz_random`.
    the `case` there).
 
 ## Known findings
+
+- Noted (AF37): in `HttpPreFilter` the flag for a Content-Length above 10^9 is redundant (the
+  capped value is above 1024 anyway); the counter-check that drops it is the only mutant of
+  the pre-filter the harness cannot find.
 
 - Fixed in S57b: `ScpiNumber::decimal` capped the exponent at four digits but counted every
   leading zero of the fraction, so `0.` + 1216 zeros + `1E12345` gave `Ok` with 10^17. The

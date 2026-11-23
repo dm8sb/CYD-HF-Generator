@@ -49,7 +49,7 @@ public:
         Outcome o;
         const uint32_t r = rng.next();
         o.push = (r & 15) == 0 ? PushResult::Full : (r & 15) == 1 ? PushResult::RateLimited : PushResult::Queued;
-        o.result = (Result)((r >> 4) % 7);
+        o.result = (Result)((r >> 4) % 8);
         return o;
     }
     bool snapshot(Snapshot* out) override {
@@ -258,7 +258,8 @@ struct Harness {
             FUZZ_CHECK(n <= Vxi11Core::MAX_READ && n <= reads[i].second);
             for (uint32_t k = 0; k < n; ++k) {
                 const uint8_t c = r[36 + k];
-                FUZZ_CHECK((c >= 0x20 && c <= 0x7E) || c == '\n');
+                // TAB is allowed in a line and comes back inside error texts (-113 with the header).
+                FUZZ_CHECK((c >= 0x20 && c <= 0x7E) || c == '\n' || c == '\t');
             }
             return;
         }

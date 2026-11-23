@@ -87,9 +87,16 @@ static void show(PageId page, const char* name) {
 
 static bool netConfirmNeeded() { return gNetConfirm; }
 static void netConfirmAnswer(bool) { gNetConfirm = false; }
+static uint16_t netPendingS() { return 0; }
 static uint8_t webClients() { return 1; }
 static uint32_t scpiClient() { return ip4(192, 168, 1, 20); }
 static void disconnectAll() {}
+// CONFIG info card: plausible numbers of a running device.
+static void heapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) {
+    *freeBytes = 118u * 1024u;
+    *minFree = 96u * 1024u;
+    *largest = 72u * 1024u;
+}
 
 int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
@@ -145,9 +152,16 @@ int main(int argc, char** argv) {
     static Gui gui;
     gGui = &gui;
     gui.begin(app, touch, display);
-    gui.setWifi(wifi, nullptr);
-    gui.setNetConfirm(netConfirmNeeded, netConfirmAnswer);
-    gui.setRemoteClients(webClients, scpiClient, disconnectAll);
+    GuiServices services;
+    services.wifi = &wifi;
+    services.netConfirmNeeded = netConfirmNeeded;
+    services.netConfirmAnswer = netConfirmAnswer;
+    services.netPendingS = netPendingS;
+    services.webClients = webClients;
+    services.scpiClient = scpiClient;
+    services.disconnectRemote = disconnectAll;
+    services.heapInfo = heapInfo;
+    gui.setServices(services);
     app.addListener(Gui::onAppEvent, &gui);
 
     // Documentation state: CH1 7.1 MHz, CH2 14 MHz, CH3 IQ +90 deg to CH1, all on.
@@ -184,11 +198,18 @@ int main(int argc, char** argv) {
     show(PageId::WifiScan, "wifi-scan");
     show(PageId::WifiDevice, "wifi-device");
     show(PageId::WifiAp, "wifi-ap");
+    // CH2 coupled to CH1 with +455 kHz (E-52), then back to the documentation state.
+    app.setCh2Offset(455000);
+    app.setCh2Coupled(true);
+    show(PageId::CH2, "ch2-coupled");
+    app.setCh2Coupled(false);
+    app.setCh2Offset(0);
+    app.setChannelFrequency(2, 14000000ULL);
     // Network change from the web without web password: the touch confirmation (W-S12).
     gui.navigate(PageId::Main);
     gNetConfirm = true;
     shot("dialog-network-change");
 
     printf("%d screens\n", gShots);
-    return gShots == 14 ? 0 : 1;
+    return gShots == 15 ? 0 : 1;
 }

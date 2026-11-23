@@ -10,7 +10,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 
 > **AI-generated:** This project is largely AI-generated. Code, tests and documentation were written mainly by an AI assistant (Claude by Anthropic, used through Claude Code) under the direction of the author, who specified the requirements, made the decisions, reviewed the results and tested them on the hardware. Use it like any hobby project: without warranty, and check it yourself before you rely on it.
 
-**[Flash in the browser](https://dm8sb.github.io/CYD-HF-Generator/)** (Chrome or Edge) · **User manual** [English](USER_MANUAL_EN.md) / [Deutsch](USER_MANUAL_DE.md) · **[Hardware: wiring and parts](docs/hardware.md)**
+**[Flash in the browser](https://dm8sb.github.io/CYD-HF-Generator/)** (Chrome or Edge) · **User manual** [English](USER_MANUAL_EN.md) / [Deutsch](USER_MANUAL_DE.md) · **[Hardware: wiring and parts](docs/hardware.md)** · **[Remote control API](docs/REMOTE_API.md)**
 
 <p align="center"><img src="docs/img/case-assembly.png" width="720" alt="CYD HF Generator in the 3D-printed case with the MAIN page: CH1 7.1 MHz, CH2 14 MHz, CH3 IQ 90 degrees"></p>
 <p align="center"><sub>Rendered from the OpenSCAD case and the firmware's GUI code (sample values); photos follow.</sub></p>
@@ -19,6 +19,7 @@ PlatformIO + Arduino-ESP32 firmware for a 3-channel HF square-wave generator wit
 
 - [USER_MANUAL_DE.md](USER_MANUAL_DE.md): user manual, reference for all behavior (German); [USER_MANUAL_EN.md](USER_MANUAL_EN.md): English translation
 - [docs/hardware.md](docs/hardware.md): SI5351 wiring to CN1, supply, outputs, bill of materials, safety
+- [docs/REMOTE_API.md](docs/REMOTE_API.md): remote control API in English: setup, SCPI over USB/TCP/VXI-11, REST and WebSocket, examples
 - [case/](case/README.md): parametric OpenSCAD case for the CYD2USB with the Si5351 module and three SMA sockets
 - [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md): requirements and decisions
 - [ARBEITSPLAN.md](ARBEITSPLAN.md): open findings, WEB-HMI concept and task list (German)
@@ -53,11 +54,54 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 
 ## Changes
 
-### Next release
+### 2.1.0
 
+Framework Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 (fixes the lwIP DNS advisory GHSA-ch63-jxm5-vmvf), CH2 coupled to CH1, screen rotation, a uniform operation after user tests, WiFi and web hardening, and the remaining audit follow-ups (supply chain, CI, tests, structure).
+
+- Screen rotation by 180° (E-53): CONFIG `Device` → `Screen` → `Rotate` toggles 0°/180° at once, for mounting with USB and SMA on the other side; touch follows, the touch calibration stays valid and runs in both orientations; stored in NVS, `Defaults` resets it. SCPI `SYSTem:DISPlay:ROTation 0|180`, REST `config.rotation`, web UI CONFIG `Screen` `0°`/`180°`
+- CH2 coupled to CH1 (`CH2 = CH1 + offset`, E-52): chips `Free` / `CH1 + offset` on the CH2 page, offset −160 to +160 MHz in 1 Hz with sign (`+`/`−`, step chips, NUMPAD with `+/-`), `Out` shows the CH2 frequency, MAIN `CH1 +455 kHz`; outside 8 kHz–160 MHz CH2 waits (`WAIT`, `Waiting: CH1 + offset below 8 kHz`) and starts by itself; CH3 with master CH2 follows; stored in NVS. SCPI `SOURce2:COUPle OFF|CH1`, `SOURce2:FREQuency:OFFSet`, REST `coupled`/`offset` on `/api/channel/2`, web UI chips; a CH2 frequency while coupled gives −221 `CH2 is coupled to CH1`
+- Remote control API reference in English (`docs/REMOTE_API.md`): setup of USB and WiFi, all SCPI commands for USB, TCP 5025 and VXI-11, REST and WebSocket, examples
 - CONFIG in five tabs instead of a scrolled list (`Signal`, `Freq`, `Net`, `Device`, `Info`; tab bar at the bottom, at most three rows each, nothing scrolls); `Reconnect all` moved to `Net`, the touch calibration next to `Lock` in `Device` (E-42)
 - One header for every page except MAIN: `◀` at the top left goes one level back (replaces the `MAIN` button of the channel pages and CONFIG), page actions at the right; the WiFi scan list pages with `▲`/`▼` (E-43)
 - The device no longer shows `Saved` / `Saving...`; only save errors appear in red (E-44)
+- WiFi without power save and at full TX power: the device answers in the network within milliseconds instead of up to 0.4 s, at about 80–100 mA more current (E-45)
+- The WiFi status is cached: addresses and network name once per connection, signal strength and AP stations at most once per second, instead of several driver calls in every loop; the web server rebuilds its shared state only on a change
+- The display redraws only what changes: labels, colors and the AP QR code are set only for a new value, a touch action redraws once, the RSSI on the info card follows changes of 3 dB or more, the heap line is sampled every 5 s; `SYSTem:HEAP?` answers from a cache of at most 100 ms
+- WiFi search with backoff: no background scan without a stored network, 15 s doubling to 5 min while no stored network is seen, at most every 2 min with devices on the fallback AP (E-46)
+- One owner of the network settings during a web change: only the confirmed state is saved (a power loss brings back the previous settings), the device refuses network changes meanwhile with `Web change pending` (`Revert` / `Keep`), also with a web password (E-47)
+- `SYSTem:SAVE` and `POST /api/save` write only the changed keys and at most once per 10 s per source; further requests are merged silently (no flash wear from a save loop)
+- With a web password reading needs the login as well: the page asks for the password when it opens, state, token and WebSocket answer 401 without a session; `/lxi/identification` stays open. WebSocket: only the PONG to the device's random PING counts, a PING flood closes the client, a hidden tab frees its slot after 60 s (E-48)
+- WebSocket pushes at most every 100 ms (the first change at once, then the latest state); pushes and new connections check the largest free heap block, so a fragmented heap skips a push or answers 503 instead of restarting
+- Manual: new section 17 "Updating the firmware" (web flasher, first installation or update, checking the download, esptool, building from source)
+- Manual: new section 18 "Mixer experiments" (settings, typical levels per drive strength, harmonics and low-pass filters, diode ring mixer, NE612/SA612, Tayloe detector with CH3 IQ, cable lengths, phase error and image rejection, two worked examples); levels are calculated or datasheet values until the measurements
+- Log lines go into a 1 KB serial transmit buffer instead of waiting for the UART; without an SI5351 the search slows down from every 2 s to every 10 s after one minute (log line `[APP] SI5351 search every 10 s`)
+- The numpad rounds half a hertz exactly like SCPI and REST (integer arithmetic instead of `double`; e.g. `1.0079105 MHz` gave 1 007 910 Hz instead of 1 007 911 Hz)
+- REST and WebSocket state: new `limits` (frequency range and step list of the firmware); the web UI takes its range checks and step buttons from it, the mock and the fake SCPI device read `include/constants.h`
+- The web UI refuses static addresses with leading zeros (`192.168.001.5`) itself, like the device; the host tools parse `host:port` in one place (`[v6]:port`, a bad port is reported)
+- WIFI pages: text entry (limits, title, counter, what OK does for each of the six purposes), the status line and the pages of the scan list moved into host-tested logic (`InputLogic::submitEntry()`, `StatusText::wifiLine()`, suite `test_wifi_entry`); no visible change
+- Confirmation dialogs (title, text, buttons, action) come from one table instead of an if/else chain; no visible change
+- The WIFI pages are a class of their own (`WifiPages`: overview, scan list, text entry, access point, device page with their widgets and state) instead of part of the GUI class; no visible change
+- GUI callbacks of main (touch calibration store, factory reset, WiFi manager and save, web change confirmation, web password worker, remote clients) are passed as one `GuiServices` struct instead of six setters; no visible change
+- The status LED is driven by `main` in every loop (color of the shown channel page, or Identify blinking with the backlight) instead of by the GUI; the GUI reads the heap line through a callback; no visible change
+- Web server code grouped by task: connection gate (async_tcp), login service (async_tcp and its worker task), pusher (loop), shared data under one lock; the job mailbox for WiFi changes and scans is a host-tested `JobSlot`; no change of the API
+- REST writes and WiFi jobs no longer block the network task for up to 80/180 ms with 1-ms polling: they wait at most 20 ms, woken by the main loop, and a slow loop answers them from the connection's poll callback; the state JSON and error bodies are written into a fixed buffer without heap allocations (byte-identical output, E-50)
+- Host tools: `rest_example.py` and `web_check.py` ask for the web password (`--password` without a value) or take `CYD_WEB_PASSWORD`; a password on the command line still works with a warning. CI fails if `include/test_wifi_local.h` or Python bytecode is tracked
+- Advisory check: weekly and before every release, the pinned dependencies (libraries, Arduino-ESP32, ESP-IDF, ESP Web Tools with its npm packages) are checked against the GitHub advisories of their upstream repositories and OSV; a finding fails the run and opens an issue (`tools/dep_check.py advisories`, accepted exceptions with reason in `tools/advisories_accepted.json`)
+- Release dry run: pull requests to `main` run the release workflow without release and deploy; asset names, licenses archive, `SHA256SUMS` and notes come from `tools/release_files.py` for the dry run and the release alike
+- Reproducible stamps: the info card and boot line show the commit time in UTC instead of the local build time, a release candidate shows its tag version (`2.0.0-rc1`) and the tag instead of `HEAD`; the license and LGPL archives of a release are deterministic (sorted, commit time, no owner, gzip without name and time), so an independent rebuild can be compared with the attested assets
+- Framework pinned exactly: `platform_packages` fixes the Arduino-ESP32 packages, the toolchain and esptool (the platform only asked for tilde ranges); CI and the release check the resolved packages against the pins and `THIRD_PARTY_NOTICES.md` (`tools/dep_check.py`), the release build runs without a package cache and its notes list every package; PlatformIO Core in CI is installed with hashes (`tools/requirements-ci.txt`, kept current by Dependabot); the package cache of CI is written only on `main` and `dev`
+- Zero-warning gate in CI: a compiler warning in `src/` or `include/` of the firmware builds fails the job `Firmware build`; host tests with `-Wall -Wextra`, `native-cpp20` with `-Werror`; a further job builds the touch log firmware and the host screen renderer
+- Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 on the pioarduino platform 55.03.313 (the PlatformIO registry has no 3.3.13 yet): fixes the lwIP DNS cache overflow GHSA-ch63-jxm5-vmvf of ESP-IDF 5.5.5; platform and framework pinned by release URL, CI and the release compare the SHA-256 digests GitHub publishes; Flash +26 KB, static RAM +384 B (E-51)
+- CI, fuzzing and CodeQL run on pushes to `main`, `dev` and `agent/**` and on pull requests (no longer on tags or other branches); runs on `main` are never cancelled by a later push, so the CodeQL alerts of `main` always come from a complete analysis
+- Host tests: the `Preferences` fake rejects NVS names over 15 characters and strings over 4000 bytes like the real NVS; `test_nvs` loads the complete key set of 2.0.0 from both namespaces (upgrade test)
+- Host tests pin the boundaries and error paths the mutation audit found open (AF35): CH3 exactly at 4.730 and 100 MHz, the remainder of the remote rate limit (75 ms steps, `millis()` overflow), Authorization 1024/1025 bytes, five UTF-8 edges, the autosave and retry delays, the Identify blinking with the backlight, the RSSI tie of two WiFi networks (the first one wins), every failing transfer of the SI5351 init, closed I2C bus, cut log lines, an inconsistent touch calibration and NVS write errors; the random tests restart from their seed in every test and name it in the message
+- Fix: a log line longer than 127 bytes on the serial port lost its newline, so the next line was glued to it; the cut line now ends with a newline like in the SCPI log buffer (found by the AF35 tests)
+- Fuzzing: two more harnesses (12): `prefilter` (the byte filter in front of the HTTP parser, in random chunks and time steps, against an independent reference and differentially against the request guard) and `rest_wifi` (POST/GET `/api/wifi` against an independent model of the rules: unknown key −108, refusals leave the settings unchanged, no secret in any answer); both run 60 s per push in the CI job `Fuzz`
+- Host tests: random interleavings of the web job mailbox (`JobSlot`, request, timeout and late result of loop(), 200 000 steps): every request gets its own result or none, every scan buffer is freed exactly once (AF33)
+- Web server: the routes are one table in `net/web_routes.*` used by the request dispatch and the request guard, and the request body is assembled there (host-tested against every path of `data/www/README.md`); a body with an embedded NUL byte is now refused with `-102` instead of being cut at the NUL, and the whole body is wiped after a password (AF32)
+- CI: the host tests also run under ASan and UBSan (env `native-asan`, Linux), and a deliberate overflow in the probe suite `test_sanitizer` must be reported (AF36)
+- CI job `Tool checks`: size report self-test, mock with web check (without and with password), fake device with device check, and shared contract vectors (`test/contract/vectors.json`) that the C++ host tests and `tools/contract_check.py` read; they found the mock answering differently from the firmware (Origin, Sec-Fetch-Site and token rules on GET, POST outside `/api/`, broken Cookie/Authorization, duplicate keys, rate limit counting refused bodies), now fixed in the mock; the build stops on `innerHTML` and friends in `data/www` (AF34)
+- Measurement helpers for tier 1W (AF39): `tools/slowloris.py` (L-S5), `tools/touchstat.py` (touch logs), `tools/counter_log.py` (counter CSV), `device_check.py --profile L6|L22`, test build env `esp32-2432S028R-faultiq` for A8/A11; the fake SCPI device knows `*RST`
 
 ### 2.0.0
 
@@ -143,7 +187,7 @@ Pinned in `platformio.ini`:
 
 | Library | Version | License |
 |---|---|---|
-| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, Hash) with ESP-IDF 5.5.5 | 3.3.12 via `espressif32@8.0.0` | LGPL-2.1-or-later, Apache-2.0, MIT |
+| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, Hash) with ESP-IDF 5.5.6 | 3.3.13 via the pioarduino platform `55.03.313` (E-51); `framework-arduinoespressif32` and `-libs` pinned by Espressif's release URLs, toolchain (GCC 14.4.0) and esptool 5.6.0 by the platform | LGPL-2.1-or-later, Apache-2.0, MIT |
 | `bodmer/TFT_eSPI` (exact: the ST7789 init sequence is derived from it) | 2.5.43 | FreeBSD (BSD-2-Clause-Views), MIT |
 | `lvgl/lvgl` | 8.4.0 | MIT |
 | XPT2046_Touchscreen | commit `d57f64c` (tag v1.4) | MIT |
@@ -166,9 +210,9 @@ pio run -t upload            # both boards
 pio device monitor -b 115200
 ```
 
-Releases (`.github/workflows/release.yml`): a `v*` tag is built only if its commit is on `main` and passes the host tests; the release is never overwritten (tag ruleset and immutable releases on GitHub), and the web flasher goes live only after the release exists. Every release asset is covered by the build provenance; check one with `gh attestation verify <file> --repo dm8sb/CYD-HF-Generator` and the checksums with `sha256sum -c SHA256SUMS`. A manual run of the workflow builds and assembles the flasher site as an artifact but never deploys it.
+Releases (`.github/workflows/release.yml`): a `v*` tag is built only if its commit is on `main` and passes the host tests; the release is never overwritten (tag ruleset and immutable releases on GitHub), and the web flasher goes live only after the release exists. Every release asset is covered by the build provenance; check one with `gh attestation verify <file> --repo dm8sb/CYD-HF-Generator` and the checksums with `sha256sum -c SHA256SUMS`. A manual run of the workflow builds and assembles the flasher site as an artifact but never deploys it. Every pull request to `main` (and every push to `dev` or `agent/**` that changes the release path) runs the same workflow as a dry run: tests, build without cache, flasher site and the job `Release dry run`, which names the assets and writes the notes with the same script as the release (`tools/release_files.py`) without publishing anything.
 
-The controller is read over SPI before the display init at every boot; nothing is stored. For an unrecognized board (display shows only noise), build with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789). `tools/build_info.py` passes branch, commit (`+` = uncommitted changes) and build time to `src/utils/build_info.cpp` only. Partition table `huge_app.csv`; a standard 4 MB module is sufficient.
+The controller is read over SPI before the display init at every boot; nothing is stored. For an unrecognized board (display shows only noise), build with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789). `tools/build_info.py` passes branch, commit (`+` = uncommitted changes), the commit time in UTC (`SOURCE_DATE_EPOCH` if set) and, for a tag build, the tag version (e.g. `2.0.0-rc1`) to `src/utils/build_info.cpp` only, so two builds of the same commit give the same image. Partition table `huge_app.csv`; a standard 4 MB module is sufficient.
 
 ## Tests
 
@@ -176,9 +220,10 @@ The controller is read over SPI before the display init at every boot; nothing i
 pio test -e native-win         # host tests on Windows (MinGW bundled with PlatformIO)
 pio test -e native             # host tests on Linux/macOS/CI (gcc in PATH)
 pio test -e native-win-fault   # IQ error state (TEST_FAULT_IQ); native-fault on Linux
+pio test -e native-asan        # host tests under ASan/UBSan (Linux/CI)
 ```
 
-Host tests cover the SI5351 driver and planner against a register model (`test/helpers/si5351_model.h`, decoded independently of the driver), the AppController, display detection, touch, GUI input logic, status texts, contrast, the remote command queue, SCPI, SCPI over TCP, VXI-11 and LXI identification, the web request guard, REST JSON and WiFi mapping, network settings, WiFi policy, the logger and sanitizing, plus fuzz harnesses with a fixed seed (`test_fuzz_random`). `test/fakes` replaces the Arduino core, `Wire` and `Preferences`; the fuzz harnesses are described in [test/fuzz/README.md](test/fuzz/README.md).
+Host tests cover the SI5351 driver and planner against a register model (`test/helpers/si5351_model.h`, decoded independently of the driver), the AppController, display detection, touch, GUI input logic, status texts, contrast, the remote command queue, SCPI, SCPI over TCP, VXI-11 and LXI identification, the web request guard, the web routes and body assembly (every path of the REST contract), REST JSON and WiFi mapping, network settings, the NVS limits and the upgrade from the stored keys of 2.0.0, WiFi policy, the logger and sanitizing, plus fuzz harnesses with a fixed seed (`test_fuzz_random`). `test/fakes` replaces the Arduino core, `Wire` and `Preferences`; the fuzz harnesses are described in [test/fuzz/README.md](test/fuzz/README.md).
 
 Touch test builds for the measurement plan (not built by a plain `pio run`, never released; CI builds the hit map env):
 
@@ -204,7 +249,7 @@ Needs Python 3, PlatformIO, OpenSCAD, Chrome or Edge and Node; details of the re
 - `core/app_controller.*`: single source of truth for runtime state, the only user of the SI5351 driver
 - `drivers/si5351_manager.*`, `drivers/si5351_plan.*`: SI5351 register driver and PLL/MultiSynth planning per tuning mode (pure functions)
 - `drivers/display_detect.*`, `drivers/display_panel.*`: controller detection (host-testable) and TFT_eSPI with the ST7789 init
-- `drivers/touch*`, `drivers/backlight.*`, `drivers/status_led.*`: touch with filter, backlight PWM, RGB LED
+- `drivers/touch*`, `drivers/backlight.*`, `drivers/status_led.*`, `drivers/led_color.h`: touch with filter, backlight PWM, RGB LED (driven by `main`: shown page or Identify)
 - `hal/i2c_bus.*`: owns `Wire`, opens either SDA/SCL assignment
 - `services/*`: Preferences storage and autosave
 - `remote/*`: command queue and state snapshot for remote access, line framer, SCPI command tree (`scpi.*`), the USB link (`scpi_usb.*`), SCPI over TCP (`scpi_tcp*`), ONC RPC and VXI-11 with portmapper (`onc_rpc.*`, `vxi11.*`, glue `vxi11_server.*`), LXI identification (`lxi_ident.*`), REST JSON mapping (`rest_json.*`, `rest_wifi.*`)

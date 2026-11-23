@@ -75,12 +75,18 @@ public:
             case CommandType::Drive:
             case CommandType::Backlight:
             case CommandType::Step:
-            case CommandType::Correction: break; // any int64: the controller checks the range
+            case CommandType::Correction:
+            case CommandType::Rotation: break; // any int64: the controller checks the range
+            case CommandType::Ch2Couple:
+                FUZZ_CHECK(c.channel == 2);
+                FUZZ_CHECK(c.value == 0 || c.value == 1);
+                break;
+            case CommandType::Ch2Offset: FUZZ_CHECK(c.channel == 2); break;
         }
         Outcome o;
         const uint32_t r = rng.next();
         o.push = (r & 15) == 0 ? PushResult::Full : (r & 15) == 1 ? PushResult::RateLimited : PushResult::Queued;
-        o.result = (Result)((r >> 4) % 7);
+        o.result = (Result)((r >> 4) % 8);
         return o;
     }
     bool snapshot(Snapshot* out) override {
@@ -111,6 +117,7 @@ void fillSnapshot(Snapshot& s, Rng& rng, uint8_t variant) {
     s.state.sys.tuning_mode = (TuningMode)(rng.next() % 3);
     s.state.sys.spread = (Spread)(rng.next() % 4);
     s.state.sys.off_state = (OffState)(rng.next() % 3);
+    s.state.sys.rotation = (variant & 128) ? 180 : 0;
     s.status[0] = (ChannelStatus)(rng.next() % 4);
     s.status[1] = (ChannelStatus)(rng.next() % 4);
     s.ch3Status = (Ch3Status)(rng.next() % 7);

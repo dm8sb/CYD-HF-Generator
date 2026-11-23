@@ -29,6 +29,13 @@ static const char* ppmMap[] = {
     ".", "0", "C", ""};
 static const uint16_t PPM_CONFIRM_IDS[] = {7};
 
+// Offset of a coupled CH2 (E-52): the frequency keys plus "+/-" for the sign.
+static const char* offsetMap[] = {
+    "7", "8", "9", "MHz", "\n",
+    "4", "5", "6", "kHz", "\n",
+    "1", "2", "3", "Hz", "\n",
+    "+/-", ".", "0", LV_SYMBOL_BACKSPACE, "C", ""};
+
 lv_color_t Gui::numpadColor_() const { return numpadPpm_ ? Colors::config() : Colors::forChannel(channel_); }
 
 void Gui::createNumpad_(uint8_t ch) {
@@ -39,7 +46,8 @@ void Gui::createNumpad_(uint8_t ch) {
     const PageId back = numpadPpm_ ? PageId::Config : numpadReturn_;
     // Back button like every header (Layout::BACK_*); the entry field takes the rest of the row.
     addButton_(root_, LV_SYMBOL_LEFT, BACK_X, BACK_Y, BACK_W, BACK_H, Colors::gray(), Action::Navigate, (uint8_t)back);
-    addLabel_(root_, numpadPpm_ ? "Corr." : (ch == 1 ? "CH1" : "CH2"), &lv_font_montserrat_20, color, HEADER_TITLE_X, 10);
+    addLabel_(root_, numpadPpm_ ? "Corr." : numpadOffset_ ? "Offs." : (ch == 1 ? "CH1" : "CH2"), &lv_font_montserrat_20,
+              color, HEADER_TITLE_X, 10);
 
     numpad_ = InputLogic::Numpad {};
     w_.ta = lv_textarea_create(root_);
@@ -56,6 +64,7 @@ void Gui::createNumpad_(uint8_t ch) {
     // The current value stays visible while typing, the error text on the right (U-9).
     char now[24];
     if (numpadPpm_) FrequencyUtils::formatPpm(app_->system().freq_correction, now, sizeof(now));
+    else if (numpadOffset_) FrequencyUtils::formatOffset(app_->ch2Coupling().offset, now, sizeof(now));
     else FrequencyUtils::format(app_->channel(ch).frequency, now, sizeof(now));
     snprintf(buf, sizeof(buf), "Now %s", now);
     addLabel_(root_, buf, &lv_font_montserrat_14, Colors::muted(), 8, INFO_Y);
@@ -63,7 +72,7 @@ void Gui::createNumpad_(uint8_t ch) {
     lv_obj_align(w_.npError, LV_ALIGN_TOP_RIGHT, -8, INFO_Y);
 
     lv_obj_t* m = lv_btnmatrix_create(root_);
-    lv_btnmatrix_set_map(m, numpadPpm_ ? ppmMap : freqMap);
+    lv_btnmatrix_set_map(m, numpadPpm_ ? ppmMap : numpadOffset_ ? offsetMap : freqMap);
     // Up to the screen edge; the padding keeps the keys where they were (6 px from the edge).
     // Keys in the outer rows and columns take taps in the padding, so up to the edge (U-5).
     lv_obj_set_pos(m, 0, KEYS_Y);
@@ -95,20 +104,25 @@ void Gui::handleNumpadKey_(lv_obj_t* matrix) {
     if (!key || !ta) return;
     uint64_t hz = 0;
     int32_t centiPpm = 0;
-    const InputLogic::NumpadEvent e = numpadPpm_ ? InputLogic::numpadPpmKey(numpad_, key, &centiPpm)
-                                                 : InputLogic::numpadKey(numpad_, key, &hz);
+    int32_t offset = 0;
+    const InputLogic::NumpadEvent e = numpadPpm_      ? InputLogic::numpadPpmKey(numpad_, key, &centiPpm)
+                                      : numpadOffset_ ? InputLogic::numpadOffsetKey(numpad_, key, &offset)
+                                                      : InputLogic::numpadKey(numpad_, key, &hz);
     switch (e) {
         case InputLogic::NumpadEvent::Confirmed:
             if (numpadPpm_) {
                 app_->setCorrection(centiPpm);
                 requestNavigate_(PageId::Config);
+            } else if (numpadOffset_) {
+                app_->setCh2Offset(offset);
+                requestNavigate_(numpadReturn_);
             } else {
                 app_->setChannelFrequency(channel_, hz);
                 requestNavigate_(numpadReturn_);
             }
             return;
         case InputLogic::NumpadEvent::Rejected:
-            lv_label_set_text(w_.npError, InputLogic::numpadErrorText(numpad_.error));
+            Ui::setText(w_.npError, InputLogic::numpadErrorText(numpad_.error));
             lv_obj_set_style_border_color(ta, Colors::error(), 0);
             return;
         case InputLogic::NumpadEvent::Edited: {
@@ -120,6 +134,6 @@ void Gui::handleNumpadKey_(lv_obj_t* matrix) {
         case InputLogic::NumpadEvent::Ignored:
             break;
     }
-    lv_label_set_text(w_.npError, "");
+    Ui::setText(w_.npError, "");
     lv_obj_set_style_border_color(ta, numpadColor_(), 0);
 }

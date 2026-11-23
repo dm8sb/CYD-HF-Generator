@@ -7,6 +7,7 @@
 #include <constants.h>
 #include <types.h>
 #include <services/settings.h>
+#include <services/save_limiter.h>
 #include <drivers/si5351_manager.h>
 #include <drivers/backlight.h>
 
@@ -40,14 +41,16 @@ public:
     void begin(const PersistentState& loaded);
     // Finds the SI5351 with either SDA/SCL assignment and initializes it (boot).
     bool connectHardware() { return connect_(); }
-    // Autosave and SI5351 supervision (health check, automatic reconnect).
+    // Autosave and SI5351 supervision (health check, automatic reconnect; without a chip the
+    // search slows down after a minute, AF53).
     void update();
     void applyStoredChannelSettings();
 
     // Up to MAX_LISTENERS receivers; false if full.
     static constexpr uint8_t MAX_LISTENERS = 3;
     bool addListener(EventListener fn, void* ctx);
-    // Source of the following commands (Touch by default; remote servers set theirs).
+    // Source of the following commands (Touch by default; remote servers set theirs). Prefer
+    // SourceScope, which restores the previous source when it goes out of scope.
     void setSource(Source s) {
         source_ = s;
         if (isRemote(s)) {
@@ -55,6 +58,19 @@ public:
             lastRemoteMs_ = millis();
         }
     }
+    // Runs the commands of one scope under the given source and restores the previous one at
+    // the end, also on an early return (CQ-21: no setter runs as Touch by accident).
+    class SourceScope {
+    public:
+        SourceScope(AppController& app, Source s) : app_(app), previous_(app.source_) { app.setSource(s); }
+        ~SourceScope() { app_.source_ = previous_; }
+        SourceScope(const SourceScope&) = delete;
+        SourceScope& operator=(const SourceScope&) = delete;
+
+    private:
+        AppController& app_;
+        const Source previous_;
+    };
     // Last remote source and when it sent a command (status bar REMOTE <source>, W-E14);
     // Source::Touch while none did.
     Source lastRemote() const { return lastRemote_; }
@@ -66,12 +82,22 @@ public:
     Result adjustChannelFrequency(uint8_t ch, int64_t delta);
     // A remote source may not switch an output on while remote outputs are local only (Denied).
     Result setChannelEnabled(uint8_t ch, bool en);
+    // CH2 coupled to CH1 (E-52): CH2 = CH1 + offset. setChannelFrequency(2) and
+    // adjustChannelFrequency(2) give Coupled meanwhile. Decoupling keeps the last frequency CH2
+    // ran at. The offset may be set while free too (it applies when coupling).
+    Result setCh2Coupled(bool coupled);
+    // -CH2_OFFSET_MAX_HZ..+CH2_OFFSET_MAX_HZ (OutOfRange beyond); adjustCh2Offset() clamps.
+    Result setCh2Offset(int64_t offset);
+    Result adjustCh2Offset(int64_t delta);
     Result setCH3Master(uint8_t master);
     Result setCH3Phase(uint16_t phase);
     Result setGlobalDriveStrength(uint8_t strength);
     // BACKLIGHT_MIN_PERCENT..100, rounded to BACKLIGHT_STEP_PERCENT.
     Result setBacklight(uint8_t percent);
     Result stepBacklight(int8_t direction);
+    // Screen rotation in degrees, 0 or 180 (E-53; anything else Invalid). The GUI applies it to the
+    // display and the touch when the revision changes; Defaults and *RST set 0 like the backlight.
+    Result setRotation(uint16_t degrees);
     // One of DELTA_STEPS.
     Result setDeltaStep(uint32_t step);
     // 0.01 ppm, at most +-CORRECTION_MAX.
@@ -92,8 +118,10 @@ public:
     bool identifying() const { return identifying_; }
     // Blink phase while identifying: true = lit.
     bool identifyLit() const { return identifyLit_; }
-    // SYSTem:SAVE: writes every key at once.
-    bool saveNow() { return settings_.saveNow(state_); }
+    // SYSTem:SAVE / POST /api/save: writes the changed keys at once, at most once per 10 s per
+    // source (AF17, D26); a request within that time is merged and saved by update() 10 s after
+    // the previous save. true unless the immediate save failed.
+    bool saveNow();
     // CONFIG options; each reconfigures the outputs as needed. Spread is ignored (stays Off)
     // in TuningMode::Integer; switching to Integer turns it off.
     Result setTuningMode(TuningMode mode);
@@ -104,6 +132,14 @@ public:
     // ch 1 or 2; anything else gives an empty channel (frequency 0, off), never CH2 (S-12).
     const Channel& channel(uint8_t ch) const;
     const Channel3& ch3() const { return state_.ch3; }
+    const Ch2Coupling& ch2Coupling() const { return state_.ch2c; }
+    bool ch2Coupled() const { return state_.ch2c.coupled; }
+    // CH1 + offset while coupled (may lie outside the range: then CH2 waits), else the CH2 frequency.
+    int64_t ch2TargetHz() const;
+    // CH2 is coupled and CH1 + offset lies outside FREQ_MIN_HZ..FREQ_MAX_HZ: CLK1 is off.
+    bool ch2Waiting() const;
+    // The frequency a channel is set to: ch 1, 2 (coupled: CH1 + offset, 0 below 0), 3 (its master).
+    uint64_t frequency(uint8_t ch) const;
     const SystemSettings& system() const { return state_.sys; }
 
     bool hardwareReady() const { return si5351_.ready(); }
@@ -156,8 +192,16 @@ private:
     void configureMasterGroup_();
     void configureChannel_(uint8_t ch);
     void reconfigureOutputs_();
+    // Reconfigures all outputs after a global setting and marks keys changed; HwError if the
+    // SI5351 was ready and the connection got lost.
+    Result reconfigureReport_(uint16_t keys);
+    // Defaults in state_ and the SI5351 (correction kept), shared by resetToDefaults() and *RST.
+    void applyDefaults_();
     // HwError if the SI5351 was ready and the setup of clk failed or lost the connection.
     Result outcome_(bool wasReady, uint8_t clk) const;
+    // Coupled and not waiting: CH2's stored frequency follows CH1 + offset (decoupling then keeps
+    // it). Returns the keys to mark.
+    uint16_t syncCoupled_();
     bool masterEnabled_() const;
     uint64_t masterFrequency_() const;
 
@@ -171,6 +215,7 @@ private:
     };
     Listener listeners_[MAX_LISTENERS] {};
     Source source_ = Source::Touch;
+    SaveLimiter saveLimiter_;
     Source lastRemote_ = Source::Touch;
     uint32_t lastRemoteMs_ = 0;
     bool remoteOutputsAllowed_ = true;
@@ -179,6 +224,10 @@ private:
     bool identifyLit_ = true;
     uint32_t identifyStartMs_ = 0;
     uint32_t lastHwCheckMs_ = 0;
+    // Search without a chip: running since searchSinceMs_ (boot or loss), slow after a minute.
+    bool searching_ = false;
+    bool searchSlow_ = false;
+    uint32_t searchSinceMs_ = 0;
     uint32_t revision_ = 0;
     LinkState link_ = LinkState::NotFound;
     // False until the first connection attempt: its result is always logged (finding M-1).

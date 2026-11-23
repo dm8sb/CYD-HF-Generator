@@ -334,10 +334,16 @@ struct Field {
 };
 // The documented order (rest_json.h): channel frequency before enabled; CH3 master and phase
 // before enabled; config tuning before spread, then off state, drive, correction, step,
-// backlight.
+// backlight, rotation.
 const Field CHANNEL[] = {{"frequency", Kind::Integer, CommandType::SetFrequency},
                          {"frequencyText", Kind::FrequencyText, CommandType::SetFrequency},
                          {"enabled", Kind::Bool, CommandType::SetEnabled}};
+// CH2 (E-52): offset, coupled, then as CHANNEL.
+const Field CH2[] = {{"offset", Kind::Integer, CommandType::Ch2Offset},
+                     {"coupled", Kind::Bool, CommandType::Ch2Couple},
+                     {"frequency", Kind::Integer, CommandType::SetFrequency},
+                     {"frequencyText", Kind::FrequencyText, CommandType::SetFrequency},
+                     {"enabled", Kind::Bool, CommandType::SetEnabled}};
 const Field CH3[] = {{"master", Kind::Integer, CommandType::Ch3Master},
                      {"phase", Kind::Integer, CommandType::Ch3Phase},
                      {"enabled", Kind::Bool, CommandType::SetEnabled}};
@@ -348,7 +354,9 @@ const Field CONFIG[] = {{"tuning", Kind::Tuning, CommandType::Tuning},
                         {"correction", Kind::Integer, CommandType::Correction},
                         {"step", Kind::Integer, CommandType::Step},
                         {"backlight", Kind::Integer, CommandType::Backlight},
+                        {"rotation", Kind::Integer, CommandType::Rotation},
                         {"remoteOutputs", Kind::DeviceOnly, CommandType::SaveNow}};
+static_assert(sizeof(CONFIG) / sizeof(CONFIG[0]) <= 16, "values[] in expectFields");
 const char* const TUNING[] = {"fractional", "lownoise", "integer"};
 const char* const SPREAD[] = {"off", "down05", "down15", "center05"};
 const char* const OFFSTATE[] = {"low", "high", "hiz"};
@@ -453,7 +461,7 @@ Want expectFields(const Field* fields, size_t count, uint8_t channel, const Body
     cmds->clear();
     Want w {};
     if (!loadBody(b, &w)) return w;
-    int64_t values[8] = {};
+    int64_t values[16] = {}; // at least as many as the longest field table (CONFIG)
     unsigned seen = 0;
     for (size_t i = 0; i < b.top.keys.size(); ++i) {
         size_t f = 0;
@@ -466,6 +474,7 @@ Want expectFields(const Field* fields, size_t count, uint8_t channel, const Body
     }
     if (seen == 0) return err(MISSING_PARAMETER);
     if (fields == CHANNEL && (seen & 3u) == 3u) return err(PARAMETER_NOT_ALLOWED);
+    if (fields == CH2 && (seen & 12u) == 12u) return err(PARAMETER_NOT_ALLOWED);
     for (size_t f = 0; f < count; ++f) {
         if (!(seen & (1u << f))) continue;
         Command c {};
@@ -519,7 +528,8 @@ void checkReply(const Reply& r, const Want& w, const Commands& out, const std::v
         FUZZ_CHECK(c.source == Source::Web);
         if (i > 0) FUZZ_CHECK(c.type != out.list[i - 1].type); // one command per setting
         switch (c.type) {
-            case CommandType::SetEnabled: FUZZ_CHECK(c.value == 0 || c.value == 1); break;
+            case CommandType::SetEnabled:
+            case CommandType::Ch2Couple: FUZZ_CHECK(c.value == 0 || c.value == 1); break;
             case CommandType::Tuning: FUZZ_CHECK(c.value >= 0 && c.value <= 2); break;
             case CommandType::Spread: FUZZ_CHECK(c.value >= 0 && c.value <= 3); break;
             case CommandType::OffState: FUZZ_CHECK(c.value >= 0 && c.value <= 2); break;
@@ -547,7 +557,9 @@ void requestBody(uint8_t op, uint8_t param, const Body& b) {
         case 2: {
             const uint8_t ch = op == 2 ? param : (uint8_t)(op + 1);
             r = parseChannel(ch, b.ptr, b.len, &out);
-            w = (ch == 1 || ch == 2) ? expectFields(CHANNEL, 3, ch, b, &cmds) : Want {404, -114, 0, 0};
+            w = ch == 1   ? expectFields(CHANNEL, 3, ch, b, &cmds)
+                : ch == 2 ? expectFields(CH2, 5, ch, b, &cmds)
+                          : Want {404, -114, 0, 0};
             break;
         }
         case 3:
@@ -556,7 +568,7 @@ void requestBody(uint8_t op, uint8_t param, const Body& b) {
             break;
         case 4:
             r = parseConfig(b.ptr, b.len, &out);
-            w = expectFields(CONFIG, 8, 0, b, &cmds);
+            w = expectFields(CONFIG, sizeof(CONFIG) / sizeof(CONFIG[0]), 0, b, &cmds);
             break;
         default: {
             const CommandType type = op == 5 ? CommandType::SaveNow
@@ -737,12 +749,14 @@ void checkModes(const JV& modes, bool ch1) {
 void deviceRanges(Snapshot& s, DeviceInfo& di) {
     static const uint16_t PHASES[] = {0, 90, 180, 270};
     s.state.ch1.frequency %= FREQ_MAX_HZ + 1;
-    s.state.ch2.frequency %= FREQ_MAX_HZ + 1;
+    s.state.ch2.frequency %= 2 * FREQ_MAX_HZ + 1; // coupled and waiting: up to CH1 + 160 MHz
+    s.state.ch2c.offset %= CH2_OFFSET_MAX_HZ + 1;
     s.state.ch3.master = (uint8_t)(1 + s.state.ch3.master % 2);
     s.state.ch3.phase = PHASES[s.state.ch3.phase % 4];
     s.state.sys.delta_step = DELTA_STEPS[s.state.sys.delta_step % DELTA_STEP_COUNT];
     s.state.sys.freq_correction %= CORRECTION_MAX + 1;
     s.state.sys.backlight = (uint8_t)(10 + s.state.sys.backlight % 91);
+    s.state.sys.rotation = (uint16_t)(s.state.sys.rotation % 2 ? 180 : 0);
     s.state.sys.drive_ma = (uint8_t)(2 + 2 * (s.state.sys.drive_ma % 4));
     for (double& a : s.actualHz) {
         if (!(a >= 0.0 && a <= 2.0 * FREQ_MAX_HZ)) a = fmod(fabs(a), 2.0 * FREQ_MAX_HZ);
@@ -773,8 +787,8 @@ void state(const uint8_t* d, size_t n) {
     s.state.sys.tuning_mode = (TuningMode)(rd.u8() % 3);
     s.state.sys.spread = (Spread)(rd.u8() % 4);
     s.state.sys.off_state = (OffState)(rd.u8() % 3);
-    s.status[0] = (ChannelStatus)(rd.u8() % 4);
-    s.status[1] = (ChannelStatus)(rd.u8() % 4);
+    s.status[0] = (ChannelStatus)(rd.u8() % 6);
+    s.status[1] = (ChannelStatus)(rd.u8() % 6);
     s.ch3Status = (Ch3Status)(rd.u8() % 7);
     for (double& a : s.actualHz) a = rd.f64(); // any bits: NaN, inf, negative
     s.hardwareReady = rd.u8() & 1;
@@ -803,6 +817,9 @@ void state(const uint8_t* d, size_t n) {
     di.version = (vlen & 0x80) ? nullptr : version.c_str();
     const uint32_t now = rd.u32();
     const uint8_t sizeSel = rd.u8();
+    s.state.ch2c.coupled = rd.u8() & 1; // read last: older seeds keep their meaning
+    s.state.ch2c.offset = (int32_t)rd.u32();
+    s.state.sys.rotation = rd.u16(); // read last as well (E-53)
     if (device) deviceRanges(s, di);
 
     // Built into a large buffer first (the size only limits the output); with device values the
@@ -824,9 +841,9 @@ void state(const uint8_t* d, size_t n) {
         FUZZ_CHECK(again.is<JsonObjectConst>() && again.as<JsonObjectConst>().size() == doc.keys.size());
     }
     checkStrings(doc);
-    static const char* const ORDER[] = {"rev", "hw", "save", "remote", "ch", "ch3", "config", "wifi", "device"};
-    FUZZ_CHECK(doc.keys.size() == 9);
-    for (size_t i = 0; i < 9; ++i) FUZZ_CHECK(doc.keys[i] == ORDER[i]);
+    static const char* const ORDER[] = {"rev", "hw", "save", "remote", "ch", "ch3", "limits", "config", "wifi", "device"};
+    FUZZ_CHECK(doc.keys.size() == 10);
+    for (size_t i = 0; i < 10; ++i) FUZZ_CHECK(doc.keys[i] == ORDER[i]);
 
     needNum(doc, "rev", u64s(s.revision));
     static const char* const HW[] = {"CONN", "BLOC", "UNKN", "NFO"};
@@ -840,19 +857,23 @@ void state(const uint8_t* d, size_t n) {
     if (remote && now - s.lastRemoteMs < REMOTE_INDICATOR_MS) needStr(doc, "remote", remote);
     else need(doc, "remote", JV::Null);
 
-    static const char* const CH_STATUS[] = {"ON", "OFF", "ERR", "NOHW"};
+    static const char* const CH_STATUS[] = {"ON", "OFF", "ERR", "NOHW", "WAIT"};
     const JV& ch = need(doc, "ch", JV::Arr);
     FUZZ_CHECK(ch.vals.size() == 2);
     for (int k = 0; k < 2; ++k) {
         const JV& o = ch.vals[k];
         const Channel& c = k == 0 ? s.state.ch1 : s.state.ch2;
-        FUZZ_CHECK(o.k == JV::Obj && o.keys.size() == 6);
+        FUZZ_CHECK(o.k == JV::Obj && o.keys.size() == (k == 1 ? 8u : 6u));
         needNum(o, "n", u64s((uint64_t)k + 1));
         needBool(o, "enabled", c.enabled);
         needNum(o, "frequency", u64s(c.frequency));
         needNum(o, "actual", actualOf(s.actualHz[k]));
-        FUZZ_CHECK(oneOf(need(o, "status", JV::Str).s, CH_STATUS, 4));
+        FUZZ_CHECK(oneOf(need(o, "status", JV::Str).s, CH_STATUS, 5));
         checkModes(need(o, "modes", JV::Arr), k == 0);
+        if (k == 1) {
+            needBool(o, "coupled", s.state.ch2c.coupled);
+            needNum(o, "offset", i64s(s.state.ch2c.offset));
+        }
     }
     const JV& ch3 = need(doc, "ch3", JV::Obj);
     needBool(ch3, "enabled", s.state.ch3.enabled);
@@ -865,6 +886,17 @@ void state(const uint8_t* d, size_t n) {
     needNum(ch3, "iqMin", u64s(s.iqMinHz));
     needNum(ch3, "iqMax", u64s(s.iqMaxHz));
 
+    const JV& lim = need(doc, "limits", JV::Obj);
+    FUZZ_CHECK(lim.keys.size() == 4);
+    needNum(lim, "offsetMax", u64s(CH2_OFFSET_MAX_HZ));
+    needNum(lim, "fmin", u64s(FREQ_MIN_HZ));
+    needNum(lim, "fmax", u64s(FREQ_MAX_HZ));
+    const JV& steps = need(lim, "steps", JV::Arr);
+    FUZZ_CHECK(steps.vals.size() == DELTA_STEP_COUNT);
+    for (size_t i = 0; i < steps.vals.size() && i < DELTA_STEP_COUNT; ++i) {
+        FUZZ_CHECK(steps.vals[i].k == JV::Num && steps.vals[i].s == u64s(DELTA_STEPS[i]));
+    }
+
     const JV& cfg = need(doc, "config", JV::Obj);
     needNum(cfg, "drive", u64s(s.state.sys.drive_ma));
     needStr(cfg, "tuning", TUNING[(int)s.state.sys.tuning_mode]);
@@ -873,6 +905,7 @@ void state(const uint8_t* d, size_t n) {
     needNum(cfg, "correction", i64s(s.state.sys.freq_correction));
     needNum(cfg, "step", u64s(s.state.sys.delta_step));
     needNum(cfg, "backlight", u64s(s.state.sys.backlight));
+    needNum(cfg, "rotation", u64s(s.state.sys.rotation));
     needStr(cfg, "remoteOutputs", s.remoteOutputsAllowed ? "allowed" : "local");
 
     const JV& wifi = need(doc, "wifi", JV::Obj);
@@ -917,7 +950,7 @@ void state(const uint8_t* d, size_t n) {
 
 void outcomes(const uint8_t* d, size_t n) {
     const PushResult p = (PushResult)(d[0] % 3);
-    const Result res = (Result)(d[1] % 7);
+    const Result res = (Result)(d[1] % 8);
     struct Row {
         uint16_t status;
         int16_t code;
@@ -929,7 +962,8 @@ void outcomes(const uint8_t* d, size_t n) {
                               {400, ILLEGAL_PARAMETER_VALUE},
                               {400, SETTINGS_CONFLICT},
                               {403, SETTINGS_CONFLICT},
-                              {500, HARDWARE_ERROR}};
+                              {500, HARDWARE_ERROR},
+                              {400, SETTINGS_CONFLICT}};
     const Reply a = fromPush(p);
     const Reply b = fromResult(res);
     const Reply c = fromOutcome(p, res);

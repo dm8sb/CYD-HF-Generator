@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <utils/ipv4.h>
 
 namespace LxiIdent {
 
@@ -52,11 +53,6 @@ struct Out {
     }
 };
 
-void quad(uint32_t v, char* out, size_t n) {
-    snprintf(out, n, "%u.%u.%u.%u", (unsigned)(v >> 24), (unsigned)((v >> 16) & 0xFF), (unsigned)((v >> 8) & 0xFF),
-             (unsigned)(v & 0xFF));
-}
-
 } // namespace
 
 size_t build(const Info& info, char* out, size_t outSize) {
@@ -64,9 +60,9 @@ size_t build(const Info& info, char* out, size_t outSize) {
     out[0] = '\0';
     Out o {out, outSize, 0, true};
     char ip[16], mask[16], gateway[16], buf[96];
-    quad(info.ip, ip, sizeof(ip));
-    quad(info.mask, mask, sizeof(mask));
-    quad(info.gateway, gateway, sizeof(gateway));
+    Ipv4::format(info.ip, ip, sizeof(ip));
+    Ipv4::format(info.mask, mask, sizeof(mask));
+    Ipv4::format(info.gateway, gateway, sizeof(gateway));
     o.raw("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
           "<LXIDevice xmlns=\"http://www.lxistandard.org/InstrumentIdentification/1.0\" "
           "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "

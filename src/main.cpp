@@ -23,12 +23,14 @@
 #include <net/wifi_manager.h>
 #include <net/web_server.h>
 #include <net/web_password_worker.h>
+#include <esp_heap_caps.h>
 #include <esp_random.h>
 // Test build with WiFi credentials from a local file that is never committed (.gitignore):
 // build with -DTEST_WIFI=1 and include/test_wifi_local.h defining TEST_WIFI_SSID/TEST_WIFI_PASS.
 #if defined(TEST_WIFI) && TEST_WIFI && __has_include(<test_wifi_local.h>)
 #include <test_wifi_local.h>
 #endif
+#include <drivers/status_led.h>
 #include <gui/gui.h>
 #include <utils/build_info.h>
 #include <utils/logger.h>
@@ -58,15 +60,40 @@ static uint32_t publishedRemoteMs = 0;
 // Web server (S55) on the heap (E-31); it starts when WiFi first comes up.
 static WebHmiServer* web = nullptr;
 static bool webConfirmNeeded() { return web && web->touchConfirmNeeded(); }
+static uint16_t webChangePendingS() { return web ? web->netChangePendingS() : 0; }
+// Saves of the WiFi manager itself (AP password created): not while a web change is open, only
+// a confirmed state reaches NVS (AF16); the confirmation saves the manager's settings with it.
+static bool saveNetFromManager(const NetSettings& s) {
+    if (webChangePendingS()) return true;
+    return saveNetSettings(s);
+}
 static void webConfirmAnswer(bool keep) {
     if (web) web->touchConfirm(keep);
 }
 
 // SCPI over USB (S51): runs in loop(), commands through the queue.
+// SYSTem:HEAP? from a cache of at most 100 ms (AF12, PERF-4): the largest block is a walk of
+// the heap under its lock, a query flood must not run it for every query.
 static void heapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) {
+    static uint32_t at = 0, cachedFree = 0, cachedMin = 0, cachedLargest = 0;
+    static bool valid = false;
+    const uint32_t now = millis();
+    if (!valid || now - at >= 100) {
+        cachedFree = ESP.getFreeHeap();
+        cachedMin = ESP.getMinFreeHeap();
+        cachedLargest = ESP.getMaxAllocHeap();
+        at = now;
+        valid = true;
+    }
+    *freeBytes = cachedFree;
+    *minFree = cachedMin;
+    *largest = cachedLargest;
+}
+// Heap line of the CONFIG info card (AF51b): read every 5 s by the GUI.
+static void guiHeapInfo(uint32_t* freeBytes, uint32_t* minFree, uint32_t* largest) {
     *freeBytes = ESP.getFreeHeap();
     *minFree = ESP.getMinFreeHeap();
-    *largest = ESP.getMaxAllocHeap();
+    *largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 }
 static void coreDebugOutput(bool enabled) { Serial.setDebugOutput(enabled); }
 static void serialWrite(const char* data, size_t len, void*) { Serial.write((const uint8_t*)data, len); }
@@ -183,7 +210,7 @@ void setup() {
     app.begin(loadedState);
     netStorage.begin(NetConfig::NAMESPACE);
     NetConfig::load(netStorage, netSettings, macBytes);
-    WifiManager::SaveFn saveNet = saveNetSettings;
+    WifiManager::SaveFn saveNet = saveNetFromManager;
 #ifdef TEST_WIFI_SSID
     // Test credentials only in RAM; nothing of it is saved.
     NetConfig::setNetwork(netSettings, 0, TEST_WIFI_SSID, TEST_WIFI_PASS);
@@ -206,7 +233,8 @@ void setup() {
     }
 #endif
     wifi.begin(netSettings, macBytes, saveNet);
-    web = new (std::nothrow) WebHmiServer(commands, snapshot, wifi, saveNet);
+    // The web server saves confirmed changes itself (not through the manager's gate).
+    web = new (std::nothrow) WebHmiServer(commands, snapshot, wifi, saveNet ? saveNetSettings : nullptr);
     if (!web) Logger::error("BOOT", "No memory for the web server");
     else web->setSerial(mac);
     webPassword = new (std::nothrow) WebPasswordWorker();
@@ -231,14 +259,24 @@ void setup() {
     display.begin();
     if (touch.pressed()) waitForRelease();
 
-    // 8. LVGL and GUI init
+    // 8. LVGL and GUI init; the status LED follows the shown page (AF51b).
+    StatusLed::begin();
     gui.begin(app, touch, display);
-    gui.setTouchCalibrationStore(saveTouchCalibration);
-    gui.setFactoryReset(factoryReset);
-    gui.setWifi(wifi, saveNetSettings);
-    gui.setNetConfirm(webConfirmNeeded, webConfirmAnswer);
-    gui.setWebPassword(startWebPassword, pollWebPassword);
-    gui.setRemoteClients(webClients, scpiClient, disconnectRemote);
+    GuiServices guiServices;
+    guiServices.storeTouchCal = saveTouchCalibration;
+    guiServices.factoryReset = factoryReset;
+    guiServices.wifi = &wifi;
+    guiServices.saveNet = saveNetSettings;
+    guiServices.netConfirmNeeded = webConfirmNeeded;
+    guiServices.netConfirmAnswer = webConfirmAnswer;
+    guiServices.netPendingS = webChangePendingS;
+    guiServices.webPasswordStart = startWebPassword;
+    guiServices.webPasswordPoll = pollWebPassword;
+    guiServices.webClients = webClients;
+    guiServices.scpiClient = scpiClient;
+    guiServices.disconnectRemote = disconnectRemote;
+    guiServices.heapInfo = guiHeapInfo;
+    gui.setServices(guiServices);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
     if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
     app.addListener(Gui::onAppEvent, &gui);
@@ -300,6 +338,9 @@ void loop() {
     commands.markVisible();
     if (web) web->loop();
     gui.update();
+    // Page color, or Identify blinking with the backlight (W-E28): one owner, also while the
+    // GUI shows the calibration.
+    StatusLed::update(gui.page(), app.identifying(), app.identifyLit());
     MemMonitor::update();
     runRestartTests();
     delay(5);

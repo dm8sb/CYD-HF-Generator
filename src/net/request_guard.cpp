@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <net/pbkdf2.h>
+#include <net/web_routes.h>
+#include <utils/ipv4.h>
 #include <utils/sanitize.h>
 
 namespace {
@@ -46,8 +48,6 @@ bool ieqValue(const char* v, const char* b) {
     return ieqn(s, n, b);
 }
 
-bool startsWith(const char* s, const char* prefix) { return strncmp(s, prefix, strlen(prefix)) == 0; }
-
 // RFC 9110 token character.
 bool tchar(char c) {
     if (c >= 'a' && c <= 'z') return true;
@@ -58,30 +58,6 @@ bool tchar(char c) {
 
 // Visible ASCII or blank (header values we accept at all).
 bool printable(char c) { return c == ' ' || c == '\t' || (c > 0x20 && c < 0x7F); }
-
-bool parseIpv4(const char* s, size_t n, uint32_t* out) {
-    uint32_t v = 0;
-    size_t i = 0;
-    for (int part = 0; part < 4; ++part) {
-        if (i >= n || !digit(s[i])) return false;
-        const size_t start = i;
-        uint32_t x = 0;
-        while (i < n && digit(s[i])) {
-            if (i - start == 3) return false;
-            x = x * 10 + (uint32_t)(s[i] - '0');
-            ++i;
-        }
-        if (x > 255 || (i - start > 1 && s[start] == '0')) return false; // no leading zeros (octal)
-        v = (v << 8) | x;
-        if (part < 3) {
-            if (i >= n || s[i] != '.') return false;
-            ++i;
-        }
-    }
-    if (i != n) return false;
-    *out = v;
-    return true;
-}
 
 bool validPort(const char* s, size_t n) {
     if (n == 0 || n > 5) return false;
@@ -122,8 +98,6 @@ bool splitPort(const char* s, size_t n, size_t* hostLen) {
     return true;
 }
 
-bool isApi(const char* path) { return startsWith(path, "/api/"); }
-bool isWs(const char* path) { return strcmp(path, "/ws") == 0; }
 
 // Plain decimal number (1..10 digits) after trimming; false for signs, lists, garbage.
 bool parseLength(const char* v, uint64_t* out) {
@@ -226,9 +200,9 @@ bool RequestGuard::captiveLocation(char* out, size_t outSize) const {
     if (!out || outSize == 0) return false;
     out[0] = '\0';
     if (config_.apIp == 0) return false;
-    const uint32_t a = config_.apIp;
-    const int w = snprintf(out, outSize, "http://%u.%u.%u.%u/", (unsigned)(a >> 24), (unsigned)((a >> 16) & 255),
-                           (unsigned)((a >> 8) & 255), (unsigned)(a & 255));
+    char ip[Ipv4::TEXT_SIZE];
+    Ipv4::format(config_.apIp, ip, sizeof(ip));
+    const int w = snprintf(out, outSize, "http://%s/", ip);
     return w > 0 && (size_t)w < outSize;
 }
 
@@ -240,7 +214,7 @@ RequestGuard::HostKind RequestGuard::classifyHost_(const char* s, size_t n) cons
     size_t h = 0;
     if (!splitPort(s, n, &h) || h == 0) return HostKind::Invalid;
     uint32_t ip = 0;
-    if (parseIpv4(s, h, &ip)) {
+    if (Ipv4::parse(s, h, &ip)) {
         const bool own = ip != 0 && (ip == config_.staIp || ip == config_.apIp);
         return own ? HostKind::Own : HostKind::Foreign;
     }
@@ -379,8 +353,8 @@ GuardDecision RequestGuard::check(const GuardRequest& r, uint64_t nowMs) {
     if (strlen(r.path) + queryLen > MAX_URL) return refuse(Verdict::UriTooLong, "URL too long");
     if (r.headerBytes > MAX_HEADERS) return refuse(Verdict::HeaderFieldsTooLarge, "Headers too large");
 
-    const bool api = isApi(r.path);
-    const bool ws = isWs(r.path);
+    const bool api = WebRoutes::isApi(r.path);
+    const bool ws = WebRoutes::isWs(r.path);
     const bool get = strcmp(r.method, "GET") == 0 || strcmp(r.method, "HEAD") == 0;
     const bool post = strcmp(r.method, "POST") == 0;
 
@@ -465,8 +439,8 @@ GuardDecision RequestGuard::check(const GuardRequest& r, uint64_t nowMs) {
     // With a web password: a session for every write and the WiFi settings, with loginForReads
     // also for the state and the WebSocket. The login and the logout never need one (a logout
     // with an expired session must not ask for the password first).
-    const bool sessionFree = post && (strcmp(r.path, "/api/login") == 0 || strcmp(r.path, "/api/logout") == 0);
-    const bool wifi = strcmp(r.path, "/api/wifi") == 0 || startsWith(r.path, "/api/wifi/");
+    const bool sessionFree = WebRoutes::sessionFree(post, r.path);
+    const bool wifi = WebRoutes::isWifi(r.path);
     const bool needed = post || wifi || (config_.loginForReads && (api || ws));
     if (config_.passwordSet && needed && !sessionFree) {
         const int s = cookie == 1 ? findSession_(id, nowMs) : -1;

@@ -10,7 +10,7 @@ answers the same way. tools/web_check.py checks the whole contract.
 What it does:
   1. GET /                      -> extract the per-boot token from
                                    <meta name="cyd-token" content="...">
-  2. (optional) POST /api/login -> only with --password; the session cookie
+  2. (optional) POST /api/login -> only with a password; the session cookie
                                    is kept in a cookie jar
   3. GET /api/state             -> print the state
   4. POST /api/channel/1        {"frequencyText": "7.1 MHz"}, then
@@ -26,11 +26,14 @@ connect an antenna without a filter.
 
 Usage:
     python rest_example.py cyd-hf-1a2b.local
-    python rest_example.py 192.168.1.50 --password secret
+    python rest_example.py 192.168.1.50 --password      # asks for the web password
+    CYD_WEB_PASSWORD=... python rest_example.py 192.168.1.50
 """
 import argparse
+import getpass
 import http.cookiejar
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -80,19 +83,38 @@ def show(label, status, payload):
     print("   ", json.dumps(payload) if not isinstance(payload, str) else payload)
 
 
+PASSWORD_ENV = "CYD_WEB_PASSWORD"
+
+
+def web_password(arg):
+    """The web password (AF27): --password without a value asks for it (getpass), otherwise
+    the environment variable CYD_WEB_PASSWORD. A value on the command line still works but
+    lands in the shell history and the process list, so it is warned about. None = no login."""
+    if arg == "":
+        return getpass.getpass("Web password: ")
+    if arg is not None:
+        print("warning: a password on the command line is visible in the shell history and the "
+              "process list; use --password without a value or %s" % PASSWORD_ENV, file=sys.stderr)
+        return arg
+    return os.environ.get(PASSWORD_ENV) or None
+
+
 def main():
     ap = argparse.ArgumentParser(description="Minimal REST example for the CYD HF generator.")
     ap.add_argument("host", help="host name or IP, e.g. cyd-hf-1a2b.local (port 80)")
-    ap.add_argument("--password", help="web password, if one is set on the device")
+    ap.add_argument("--password", nargs="?", const="", metavar="PASSWORD",
+                    help="web password, if one is set: without a value it is asked for; "
+                         "default: environment variable " + PASSWORD_ENV)
     args = ap.parse_args()
+    password = web_password(args.password)
     host = args.host if args.host.startswith("http") else "http://" + args.host
 
     api = Api(host)
     api.fetch_token()
     print("Token:", api.token)
 
-    if args.password is not None:
-        show("POST /api/login", *api.request("POST", "/api/login", {"password": args.password}))
+    if password is not None:
+        show("POST /api/login", *api.request("POST", "/api/login", {"password": password}))
 
     show("GET /api/state", *api.request("GET", "/api/state"))
     try:
