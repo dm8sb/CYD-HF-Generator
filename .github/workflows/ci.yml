@@ -150,7 +150,7 @@ jobs:
             echo "::error::forbidden in data/www (W-S7, W-S8; embed_www.py stops the build too)"
             exit 1
           fi
-      # web_check takes CYD_WEB_PASSWORD from the environment: only for the run with --password.
+      # web_check logs in when CYD_WEB_PASSWORD is set (--password without a value would prompt).
       - name: Mock, web check and contract vectors
         env:
           PW: ci-bench-secret
@@ -162,7 +162,7 @@ jobs:
           done
           python tools/contract_check.py 127.0.0.1:18080
           python tools/web_check.py 127.0.0.1:18080
-          CYD_WEB_PASSWORD="$PW" python tools/web_check.py 127.0.0.1:18081 --password
+          CYD_WEB_PASSWORD="$PW" python tools/web_check.py 127.0.0.1:18081
           python tools/slowloris.py 127.0.0.1:18080 -n 5 --hold 2 --trickle 1
       - name: Fake device and device check
         run: |
