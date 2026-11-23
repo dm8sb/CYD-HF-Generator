@@ -24,7 +24,7 @@ Einzige Planungsdatei: Arbeitsregeln, Stand, offene Befunde und offene Aufgaben.
 7. **Branches:** gearbeitet wird auf `dev`. `main` ist per Ruleset geschützt: Änderungen nur per Pull Request `dev` → `main` mit grünen Pflicht-Prüfungen; GitHub legt den Merge-Commit mit der Kontoadresse an (vom Nutzer akzeptiert). Agenten arbeiten auf eigenen Branches, die nach der Übernahme gelöscht werden.
 8. **Smoke-Test nach jedem größeren Block** auf beiden Boards (MESSPLAN 4.3); Ergebnis im Release-Commit bzw. direkt danach.
 9. **Nicht mischen:** Ein Commit enthält Verhalten oder Aufräumen, nicht beides.
-10. **Messprotokolle** (`messungen/*.md`) werden committet, Medien und Binärdateien nicht (`messungen/*/` ist ignoriert). Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md`; Messbefunde (MB-n, MESSPLAN Anhang E) kommen sofort in Abschnitt 2 und als Aufgabe in Abschnitt 3.
+10. **Messprotokolle** (`messungen/*.md`) werden committet, mit ihren Bildern und verdichteten Daten (`messungen/<Protokoll>/img/`, `data/`); Rohdaten, Logs und Firmware-Binärdateien nicht (übriges `messungen/*/` ist ignoriert, MESSPLAN_SIGLENT 10.1). Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md`; Messbefunde (MB-n, MESSPLAN Anhang E) kommen sofort in Abschnitt 2 und als Aufgabe in Abschnitt 3.
 
 ---
 
@@ -204,6 +204,11 @@ Je Aufgabe: **Warum** (Anlass, Befund), **Was** (Umfang), **Prüfung** und Commi
   - *Was:* MESSPLAN Abschnitt 7 nach Bedarf.
   - *Prüfung:* kein Freigabekriterium; Befunde in Abschnitt 2.
   - *Commit:* `MES-08: Record optional characterization measurements`
+- [ ] **MES-09 · Automatische Messungen im Siglent-Aufbau** (Skripte ≈ 3 d, Messung ≈ 4,5 h + 7 h unbeaufsichtigt; braucht SDS1204X-E, SSA3032X Plus, GPS-TCXO, USB-Isolator)
+  - *Warum:* Zähler und 2-GHz-Oszilloskop aus MESSPLAN 2.1 fehlen; mit Oszilloskop (Frequenz als Verhältnis zur GPS-Referenz) und Spektrumanalysator lassen sich die HF-Messungen von MES-05, MES-06 und MES-08 automatisch und wiederholbar fahren; DOK-01 braucht gemessene Werte und Bilder.
+  - *Was:* [MESSPLAN_SIGLENT.md](MESSPLAN_SIGLENT.md): Messskripte (Gerätemodule, Auswertung 2.1/2.3 mit Tests gegen synthetische Daten, Läufe L1–L6, Protokollgenerator), Vorbereitung V-01–V-07, Läufe, Protokoll mit Bildern (10); `tools/plot_measurements.py` für die Handbuchbilder (11).
+  - *Prüfung:* V-04 belegt u_f ≤ 1e-9, V-03 u_φ; Protokoll vollständig (jede M-ID der Abdeckungstabelle 7 bewertet oder als H vermerkt); Befunde in Abschnitt 2.
+  - *Commit:* `MES-09: Record the automated Siglent measurements` (Skripte vorher als eigener Commit)
 
 ### 3.5 Aufgaben für den Nutzer (USR)
 

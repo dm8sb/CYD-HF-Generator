@@ -6,6 +6,8 @@ Dieses Dokument beschreibt die Messungen und Bedientests am Gerät mit Einzelsch
 
 **Mess-IDs:** `M-<Stufe><nn>`, die Hunderterstelle folgt der Stufe: **M-0nn** Vorbereitung (4.1), **M-1nn** Stufe 1 (Pflicht), **M-2nn** Stufe 1W (Pflicht ab WEB-HMI), **M-3nn** Stufe 2 (Entscheidungen), **M-4nn** Stufe 3 (optional), **M-5nn** entfallen oder erledigt (Abschnitt 8; die Nummern bleiben reserviert, damit Verweise auflösbar bleiben). Die Nummern sind stabil und werden nicht neu vergeben. Befunde aus Messungen heißen **MB-n** (3.6), Eintrittskriterien EK-n (4.2), Aufgaben der Bedientests T1 … T7 und W1 … W3, Personen P1 … P8 (Anhang C).
 
+**Automatische Messungen:** [MESSPLAN_SIGLENT.md](MESSPLAN_SIGLENT.md) fährt die HF-Messungen dieses Plans mit Oszilloskop SDS1204X-E, Spektrumanalysator SSA3032X Plus und GPS-Referenz per Skript und erzeugt das Protokoll mit Bildern; Sollwerte und Bewertung bleiben die dieses Plans.
+
 Quellen der Sollwerte: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md) (Anforderungen A-nnn, Entscheidungen E-nnn, nach Kapiteln nummeriert; das frühere WEB-HMI-Konzept steht dort als Entscheidungen E-5nn/E-6nn und Sicherheitsanforderungen A-7nn), [USER_MANUAL_DE.md](USER_MANUAL_DE.md), [ARBEITSPLAN.md](ARBEITSPLAN.md) (offene Befunde und Aufgabenliste mit Bereichs-IDs FW-nn, DOC-nn, REL-nn, MES-nn, USR-nn; Audit-IDs C, S, U, P, T und Schrittnamen wie S35 oder AF39 sind historische Namen aus der Git-Historie). Bei einem Widerspruch zwischen diesem Plan und dem Handbuch der geprüften Firmware gilt das Handbuch; der Plan wird dann nachgezogen.
 
 ## Inhalt
