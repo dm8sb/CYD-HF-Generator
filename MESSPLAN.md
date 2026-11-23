@@ -795,7 +795,7 @@ Nur im Release-Kandidaten mit WEB-HMI (seit 1.4.0-rc1). Aufbau 7, Test-WLAN WPA2
 | M-202 | AP mit Zufallspasswort und QR, offener AP | Smartphones Android und iOS | QR funktioniert auf beiden Systemen; offener AP nur nach Bestätigung, mit Warnung, Zeit- und Stationslimit. | 45 min | ☐ ✔ ☐ ✘ ☐ ○ |
 | M-203 | SCPI über USB und TCP | PC (Skripte Anhang D) | kein Neustart beim Öffnen; 1000/1000 gültige Antworten `CYD,HF-Generator,<MAC>,1.4.0`; keine Logzeilen im Datenstrom; Median < 50 ms. | 45 min | ☐ ✔ ☐ ✘ ☐ ○ |
 | M-204 | Ohne SI5351 | – | Web und SCPI funktionieren; Kanäle zeigen `NO HW` bzw. `NOHW`; Einstellungen werden gespeichert; keine wiederholten Fehler. | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
-| M-205 | 24-h-Dauertest | PC (Skript) | kein Neustart; minimaler Heap sinkt nicht stetig; Stack-Reserve ≥ 1 KB; keine Warnung „Heap < 40 KB“. | 24 h (30 min aktiv) | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-205 | 24-h-Dauertest | PC (Skript) | kein Neustart; minimaler Heap sinkt nicht stetig und bleibt ≥ 40 KB, größter Block ≥ 16 KB (A-726); Stack-Reserve ≥ 1 KB; keine Logzeile `Heap low`. | 24 h (30 min aktiv) | ☐ ✔ ☐ ✘ ☐ ○ |
 | M-206 | curl-Matrix (A-701, A-704, A-705, A-710) | – | wie angegeben; Zustand bleibt unverändert. | im Skriptlauf `web_check.py` / `contract_check.py` | ☐ ✔ ☐ ✘ ☐ ○ |
 | M-207 | Fremde Webseite (A-705, A-706) | PC, Browser | Zustand unverändert; WebSocket-Upgrade abgelehnt; `evil.example` → 421. | 45 min | ☐ ✔ ☐ ✘ ☐ ○ |
 | M-208 | SCPI-Port aus dem Browser (A-717, A-718) | – | CH1 bleibt in allen Fällen aus. | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
@@ -851,7 +851,7 @@ Nur im Release-Kandidaten mit WEB-HMI (seit 1.4.0-rc1). Aufbau 7, Test-WLAN WPA2
 
 #### M-205 · 24-h-Dauertest
 
-`Bezug` A-723, Heap-Grenzen (A-710)
+`Bezug` A-723, Heap-Grenzen (A-710 Schutzgrenze, A-726 Betriebsgrenze)
 
 1. Drei Browser (Live-Updates) und ein SCPI-Skript mit 10 Befehlen/s (Frequenz ändern innerhalb 8–12 MHz, Abfragen) laufen 24 h.
 2. `SYSTem:HEAP?` jede Minute protokollieren (freier und minimaler Heap, größter Block, LVGL-Heap, Stack-Reserve).
@@ -986,7 +986,7 @@ Die Schwellen sind **Vorschläge**; sie werden vor der Messung bestätigt oder g
 | Druckaussetzer überbrücken, Wiederholung (U-20) | M-316 | Überbrückungszeit aus der Verteilung der Aussetzer (heute bis 30 ms überbrückt, geplant 60–80 ms) | S33 |
 | Stift am Laborplatz (U-5) | M-126 (Stufe 1), M-433 optional | Stift empfehlen, wenn der Finger am Rand > 8 px abweicht | Handbuch |
 | WLAN während Messungen aus (ab WEB-HMI) | M-317, M-318 | Hinweis, wenn durch WLAN Nebenlinien > −60 dBc sichtbar sind | S58 |
-| Heap-Grenzen (A-710, ab WEB-HMI) | M-319, M-205 | Grenzwerte anpassen, wenn der minimale Heap im Dauertest sinkt | MES-04 |
+| Heap-Grenzen (A-710, A-726, ab WEB-HMI) | M-319, M-205 | Betriebsgrenze 40 KB / 16 KB eingehalten; sonst Speicherbedarf senken (z. B. Stack von `async_tcp`), nicht die Grenze | MES-04 |
 
 ### 6.2 Ablauf
 
@@ -1221,7 +1221,7 @@ Die Schwellen sind **Vorschläge**; sie werden vor der Messung bestätigt oder g
 |---|---|---|---|---|---|
 | M-317 | WLAN-Störungen im Spektrum | SPEKTRUM; Aufbau 2 | zu dokumentieren; bei Linien > −60 dBc im nutzbaren Bereich Hinweis im Handbuch. | 45 min | i |
 | M-318 | WLAN aus entspricht 1.3.x | SPEKTRUM | Spektrum wie R0 (Linienpegel ± 3 dB, keine neuen Linien). | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
-| M-319 | Flash, RAM und Heap gegen die Basis | PC | Abweichung > 10 % begründen; minimaler Heap ≥ 40 KB, größter Block ≥ 16 KB (Vorgabe des früheren WEB-HMI-Konzepts; die Grenzen des Servers stehen in A-710). Die R0-Vorwerte stammen vom Original-CYD ohne Modul mit dem Stand von S05/S06; beim ersten Stufe-1-Lauf durch Werte von 1.3.x ersetzen, wenn sie abweichen. | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-319 | Flash, RAM und Heap gegen die Basis | PC | Abweichung > 10 % begründen; minimaler Heap ≥ 40 KB, größter Block ≥ 16 KB (Betriebsgrenze A-726; die Schutzgrenze des Servers von 24 KB / 8 KB steht in A-710). Die R0-Vorwerte stammen vom Original-CYD ohne Modul mit dem Stand von S05/S06; beim ersten Stufe-1-Lauf durch Werte von 1.3.x ersetzen, wenn sie abweichen. | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
 
 #### M-317 · WLAN-Störungen im Spektrum
 
@@ -1241,7 +1241,7 @@ Die Schwellen sind **Vorschläge**; sie werden vor der Messung bestätigt oder g
 
 #### M-319 · Flash, RAM und Heap gegen die Basis
 
-`Bezug` Build-Gate, Heap-Grenzen (A-710) · Build: Release und Debug
+`Bezug` Build-Gate, Heap-Grenzen (A-710, A-726) · Build: Release und Debug
 
 1. `pio run`: Flash und RAM (Bytes, %) aus der Build-Ausgabe.
 2. Debug-Build: freier Heap, minimaler Heap, größter Block, LVGL-Heap nach dem Boot und nach 5 min Bedienung.
@@ -1567,6 +1567,7 @@ Nach Korrekturen nur die betroffenen Messungen bzw. Blöcke (5.10) wiederholen, 
 | A-721 | M-213 (1W) |
 | A-722 | M-203 (1W) |
 | A-723 | M-205 (1W), M-129 (1) |
+| A-726 | M-205 (1W), M-319 (2) |
 | A-724, A-725 | Eintrittskriterien EK-4, EK-5 |
 
 ---

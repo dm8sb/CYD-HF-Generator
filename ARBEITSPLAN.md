@@ -1,6 +1,6 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: Release **2.1.0** · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · auf `dev` nach 2.1.0: Doku als Pages-Seiten (G9), Werkzeuge kennen CH2-Kopplung und Drehung, Doku konsolidiert (DK1), Planungsdateien neu nummeriert · als Nächstes: MES-01 (Gerätetest 3.3.13), FW-07, REL-02/REL-03 sobald möglich; die Messungen (MES-02 bis MES-08) kommen zuletzt, danach REL-01
+Stand: Release **2.1.0** · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · auf `dev` nach 2.1.0: Doku als Pages-Seiten (G9), Werkzeuge kennen CH2-Kopplung und Drehung, Doku konsolidiert (DK1), Planungsdateien neu nummeriert · als Nächstes: MES-01 (Gerätetest 3.3.13), FW-07, FW-08, REL-02/REL-03 sobald möglich; die Messungen (MES-02 bis MES-08) kommen zuletzt, danach REL-01
 
 Einzige Planungsdatei: Arbeitsregeln, Stand, offene Befunde und offene Aufgaben. Anforderungen (A-nnn) und alle Entscheidungen (E-nnn, auch die früheren Entscheidungen Dn dieser Datei und das WEB-HMI-Konzept mit W-E und W-S) stehen in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), Messungen (M-nnn) in [MESSPLAN.md](MESSPLAN.md), das Verhalten in [USER_MANUAL_DE.md](USER_MANUAL_DE.md).
 
@@ -82,6 +82,7 @@ Host-Tests: 524 Fälle in `native-win` und 4 in `native-win-fault`.
 
 - [ ] **Plattform außerhalb des PlatformIO-Registers** (P-2, P-4, S-19): pioarduino 55.03.313 / Arduino 3.3.13 / IDF 5.5.6 per Release-URL mit SHA-256-Prüfung (E-804). → REL-03; Gerätetest des Updates → MES-01
 - [ ] **Unity 2.6.1** (P-8): 2.7.0 noch nicht im Register. → REL-02
+- [ ] **Keine Warnung bei knappem Heap** (S-13): die Betriebsgrenze A-726 (40 KB / 16 KB) braucht eine Logzeile `Heap low`, die es noch nicht gibt. → FW-08
 
 ### 2.4 Dokumentation
 
@@ -130,8 +131,13 @@ Je Aufgabe: **Warum** (Anlass, Befund), **Was** (Umfang), **Prüfung** und Commi
   - *Was:* Register 1 (`SYS_INIT_STKY`) nach `begin()` löschen und zyklisch lesen; dasselbe Register meldet `LOL_A`/`LOL_B` → Zeile „PLL locked“ auf der Info-Karte (A-226).
   - *Prüfung:* Host-Test im Registermodell (Sticky-Bit gesetzt → Wiederverbinden); am Gerät die Versorgung des Moduls ohne eingeschalteten Ausgang unterbrechen (wie M-106).
   - *Commit:* `FW-07: Detect SI5351 power loss by the sticky bit`
+- [ ] **FW-08 · Warnung `Heap low`** (vor MES-04)
+  - *Warum:* A-726 verlangt eine Logzeile unter 40 KB freiem Heap; M-205 prüft sie, die Firmware hat sie noch nicht.
+  - *Was:* in `loop()` den freien Heap prüfen; unter 40 KB einmal `Heap low` mit freiem Heap und größtem Block loggen, erneut erst nach Erholung über 48 KB (Hysterese); Grenzen in `constants.h`.
+  - *Prüfung:* Host-Test der Hysterese; Handbuch DE/EN (Logzeilen); im Debug-Build mit 3 WebSockets keine Warnung.
+  - *Commit:* `FW-08: Log a warning when the free heap drops below 40 KB`
 
-### 3.2 Dokumentation (DOC)
+### 3.2 Dokumentation (DOK)
 
 - [ ] **DOK-01 · Messwerte in die Handbücher** (nach MES-05 und MES-06)
   - *Warum:* Befunde 2.1 „Hinweise fehlen“ und 2.4 „50 % Tastverhältnis“; Pegel und Mischerwerte in §17/§18 sind als „typisch, nicht gemessen“ markiert.
@@ -186,8 +192,8 @@ Je Aufgabe: **Warum** (Anlass, Befund), **Was** (Umfang), **Prüfung** und Commi
   - *Commit:* `MES-03: Record WLAN spectrum pre-measurement and modem-sleep decision`
 - [ ] **MES-04 · 24-h-Dauertest** (1 d Laufzeit)
   - *Warum:* der erste Lauf brach nach 35 min fehlerfrei ab (USB, 4086 Schreiben/Rücklesen, 0 Abweichungen, 0 Resets, min. Heap 81,5 KB mit WLAN), weil der USB-Port auf der PC-Seite verschwand; Fuzzing ist erledigt (S57a–c, manueller Lauf mit 10 Mio. je Ziel ohne Fund).
-  - *Was:* 24-h-Lauf an stabilem Port (oder über TCP) mit Heap- und Stack-Bilanz (Weboberfläche offen, Debug-Log alle 60 s mit Stack-Reserve von `async_tcp` und `web_login`; ggf. Stack von `async_tcp` senken); Worst Case „alle Kanäle belegt“ (3 WebSockets, 1-Hz-Polling, SCPI-TCP-Flut, USB-SCPI gleichzeitig, PERF-8); High-Water-Marks `async_tcp`/`web_login` und LVGL `max_used` nach einer Seitenrunde (PERF-14); Heap-Grenzen nach M-205, M-319.
-  - *Prüfung:* kein Neustart, minimaler Heap stabil, Stack-Reserve ≥ 1 KB (A-723).
+  - *Was:* 24-h-Lauf an stabilem Port (oder über TCP) mit Heap- und Stack-Bilanz (Weboberfläche offen, Debug-Log alle 60 s mit Stack-Reserve von `async_tcp` und `web_login`; ggf. Stack von `async_tcp` senken); Worst Case „alle Kanäle belegt“ (3 WebSockets, 1-Hz-Polling, SCPI-TCP-Flut, USB-SCPI gleichzeitig, PERF-8); High-Water-Marks `async_tcp`/`web_login` und LVGL `max_used` nach einer Seitenrunde (PERF-14); Betriebsgrenze A-726 (40 KB / 16 KB) nach M-205, M-319.
+  - *Prüfung:* kein Neustart, minimaler Heap stabil und ≥ 40 KB, größter Block ≥ 16 KB (A-726), Stack-Reserve ≥ 1 KB (A-723).
   - *Commit:* `MES-04: Record the 24-hour run`
 - [ ] **MES-05 · Stufe 1** (Pflicht, ≈ 7 h, sobald Zähler und Oszilloskop verfügbar sind; dieser Lauf ist die Referenz R0, MESSPLAN 9.2)
   - *Warum:* belegt am Gerät, was nur die Hardware zeigen kann (MESSPLAN 1.1).

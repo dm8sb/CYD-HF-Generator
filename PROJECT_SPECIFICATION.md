@@ -525,7 +525,7 @@ The security requirements of the network functions (formerly the W-S requirement
 - **A-707** Headers: CSP `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, `nosniff`, `Referrer-Policy: no-referrer`; `/api/*` with `no-store`. (S-7)
 - **A-708** Foreign strings in the browser only through `textContent`/DOM, never `innerHTML`; JSON only through the JSON layer (ArduinoJson for parsing, `JsonWriter` for writing, E-622). (S-7)
 - **A-709** Every foreign string passes `sanitize` before LVGL and JSON; scan list ≤ 15 entries, no recolor; an LVGL assert restarts the device. (S-14, C-3)
-- **A-710** Body ≤ 1 KB (413), multipart/chunked 415, URL ≤ 256 B, headers ≤ 2 KB, 10 s timeout; ≤ 3 WebSocket and ≤ 4 HTTP connections; < 24 KB free heap or a largest block < 8 KB → 503 for new connections (`SYSTem:HEAP?` shows the values); push at most every 100 ms (AF19). (S-13)
+- **A-710** Body ≤ 1 KB (413), multipart/chunked 415, URL ≤ 256 B, headers ≤ 2 KB, 10 s timeout; ≤ 3 WebSocket and ≤ 4 HTTP connections; < 24 KB free heap or a largest block < 8 KB → 503 for new connections (protection limit; `SYSTem:HEAP?` shows the values); push at most every 100 ms (AF19). (S-13)
 - **A-711** ≤ 20 write commands per second and source (429), a scan at most every 10 s, after 5 login failures a 30 s lock (doubling). (S-9, S-13)
 - **A-712** Network changes in two stages with fallback after 120 s, without a web password also at the touch screen; only a confirmed state is saved, during the wait no network change at the touch screen (`Web change pending`, `Revert`/`Keep`, E-514); a static IP differs from the gateway, lies in the subnet and is neither network nor broadcast address. (S-15)
 - **A-713** Web password ≥ 8 characters, PBKDF2 hash (mbedTLS); cookie `HttpOnly; SameSite=Strict`, 12 h; broken `Authorization`/`Cookie` headers are refused. (S-9)
@@ -541,6 +541,7 @@ The security requirements of the network functions (formerly the W-S requirement
 - **A-723** `loop()` is supervised by the task watchdog; no network task blocks > 100 ms; stack reserve ≥ 1 KB after 24 h. (S-23)
 - **A-724** Dependencies pinned exactly, advisory check per release; CI with SHA-pinned actions and `permissions: contents: read`. (S-20, S-27)
 - **A-725** Fuzzing of `line_framer`, SCPI core, `request_guard`, `sanitize`, JSON mapping, VXI-11 with portmapper and RPC record marking (`vxi11`, step LX1): libFuzzer with ASan/UBSan ≥ 10 million executions before every release; a random test with a fixed seed (100 000 inputs) in `native-win`. (S-11, S-13)
+- **A-726** Operating limit: in the worst legitimate load (3 WebSockets, 4 HTTP connections, an SCPI flood over TCP and an SCPI session over USB at the same time) at least 40 KB of heap stay free and the largest free block is at least 16 KB, so full normal use never reaches the protection limit of A-710 (24 KB / 8 KB). Below 40 KB free heap the firmware logs a warning `Heap low` once until the heap recovers. A measurement below the limit lowers the memory use (e.g. the `async_tcp` stack), not the limit. (S-13)
 
 ### 7.2 Decisions
 
