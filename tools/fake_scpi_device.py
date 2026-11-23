@@ -7,7 +7,7 @@
 A small TCP server that implements a subset of USER_MANUAL_EN.md section 15:
 IDN, OPC, ESR/STB/TST, OUTPut, FREQuency, CH3 IQ/PHASe, DRIVe, OFFState, SSC,
 TUNing, CORRection, STEP, SI5351, HEAP, LOG, ERRor, VERSion, SAVE, line limits,
-compound lines and the rate limit. Not implemented: *RST, BACKlight, IDENtify,
+compound lines, the rate limit and *RST. Not implemented: BACKlight, IDENtify,
 *ESE/*SRE, status register semantics.
 
     python fake_scpi_device.py --port 5025
@@ -101,7 +101,7 @@ class Device:
         "OUTP:REM": "ALLOWED",
         "SOUR3:IQ:RANG": "%d,%d" % (dc.IQ_MIN, dc.IQ_MAX),
     }
-    NO_PARAM = ("*CLS", "*OPC", "SYST:SAVE")  # set forms without a parameter
+    NO_PARAM = ("*CLS", "*OPC", "*RST", "SYST:SAVE")  # set forms without a parameter
     ENUMS = ("SYST:TUN", "SSC", "OUTP:OFFS", "SOUR3:IQ:MAST", "SOUR3:PHAS")
 
     def execute(self, segs, ch, params):
@@ -128,6 +128,19 @@ class Device:
 
     def _opc(self, query, p, ch):
         return "1" if query else None
+
+    def _rst(self, query, p, ch):
+        """*RST: all outputs off, defaults in RAM, the correction kept, nothing saved."""
+        if query:
+            self.err(-113, "Undefined header")
+            return None
+        self.freq = dict(dc.DEFAULT_FREQ)
+        self.out = {1: 0, 2: 0, 3: 0}
+        self.step, self.drive = dc.DEFAULT_STEP, dc.DEFAULT_DRIVE
+        self.tuning, self.ssc, self.off = "FRAC", "OFF", "LOW"
+        self.master, self.phase = 1, 90
+        self.log.append("[APP] *RST: defaults in RAM, not saved")
+        return None
 
     def _cls(self, query, p, ch):
         self.errors.clear()
@@ -194,7 +207,7 @@ class Device:
             self.err(-224, "Illegal parameter value")
 
     HANDLERS = {
-        "*OPC": _opc, "*CLS": _cls,
+        "*OPC": _opc, "*CLS": _cls, "*RST": _rst,
         "SYST:LOG": _log, "SYST:ERR:COUN": _err_count, "SYST:ERR": _err_next, "SYST:ERR:NEXT": _err_next,
         "SYST:SAVE": _save,
         "OUTP": _output, "OUTP:STAT": _output, "OUTP:COND": _condition,

@@ -20,6 +20,7 @@ pio test -e native-cpp20                  # host tests in C++20 like the firmwar
 pio test -e native-asan                   # host tests under ASan/UBSan (Linux/CI; MinGW has no sanitizer runtime)
 pio run -e esp32-2432S028R-touchlog -t upload --upload-port COMx   # test build: one log line per touch
 pio run -e esp32-2432S028R-hitmap -t upload --upload-port COMx     # test build: hit map + touch log
+pio run -e esp32-2432S028R-faultiq -t upload --upload-port COMx    # test build: IQ error state (MESSPLAN A8/A11)
 python tools/render_images.py [screens|case|web|social]           # regenerate docs/img (OpenSCAD, Chrome, Node needed)
 ```
 

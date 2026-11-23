@@ -96,6 +96,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - Web server: the routes are one table in `net/web_routes.*` used by the request dispatch and the request guard, and the request body is assembled there (host-tested against every path of `data/www/README.md`); a body with an embedded NUL byte is now refused with `-102` instead of being cut at the NUL, and the whole body is wiped after a password (AF32)
 - CI: the host tests also run under ASan and UBSan (env `native-asan`, Linux), and a deliberate overflow in the probe suite `test_sanitizer` must be reported (AF36)
 - CI job `Tool checks`: size report self-test, mock with web check (without and with password), fake device with device check, and shared contract vectors (`test/contract/vectors.json`) that the C++ host tests and `tools/contract_check.py` read; they found the mock answering differently from the firmware (Origin, Sec-Fetch-Site and token rules on GET, POST outside `/api/`, broken Cookie/Authorization, duplicate keys, rate limit counting refused bodies), now fixed in the mock; the build stops on `innerHTML` and friends in `data/www` (AF34)
+- Measurement helpers for tier 1W (AF39): `tools/slowloris.py` (L-S5), `tools/touchstat.py` (touch logs), `tools/counter_log.py` (counter CSV), `device_check.py --profile L6|L22`, test build env `esp32-2432S028R-faultiq` for A8/A11; the fake SCPI device knows `*RST`
 
 ### 2.0.0
 

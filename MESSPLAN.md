@@ -322,7 +322,7 @@ Aufbau 7 – Netz
 | Build | Flag | Für | Stand |
 |---|---|---|---|
 | Debug | `-DLOG_DEBUG=1` | J6, J7 (Stufe 2) · J9, J14, Q1 | vorhanden |
-| IQ-Fehler | `-DTEST_FAULT_IQ=1` | A8, A11 (Stufe 3) | vorhanden |
+| IQ-Fehler | env `esp32-2432S028R-faultiq` (`-DTEST_FAULT_IQ=1`) | A8, A11 (Stufe 3) | vorhanden (AF39) |
 | Touch-Log | env `esp32-2432S028R-touchlog` (`-DTEST_TOUCH_LOG=1`): je Berührung `[TOUCH] x=… y=… to …,… z=… t=…ms gap=…ms drop=n/…ms target=…` | B12 (Stufe 2) · B9 | vorhanden (S28) |
 | Trefferkarte | env `esp32-2432S028R-hitmap` (`-DTEST_HIT_MAP=1`, mit Touch-Log): 20 Zielkreuze, roter Punkt am Treffer, `[HITMAP] target n (x,y) hit (x,y) dx dy`; Verlassen durch Neustart | **B8 (Stufe 1)** | vorhanden (S28) |
 | PLL ohne Reset | Testbuild „PLL-Änderung ohne Reset“ (N2) | D5 (Stufe 2) | zu erstellen |
@@ -757,7 +757,7 @@ Nur im Release-Kandidaten mit WEB-HMI ([ARBEITSPLAN.md](ARBEITSPLAN.md), Phase 6
 | L1, L3, L12 | WLAN-Modi, AP mit QR, Betrieb ohne SI5351 | 1 h 45 min |
 | L6 | SCPI über USB und TCP | 45 min |
 | L14 | 24-h-Dauertest (unbeaufsichtigt) | 30 min aktiv |
-| L-S1, L-S9, L-S10, L-S11 | ein Skriptlauf (`lsec_check.py`, Anhang D) | 60 min |
+| L-S1, L-S9, L-S10, L-S11 | ein Skriptlauf (`tools/web_check.py` und `tools/contract_check.py`, Anhang D) | 60 min |
 | L-S2, L-S3 | fremde Webseite, SCPI-Port aus dem Browser | 65 min |
 | L-S6, L-S7, L-S8 | kein Routing, keine Klartext-Passwörter, `Remote outputs` | 65 min |
 | L-S4, L-S5 | fremde SSIDs, Last (Tabelle unten) | 90 min |
@@ -770,7 +770,7 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 | Nr | Prüfung | Bezug | Soll | Dauer |
 |---|---|---|---|---|
 | L-S4 | Fremde SSIDs (W-S8, W-S9): Test-AP mit `<svg onload=alert(1)>`, `a"b\c`, `x\ny`, `\xF0A`, `\xC3`, 32 Byte und 200 Beacons; Scan am Gerät und im Web (nur im eigenen Labor, kleine Sendeleistung) | `test_sanitize` | keine Skriptausführung; SSIDs bereinigt; höchstens 15 Einträge; kein Neustart | 45 min |
-| L-S5 | Lasten (W-S10): Slowloris mit 30 Sockets, WebSocket-Flut, Multipart und Chunked; Touch bedienen; Heap vor, während, nach 2 min | – | Touch reagiert < 200 ms; Heap erholt sich auf ≥ 95 %; kein Neustart | 45 min |
+| L-S5 | Lasten (W-S10): Slowloris mit 30 Sockets (`tools/slowloris.py`), WebSocket-Flut, Multipart und Chunked; Touch bedienen; Heap vor, während, nach 2 min | – | Touch reagiert < 200 ms; Heap erholt sich auf ≥ 95 %; kein Neustart | 45 min |
 
 #### L1 · WLAN-Modi und Rückfall-AP
 
@@ -800,8 +800,8 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 
 `Geräte` PC (Skripte Anhang D) · `Bezug` W-S22, C-16 · `Dauer` 45 min
 
-1. USB: Port ohne DTR/RTS-Wechsel öffnen (`scpi_usb.py`); das Board darf nicht neu starten. 1000× `*IDN?`.
-2. TCP: `TCPIP0::<IP>::5025::SOCKET`; 1000× `*IDN?` (`scpi_tcp.py`), Median und 99-%-Perzentil der Antwortzeit.
+1. USB: Port ohne DTR/RTS-Wechsel öffnen (`scpi_usb.py` oder `tools/device_check.py --usb <PORT> --profile L6`); das Board darf nicht neu starten. 1000× `*IDN?`.
+2. TCP: `TCPIP0::<IP>::5025::SOCKET`; 1000× `*IDN?` (`scpi_tcp.py` oder `tools/device_check.py --tcp <IP> --profile L6`), Median und 99-%-Perzentil der Antwortzeit.
 3. Während der USB-Sitzung auf Logzeilen im Datenstrom achten; `SYSTem:LOG?` liefert die Logzeilen.
 
 **Soll:** kein Neustart beim Öffnen; 1000/1000 gültige Antworten `CYD,HF-Generator,<MAC>,1.4.0`; keine Logzeilen im Datenstrom; Median < 50 ms.
@@ -830,7 +830,7 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 
 #### L-S1 · curl-Matrix (W-S1, W-S4, W-S5, W-S10)
 
-`Bezug` W-S1, W-S4, W-S5, W-S10 · `Dauer` im Skriptlauf `lsec_check.py`
+`Bezug` W-S1, W-S4, W-S5, W-S10 · `Dauer` im Skriptlauf `web_check.py` / `contract_check.py`
 
 1. `curl -i -H "Host: evil.example" http://<IP>/api/state` → **421**.
 2. `curl -i -X POST -H "Content-Type: text/plain" -H "X-CYD-Token: <TOKEN>" --data '{"enabled":true}' http://<IP>/api/channel/1` → **415**.
@@ -903,7 +903,7 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 
 #### L-S9 · Antwort-Header (W-S7)
 
-`Dauer` im Skriptlauf `lsec_check.py`
+`Dauer` im Skriptlauf `web_check.py` / `contract_check.py`
 
 1. `curl -i` auf `/`, `/api/state` und eine JS/CSS-Datei; Header lesen.
 
@@ -912,7 +912,7 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 
 #### L-S10 · Grenzen und Rate-Limits (W-S10, W-S11)
 
-`Dauer` im Skriptlauf `lsec_check.py`
+`Dauer` im Skriptlauf `web_check.py` / `contract_check.py`
 
 1. URL mit 300 B; Header mit 3 KB; Body 1 KB + 1 B → 413; Multipart und Chunked → 415; Anfrage mit 12 s Pause → Timeout.
 2. Fünfte HTTP-Verbindung und vierter WebSocket gleichzeitig.
@@ -924,7 +924,7 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 
 #### L-S11 · Web-Passwort und Sitzung (W-S13)
 
-`Dauer` im Skriptlauf `lsec_check.py`
+`Dauer` im Skriptlauf `web_check.py` / `contract_check.py`
 
 1. Passwort mit 7 Zeichen → abgelehnt; mit 8 Zeichen → angenommen.
 2. Login: `Set-Cookie` lesen (HttpOnly, SameSite=Strict, Ablauf 12 h); kaputte `Authorization`- und `Cookie`-Header senden.
@@ -1304,7 +1304,7 @@ Was hier steht, ist großteils durch die Host-Suites der WEB-HMI abgedeckt oder 
 | L19 | T1 bis T3 (Anhang C) im Browser nur mit der Tastatur | 1 Person | ≤ 1 Fehlbedienung je Aufgabe | 30 min |
 | L20 | `Identify` (bzw. `SYSTem:IDENtify`) mit ≥ 3 Geräten im Raum | W-E28 | richtiges Gerät in ≥ 95 % | 20 min |
 | L21 | Großansicht am Beamer aus 5 m | – | Frequenzen und Zustände lesbar | 15 min |
-| L22 | SCPI-Befehlsbaum vollständig: `scpi_selftest.py` mit gültigen und ungültigen Parametern, `SYSTem:ERRor?` nach jedem Befehl, Stichproben am ZÄHLER | W-S17, W-S19, `test_scpi` | alle Erwartungen erfüllt; keine Abstürze; Frequenzen nur als Ganzzahlen | 60 min |
+| L22 | SCPI-Befehlsbaum vollständig: `tools/device_check.py --profile L22` mit gültigen und ungültigen Parametern, `SYSTem:ERRor?` nach jedem Befehl, Stichproben am ZÄHLER | W-S17, W-S19, `test_scpi` | alle Erwartungen erfüllt; keine Abstürze; Frequenzen nur als Ganzzahlen | 60 min |
 | L23 | REST: `GET /api/state` gegen die Anzeige; alle Schlüssel in `POST /api/config` und `/api/channel/<n>`; unbekannte Schlüssel und falsche Typen (`{"drive":"4"}`, `{"drive":4.5}`) | `test_rest_json` | Zustand stimmt; Fehler 400 mit `{"error":"-2xx,…"}` | 30 min |
 | L24 | `*RST` und Speichern: `*RST` → Ausgänge aus, Standardwerte; stromlos → alte Werte zurück; `*RST` + `SYSTem:SAVE` + Neustart → Standardwerte | W-E19, C-17, `test_command` | `*RST` speichert nicht; nach `SYSTem:SAVE` gelten die Standardwerte | 15 min |
 | L-S12 | Gerätename, mDNS, IPv6 (W-S4, W-S16): ungültige Namen und SSIDs abgelehnt; TXT-Einträge ohne Version und Commit; `Host: <name>.local` und `<IP>` akzeptiert, anderer Host 421; `curl -6` ohne Verbindung | `dns-sd` / `avahi-browse` | wie W-S16 und W-S4 | 20 min |
@@ -1573,7 +1573,7 @@ Antwort je Aussage: 1 (stimme gar nicht zu) bis 5 (stimme voll zu).
 
 ## Anhang D · Skripte (Skizzen)
 
-Die Skripte entstehen beim Aufbau; sie gehören zum Messprotokoll (Ordner `messungen/skripte/`).
+Die beiden Skizzen unten sind Beispiele für eigene Skripte (Ordner `messungen/skripte/`); die Helfer der Liste liegen in `tools/` (AF39, `tools/README.md`) und sind gegen `tools/web_mock.py` und `tools/fake_scpi_device.py` geprüft, nicht am Gerät.
 
 ```python
 # scpi_tcp.py – 1000x *IDN? über TCP (L6)
@@ -1596,11 +1596,11 @@ s.dtr = False; s.rts = False; s.open()
 s.write(b"*IDN?\n"); print(s.readline())
 ```
 
-- `counter_log.py` (C7, C8): liest den ZÄHLER per SCPI/USB im Takt der Torzeit und schreibt `Zeit;Frequenz;Temperatur` in eine CSV.
-- `touchstat.py` (B8, B9, B12, B13): wertet Touch-Log und `[HITMAP]`-Zeilen aus: Abweichung je Zielbereich, Fehltippquote, Aussetzer.
-- `lsec_check.py` (L-S1, L-S9, L-S10, L-S11): führt die curl-Fälle der vier Tests nacheinander aus, vergleicht Statuscodes und Header mit der Erwartung und prüft nach jedem Fall den Kanalzustand über `GET /api/state`.
-- `scpi_selftest.py` (L22): Tabelle des SCPI-Befehlsbaums (WEB-HMI-Konzept im Arbeitsplan) mit gültigen und ungültigen Parametern, `SYST:ERR?` nach jedem Befehl, Soll-Fehlercode je Zeile.
-- `slowloris.py` (L-S5): 30 offene, nie beendete HTTP-Anfragen (nur im eigenen Labor).
+- `tools/counter_log.py` (C7, C8): liest den ZÄHLER per SCPI über TCP oder USB im Takt der Torzeit und schreibt `time;frequency;temperature` in eine CSV (Abfrage mit `--query` einstellbar, Temperatur mit `--temp-query`).
+- `tools/touchstat.py` (B8, B9, B12, B13): wertet `[HITMAP]`- und `[TOUCH]`-Zeilen aus: Abweichung je Zielkreuz, Fehltippquote (`--tolerance`), Druckdauer, kurze Pausen (Doppeltipp), Aussetzer, Berührungen je Widget.
+- L-S1, L-S9, L-S10, L-S11: `tools/web_check.py <IP>` (Header, Guard-Antworten, Grenzen, Rate-Limit, Sitzung; mit Passwort `--password`) und `tools/contract_check.py <IP>` (gemeinsame Vertragsvektoren, ohne Web-Passwort); die curl-Zeilen der Tests bleiben für die Fälle, die beide nicht abdecken (CORS-Header, Kanalzustand nach jedem Fall).
+- L22 und L6: `tools/device_check.py --profile L22` (jede Abfrage des Befehlsbaums mit `SYST:ERR?` danach, gültige und ungültige Parameter mit Soll-Fehlercode, `*RST`) und `--profile L6` (1000× `*IDN?`, Median < 50 ms).
+- `tools/slowloris.py` (L-S5): 30 offene Anfragen, ein Header-Byte alle 2 s, Abschluss nach 10 s; je Verbindung angenommen, abgewiesen, vom Gerät geschlossen (wann) oder beantwortet (nur im eigenen Labor).
 
 ---
 

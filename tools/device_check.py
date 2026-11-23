@@ -14,8 +14,13 @@ Checks: *IDN? format, empty error queue, valid settings round trips, rejected
 inputs with the documented error codes (state unchanged), compound lines, line
 limits, rate limit, *IDN? timing, SYST:LOG? drain.
 
+Profiles of the measurement plan (AF39): --profile L6 (1000 x *IDN?, median < 50 ms, no log
+line in the data stream) and --profile L22 (the whole command tree: every query followed by
+SYST:ERR? = 0, the valid round trips, the invalid parameters with their codes, *RST).
+
 Examples:
     python device_check.py --usb COM5
+    python device_check.py --tcp cyd-hf-1a2b.local --profile L22
     python device_check.py --tcp cyd-hf-1a2b.local --repeat 1000 --json > report.json
     python device_check.py --tcp 127.0.0.1:5025 --outputs
 
@@ -552,6 +557,33 @@ def check_timing(dev, repeat):
     return f
 
 
+# Every query of the command tree (USER_MANUAL_EN.md section 15) for the L22 sweep.
+QUERY_TREE = ["*IDN?", "*OPC?", "*TST?", "*ESR?", "*STB?", "SYST:VERS?", "SYST:ERR:COUN?", "SYST:SI5351?",
+              "SYST:HEAP?", "OUTP:REM?", "SOUR3:IQ:RANG?", "FREQ:ACT?", "SOUR2:FREQ:ACT?", "SOUR3:FREQ?"] + \
+             ["OUTP%d?" % n for n in (1, 2, 3)] + ["OUTP%d:COND?" % n for n in (1, 2, 3)] + \
+             [query for _, query, _ in STATE_QUERIES]
+
+PROFILES = {
+    # MESSPLAN L6: 1000 valid answers, median below EXPECT["idn_median_ms"].
+    "L6": {"repeat": 1000, "allow_rst": False, "sweep": False},
+    # MESSPLAN L22: command tree complete, SYST:ERR? after every command.
+    "L22": {"repeat": 100, "allow_rst": True, "sweep": True},
+}
+
+
+def check_query_sweep(dev):
+    """L22: every query answers and leaves the error queue empty."""
+    out = []
+    for cmd in QUERY_TREE:
+        def f(cmd=cmd):
+            dev.drain()
+            a = dev.q(cmd)
+            e = dev.err()
+            return a != "" and e == EXPECT["no_error"], "%s -> %s; SYST:ERR? %s" % (cmd, a, e)
+        out.append(("sweep %s then SYST:ERR? empty" % cmd, f))
+    return out
+
+
 def check_log_drain(dev):
     def f():
         lines = 0
@@ -623,8 +655,9 @@ def main():
     grp = ap.add_mutually_exclusive_group(required=True)
     grp.add_argument("--usb", metavar="PORT", help="serial port, e.g. COM5 (DTR/RTS stay off)")
     grp.add_argument("--tcp", metavar="HOST[:PORT]", help="TCP address, port defaults to 5025")
-    ap.add_argument("--repeat", type=int, default=100, metavar="N",
-                    help="number of *IDN? queries for the timing check (default 100; use 1000 for L6)")
+    ap.add_argument("--repeat", type=int, default=None, metavar="N",
+                    help="number of *IDN? queries for the timing check (default 100, 1000 with --profile L6)")
+    ap.add_argument("--profile", choices=sorted(PROFILES), help="measurement profile of MESSPLAN.md (L6, L22)")
     ap.add_argument("--outputs", action="store_true",
                     help="also switch outputs ON briefly (RF!); without it no output is enabled")
     ap.add_argument("--allow-rst", action="store_true", help="also test *RST (all settings in RAM reset)")
@@ -633,6 +666,10 @@ def main():
     ap.add_argument("--pace", type=float, default=0.06,
                     help="minimum seconds between setting commands (default 0.06, limit is 20/s)")
     args = ap.parse_args()
+    profile = PROFILES.get(args.profile, {"repeat": 100, "allow_rst": False, "sweep": False})
+    if args.repeat is None:
+        args.repeat = profile["repeat"]
+    args.allow_rst = args.allow_rst or profile["allow_rst"]
 
     rep = Report(quiet=args.json)
     try:
@@ -658,6 +695,9 @@ def main():
             dev.err() == EXPECT["no_error"], "answer 0,\"No error\""))
         for name, fn in check_basic_queries(dev):
             run(rep, name, fn)
+        if profile["sweep"]:
+            for name, fn in check_query_sweep(dev):
+                run(rep, name, fn)
 
         orig = read_state(dev)
         outs = [dev.q("OUTP%d?" % n) for n in (1, 2, 3)]
@@ -721,7 +761,7 @@ def main():
     line = "Summary: %d PASS, %d FAIL, %d SKIP" % (summary["pass"], summary["fail"], summary["skip"])
     if args.json:
         sys.stderr.write(line + "\n")
-        json.dump({"device": device_id, "outputs_tested": args.outputs, "summary": summary,
+        json.dump({"device": device_id, "profile": args.profile, "outputs_tested": args.outputs, "summary": summary,
                    "checks": rep.items}, sys.stdout, indent=2)
         sys.stdout.write("\n")
     else:

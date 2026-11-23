@@ -163,11 +163,14 @@ jobs:
           python tools/contract_check.py 127.0.0.1:18080
           python tools/web_check.py 127.0.0.1:18080
           CYD_WEB_PASSWORD="$PW" python tools/web_check.py 127.0.0.1:18081 --password
+          python tools/slowloris.py 127.0.0.1:18080 -n 5 --hold 2 --trickle 1
       - name: Fake device and device check
         run: |
           python tools/fake_scpi_device.py --port 15025 > fake.log 2>&1 &
           for _ in $(seq 50); do python -c "import socket; socket.create_connection(('127.0.0.1',15025),1)" 2>/dev/null && break; sleep 0.2; done
           python tools/device_check.py --tcp 127.0.0.1:15025
+          python tools/device_check.py --tcp 127.0.0.1:15025 --profile L22
+          python tools/counter_log.py --tcp 127.0.0.1:15025 --query "FREQ:ACT?" --interval 0.2 --count 3
       - name: Logs
         if: failure()
         run: tail -n 50 mock.log mock-pw.log fake.log 2>/dev/null || true
