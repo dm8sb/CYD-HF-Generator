@@ -57,7 +57,7 @@ static uint32_t publishedRevision = 0xFFFFFFFF;
 // neither counts in the revision, and the web state shows both.
 static SaveState publishedSave = SaveState::Saved;
 static uint32_t publishedRemoteMs = 0;
-// Web server (S55) on the heap (E-31); it starts when WiFi first comes up.
+// Web server (S55) on the heap (E-305); it starts when WiFi first comes up.
 static WebHmiServer* web = nullptr;
 static bool webConfirmNeeded() { return web && web->touchConfirmNeeded(); }
 static uint16_t webChangePendingS() { return web ? web->netChangePendingS() : 0; }
@@ -101,9 +101,9 @@ static void serialWrite(const char* data, size_t len, void*) { Serial.write((con
 static LoopScpiBackend loopBackend(commands, app, snapshot, heapInfo);
 static ScpiSession usbSession(loopBackend, Source::Usb);
 static ScpiUsbLink usbLink(usbSession, coreDebugOutput);
-// SCPI over TCP 5025 (S54): also in loop(), own session and error queue; on the heap (E-31).
+// SCPI over TCP 5025 (S54): also in loop(), own session and error queue; on the heap (E-305).
 static ScpiTcpServer* scpiTcp = nullptr;
-// VXI-11 with portmapper (LX1, A-78): own session, also in loop() and on the heap.
+// VXI-11 with portmapper (LX1, A-615): own session, also in loop() and on the heap.
 static Vxi11Server* vxi11 = nullptr;
 // Web password typed at the device (S55b): hashed by a worker task, salt from the true RNG.
 static WebPasswordWorker* webPassword = nullptr;
@@ -130,8 +130,8 @@ static void disconnectRemote() {
     if (vxi11) vxi11->core().disconnect();
 }
 
-// SCPI over TCP and VXI-11 share one gate (W-S20): never over an open AP. No login and no
-// setting of their own (D24); `Remote outputs: local only` is the protection.
+// SCPI over TCP and VXI-11 share one gate (A-720): never over an open AP. No login and no
+// setting of their own (E-704); `Remote outputs: local only` is the protection.
 static void pollNetworkScpi() {
     const WifiManager::Status& s = wifi.status();
     const bool allowed = ScpiTcpLink::allowedFor(s.staConnected, s.apActive, s.apOpen);
@@ -156,7 +156,7 @@ static bool saveTouchCalibration(const TouchCalibration& cal) { return settings.
 // Factory reset (U-13): the outputs are already off; erase and start like a new device.
 static void factoryReset() {
     settings.eraseAll();
-    NetConfig::eraseAll(); // WiFi settings and the driver's namespace (W-S14)
+    NetConfig::eraseAll(); // WiFi settings and the driver's namespace (A-714)
     Logger::info("BOOT", "Factory reset; restarting");
     delay(100);
     ESP.restart();
@@ -180,7 +180,7 @@ void setup() {
     snprintf(line, sizeof(line), "%s %s (%s %s, %s)", APP_NAME, BuildInfo::version(), BuildInfo::branch(),
              BuildInfo::commit(), BuildInfo::time());
     Logger::info("BOOT", line);
-    // *IDN? serial number: the base MAC (W-E5 uses its last 4 digits for the device name).
+    // *IDN? serial number: the base MAC (E-505 uses its last 4 digits for the device name).
     char mac[13];
     const uint64_t efuse = ESP.getEfuseMac();
     snprintf(mac, sizeof(mac), "%02X%02X%02X%02X%02X%02X", (unsigned)(efuse & 0xFF), (unsigned)((efuse >> 8) & 0xFF),
@@ -304,7 +304,7 @@ void setup() {
     enableLoopWDT();
 }
 
-// Test hooks for the restart paths (config.h, MESSPLAN Q4/Q5); compiled out by default.
+// Test hooks for the restart paths (config.h, MESSPLAN M-128/M-129); compiled out by default.
 static void runRestartTests() {
     if (!TEST_LVGL_ASSERT && !TEST_LOOP_HANG) return;
     static bool done = false;
@@ -338,7 +338,7 @@ void loop() {
     commands.markVisible();
     if (web) web->loop();
     gui.update();
-    // Page color, or Identify blinking with the backlight (W-E28): one owner, also while the
+    // Page color, or Identify blinking with the backlight (E-613): one owner, also while the
     // GUI shows the calibration.
     StatusLed::update(gui.page(), app.identifying(), app.identifyLit());
     MemMonitor::update();

@@ -41,11 +41,11 @@ void SettingsService::load(PersistentState& s) {
     if (s.sys.tuning_mode == TuningMode::Integer) s.sys.spread = Spread::Off;
     const uint8_t off = storage_.getU8("off_st", 0);
     s.sys.off_state = off <= (uint8_t)OffState::HighZ ? (OffState)off : OffState::Low;
-    // CH2 coupled to CH1 (E-52); NVS from before has neither key: Free, offset 0.
+    // CH2 coupled to CH1 (E-213); NVS from before has neither key: Free, offset 0.
     s.ch2c.coupled = storage_.getU8("ch2_cpl", 0) == 1;
     const int32_t offset = storage_.getI32("ch2_off", 0);
     s.ch2c.offset = (offset < -CH2_OFFSET_MAX_HZ || offset > CH2_OFFSET_MAX_HZ) ? 0 : offset;
-    // Screen rotation (E-53): 1 = 180 degrees; NVS from before has no key (0 degrees), other values too.
+    // Screen rotation (E-314): 1 = 180 degrees; NVS from before has no key (0 degrees), other values too.
     s.sys.rotation = storage_.getU8("rot180", 0) == 1 ? 180 : 0;
     Logger::info("SETTINGS", available_ ? "Loaded from NVS" : "NVS unavailable; defaults loaded");
 }

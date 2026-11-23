@@ -48,7 +48,7 @@ void setUp() {
 void tearDown() { TEST_ASSERT_FALSE(Fake::wireMisuse()); }
 
 // The core range 1-100 MHz with the tightest error limits; 8 kHz-1 MHz and 100-160 MHz
-// (range extension E-16) have their own tests.
+// (range extension E-203) have their own tests.
 static constexpr uint64_t CORE_MIN_HZ = 1000000ULL;
 static constexpr uint64_t CORE_MAX_HZ = 100000000ULL;
 
@@ -256,7 +256,7 @@ static void test_standalone_accuracy_at_weak_spots() {
 }
 
 static void test_standalone_below_1_mhz_uses_r_divider() {
-    // Range extension (E-16): 8 kHz-1 MHz through the R divider.
+    // Range extension (E-203): 8 kHz-1 MHz through the R divider.
     for (int32_t corr : CORRECTIONS) {
         TEST_ASSERT_TRUE(si.begin(corr));
         lcgState = 11;

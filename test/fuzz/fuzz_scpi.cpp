@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Fuzz target scpi: the SCPI session (remote/scpi.cpp on j123b567/scpi-parser) behind the
-// LineFramer, as the USB and TCP servers run it (W-S17, W-S19, W-E12).
+// LineFramer, as the USB and TCP servers run it (A-717, A-719, E-601).
 // Input: 6 configuration bytes, then the byte stream of a connection.
 //   byte 0: bit 0 raw lines (split at LF only, no framer: robustness beyond the framer's
 //           guarantees), bit 1 no snapshot available, bit 2 log lines for SYSTem:LOG?,
@@ -12,7 +12,7 @@
 // The backend is a fake (no AppController): it checks every command the session hands over and
 // answers with outcomes drawn from the seed, so all answer paths and query handlers are reached.
 // Invariants: commands carry the session's source, channels and enum values in range,
-// frequencies within FREQ_MIN_HZ..FREQ_MAX_HZ (W-S19); per framed line at most MAX_COMMANDS
+// frequencies within FREQ_MIN_HZ..FREQ_MAX_HZ (A-719); per framed line at most MAX_COMMANDS
 // commands and at most MAX_ANSWER bytes of printable output ending with LF; the error queue
 // holds at most 16 entries and drains to 0,"No error".
 

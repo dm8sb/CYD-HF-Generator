@@ -7,22 +7,22 @@
 #include <stdint.h>
 #include "request_guard.h"
 
-// Byte and connection limits of the web server (S55, W-S6, W-S10). Pure and host-tested; the
+// Byte and connection limits of the web server (S55, A-706, A-710). Pure and host-tested; the
 // device glue (net/web_server.*) feeds them from the async_tcp task. Not thread-safe.
 
 // Raw bytes of one HTTP connection before ESPAsyncWebServer parses them: the library keeps
 // header lines and values without any limit, so the limits are checked on the bytes as they
 // arrive and an oversized request is answered (414, 431, 413) and closed before it can use
-// the heap. Also the 10 s deadline for the whole request (slow senders, W-S10).
+// the heap. Also the 10 s deadline for the whole request (slow senders, A-710).
 class HttpPreFilter {
 public:
-    static constexpr size_t MAX_URL = 256;          // request target incl. query (W-S10)
+    static constexpr size_t MAX_URL = 256;          // request target incl. query (A-710)
     static constexpr size_t MAX_LINE = MAX_URL + 32; // request line: method, target, version
-    static constexpr size_t MAX_HEADERS = 2048;      // header lines incl. CRLF (W-S10)
-    static constexpr size_t MAX_BODY = 1024;         // Content-Length (W-S10)
+    static constexpr size_t MAX_HEADERS = 2048;      // header lines incl. CRLF (A-710)
+    static constexpr size_t MAX_BODY = 1024;         // Content-Length (A-710)
     // Bytes after the header block at most (chunked framing, bytes beyond Content-Length).
     static constexpr size_t MAX_AFTER_HEAD = 2 * MAX_BODY;
-    static constexpr uint32_t DEADLINE_MS = 10000;   // whole request (W-S10)
+    static constexpr uint32_t DEADLINE_MS = 10000;   // whole request (A-710)
 
     enum class Verdict : uint8_t {
         Pass,
@@ -61,7 +61,7 @@ private:
     uint64_t contentLength_ = 0; // largest value seen
 };
 
-// Live HTTP connections (<= MAX, W-S10) with their pre-filter; a WebSocket leaves the table
+// Live HTTP connections (<= MAX, A-710) with their pre-filter; a WebSocket leaves the table
 // when it is upgraded (it counts against the WebSocket limit instead).
 class HttpConnections {
 public:
@@ -81,7 +81,7 @@ private:
     Slot slots_[MAX] {};
 };
 
-// WebSocket clients (W-E10, W-S6): at most MAX, push only, ping every PING_MS, closed after
+// WebSocket clients (E-619, A-706): at most MAX, push only, ping every PING_MS, closed after
 // PONG_TIMEOUT_MS without an answer; needsState marks a client that has not got the current state.
 // AF18: only a PONG that answers our PING counts: it must echo the PING's random payload
 // (PING_PAYLOAD_LEN bytes from duePing), so unsolicited PONGs cannot keep a client that reads
@@ -92,7 +92,7 @@ public:
     static constexpr uint8_t MAX = 3;
     static constexpr uint32_t PING_MS = 15000;
     static constexpr uint32_t PONG_TIMEOUT_MS = 30000;
-    static constexpr size_t MAX_FRAME = 512; // inbound frames (W-S6); the state goes out at ~800 B
+    static constexpr size_t MAX_FRAME = 512; // inbound frames (A-706); the state goes out at ~800 B
     static constexpr uint8_t PING_BUDGET = 3;
     static constexpr size_t PING_PAYLOAD_LEN = 4;
     static constexpr uint32_t PING_WINDOW_MS = 10000;
@@ -164,7 +164,7 @@ private:
 namespace HeapLimits {
 static constexpr uint32_t MIN_BLOCK_ACCEPT = 8 * 1024; // a new connection: request, parser, answer
 static constexpr uint32_t PUSH_RESERVE = 4 * 1024;     // beyond the state text: message objects, lwIP
-// A new HTTP connection is taken (else 503): W-S10 free heap and the largest block.
+// A new HTTP connection is taken (else 503): A-710 free heap and the largest block.
 inline bool acceptOk(uint32_t freeHeap, uint32_t largestBlock) {
     return freeHeap >= RequestGuard::MIN_FREE_HEAP && largestBlock >= MIN_BLOCK_ACCEPT;
 }

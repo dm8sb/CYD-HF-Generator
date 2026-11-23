@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Splits a byte stream (USB serial, TCP 5025) into SCPI lines (W-S17, S-11). Pure logic, no
+// Splits a byte stream (USB serial, TCP 5025) into SCPI lines (A-717, S-11). Pure logic, no
 // Arduino dependency: host-tested and fuzzed.
 // - A line ends with LF; CR is ignored, blank lines are dropped.
 // - At most MAX_LINE bytes: a longer line is discarded up to its LF (TooLong, SCPI -363).
@@ -38,7 +38,7 @@ private:
     bool complete_ = false; // the previous call returned Line: start a new one
 };
 
-// TCP 5025 (W-S18, S-6): an HTTP request line ("GET / HTTP/1.1") or header line ("Host: x")
+// TCP 5025 (A-718, S-6): an HTTP request line ("GET / HTTP/1.1") or header line ("Host: x")
 // sent by a browser or a cross-site request; the server closes without executing it.
 bool looksLikeHttp(const char* line, size_t len);
 

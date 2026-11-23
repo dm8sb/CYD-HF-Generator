@@ -6,7 +6,7 @@
 #include <stddef.h>
 
 // Foreign strings (SSIDs from a scan, names from the network) before they reach LVGL or JSON
-// (W-S9, S-7, S-14). Pure, host-tested and later fuzzed.
+// (A-709, S-7, S-14). Pure, host-tested and later fuzzed.
 namespace Sanitize {
 
 // Copies at most maxBytes bytes of valid UTF-8 into out (NUL-terminated, outSize > maxBytes):

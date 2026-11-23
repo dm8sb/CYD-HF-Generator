@@ -8,7 +8,7 @@
 #include <net/net_settings.h>
 #include "command.h"
 
-// REST JSON mapping (ARBEITSPLAN 3.6, W-S8, W-S19, W-S21): request bodies to Commands
+// REST JSON mapping (PROJECT_SPECIFICATION.md 6.4, A-708, A-719, A-721): request bodies to Commands
 // (Source::Web), Result/PushResult to an HTTP status with {"error":"<code>,<text>"} using the
 // SCPI codes; <text> is the detail when there is one (the web UI shows it as it is), else the
 // standard SCPI text ("-222,Data out of range"), and the state JSON for
@@ -27,7 +27,7 @@
 //   frequencyText outside 8 kHz-160 MHz                           -222 Data out of range
 //   unknown enum text, frequencyText not parseable, NUL in a string
 //                                                                 -224 Illegal parameter value
-//   remoteOutputs in /api/config (only on the device, W-E25)      403, -221
+//   remoteOutputs in /api/config (only on the device, E-610)      403, -221
 // Numbers are passed on in the full type (int64); ranges and allowed values are the
 // controller's (Result, as with SCPI): OutOfRange -222, Invalid -224, Conflict -221.
 // Several keys give several Commands in a fixed order (independent of the key order), so a
@@ -37,8 +37,8 @@
 // refused push and answers with the first error.
 namespace RestJson {
 
-static constexpr size_t MAX_BODY = 1024;   // W-S10; the guard refuses larger with 413
-static constexpr uint8_t MAX_NESTING = 10; // ARBEITSPLAN 3.3
+static constexpr size_t MAX_BODY = 1024;   // A-710; the guard refuses larger with 413
+static constexpr uint8_t MAX_NESTING = 10; // A-604
 static constexpr uint8_t MAX_COMMANDS = 9;
 static constexpr size_t STATE_SIZE = 1280;  // buildState() with the longest escaped texts (typical ~800 B)
 static constexpr size_t ERROR_SIZE = 96;    // enough for errorJson()
@@ -67,21 +67,21 @@ struct Commands {
 };
 
 // POST /api/channel/<1|2>: {"enabled":bool,"frequency":int,"frequencyText":string}; channel 2
-// also {"coupled":bool,"offset":int} (E-52; order: offset, coupled, frequency, enabled).
+// also {"coupled":bool,"offset":int} (E-213; order: offset, coupled, frequency, enabled).
 // A CH2 frequency while coupled: 400/-221 "CH2 is coupled to CH1" (Result::Coupled).
 Reply parseChannel(uint8_t channel, const char* body, size_t len, Commands* out);
 // POST /api/ch3: {"enabled":bool,"master":int,"phase":int}.
 Reply parseCh3(const char* body, size_t len, Commands* out);
 // POST /api/config: {"drive":int,"tuning":"fractional|lownoise|integer",
 // "spread":"off|down05|down15|center05","offState":"low|high|hiz","correction":int (0.01 ppm),
-// "step":int,"backlight":int,"rotation":0|180 (degrees, E-53)}.
+// "step":int,"backlight":int,"rotation":0|180 (degrees, E-314)}.
 Reply parseConfig(const char* body, size_t len, Commands* out);
 // POST /api/save (SaveNow) and /api/identify (Identify): the body is {}.
 Reply parseAction(CommandType type, const char* body, size_t len, Commands* out);
 // POST /api/login: {"password":string}, copied into password (NUL-terminated); longer than
 // passwordSize - 1 bytes: -222.
 Reply parseLogin(const char* body, size_t len, char* password, size_t passwordSize, size_t* passwordLen);
-// W-S1: the body is JSON with a key (any depth) that names a password or key ("pass", "psk",
+// A-701: the body is JSON with a key (any depth) that names a password or key ("pass", "psk",
 // "secret", "key" in any case); for RequestGuard::checkSecrets(). false for invalid JSON (the
 // endpoint refuses it anyway).
 bool carriesSecret(const char* body, size_t len);
@@ -89,9 +89,9 @@ bool carriesSecret(const char* body, size_t len);
 uint8_t channelFromPath(const char* path);
 
 // Queue and controller outcome. Queued/Ok/NoChange: 200. Full: 503 (-200 "Busy, try again",
-// the queue drains within one loop()). RateLimited: 429 (-200 "Too many commands", W-S11).
+// the queue drains within one loop()). RateLimited: 429 (-200 "Too many commands", A-711).
 // OutOfRange 400/-222, Invalid 400/-224, Conflict 400/-221 (spread spectrum in Integer),
-// Denied 403/-221 "Remote outputs: local only" (W-S21), HwError 500/-240 "SI5351 setup failed".
+// Denied 403/-221 "Remote outputs: local only" (A-721), HwError 500/-240 "SI5351 setup failed".
 Reply fromPush(PushResult p);
 Reply fromResult(Result r);
 Reply fromOutcome(PushResult p, Result r);
@@ -149,7 +149,7 @@ PushKey pushKey(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs);
 
 // Error bodies of refusals that come from the request guard or the server itself:
 // {"error":"-200,<text>"}; status 403 with reason "Bad token" becomes "Invalid token: reload the
-// page" (stale token after a restart, ARBEITSPLAN 3.6 point 4), 401 "Login required".
+// page" (stale token after a restart, A-620), 401 "Login required".
 size_t guardErrorJson(uint16_t status, const char* reason, char* out, size_t outSize);
 // 429 of the login lock: {"error":"-200,Too many failed logins","retryAfter":<s>}.
 size_t loginLockedJson(uint32_t retryAfterS, char* out, size_t outSize);

@@ -29,7 +29,7 @@ DNSServer dnsServer;
 
 constexpr uint8_t AP_IP[4] = {192, 168, 4, 1};
 constexpr uint8_t AP_MAX_STATIONS = 4;
-constexpr uint8_t OPEN_AP_MAX_STATIONS = 2; // W-S2
+constexpr uint8_t OPEN_AP_MAX_STATIONS = 2; // A-702
 constexpr uint32_t UI_SCAN_TIMEOUT_MS = 15000;
 // Highest TX power level of esp_wifi_set_max_tx_power() (21 dBm); the driver limits it to the
 // calibrated maximum of the PHY data (20 dBm on the ESP32).
@@ -38,7 +38,7 @@ constexpr int8_t TX_POWER_MAX = 84;
 
 uint32_t hwRandom() { return esp_random(); }
 
-// D38 / E-45: no modem sleep and full TX power after every start of the radio. With modem
+// E-512: no modem sleep and full TX power after every start of the radio. With modem
 // sleep the client wakes only at the beacon interval (pings of 220-390 ms, VISA timeouts).
 // The Arduino core applies its stored sleep type at every STA start, so it is stored first;
 // the driver calls cover a client that already runs and the access point.
@@ -99,7 +99,7 @@ const char* modeName(WifiMode m) {
     }
 }
 
-// The AP's DHCP server offers no router (no default route through the device, W-S3) but
+// The AP's DHCP server offers no router (no default route through the device, A-703) but
 // itself as DNS server (captive DNS).
 void configureApDhcp() {
     esp_netif_t* ap = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
@@ -124,9 +124,9 @@ void configureApDhcp() {
 void WifiManager::begin(const NetSettings& s, const uint8_t mac[6], SaveFn save) {
     memcpy(mac_, mac, 6);
     save_ = save;
-    WiFi.persistent(false); // credentials only in "hfnet" as PMK (W-S14)
+    WiFi.persistent(false); // credentials only in "hfnet" as PMK (A-714)
     WiFi.setAutoReconnect(false);
-    WiFi.setSleep(WIFI_PS_NONE); // stored for every STA start (D38)
+    WiFi.setSleep(WIFI_PS_NONE); // stored for every STA start (E-512)
     WiFi.onEvent(onWifiEvent);
     NetConfig::apSsid(mac_, status_.apSsid, sizeof(status_.apSsid));
     apply(s);
@@ -275,7 +275,7 @@ void WifiManager::tryConnect_() {
     if (slot < 0) return;
     const WifiNetwork& n = nets[slot];
     const bool open = n.key[0] == '\0';
-    // W-S15: at least WPA2 unless the network was stored as open on purpose (W-E7 warning).
+    // A-715: at least WPA2 unless the network was stored as open on purpose (E-507 warning).
     WiFi.setMinSecurity(open ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK);
     lastDisconnectReason = 0;
     status_.lastFailure = Failure::None;
@@ -324,7 +324,7 @@ void WifiManager::update() {
     const uint32_t now = millis();
     // Observe the client.
     if (staOn_) {
-        // Field reads only (status and event flag): the D14 check stays in every loop().
+        // Field reads only (status and event flag): the E-511 check stays in every loop().
         const bool connected = staHasIp && WiFi.status() == WL_CONNECTED;
         if (connected && !hadIp_) {
             onGotIp_();
@@ -364,7 +364,7 @@ void WifiManager::update() {
         if (sc >= 0) finishUiScan_(sc);
         else if (sc == WIFI_SCAN_FAILED || now - uiScanStartMs_ >= UI_SCAN_TIMEOUT_MS) finishUiScan_(-1);
     }
-    // Open AP without station (W-S2).
+    // Open AP without station (A-702).
     if (apOn_) {
         if (WifiPolicy::pollDue(now, stationsPolledMs_, stationsPolled_)) {
             wifi_sta_list_t list {};
@@ -414,9 +414,9 @@ void WifiManager::finishUiScan_(int found) {
     Logger::info("WIFI", line);
 }
 
-// DNS-SD (W-E12, A-78): raw SCPI, VXI-11 (the portmapper port, as LXI defines it), LXI and the
+// DNS-SD (E-601, A-615): raw SCPI, VXI-11 (the portmapper port, as LXI defines it), LXI and the
 // web page, so that `lxi discover -m` and other LXI tools find the device. The TXT record
-// names manufacturer and model, but no version, serial number or MAC (W-S16).
+// names manufacturer and model, but no version, serial number or MAC (A-716).
 static void announceServices() {
     MDNS.addService("scpi-raw", "tcp", SCPI_TCP_PORT);
     MDNS.addService("vxi-11", "tcp", 111);
@@ -434,7 +434,7 @@ void WifiManager::applyTargets_(const WifiPolicy::Targets& t) {
     const wifi_mode_t want = t.sta && t.ap ? WIFI_AP_STA : t.sta ? WIFI_STA : t.ap ? WIFI_AP : WIFI_OFF;
     const wifi_mode_t have = staOn_ && apOn_ ? WIFI_AP_STA : staOn_ ? WIFI_STA : apOn_ ? WIFI_AP : WIFI_OFF;
     if (want == have && (!t.ap || t.apOpen == apIsOpen_)) return;
-    // The AP goes first: with a client address it must not run a moment longer (D14).
+    // The AP goes first: with a client address it must not run a moment longer (E-511).
     if (apOn_ && (!t.ap || t.apOpen != apIsOpen_)) stopAp_();
     if (staOn_ && !t.sta) stopSta_();
     if (have == WIFI_OFF && want != WIFI_OFF) WiFi.setHostname(settings_.deviceName); // before the netif starts

@@ -76,7 +76,7 @@ bool isPmkHex(const char* k) {
 bool validNetworkKey(const char* k) { return k && (k[0] == '\0' || validPassphrase(k) || isPmkHex(k)); }
 
 void generateApPassword(uint32_t (*rand32)(), char out[AP_PASSWORD_LEN + 1]) {
-    // 57 characters without 0, O, 1, l, I (W-E3); rejection sampling keeps it uniform.
+    // 57 characters without 0, O, 1, l, I (E-503); rejection sampling keeps it uniform.
     static const char ALPHABET[] = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     static const uint32_t N = sizeof(ALPHABET) - 1;
     static const uint32_t LIMIT = 0xFFFFFFFFu - (0xFFFFFFFFu % N);

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// CYD HF Generator web UI. No framework; device text only via textContent (W-S8).
+// CYD HF Generator web UI. No framework; device text only via textContent (A-708).
 'use strict';
 (() => {
 const D = document;
@@ -44,7 +44,7 @@ const conn = {online: false, ws: null, live: false, retry: 2000, polling: false,
   paused: false, hideT: 0};
 // Login. session: this browser has a login session (the cookie is HttpOnly): set by a login or
 // by a request that needs one, cleared by 401 and the logout; only shown while a web password is
-// set (pwSet, known from the first state: pwKnown). D25: with a web password even reading needs
+// set (pwSet, known from the first state: pwKnown). E-703: with a web password even reading needs
 // the login. needLogin: a read was refused (401); declined: the login dialog was cancelled, so
 // reads stop asking until "Log in" is pressed. prompt/resolve/reject: the open login dialog.
 const auth = {session: false, pwSet: false, pwKnown: false, needLogin: false, declined: false,
@@ -127,7 +127,7 @@ const rangeText = () => fmtLimit(L.fmin) + ' - ' + fmtLimit(L.fmax);
 const stepLabel = (s) => (s >= 1e6 ? s / 1e6 + 'M' : s >= 1e3 ? s / 1e3 + 'k' : String(s));
 const clampF = (v) => Math.min(L.fmax, Math.max(L.fmin, v));
 const snap = (s) => L.steps.find((x) => x <= s) || 1;
-// CH2 coupled to CH1 (E-52): offset -offsetMax..+offsetMax, shown with its sign.
+// CH2 coupled to CH1 (E-213): offset -offsetMax..+offsetMax, shown with its sign.
 const oMax = () => L.offsetMax || 160000000;
 const clampO = (v) => Math.min(oMax(), Math.max(-oMax(), v));
 const fmtO = (v) => (v < 0 ? '-' : '+') + fmtF(Math.abs(v));
@@ -179,7 +179,7 @@ async function api(path, body, retried) {
   const post = body !== undefined;
   if (post) {
     if (!conn.online) throw apiErr(0);
-    // The device takes at most 20 writes/s per source (W-S11).
+    // The device takes at most 20 writes/s per source (A-711).
     const t = Math.max(Date.now(), conn.lastWrite + 60);
     conn.lastWrite = t;
     if (t > Date.now()) await sleep(t - Date.now());
@@ -207,7 +207,7 @@ async function api(path, body, retried) {
   // Writes and the WiFi settings need the session while a password is set (without one the flag
   // means nothing and the button stays hidden).
   if (path !== '/api/logout' && (post || path.startsWith('/api/wifi'))) setAuthed(true);
-  // A state read while a password is set needs the session as well (D25).
+  // A state read while a password is set needs the session as well (E-703).
   if (path === '/api/state' && j && j.device && j.device.passwordSet) setAuthed(true);
   if (j && j.ch && j.config) apply(j);
   return j;
@@ -237,7 +237,7 @@ async function pump(q, send) {
 
 // ---- Actions
 // fn(base, isOffset) gives the new value (clamped here) or null; a coupled CH2 (also as the master
-// of CH3) changes its offset (E-52).
+// of CH3) changes its offset (E-213).
 function tune(n, fn) {
   if (!S) return;
   const m = master(n);
@@ -312,7 +312,7 @@ async function applyCorr() {
 async function cfgSel(k) {
   const el = U.cfg[k];
   const v = k === 'drive' ? +el.value : el.value;
-  // Under local only the device refuses High (D22): no question, the error shows instead.
+  // Under local only the device refuses High (E-611): no question, the error shows instead.
   if (k === 'offState' && v === 'high' && S.config.offState !== 'high' && S.config.remoteOutputs !== 'local' &&
     !(await ask('Off state High',
     'Switched-off outputs then carry DC (supply voltage, mostly 3.3 V). Do not use with DC-coupled mixers or inputs.', 'High'))) {
@@ -348,7 +348,7 @@ function login() {
 async function doLogin(e) {
   e.preventDefault();
   const pw = $('pw'), err = $('loginErr'), ap = (S && S.wifi && S.wifi.ap) || {};
-  // W-S1 / SEC-3: never send the password over an open access point (the device refuses it too).
+  // A-701 / SEC-3: never send the password over an open access point (the device refuses it too).
   if (ap.active && ap.open) {
     pw.value = '';
     err.textContent = 'Passwords cannot be sent over the open access point';
@@ -383,7 +383,7 @@ function setAuthed(v) {
   $('bLogout').hidden = !(auth.pwSet && auth.session);
   syncLogin();
 }
-// "Log in" while the device refuses reads without a session (D25) and none is open.
+// "Log in" while the device refuses reads without a session (E-703) and none is open.
 function syncLogin() {
   $('bLogin').hidden = !(auth.needLogin && !auth.session);
 }
@@ -429,7 +429,7 @@ async function poll() {
       setOnline(true);
     } catch (e) {
       if (e.status === 401) {
-        // Login refused or cancelled: nothing to read until "Log in" (D25).
+        // Login refused or cancelled: nothing to read until "Log in" (E-703).
         setOnline(false);
         set($('conn'), 'Login required');
         break;
@@ -483,7 +483,7 @@ async function heartbeat() {
 function modeLine(el, modes, ...extra) {
   line(el, modes.concat(extra).filter(Boolean).join(' | '), modes.includes('OFF=High') ? 'warn' : '');
 }
-// signed: the offset of a coupled CH2 with its sign (E-52).
+// signed: the offset of a coupled CH2 with its sign (E-213).
 function showDigits(el, hz, st, signed) {
   const k = (signed ? 'o' : '') + hz + '/' + st;
   if (el.dataset.k === k) return;
@@ -535,7 +535,7 @@ function renderHeader(wf) {
 function renderChannel(n, st) {
   const c3 = S.ch3, c = chOf(n), card = U.card[n], w = U.ch[n], modes = c.modes || [];
   const iq = c3.master === n && c3.status !== 'OFF';
-  // Coupled CH2 (E-52): the digits show the offset, card and Out line the CH2 frequency.
+  // Coupled CH2 (E-213): the digits show the offset, card and Out line the CH2 frequency.
   const cpl = coupledM(n), o = cpl ? offset() : 0, t = chOf(1).frequency + o;
   const f = cpl ? Math.max(0, pend('f1', chOf(1).frequency) + o) : pend('f' + n, c.frequency);
   badge(card.st, c.status);
@@ -587,7 +587,7 @@ function ch3Info(c3, m, mc) {
 
 function renderCh3(st) {
   const c3 = S.ch3, m = c3.master, mc = chOf(m), w = U.ch[3], card = U.card[3];
-  // A coupled master CH2 moves with its offset (E-52).
+  // A coupled master CH2 moves with its offset (E-213).
   const f3 = coupledM(m) ? Math.max(0, c3.frequency + offset() - (mc.offset || 0)) : pend('f' + m, c3.frequency);
   const s = ch3Info(c3, m, mc);
   badge(card.st, c3.status);
@@ -743,7 +743,7 @@ function buildCh(n) {
           h('div', {class: 'chips'}, w.ph = [0, 90, 180, 270].map((p) => h('button', {type: 'button', class: 'chip', text: String(p), onclick: () => post3({phase: p})}))))),
       w.note = h('p', {class: 'mu sm'})
     ] : [
-      // CH2: free or coupled to CH1 (E-52).
+      // CH2: free or coupled to CH1 (E-213).
       n === 2 && h('div', {class: 'chips cpl', role: 'group', 'aria-label': 'Coupling'},
         w.cpl = ['Free', 'CH1 + offset'].map((t, i) => h('button', {type: 'button', class: 'chip', text: t,
           onclick: () => act(api(CH_PATH[2], {coupled: i === 1}))}))),
@@ -775,7 +775,7 @@ function buildCfg() {
       h('button', {type: 'button', class: 'big sm', text: '−', 'aria-label': 'Backlight down', onclick: () => tuneBl(-1)}),
       C.bl = h('span', {class: 'val'}),
       h('button', {type: 'button', class: 'big sm', text: '+', 'aria-label': 'Backlight up', onclick: () => tuneBl(1)}))),
-    // Screen rotation of the device (E-53).
+    // Screen rotation of the device (E-314).
     row('Screen', h('div', {class: 'chips', role: 'group', 'aria-label': 'Screen rotation'},
       C.rot = [0, 180].map((d) => h('button', {type: 'button', class: 'chip', text: d + '°',
         onclick: () => act(api('/api/config', {rotation: d}))})))),
@@ -873,7 +873,7 @@ function netBody() {
   for (let i = 0; i < 2; i++) {
     const s = W.slots[i], cur = (n.networks || [])[i] || {ssid: '', key: 'none'}, ssid = s.ssid.value, pw = s.pw.value;
     if (s.del.checked || (!ssid && cur.ssid)) { if (cur.key !== 'none') del.push(i); continue; }
-    // A passphrase of 8 to 63 characters or a PMK of 64 hex digits (D31).
+    // A passphrase of 8 to 63 characters or a PMK of 64 hex digits (E-510).
     if (pw && !((pw.length >= 8 && pw.length <= 63) || /^[0-9A-Fa-f]{64}$/.test(pw))) {
       return 'Network ' + (i + 1) + ': password with 8 to 63 characters or 64 hex digits';
     }
@@ -907,7 +907,7 @@ async function applyNet(e) {
   const b = netBody();
   if (typeof b === 'string') return line(W.err, b, 'err');
   if (!Object.keys(b).length) return line(W.err, 'No changes', '');
-  // Off is final and takes only the mode (D23); other changes need their own confirmation.
+  // Off is final and takes only the mode (E-515); other changes need their own confirmation.
   if (b.mode === 'off' && Object.keys(b).length > 1) return line(W.err, 'WiFi off takes no other changes: apply them first', 'err');
   const open = (b.networks || []).find((x) => x.password === '');
   if (open && !(await ask('Open network', 'Network ' + (open.slot + 1) + ' is saved without a password. Its traffic is not encrypted.', 'Save'))) return;
@@ -988,7 +988,7 @@ async function scan() {
   setTimeout(() => { W.scanB.disabled = false; }, Math.max(0, 10000 - (Date.now() - t0)));
 }
 
-// ---- Selection and keyboard (ARBEITSPLAN 3.6)
+// ---- Selection and keyboard (PROJECT_SPECIFICATION.md 6.4)
 function select(n, scroll) {
   sel = n;
   for (const k of [1, 2, 3]) {

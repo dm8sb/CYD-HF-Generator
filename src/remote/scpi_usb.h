@@ -28,7 +28,7 @@ private:
     HeapFn heap_;
 };
 
-// SCPI over the USB serial port (W-E27, W-S22). The first line received starts a session:
+// SCPI over the USB serial port (E-612, A-722). The first line received starts a session:
 // from then on log lines go only into the ring buffer (SYSTem:LOG?) and the core's own
 // messages are off, so answers are not mixed with log text. SCPI_IDLE_TIMEOUT_MS without a
 // line ends the session; the log goes back to the serial port.

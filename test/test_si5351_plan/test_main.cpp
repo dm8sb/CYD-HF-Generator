@@ -36,7 +36,7 @@ static uint64_t randomHz(uint64_t lo, uint64_t hi) {
 // 600..900 MHz with the corrected crystal (24..36 at correction 0).
 // Lowest frequency the MultiSynth outputs directly; below it the R divider halves it 1-7 times.
 static constexpr uint64_t MS_RANGE_MIN = 1000000ULL;
-// Upper end of the core range with the tightest limits (range extension above: E-16).
+// Upper end of the core range with the tightest limits (range extension above: E-203).
 static constexpr uint64_t CORE_MAX_HZ = 100000000ULL;
 
 static double rasterErr(uint64_t msHz, uint64_t xtal4, uint32_t divMin, uint32_t divMax, uint32_t divStep) {
@@ -191,7 +191,7 @@ static void test_low_noise_accuracy_with_hysteresis() {
     }
 }
 
-// Range extension (E-16): 8 kHz-1 MHz through the R divider in all modes; the MultiSynth input
+// Range extension (E-203): 8 kHz-1 MHz through the R divider in all modes; the MultiSynth input
 // stays >= 1 MHz and the VCO within 600-900 MHz.
 static void test_below_1_mhz_uses_the_r_divider() {
     const TuningMode modes[] = {TuningMode::Fractional, TuningMode::LowNoise, TuningMode::Integer};

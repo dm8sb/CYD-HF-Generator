@@ -10,9 +10,9 @@
 #include "scpi.h"
 
 // VXI-11 (VXIbus TCP/IP Instrument Protocol 1.0) and its portmapper for LXI discovery
-// (A-78, E-37). Pure logic, host-tested (test_vxi11) and fuzzed (fuzz_vxi11); the sockets are
+// (A-615, E-614). Pure logic, host-tested (test_vxi11) and fuzzed (fuzz_vxi11); the sockets are
 // in vxi11_server.* (device glue). Like SCPI over TCP it runs in loop() through the
-// LoopScpiBackend with Source::Scpi, and it has no authentication (W-E12): access only while
+// LoopScpiBackend with Source::Scpi, and it has no authentication (E-601): access only while
 // ScpiTcpLink::allowedFor() (never over an open AP), `Remote outputs: local only` applies.
 
 namespace Vxi11 {
@@ -111,7 +111,7 @@ private:
 // The VXI-11 core channel (program 0x0607AF version 1) of one TCP connection, mapped onto an
 // own ScpiSession (Source::Scpi; error queue and status registers cleared per link).
 // - One link per connection (create_link with "inst0", any case; a second one: error 9).
-// - device_write feeds the bytes through the LineFramer (W-S17); the END flag ends a line
+// - device_write feeds the bytes through the LineFramer (A-717); the END flag ends a line
 //   without LF. Answers are collected (ANSWER_BUFFER); a new message while an answer is
 //   unread discards it with -410 (IEEE 488.2 query interrupted); answers of one line that do
 //   not fit are dropped with -225.

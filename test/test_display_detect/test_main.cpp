@@ -152,7 +152,7 @@ static void test_madctl_tables() {
     TEST_ASSERT_EQUAL_HEX8(0x68, MADCTL_ST7789[1]); // landscape as built for the CYD2USB before
 }
 
-// 180 degree rotation (N16, E-53): landscape 1 and the turned landscape 3 differ in MX and MY
+// 180 degree rotation (N16, E-314): landscape 1 and the turned landscape 3 differ in MX and MY
 // only (both address directions reversed = point reflection about the center, no mirror image);
 // MV (row/column exchange) and BGR stay.
 static void test_madctl_turned_landscape_flips_both_axes() {

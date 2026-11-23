@@ -1,13 +1,13 @@
 # SPDX-FileCopyrightText: 2026 DM8SB
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Advisory check of the pinned dependencies (ARBEITSPLAN AF26, D49, W-S24, OPS-8): the versions in
+# Advisory check of the pinned dependencies (ARBEITSPLAN AF26, E-807, A-724, OPS-8): the versions in
 # platformio.ini, THIRD_PARTY_NOTICES.md (Arduino-ESP32, ESP-IDF) and flasher/esp-web-tools.json
 # against the GitHub advisories of their upstream repositories and OSV (tools/dep_check.py
 # advisories). Weekly and by hand: a finding fails the run and opens (or updates) one issue.
 # Pushes that change the pins or the check run it too, without an issue. release.yml runs the
 # same check before every release.
-# Actions are pinned by commit SHA (W-S24, audit S-20, S-27); the token reads, and writes issues
+# Actions are pinned by commit SHA (A-724, audit S-20, S-27); the token reads, and writes issues
 # only in the scheduled and manual runs.
 name: Advisories
 

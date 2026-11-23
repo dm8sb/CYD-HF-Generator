@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Fuzz target line_framer: LineFramer::feed, looksLikeHttp, framerErrorCode (W-S17, W-S18).
+// Fuzz target line_framer: LineFramer::feed, looksLikeHttp, framerErrorCode (A-717, A-718).
 // The input is the raw byte stream of a connection.
 // Invariants: a Line is at most MAX_LINE bytes, NUL-terminated at length(), only printable
 // ASCII and TAB, not blank, at most MAX_COMMANDS program units; error codes match the event;
-// looksLikeHttp agrees with an independent matcher of the two W-S18 patterns and never reads
+// looksLikeHttp agrees with an independent matcher of the two A-718 patterns and never reads
 // past len; reset() behaves like a new framer.
 
 #include "fuzz_common.h"

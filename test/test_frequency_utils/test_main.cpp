@@ -25,7 +25,7 @@ static void test_format_groups_digits() {
     assertFormat(14074001ULL, "14.074 001 MHz");
     assertFormat(100000000ULL, "100.000 000 MHz");
     assertFormat(160000000ULL, "160.000 000 MHz");
-    // Below 1 MHz in kHz with Hz resolution (range extension, E-16).
+    // Below 1 MHz in kHz with Hz resolution (range extension, E-203).
     assertFormat(8000ULL, "8.000 kHz");
     assertFormat(455000ULL, "455.000 kHz");
     assertFormat(999999ULL, "999.999 kHz");

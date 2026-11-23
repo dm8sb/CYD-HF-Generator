@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Fuzz target scan_list: ScanList::add (W-S9, scan list of the WIFI page).
+// Fuzz target scan_list: ScanList::add (A-709, scan list of the WIFI page).
 // Input: records [header][rssi][ssid bytes]; header bits 0-5 = SSID length (0..63, 0 = hidden),
 // bit 6 = secure, bit 7 = clear() first. SSIDs are cut at the first NUL, because the WiFi driver
 // hands them over as C strings (wifi_manager.cpp: ssid.c_str(), ssid.length()).

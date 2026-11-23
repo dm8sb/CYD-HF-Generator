@@ -2,7 +2,7 @@
 
 <!-- What changes and why, in a few sentences. Name the finding IDs (C-n, S-n, U-n, P-n, T-n, W-S…) this addresses. -->
 
-**Step:** <!-- step ID from ARBEITSPLAN.md section 4, e.g. S55 or G7; "none" for outside contributions -->
+**Step:** <!-- task ID from ARBEITSPLAN.md section 3, e.g. FW-07 or DOK-01; "none" for outside contributions -->
 
 ## Gate (ARBEITSPLAN.md section 0)
 
@@ -12,11 +12,11 @@ One step = one commit; the gate holds before the commit. Tick what applies, stri
 - [ ] 0 warnings in `src/` (`-Wall -Wextra`), both firmware envs
 - [ ] New logic has a host test, and the test fails without the fix (counter-check)
 - [ ] User manual DE **and** EN updated in this commit (DE first, EN is its translation)
-- [ ] PROJECT_SPECIFICATION.md (requirements A-n / decisions E-n) updated in this commit
+- [ ] PROJECT_SPECIFICATION.md (requirements A-nnn / decisions E-nnn) updated in this commit
 - [ ] README.md updated in this commit (changes per version, pinout, build)
-- [ ] ARBEITSPLAN.md updated and the step ticked in this commit
+- [ ] ARBEITSPLAN.md updated and the finished task removed in this commit
 - [ ] UI change: flashed and checked on the device (board: original CYD / CYD2USB) before the commit
-- [ ] Network code: reviewed against the security requirements W-S (ARBEITSPLAN.md section 3.7)
+- [ ] Network code: reviewed against the security requirements A-701 to A-725 (PROJECT_SPECIFICATION.md chapter 7)
 - [ ] No credentials in the diff (`include/test_wifi_local.h` stays untracked)
 
 ## Firmware size
@@ -29,4 +29,4 @@ One step = one commit; the gate holds before the commit. Tick what applies, stri
 
 ## Test notes
 
-<!-- How it was checked: host test suites, device checks (board, steps), measurements (MESSPLAN IDs). -->
+<!-- How it was checked: host test suites, device checks (board, steps), measurements (MESSPLAN IDs M-nnn). -->

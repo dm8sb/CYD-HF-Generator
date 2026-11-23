@@ -18,7 +18,7 @@
 
 #define constrain(amt, low, high) ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))
 
-// The fakes model the Arduino 3.x API (S38), the only core since E-32.
+// The fakes model the Arduino 3.x API (S38), the only core since E-803.
 #ifndef ESP_ARDUINO_VERSION_MAJOR
 #define ESP_ARDUINO_VERSION_MAJOR 3
 #endif

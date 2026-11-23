@@ -8,7 +8,7 @@
 #include "scpi_tcp.h"
 
 // ONC RPC version 2 (RFC 5531, formerly 1831) with XDR (RFC 4506, formerly 1832) for VXI-11
-// and its portmapper (A-78, E-37). Pure logic without Arduino or lwIP: host-tested
+// and its portmapper (A-615, E-614). Pure logic without Arduino or lwIP: host-tested
 // (test_vxi11) and fuzzed (fuzz_vxi11). Only what a server of fixed programs needs: decode a
 // call, encode the reply; record marking on TCP in RpcTcpLink.
 

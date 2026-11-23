@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Fixed-seed random test of the fuzz harnesses (W-S25) in the host envs, also native-win
+// Fixed-seed random test of the fuzz harnesses (A-725) in the host envs, also native-win
 // without libFuzzer: every harness in test/fuzz runs its seed corpus and RANDOM_INPUTS
 // pseudo-random inputs (fuzz_random.h, seed 1). The harnesses check their invariants
 // themselves; a broken one aborts with the input printed in hex (test/fuzz/README.md).

@@ -6,7 +6,7 @@
 #include <types.h>
 
 // What the board RGB LED shows (AF51b): the channel page on the display (CH1 red, CH2 green,
-// CH3 blue, else off); while Identify runs (W-E28) all three colors blink with the backlight.
+// CH3 blue, else off); while Identify runs (E-613) all three colors blink with the backlight.
 // Pure, host-tested in test_status_view; StatusLed writes it.
 namespace LedColor {
 

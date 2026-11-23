@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Fuzz target net_settings: Ipv4::parse/format, checkStaticIp, setNetwork,
-// wifiQrText and the name/passphrase checks (W-S12, W-S14, W-S16, W-E3).
+// wifiQrText and the name/passphrase checks (A-712, A-714, A-716, E-503).
 // Input: byte 0 selects the function, the rest is its input (C strings cut at NUL).
 // Invariants:
 // - Ipv4::parse accepts exactly the canonical dotted quads: Ipv4::format gives the text back, and

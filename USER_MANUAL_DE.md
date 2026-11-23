@@ -574,7 +574,7 @@ Die Ausgänge des SI5351 sind CMOS-Rechtecktreiber. Die Drive-Strength legt fest
 - An einer 50-Ω-Last oder einem langen Koaxkabel bringen 6 oder 8 mA mehr Pegel und sauberere Flanken.
 - Ein Rechteck enthält immer ungerade Oberwellen (3., 5., … Vielfaches). Wer ein sauberes Sinussignal braucht, filtert mit einem Tiefpass; eine kleinere Drive-Strength mildert die Oberwellen nur.
 - Die Änderung wirkt sofort und ohne Aussetzer, auch bei einem laufenden IQ-Paar.
-- Typische Pegel je Stufe an 50 Ω (noch nicht gemessen) stehen in Abschnitt 18; die Messwerte folgen nach der Messung F2 in `MESSPLAN.md`.
+- Typische Pegel je Stufe an 50 Ω (noch nicht gemessen) stehen in Abschnitt 18; die Messwerte folgen nach der Messung M-312 in `MESSPLAN.md`.
 
 ### Off state (Zustand abgeschalteter Ausgänge)
 
@@ -593,7 +593,7 @@ Legt fest, welchen Pegel ein ausgeschalteter Ausgang führt (SI5351-Register 24)
 - Die Firmware schreibt den Zustand beim Verbinden mit dem SI5351, bevor ein Ausgang eingeschaltet werden kann.
 - **`High`:** In eine DC-gekoppelte Last (z. B. 50 Ω) fließt ein Dauerstrom, begrenzt durch die Drive-Strength; an einem DC-gekoppelten Mischer liegt eine Gleichspannung an.
 - Für DC-gekoppelte Diodenringmischer `Low` oder `High-Z` verwenden.
-- Bis zur Hardwareprüfung K2 (`MESSPLAN.md`) bleibt bei `High` und `High-Z` der Ausgangstreiber abgeschalteter Ausgänge versorgt, auch der von CLK2 bei ausgeschaltetem CH3. Bei `Low` wird CLK2 wie bisher ganz abgeschaltet, solange CH3 nicht im IQ-Betrieb läuft.
+- Bis zur Hardwareprüfung M-118 (`MESSPLAN.md`) bleibt bei `High` und `High-Z` der Ausgangstreiber abgeschalteter Ausgänge versorgt, auch der von CLK2 bei ausgeschaltetem CH3. Bei `Low` wird CLK2 wie bisher ganz abgeschaltet, solange CH3 nicht im IQ-Betrieb läuft.
 
 ### Tuning (Teilerverfahren)
 
@@ -622,7 +622,7 @@ Beide Stufen können **ganzzahlig** (z. B. Faktor 36, Teiler 90) oder **fraktion
 
 Über 100 MHz arbeiten `Fractional` und `Low noise` weitgehend gleich (siehe unten); die Abweichung steigt dort auf bis 1,5 Hz (bis 112,5 MHz), 2 Hz (bis 150 MHz) und 3 Hz (bis 160 MHz).
 
-Ob eine Einstellung im Einzelfall messbar weniger Nebenlinien bringt, hängt von Frequenz, Last und Messaufbau ab. Die Vergleichsmessungen stehen in `MESSPLAN.md` (K5, K6, F3); danach wird auch entschieden, ob `Low noise` Standard wird.
+Ob eine Einstellung im Einzelfall messbar weniger Nebenlinien bringt, hängt von Frequenz, Last und Messaufbau ab. Die Vergleichsmessungen stehen in `MESSPLAN.md` (M-301, M-303, M-302); danach wird auch entschieden, ob `Low noise` Standard wird.
 
 #### Fractional
 
@@ -1238,7 +1238,7 @@ SDA / SCL = GPIO22 / GPIO27 (beliebig; zuerst probiert: SDA = GPIO22)
 SI5351 Adresse = 0x60
 ```
 
-Display und Touch verwenden separate SPI-Busse. Die vollständige Pinbelegung steht in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), Abschnitt 2.
+Display und Touch verwenden separate SPI-Busse. Die vollständige Pinbelegung steht in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), Abschnitt 1.3.
 
 ### Board-Varianten
 
@@ -1608,7 +1608,7 @@ Wer selbst baut, braucht PlatformIO; Bauen und Flashen beschreibt das README (Ab
 
 Der Generator eignet sich als Lokaloszillator (LO) und als Testsignal für Mischer- und Empfängerversuche. Dieser Abschnitt sammelt Pegel, Filter und Einstellungen dafür und zeigt zwei Aufbauten.
 
-**Zu den Zahlen:** Werte mit dem Vermerk *typisch, nicht gemessen* sind Rechen- oder Erfahrungswerte, keine Messungen an diesem Gerät. Sie werden durch Messwerte ersetzt, sobald die Messungen F2, G1, G2 und E10 in `MESSPLAN.md` vorliegen. Werte mit *gerechnet* folgen aus der Formel, Werte mit *Datenblatt* aus dem Datenblatt des genannten Bauteils.
+**Zu den Zahlen:** Werte mit dem Vermerk *typisch, nicht gemessen* sind Rechen- oder Erfahrungswerte, keine Messungen an diesem Gerät. Sie werden durch Messwerte ersetzt, sobald die Messungen M-312, M-419, M-420 und M-413 in `MESSPLAN.md` vorliegen. Werte mit *gerechnet* folgen aus der Formel, Werte mit *Datenblatt* aus dem Datenblatt des genannten Bauteils.
 
 ### Einstellungen
 
@@ -1649,7 +1649,7 @@ Ein Rechteck mit genau 50 % Tastverhältnis enthält nur ungerade Oberwellen. Ih
 | 7. | −16,9 dBc |
 | 9. | −19,1 dBc |
 
-- Das Tastverhältnis ist noch nicht gemessen (MESSPLAN E5). Weicht es ab, entstehen gerade Oberwellen: Bei 49 % liegt die 2. Oberwelle bei ≈ −30 dBc, bei 48 % bei ≈ −24 dBc (gerechnet).
+- Das Tastverhältnis ist noch nicht gemessen (MESSPLAN M-309). Weicht es ab, entstehen gerade Oberwellen: Bei 49 % liegt die 2. Oberwelle bei ≈ −30 dBc, bei 48 % bei ≈ −24 dBc (gerechnet).
 - Reale Flanken sind endlich steil; die hohen Oberwellen liegen deshalb etwas unter der Tabelle. Eine kleinere Drive-Strength mildert sie nur wenig.
 - **Sinus gebraucht:** Tiefpass hinter den Ausgang. Für −50 dBc braucht die 3. Oberwelle ≥ 40 dB Dämpfung: z. B. ein Tiefpass 5. bis 7. Ordnung (Tschebyscheff oder Cauer) mit Grenzfrequenz etwa 1,2- bis 1,5-mal über der Nutzfrequenz, je Band ein Filter.
 - **Schaltmischer** (Diodenring, FST3253) arbeiten mit einem Rechteck-LO sogar besser als mit einem Sinus. Die Oberwellen des LO mischen aber Signale bei 3 × LO ± ZF, 5 × LO ± ZF usw. in die ZF. Dagegen hilft ein Bandpass oder Tiefpass vor dem HF-Eingang des Mischers, nicht am LO.
@@ -1697,8 +1697,8 @@ Der FST3253 (oder 74CBT3253) ist ein doppelter 1-aus-4-Analogschalter. Als Taylo
 
 - **Bereich:** CH3 IQ arbeitet von 4,730 bis 100 MHz (Abschnitt 7). Für tiefere Frequenzen (160 m, 80 m, 60 m) CH1 auf die vierfache Frequenz stellen und mit einem Johnson-Zähler aus zwei D-Flipflops (z. B. 74AC74) durch 4 teilen; Beispiel: 3,6 MHz aus 14,4 MHz.
 - **Seitenband:** Ein Wechsel von `90` auf `270` invertiert Q und vertauscht damit oberes und unteres Seitenband. Der Wechsel kommt ohne Aussetzer aus (Abschnitt 7). `0` und `180` ergeben keine Quadratur und sind für den Tayloe-Detektor ungeeignet.
-- **Ungerade Teiler:** Im IQ-Betrieb mit `Fractional` oder `Low noise` ist der Teiler min(127, ⌊900 MHz / f⌋), z. B. 63 bei 14,2 MHz oder 9 bei 99 MHz. 180° und 270° entstehen durch Invertieren des CH3-Ausgangs (Abschnitt 7). Ob die Phase bei ungeradem Teiler so genau ist wie bei geradem, ist noch nicht gemessen (MESSPLAN E4). Wer die beste Spiegelunterdrückung braucht, nimmt `90` und vertauscht das Seitenband in der Software (I und Q tauschen).
-- **Tastverhältnis:** Jede Flanke von S0 und S1 legt ein Abtastfenster fest. Eine Abweichung vom 50-%-Tastverhältnis (MESSPLAN E5) verschiebt die Fenster und kostet Spiegelunterdrückung.
+- **Ungerade Teiler:** Im IQ-Betrieb mit `Fractional` oder `Low noise` ist der Teiler min(127, ⌊900 MHz / f⌋), z. B. 63 bei 14,2 MHz oder 9 bei 99 MHz. 180° und 270° entstehen durch Invertieren des CH3-Ausgangs (Abschnitt 7). Ob die Phase bei ungeradem Teiler so genau ist wie bei geradem, ist noch nicht gemessen (MESSPLAN M-308). Wer die beste Spiegelunterdrückung braucht, nimmt `90` und vertauscht das Seitenband in der Software (I und Q tauschen).
+- **Tastverhältnis:** Jede Flanke von S0 und S1 legt ein Abtastfenster fest. Eine Abweichung vom 50-%-Tastverhältnis (MESSPLAN M-309) verschiebt die Fenster und kostet Spiegelunterdrückung.
 - **Logikpegel:** Bei 5 V Versorgung erkennt der FST3253 ab 2,0 V HIGH (Datenblatt); die 3,3-V-Rechtecke reichen direkt. Die Eingänge sind hochohmig; `Drive all` 2 oder 4 mA genügt.
 - **Ausgeschaltet:** Mit `Off state` `Low` liegen S0 und S1 auf LOW; der Schalter bleibt auf Kanal 0 stehen. Das schadet nicht.
 
@@ -1744,12 +1744,12 @@ mit g = 1:  IRR = 20 · log10( cot(φ/2) )
 | 0,5 dB | 31 dB |
 | 1 dB | 25 dB |
 
-- Der Phasenfehler des Generators selbst ist noch nicht gemessen (MESSPLAN E1 bis E4). Zum Gesamtfehler tragen auch Mischer, Abtastkondensatoren, NF-Verstärker und Soundkarte bei.
+- Der Phasenfehler des Generators selbst ist noch nicht gemessen (MESSPLAN M-115, M-116, M-307 und M-308). Zum Gesamtfehler tragen auch Mischer, Abtastkondensatoren, NF-Verstärker und Soundkarte bei.
 - SDR-Programme gleichen IQ-Fehler oft automatisch aus; ohne Ausgleich zeigt die Tabelle, was die Phase allein erlaubt.
 
 ### Beispiel: Überlagerungsempfänger für 7,1 MHz mit 455-kHz-ZF
 
-Ein Diodenringmischer setzt 7,1 MHz auf die ZF 455 kHz um; CH1 ist der LO, CH2 das Testsignal (wie MESSPLAN G1).
+Ein Diodenringmischer setzt 7,1 MHz auf die ZF 455 kHz um; CH1 ist der LO, CH2 das Testsignal (wie MESSPLAN M-419).
 
 ```text
 CH2 7,100 MHz ── 30 dB ──────────► HF ┐
@@ -1781,7 +1781,7 @@ Spiegel  = 7,555 + 0,455 = 8,010 MHz   (ergibt ebenfalls 455 kHz)
 4. CLK0 an S0, CLK2 an S1, mit gleich langen Leitungen.
 5. I und Q (hinter den NF-Verstärkern) an den Stereo-Line-Eingang einer Soundkarte; ein SDR-Programm im IQ-Betrieb, Mittenfrequenz 7,100 MHz. Mit 48 kHz Abtastrate sind 7,076–7,124 MHz zu sehen.
 6. Ist das Spektrum gespiegelt, Phase `270` wählen oder I und Q im Programm tauschen.
-7. Testsignal: CH2 auf 7,101 MHz über 40–60 dB Dämpfung an den HF-Eingang. Die Linie erscheint 1 kHz über der Mitte, ihr Spiegel 1 kHz darunter; der Abstand beider ist die Spiegelunterdrückung (Tabelle oben, MESSPLAN E10).
+7. Testsignal: CH2 auf 7,101 MHz über 40–60 dB Dämpfung an den HF-Eingang. Die Linie erscheint 1 kHz über der Mitte, ihr Spiegel 1 kHz darunter; der Abstand beider ist die Spiegelunterdrückung (Tabelle oben, MESSPLAN M-413).
 
 ### Nie ungefiltert an eine Antenne
 

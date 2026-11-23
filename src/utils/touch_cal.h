@@ -44,7 +44,7 @@ enum class Failure : uint8_t { None, Inconsistent, Check };
 
 class Wizard {
 public:
-    // rotated: the screen is turned by 180 degrees (E-53). The crosses stay at TARGETS in screen
+    // rotated: the screen is turned by 180 degrees (E-314). The crosses stay at TARGETS in screen
     // coordinates, so the finger presses the panel at the mirrored point; the result is the
     // same raw calibration as upright and the check cross is judged where it is drawn.
     void start(uint32_t nowMs, bool rotated = false);

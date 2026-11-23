@@ -14,7 +14,7 @@ static constexpr int CHIP_H = 36;
 static constexpr int BTN_Y = 170;
 static constexpr int BTN_H = 62;
 static constexpr int BTN_W = 96;
-// CH2 adds the coupling chips Free / CH1 + offset (E-52) as a third row: all rows lower, 4 px apart.
+// CH2 adds the coupling chips Free / CH1 + offset (E-213) as a third row: all rows lower, 4 px apart.
 // The step chips stay right below the frequency card (user test), the coupling chips follow.
 static constexpr int CH2_CHIP_Y = 126;
 static constexpr int CH2_CHIP_H = 32;
@@ -74,7 +74,7 @@ void Gui::refreshChannel_() {
 
     const ChannelStatus status = app.channelStatus(channel_);
     setHeaderState_(c.enabled, StatusText::channel(status));
-    // Coupled CH2 (E-52): the card shows the offset, the Out line the CH2 frequency.
+    // Coupled CH2 (E-213): the card shows the offset, the Out line the CH2 frequency.
     const bool coupled = channel_ == 2 && app.ch2Coupled();
     const uint64_t hz = app.frequency(channel_);
     // The digit that +/- changes is shown in the channel color.
@@ -98,7 +98,7 @@ void Gui::refreshChannel_() {
         showOutput_(channel_, hz, status == ChannelStatus::Off ? "Off | " : "");
     }
 
-    // CH3 follows this channel: frequency changes move both (U-17); outside 1-100 MHz a hint (E-16).
+    // CH3 follows this channel: frequency changes move both (U-17); outside 1-100 MHz a hint (E-203).
     char iq[24] = "";
     if (app.ch3().master == channel_ && app.ch3Status() != Ch3Status::Off) {
         snprintf(iq, sizeof(iq), "IQ master (%u\xC2\xB0)", (unsigned)app.ch3().phase);

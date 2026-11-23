@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// ScanList (ARBEITSPLAN 3.4, W-S9): hidden networks dropped, one entry per SSID, sorted by
+// ScanList (A-504, A-709): hidden networks dropped, one entry per SSID, sorted by
 // signal, at most 15, the shown SSID sanitized.
 
 #include <unity.h>

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """Shared contract vectors (AF34, TEST-1) against the web server: tools/web_mock.py in CI, the
-device in S61. The same file test/contract/vectors.json is read by the C++ host tests
+device in MES-07. The same file test/contract/vectors.json is read by the C++ host tests
 (test_http_guard, test_rest_json), so a drift between mock, firmware and the contract shows up
 on both sides. Python 3 standard library only; one PASS/FAIL line per vector.
 

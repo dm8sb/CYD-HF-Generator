@@ -9,7 +9,7 @@
 // SCPI over TCP 5025 on the device (not host-compiled; the logic is in ScpiTcpLink). Polled in
 // loop() like the USB link: non-blocking accept, recv and send on the lwIP socket, at most a few
 // small chunks per call so a flood cannot starve the GUI. Created on the heap (static DRAM is
-// full, E-31).
+// full, E-305).
 class ScpiTcpServer : public ScpiTcpSocket {
 public:
     ScpiTcpServer(ScpiBackend& backend, const char* serial);

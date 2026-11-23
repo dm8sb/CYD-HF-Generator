@@ -23,9 +23,9 @@ As web pages for the latest release: [manual (English)](https://dm8sb.github.io/
 - [docs/hardware.md](docs/hardware.md): SI5351 wiring to CN1, supply, outputs, bill of materials, safety
 - [docs/REMOTE_API.md](docs/REMOTE_API.md): remote control API in English: setup, SCPI over USB/TCP/VXI-11, REST and WebSocket, examples
 - [case/](case/README.md): parametric OpenSCAD case for the CYD2USB with the Si5351 module and three SMA sockets
-- [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md): requirements and decisions
-- [ARBEITSPLAN.md](ARBEITSPLAN.md): open findings, WEB-HMI concept and task list (German)
-- [MESSPLAN.md](MESSPLAN.md): hardware measurement plan by priority (German)
+- [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md): requirements (A-nnn) and decisions (E-nnn) by topic
+- [ARBEITSPLAN.md](ARBEITSPLAN.md): status, open findings and open tasks (FW, DOC, REL, MES, USR; German)
+- [MESSPLAN.md](MESSPLAN.md): hardware measurement plan by priority, measurements M-nnn (German)
 - [CLAUDE.md](CLAUDE.md): architecture and development rules
 
 ## Features
@@ -58,24 +58,25 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 
 ### Next release
 
-- Manual (DE, EN), hardware page and remote API as web pages on GitHub Pages next to the web flasher, rendered from the Markdown at the release tag and deployed with it; the flasher page links them (E-54)
+- Manual (DE, EN), hardware page and remote API as web pages on GitHub Pages next to the web flasher, rendered from the Markdown at the release tag and deployed with it; the flasher page links them (E-903)
 - Host tools: `device_check.py` and the fake device cover CH2 coupling and screen rotation; CI runs `device_check --outputs` against the fake
+- Planning documents restructured with uniform numbers: the specification by topic in nine chapters (requirements `A-<chapter><nn>`, decisions `E-<chapter><nn>`, the former work-plan decisions and the WEB-HMI concept included), measurements `M-<tier><nn>`, open tasks with area IDs `FW-`, `DOK-`, `REL-`, `MES-`, `USR-nn`; the `device_check.py` profiles are now `M-203` and `M-452`
 
 ### 2.1.0
 
 Framework Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 (fixes the lwIP DNS advisory GHSA-ch63-jxm5-vmvf), CH2 coupled to CH1, screen rotation, a uniform operation after user tests, WiFi and web hardening, and the remaining audit follow-ups (supply chain, CI, tests, structure).
 
 **Operation (device)**
-- CONFIG in five tabs (`Signal`, `Freq`, `Net`, `Device`, `Info`) instead of a scrolled list; one header with `◀` (one level back) on every page except MAIN; no `Saved` / `Saving...` any more, only save errors in red (E-42 to E-44)
-- CH2 coupled to CH1: chips `Free` / `CH1 + offset` on the CH2 page, offset −160 to +160 MHz in 1 Hz, CH2 waits (`WAIT`) outside 8 kHz–160 MHz and restarts by itself; SCPI `SOUR2:COUP`, `SOUR2:FREQ:OFFS`, REST and web UI (E-52)
-- Screen rotation by 180°: CONFIG `Device` → `Screen` → `Rotate`, touch follows, one calibration for both orientations; SCPI `SYST:DISP:ROT`, REST `config.rotation` (E-53)
+- CONFIG in five tabs (`Signal`, `Freq`, `Net`, `Device`, `Info`) instead of a scrolled list; one header with `◀` (one level back) on every page except MAIN; no `Saved` / `Saving...` any more, only save errors in red (E-311 to E-313)
+- CH2 coupled to CH1: chips `Free` / `CH1 + offset` on the CH2 page, offset −160 to +160 MHz in 1 Hz, CH2 waits (`WAIT`) outside 8 kHz–160 MHz and restarts by itself; SCPI `SOUR2:COUP`, `SOUR2:FREQ:OFFS`, REST and web UI (E-213)
+- Screen rotation by 180°: CONFIG `Device` → `Screen` → `Rotate`, touch follows, one calibration for both orientations; SCPI `SYST:DISP:ROT`, REST `config.rotation` (E-314)
 - The numpad rounds half a hertz exactly like SCPI and REST; the display redraws only what changes
 
 **WiFi, web and remote control**
-- WiFi without power save and at full TX power (answers within milliseconds), cached status, scan backoff 15 s → 5 min and no scan without a stored network (E-45, E-46)
-- One owner of the network settings during a web change: only the confirmed state is saved, touch changes meanwhile are refused with `Web change pending` (E-47)
-- With a web password, reading needs the login as well (page, state, token, WebSocket); `/lxi/identification` stays open; WebSocket pings and dead clients bounded (E-48)
-- `SYST:SAVE` / `POST /api/save` at most once per 10 s per source and only changed keys; WebSocket pushes at most every 100 ms; REST writes and WiFi jobs answered without blocking the network task (E-50)
+- WiFi without power save and at full TX power (answers within milliseconds), cached status, scan backoff 15 s → 5 min and no scan without a stored network (E-512, E-513)
+- One owner of the network settings during a web change: only the confirmed state is saved, touch changes meanwhile are refused with `Web change pending` (E-514)
+- With a web password, reading needs the login as well (page, state, token, WebSocket); `/lxi/identification` stays open; WebSocket pings and dead clients bounded (E-703)
+- `SYST:SAVE` / `POST /api/save` at most once per 10 s per source and only changed keys; WebSocket pushes at most every 100 ms; REST writes and WiFi jobs answered without blocking the network task (E-622)
 - REST state has `limits` (frequency range, steps, offset); the web UI refuses static addresses with leading zeros like the device
 
 **Documentation**
@@ -83,8 +84,8 @@ Framework Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 (fixes the lwIP DNS advisory GHSA
 - Remote control API reference in English: `docs/REMOTE_API.md`
 
 **Build, supply chain and CI**
-- Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 on the pioarduino platform 55.03.313, platform and framework pinned exactly by URL and SHA-256 (E-51)
-- Reproducible builds: stamps from the tag and the commit time (UTC), deterministic archives (E-49); release builds without cache
+- Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 on the pioarduino platform 55.03.313, platform and framework pinned exactly by URL and SHA-256 (E-804)
+- Reproducible builds: stamps from the tag and the commit time (UTC), deterministic archives (E-806); release builds without cache
 - CI: pushes to `main`, `dev`, `agent/**` and pull requests; zero-warning gate; release dry run on pull requests to `main` (required check); weekly advisory check of the pinned dependencies (finding = red run and issue)
 - Host tools ask for the web password instead of taking it on the command line
 
@@ -115,9 +116,9 @@ Major version: Arduino core 3, WiFi with web interface and REST, SCPI over USB a
 - Web interface on port 80 (manual section 16): embedded page, REST API and WebSocket, request guard with session login (web password set at the device), two-stage network changes with confirmation, at most 3 browsers; web password on the Device page, remote clients and `Reconnect all` on the info card; fixed header with area links and logout; `tools/web_mock.py` to try it without the device, `tools/web_check.py` checks the contract
 - TFT_eSPI fonts no longer built (all text comes from LVGL): Flash −27.6 KB
 - Build paths stripped from `__FILE__` (`tools/prefix_map.py`): no local home directory in the image, builds independent of the build machine
-- Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, built with `-Os`) and LVGL 8.4.0; the Arduino 2.0.x build is gone (E-32), the last firmware on it is 1.3.3
+- Arduino-ESP32 3.3.12 (`espressif32@8.0.0`, built with `-Os`) and LVGL 8.4.0; the Arduino 2.0.x build is gone (E-803), the last firmware on it is 1.3.3
 - WiFi (CONFIG `WiFi` and `Remote out.`, WIFI page with network scan and on-screen keyboard, access point page with QR code, device page with name and static IP, WiFi state and `REMOTE <source>` in the status bar, WiFi and heap lines on the info card; default Off): network settings in NVS `hfnet`, client with up to two networks, fallback access point after 60 s, AP off as soon as the client has an address, mDNS, captive DNS; the factory reset also erases the WiFi settings
-- Audit follow-ups (priority 1, ARBEITSPLAN Phase 10): the off state `High` from SCPI, VXI-11 or REST is refused under `Remote out. local only` like switching on (E-40); the web login is refused over an open access point; log lines are sanitized and `SYST:LOG?` reads the log buffer only over USB; manual and `SECURITY.md` state that network SCPI (TCP 5025, VXI-11) has no login and the web password protects only the web interface and REST (E-41); confirmation dialogs at the device are queued; release workflow: tag only from `main`, host tests on the tag, no overwriting of a release, provenance over all assets, flasher deploy only after the release; the REST contract (`data/www/README.md`) lists the error and status codes as the firmware sends them; the manual lists all SCPI error codes, log lines and saved settings
+- Audit follow-ups (priority 1, ARBEITSPLAN Phase 10): the off state `High` from SCPI, VXI-11 or REST is refused under `Remote out. local only` like switching on (E-611); the web login is refused over an open access point; log lines are sanitized and `SYST:LOG?` reads the log buffer only over USB; manual and `SECURITY.md` state that network SCPI (TCP 5025, VXI-11) has no login and the web password protects only the web interface and REST (E-704); confirmation dialogs at the device are queued; release workflow: tag only from `main`, host tests on the tag, no overwriting of a release, provenance over all assets, flasher deploy only after the release; the REST contract (`data/www/README.md`) lists the error and status codes as the firmware sends them; the manual lists all SCPI error codes, log lines and saved settings
 - Documentation images in `docs/img/` (interim until photos exist): device screens rendered from the real GUI code on the host (`pio run -e screens-win`, LVGL 8.4 on the test fakes), web UI screenshots on `tools/web_mock.py`, OpenSCAD views of the case with the MAIN page on the display, social preview; `tools/render_images.py` regenerates them
 
 ### 1.3.3
@@ -157,7 +158,7 @@ Major version: Arduino core 3, WiFi with web interface and REST, SCPI over USB a
 
 ## Pinout
 
-The authoritative pin table is in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), section 2.
+The authoritative pin table is in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), section 1.3.
 
 | Function | Bus | GPIO |
 |---|---:|---:|
@@ -178,7 +179,7 @@ Pinned in `platformio.ini`:
 
 | Library | Version | License |
 |---|---|---|
-| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, Hash) with ESP-IDF 5.5.6 | 3.3.13 via the pioarduino platform `55.03.313` (E-51); `framework-arduinoespressif32` and `-libs` pinned by Espressif's release URLs, toolchain (GCC 14.4.0) and esptool 5.6.0 by the platform | LGPL-2.1-or-later, Apache-2.0, MIT |
+| Arduino-ESP32 (core, WiFi, Network, ESPmDNS, DNSServer, AsyncUDP, Wire, SPI, Preferences, FS, Hash) with ESP-IDF 5.5.6 | 3.3.13 via the pioarduino platform `55.03.313` (E-804); `framework-arduinoespressif32` and `-libs` pinned by Espressif's release URLs, toolchain (GCC 14.4.0) and esptool 5.6.0 by the platform | LGPL-2.1-or-later, Apache-2.0, MIT |
 | `bodmer/TFT_eSPI` (exact: the ST7789 init sequence is derived from it) | 2.5.43 | FreeBSD (BSD-2-Clause-Views), MIT |
 | `lvgl/lvgl` | 8.4.0 | MIT |
 | XPT2046_Touchscreen | commit `d57f64c` (tag v1.4) | MIT |
@@ -201,7 +202,7 @@ pio run -t upload            # both boards
 pio device monitor -b 115200
 ```
 
-Releases (`.github/workflows/release.yml`): a `v*` tag is built only if its commit is on `main` and passes the host tests; the release is never overwritten (tag ruleset and immutable releases on GitHub), and the web flasher goes live only after the release exists. Every release asset is covered by the build provenance; check one with `gh attestation verify <file> --repo dm8sb/CYD-HF-Generator` and the checksums with `sha256sum -c SHA256SUMS`. The site also carries the manual (DE, EN), the hardware page and the remote API, rendered from the Markdown at the tag (`tools/docs_site.py`, E-54); a broken link, anchor or image fails the site check. A manual run of the workflow builds and assembles the flasher site as an artifact but never deploys it. Every pull request to `main` (and every push to `dev` or `agent/**` that changes the release path) runs the same workflow as a dry run: tests, build without cache, flasher site and the job `Release dry run`, which names the assets and writes the notes with the same script as the release (`tools/release_files.py`) without publishing anything.
+Releases (`.github/workflows/release.yml`): a `v*` tag is built only if its commit is on `main` and passes the host tests; the release is never overwritten (tag ruleset and immutable releases on GitHub), and the web flasher goes live only after the release exists. Every release asset is covered by the build provenance; check one with `gh attestation verify <file> --repo dm8sb/CYD-HF-Generator` and the checksums with `sha256sum -c SHA256SUMS`. The site also carries the manual (DE, EN), the hardware page and the remote API, rendered from the Markdown at the tag (`tools/docs_site.py`, E-903); a broken link, anchor or image fails the site check. A manual run of the workflow builds and assembles the flasher site as an artifact but never deploys it. Every pull request to `main` (and every push to `dev` or `agent/**` that changes the release path) runs the same workflow as a dry run: tests, build without cache, flasher site and the job `Release dry run`, which names the assets and writes the notes with the same script as the release (`tools/release_files.py`) without publishing anything.
 
 The controller is read over SPI before the display init at every boot; nothing is stored. For an unrecognized board (display shows only noise), build with `-DDISPLAY_FORCE_PANEL=1` (ILI9341) or `2` (ST7789). `tools/build_info.py` passes branch, commit (`+` = uncommitted changes), the commit time in UTC (`SOURCE_DATE_EPOCH` if set) and, for a tag build, the tag version (e.g. `2.0.0-rc1`) to `src/utils/build_info.cpp` only, so two builds of the same commit give the same image. Partition table `huge_app.csv`; a standard 4 MB module is sufficient.
 

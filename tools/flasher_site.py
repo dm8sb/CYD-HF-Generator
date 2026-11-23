@@ -27,7 +27,7 @@ AsyncTCP, ESPAsyncWebServer, the LGPL texts and a README with the upstream tag a
 commit). A missing file fails, so a dependency change cannot drop a notice unnoticed; so does a
 LICENSES/TFT_eSPI-license.txt that differs from the pinned package.
 
-vendor: ESP Web Tools is served by the flasher site itself (no CDN at runtime, E-36). Downloads
+vendor: ESP Web Tools is served by the flasher site itself (no CDN at runtime, E-905). Downloads
 the modules pinned in flasher/esp-web-tools.json (SHA-384) and the license files and flasher stub
 sources listed under "notices" there (SHA-256); a file that differs from its pin fails. Files
 already in --out with the right hash are not downloaded again.
@@ -38,7 +38,7 @@ the bootloader area, the partition table sector or an app/otadata partition of t
 partition table (so an update never erases NVS), checksums, page template fully filled, the
 self-hosted ESP Web Tools modules and notices against their pins, a CSP that allows scripts only
 from the site itself, no resource from another origin, and every local link present; the
-documentation pages of tools/docs_site.py (G9, E-54: manual DE/EN, hardware, remote API) present,
+documentation pages of tools/docs_site.py (G9, E-903: manual DE/EN, hardware, remote API) present,
 linked from the flasher page, and their links, anchors and images complete.
 """
 import argparse
@@ -179,7 +179,7 @@ def cmd_collect(args):
     images = [(int(i["offset"], 0), i["path"]) for i in extra.get("flash_images", [])]
     # The application goes to the first app partition of the built table (factory, else ota_0).
     # pioarduino sets application_offset only while building, not for `pio project metadata`
-    # (E-51); where the metadata has it, it must agree with the table.
+    # (E-804); where the metadata has it, it must agree with the table.
     tables = [p for _, p in images if os.path.basename(p) == "partitions.bin"]
     if len(tables) != 1:
         fail("metadata names no single partitions.bin")
@@ -435,7 +435,7 @@ def _source_ref(version, commit):
 
 
 def _source_links(repo, version, commit):
-    """Source and release links of the page (AF30, E-39): a tag build (version 2.0.0 or
+    """Source and release links of the page (AF30, E-907): a tag build (version 2.0.0 or
     2.0.0-rc1, as the release workflow derives it from the tag v2.0.0 / v2.0.0-rc1) links its
     tag and release; a manual build (2.0.0-dev.<commit>) has no release and links the commit."""
     if not re.match(r"^[0-9a-f]{7,40}$", commit):
@@ -756,7 +756,7 @@ def _check_links(page, lock, ewt_rel, path_in_site):
     for _, rel, _ in docs_site.PAGES:
         if 'href="%s"' % rel not in page:
             fail("index.html: no link to %s" % rel)
-    # Source links point to the tag or commit of this build, not to a moving branch (E-39).
+    # Source links point to the tag or commit of this build, not to a moving branch (E-907).
     if not re.search(r'href="https://github\.com/[^"/]+/[^"/]+/tree/(v[0-9A-Za-z.+-]+|[0-9a-f]{7,40})"', page):
         fail("index.html: no source link to a tag or commit")
 

@@ -9,10 +9,10 @@
 #include "command.h"
 #include "line_framer.h"
 
-// SCPI (W-E12, ARBEITSPLAN 3.5) on j123b567/scpi-parser: one ScpiSession per connection (USB
+// SCPI (E-601, A-607) on j123b567/scpi-parser: one ScpiSession per connection (USB
 // serial, later TCP 5025). The session never touches the controller: it hands Commands to its
 // backend and answers queries from the snapshot (V-6). Numbers are parsed here as exact
-// integers (W-S19), not through the library's double conversion.
+// integers (A-719), not through the library's double conversion.
 
 // What a session needs from its server.
 class ScpiBackend {

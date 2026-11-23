@@ -11,7 +11,7 @@
 using Ratio = SI5351Manager::Ratio;
 
 // 1 = Low noise resets the PLL after every change, not only when the MultiSynth divider changes.
-// Fallback in case the PLL does not follow small changes cleanly (measurement D5 / K6).
+// Fallback in case the PLL does not follow small changes cleanly (measurement M-305 / M-303).
 #ifndef LOW_NOISE_RESET_EACH_STEP
 #define LOW_NOISE_RESET_EACH_STEP 0
 #endif
@@ -322,7 +322,7 @@ bool SI5351Manager::powerDown(uint8_t clk) {
     if (!ready_ || clk > 2) return false;
     if (!enableOutput(clk, false)) return false;
     actualHz_[clk] = 0;
-    // Not measured yet (hardware test K2): the pin level of a powered-down driver. Assumed: CLKx_PDN
+    // Not measured yet (hardware test M-118): the pin level of a powered-down driver. Assumed: CLKx_PDN
     // pulls it low, so CLKx_PDN only with off state Low. With High and High-Z the driver stays
     // powered and register 24 sets the level; a powered-down output (control 0x80) becomes 0x00:
     // driver on, crystal as its source, 2 mA, no MultiSynth needed.

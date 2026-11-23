@@ -13,9 +13,9 @@
 
 using namespace Layout;
 
-// WIFI pages (ARBEITSPLAN 3.4, S53b): overview with the two stored networks, scan list with
+// WIFI pages (A-504, S53b): overview with the two stored networks, scan list with
 // pages of ROWS entries (no scrolling) and a text entry with the on-screen keyboard. Foreign
-// SSIDs reach LVGL only sanitized (W-S9); keys are never shown once stored.
+// SSIDs reach LVGL only sanitized (A-709); keys are never shown once stored.
 static constexpr int NET_Y = 44;
 static constexpr int NET_H = 42;
 static constexpr int NET_PITCH = NET_H + 4;
@@ -58,7 +58,7 @@ void WifiPages::refresh(PageId page) {
 
 void WifiPages::update() {
     const bool calibrating = gui_.currentPage_ == PageId::TouchCal;
-    // W-S2: an open fallback AP starts only after the question at the touch was answered. While
+    // A-702: an open fallback AP starts only after the question at the touch was answered. While
     // another dialog is open the question waits (CQ-1); once it is no longer needed it goes.
     if (svc_.wifi && svc_.wifi->status().needsOpenConfirmation) {
         if (!openFallbackAsked_ && !calibrating) {
@@ -69,7 +69,7 @@ void WifiPages::update() {
         if (openFallbackAsked_) gui_.dropConfirm_(Gui::Confirm::OpenFallback);
         openFallbackAsked_ = false;
     }
-    // W-S12: a network change from the web without web password is confirmed here as well.
+    // A-712: a network change from the web without web password is confirmed here as well.
     if (svc_.netConfirmNeeded && svc_.netConfirmNeeded()) {
         if (!netConfirmAsked_ && !calibrating) {
             netConfirmAsked_ = true;
@@ -187,7 +187,7 @@ void WifiPages::refreshWifi_() {
     snprintf(buf, sizeof(buf), "%s, %s", s.apOpen ? "open" : "WPA2", apRuns ? "active" : "off");
     Ui::setText(w_.apSub, buf);
     Ui::setTextColor(w_.apSub, s.apOpen ? Colors::warn() : Colors::muted());
-    // Feedback (ARBEITSPLAN 3.4): what the WiFi does now and why the last attempt failed.
+    // Feedback (A-504): what the WiFi does now and why the last attempt failed.
     const WifiManager::Status& w = svc_.wifi->status();
     StatusText::WifiLine line;
     line.pendingS = svc_.netPendingS ? svc_.netPendingS() : 0;
@@ -369,7 +369,7 @@ bool WifiPages::submitEntry_() {
             NetSettings s = svc_.wifi->settings();
             uint32_t* fields[4] = {&s.staticIp.ip, &s.staticIp.mask, &s.staticIp.gateway, &s.staticIp.dns};
             *fields[entryField_ & 3] = r.ip;
-            // While static IP is on, an implausible combination is refused (W-S12).
+            // While static IP is on, an implausible combination is refused (A-712).
             const NetConfig::IpCheck c = NetConfig::checkStaticIp(s.staticIp);
             if (s.staticIp.enabled && c != NetConfig::IpCheck::Ok) {
                 memset(&s, 0, sizeof(s));
@@ -578,7 +578,7 @@ void WifiPages::createWifiAp_() {
     w_.apOpenBtn = gui_.addButton_(gui_.root_, "", MARGIN + 182, AP_BTN_Y, CONTENT_W - 182, AP_BTN_H, Colors::gray(),
                               Action::ApOpenToggle);
     w_.apState = gui_.addLabel_(gui_.root_, "", &lv_font_montserrat_12, Colors::muted(), MARGIN + 2, AP_BTN_Y + AP_BTN_H + 2);
-    // A password exists from the first visit on, so the QR code always works (W-E3); not while a
+    // A password exists from the first visit on, so the QR code always works (E-503); not while a
     // web change is open (AF16: it would be refused).
     if (svc_.wifi && !NetConfig::validPassphrase(svc_.wifi->settings().apPassword) && !(svc_.netPendingS && svc_.netPendingS())) {
         char pw[NetConfig::AP_PASSWORD_LEN + 1];
@@ -638,7 +638,7 @@ static constexpr int DEV_VALUE_W = CONTENT_W + MARGIN - DEV_VALUE_X;
 static_assert(DEV_Y >= 3 + 36 + 2, "first row below the back button");
 static_assert(DEV_Y + DEV_ROWS * DEV_PITCH <= SCREEN_HEIGHT, "seven rows fit");
 
-// The device page shows a stored web password only as set / none (W-S13: never as text).
+// The device page shows a stored web password only as set / none (A-713: never as text).
 static const char* webPasswordText(bool set, bool hashing) {
     if (hashing) return "Saving...";
     return set ? "Set (login needed)" : "None (no login)";

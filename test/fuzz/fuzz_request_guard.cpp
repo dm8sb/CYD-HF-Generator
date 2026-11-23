@@ -3,7 +3,7 @@
 
 // Fuzz target request_guard: RequestGuard (net/request_guard.*) as the web server calls it:
 // check() for every request, the login lock, sessions, the scan rate, checkSecrets() and the
-// web password rules (W-S1, W-S4, W-S5, W-S6, W-S10, W-S11, W-S13).
+// web password rules (A-701, A-704, A-705, A-706, A-710, A-711, A-713).
 // Input: 6 configuration bytes, then a script (text, lines end with LF, CR before it ignored):
 //   byte 0: bit 0 web password set, bit 1 loginForReads, bits 2-3 own addresses (0 STA, 1 AP,
 //           2 both, 3 none), bit 4 open AP, bit 5 captive DNS, bit 6 the connection arrives
@@ -40,7 +40,7 @@
 //   (12 h), not logged out, not replaced (at most 4, the least recently used goes);
 // - Set-Cookie is exactly "cyd_sid=<32 hex>; Path=/; Max-Age=43200; HttpOnly; SameSite=Strict"
 //   with the id from the random function;
-// - the login lock follows a model of W-S11 (5 failures, 30 s doubling up to 960 s, forgotten
+// - the login lock follows a model of A-711 (5 failures, 30 s doubling up to 960 s, forgotten
 //   after 1 h without failure or after a correct login); within a lock the retry time never
 //   grows and the lock does not end early;
 // - scanAllowed at most every 10 s; checkSecrets 403 exactly for a secret over an open AP;
@@ -155,7 +155,7 @@ struct Config {
 enum class HostClass { Own, Foreign, Invalid };
 
 HostClass classifyHost(const Config& c, const std::string& s) {
-    if (s.empty() || s[0] == '[') return HostClass::Invalid; // IPv6 literals are off (W-S4)
+    if (s.empty() || s[0] == '[') return HostClass::Invalid; // IPv6 literals are off (A-704)
     for (size_t i = 0; i < s.size(); ++i) {
         const unsigned char ch = (unsigned char)s[i];
         if (ch <= 0x20 || ch >= 0x7F) return HostClass::Invalid;
@@ -215,7 +215,7 @@ bool jsonType(const std::string& v) {
     return rest == "charset=utf-8" || rest == "charset=\"utf-8\"";
 }
 
-// RFC 9110 token, then blanks, then credentials; printable, 1..1024 bytes (W-S13).
+// RFC 9110 token, then blanks, then credentials; printable, 1..1024 bytes (A-713).
 bool authorizationOk(const std::string& v) {
     if (v.empty() || v.size() > 1024) return false;
     for (size_t i = 0; i < v.size(); ++i) {
@@ -237,7 +237,7 @@ bool authorizationOk(const std::string& v) {
 
 enum class CookieKind { None, Id, Broken };
 
-// The Cookie header as W-S13 describes it: printable, <= 2 KB, <= 32 pairs, our cookie at most
+// The Cookie header as A-713 describes it: printable, <= 2 KB, <= 32 pairs, our cookie at most
 // once with exactly 32 lower-case hex digits (optionally quoted); other cookies are ignored.
 CookieKind parseCookie(const std::string& h, std::string* id) {
     if (h.size() > RequestGuard::MAX_HEADERS) return CookieKind::Broken;
@@ -267,7 +267,7 @@ CookieKind parseCookie(const std::string& h, std::string* id) {
     return found ? CookieKind::Id : CookieKind::None;
 }
 
-// Sessions and login lock as W-S11 and W-S13 describe them, in elapsed time (no wrap).
+// Sessions and login lock as A-711 and A-713 describe them, in elapsed time (no wrap).
 struct Slot {
     bool used;
     std::string id;
@@ -394,7 +394,7 @@ bool overAp(const Config& c, const Req& q) {
     return q.clientIp != 0 && (q.clientIp & 0xFFFFFF00u) == (c.apIp & 0xFFFFFF00u);
 }
 
-// The documented decision (request_guard.h, ARBEITSPLAN 3.7), written independently.
+// The documented decision (request_guard.h, PROJECT_SPECIFICATION.md chapter 7), written independently.
 uint16_t expected(const Config& c, const Model& m, const Req& q, uint64_t now, int* sessionSlot) {
     *sessionSlot = -1;
     if (q.path.empty() || q.path[0] != '/') return 400;
@@ -760,7 +760,7 @@ private:
             FUZZ_CHECK(!g_.captiveLocation(small, 8));
             FUZZ_CHECK(memchr(small, '\0', 8) != nullptr && small[8] == '#');
         }
-        // After the body: W-S1, no password fields over an open access point.
+        // After the body: A-701, no password fields over an open access point.
         if (dec.allowed() && q.method == "POST") {
             const std::string b = lower(q.body);
             const bool secret = b.find("pass") != std::string::npos || b.find("psk") != std::string::npos ||

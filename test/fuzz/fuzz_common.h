@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Shared pieces of the fuzz harnesses (W-S25). C++11, no libFuzzer headers: the same harness
+// Shared pieces of the fuzz harnesses (A-725). C++11, no libFuzzer headers: the same harness
 // builds three ways (test/fuzz/README.md):
 //   libFuzzer (clang -fsanitize=fuzzer,address,undefined): one target per binary.
 //   FUZZ_STANDALONE: one target per binary, driven by standalone_main.cpp (MinGW, gcc).

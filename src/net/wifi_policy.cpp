@@ -13,13 +13,13 @@ Targets decide(const Inputs& in) {
         case WifiMode::Off:
             break;
         case WifiMode::AccessPoint:
-            // An open AP goes off after 15 min without a station and stays off (W-S2).
+            // An open AP goes off after 15 min without a station and stays off (A-702).
             t.ap = !(in.apOpen && in.openApTimedOut);
             t.apOpen = in.apOpen;
             break;
         case WifiMode::Client:
             t.sta = true;
-            // W-S3 / D14: never an AP while the client has an address.
+            // A-703 / E-511: never an AP while the client has an address.
             if (in.staHasIp || in.msWithoutIp < FALLBACK_AFTER_MS) break;
             if (in.apOpen && !in.openFallbackConfirmed) {
                 t.needsOpenConfirmation = true;

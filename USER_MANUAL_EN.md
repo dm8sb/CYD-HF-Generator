@@ -574,7 +574,7 @@ The SI5351 outputs are CMOS square-wave drivers. The drive strength sets how muc
 - Into a 50 Ω load or a long coax cable, 6 or 8 mA give more level and cleaner edges.
 - A square wave always contains odd harmonics (3rd, 5th, … multiple). If you need a clean sine wave, filter with a low-pass; a smaller drive strength only softens the harmonics.
 - The change takes effect immediately and without a dropout, also on a running IQ pair.
-- Typical levels per step into 50 Ω (not measured yet) are in section 18; the measured values follow after measurement F2 in `MESSPLAN.md`.
+- Typical levels per step into 50 Ω (not measured yet) are in section 18; the measured values follow after measurement M-312 in `MESSPLAN.md`.
 
 ### Off state (State of Switched-Off Outputs)
 
@@ -593,7 +593,7 @@ Determines the level that a switched-off output carries (SI5351 register 24). Th
 - The firmware writes the state when connecting to the SI5351, before any output can be switched on.
 - **`High`:** A continuous current flows into a DC-coupled load (e.g. 50 Ω), limited by the drive strength; a DC-coupled mixer sees a DC voltage.
 - For DC-coupled diode ring mixers, use `Low` or `High-Z`.
-- Until hardware check K2 (`MESSPLAN.md`), with `High` and `High-Z` the output driver of switched-off outputs stays powered, including that of CLK2 when CH3 is off. With `Low`, CLK2 is powered down completely as before, as long as CH3 is not running in IQ operation.
+- Until hardware check M-118 (`MESSPLAN.md`), with `High` and `High-Z` the output driver of switched-off outputs stays powered, including that of CLK2 when CH3 is off. With `Low`, CLK2 is powered down completely as before, as long as CH3 is not running in IQ operation.
 
 ### Tuning (Divider Scheme)
 
@@ -622,7 +622,7 @@ Both stages can work as **integer** (e.g. factor 36, divider 90) or **fractional
 
 Above 100 MHz `Fractional` and `Low noise` work largely the same (see below); the deviation there rises to up to 1.5 Hz (up to 112.5 MHz), 2 Hz (up to 150 MHz) and 3 Hz (up to 160 MHz).
 
-Whether a setting gives measurably fewer spurs in a given case depends on frequency, load and measurement setup. The comparison measurements are in `MESSPLAN.md` (K5, K6, F3); they also decide whether `Low noise` becomes the default.
+Whether a setting gives measurably fewer spurs in a given case depends on frequency, load and measurement setup. The comparison measurements are in `MESSPLAN.md` (M-301, M-303, M-302); they also decide whether `Low noise` becomes the default.
 
 #### Fractional
 
@@ -1238,7 +1238,7 @@ SDA / SCL = GPIO22 / GPIO27 (either order; tried first: SDA = GPIO22)
 SI5351 address = 0x60
 ```
 
-Display and touch use separate SPI buses. The complete pinout is given in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), section 2.
+Display and touch use separate SPI buses. The complete pinout is given in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), section 1.3.
 
 ### Board Variants
 
@@ -1608,7 +1608,7 @@ Building it yourself needs PlatformIO; the README describes building and flashin
 
 The generator works as a local oscillator (LO) and as a test signal for mixer and receiver experiments. This section collects levels, filters and settings for that and shows two setups.
 
-**About the numbers:** values marked *typical, not measured* are calculated or empirical values, not measurements on this device. They will be replaced by measured values once measurements F2, G1, G2 and E10 in `MESSPLAN.md` are done. Values marked *calculated* follow from the formula, values marked *datasheet* from the datasheet of the part named.
+**About the numbers:** values marked *typical, not measured* are calculated or empirical values, not measurements on this device. They will be replaced by measured values once measurements M-312, M-419, M-420 and M-413 in `MESSPLAN.md` are done. Values marked *calculated* follow from the formula, values marked *datasheet* from the datasheet of the part named.
 
 ### Settings
 
@@ -1649,7 +1649,7 @@ A square wave with exactly 50 % duty cycle contains only odd harmonics. Their le
 | 7th | −16.9 dBc |
 | 9th | −19.1 dBc |
 
-- The duty cycle is not measured yet (MESSPLAN E5). If it deviates, even harmonics appear: at 49 % the 2nd harmonic is at ≈ −30 dBc, at 48 % at ≈ −24 dBc (calculated).
+- The duty cycle is not measured yet (MESSPLAN M-309). If it deviates, even harmonics appear: at 49 % the 2nd harmonic is at ≈ −30 dBc, at 48 % at ≈ −24 dBc (calculated).
 - Real edges have a finite slope; the high harmonics are therefore somewhat below the table. A lower drive strength reduces them only a little.
 - **Sine needed:** low-pass filter after the output. For −50 dBc the 3rd harmonic needs ≥ 40 dB attenuation: e.g. a 5th to 7th order low-pass (Chebyshev or Cauer) with a cutoff about 1.2 to 1.5 times above the wanted frequency, one filter per band.
 - **Switching mixers** (diode ring, FST3253) even work better with a square-wave LO than with a sine. The LO harmonics, however, mix signals at 3 × LO ± IF, 5 × LO ± IF etc. into the IF. A band-pass or low-pass filter in front of the mixer's RF input helps against that, not at the LO.
@@ -1697,8 +1697,8 @@ The FST3253 (or 74CBT3253) is a dual 1-of-4 analog switch. As a Tayloe detector 
 
 - **Range:** CH3 IQ works from 4.730 to 100 MHz (section 7). For lower frequencies (160 m, 80 m, 60 m) set CH1 to four times the frequency and divide by 4 with a Johnson counter of two D flip-flops (e.g. 74AC74); example: 3.6 MHz from 14.4 MHz.
 - **Sideband:** switching from `90` to `270` inverts Q and thus swaps the upper and lower sideband. The switch causes no dropout (section 7). `0` and `180` give no quadrature and are unsuitable for the Tayloe detector.
-- **Odd dividers:** in IQ mode with `Fractional` or `Low noise` the divider is min(127, ⌊900 MHz / f⌋), e.g. 63 at 14.2 MHz or 9 at 99 MHz. 180° and 270° are made by inverting the CH3 output (section 7). Whether the phase at an odd divider is as exact as at an even one is not measured yet (MESSPLAN E4). For the best image rejection use `90` and swap the sideband in software (swap I and Q).
-- **Duty cycle:** every edge of S0 and S1 defines a sampling window. A deviation from the 50 % duty cycle (MESSPLAN E5) shifts the windows and costs image rejection.
+- **Odd dividers:** in IQ mode with `Fractional` or `Low noise` the divider is min(127, ⌊900 MHz / f⌋), e.g. 63 at 14.2 MHz or 9 at 99 MHz. 180° and 270° are made by inverting the CH3 output (section 7). Whether the phase at an odd divider is as exact as at an even one is not measured yet (MESSPLAN M-308). For the best image rejection use `90` and swap the sideband in software (swap I and Q).
+- **Duty cycle:** every edge of S0 and S1 defines a sampling window. A deviation from the 50 % duty cycle (MESSPLAN M-309) shifts the windows and costs image rejection.
 - **Logic levels:** at a 5 V supply the FST3253 detects HIGH from 2.0 V (datasheet); the 3.3 V square waves drive it directly. The inputs have a high impedance; `Drive all` 2 or 4 mA is enough.
 - **Switched off:** with `Off state` `Low`, S0 and S1 are LOW; the switch stays on channel 0. This does no harm.
 
@@ -1744,12 +1744,12 @@ with g = 1:  IRR = 20 · log10( cot(φ/2) )
 | 0.5 dB | 31 dB |
 | 1 dB | 25 dB |
 
-- The phase error of the generator itself is not measured yet (MESSPLAN E1 to E4). The mixer, sampling capacitors, audio amplifiers and sound card add to the total error.
+- The phase error of the generator itself is not measured yet (MESSPLAN M-115, M-116, M-307 and M-308). The mixer, sampling capacitors, audio amplifiers and sound card add to the total error.
 - SDR programs often correct IQ errors automatically; without correction the table shows what the phase alone allows.
 
 ### Example: Superhet Receiver for 7.1 MHz with a 455 kHz IF
 
-A diode ring mixer converts 7.1 MHz to the 455 kHz IF; CH1 is the LO, CH2 the test signal (like MESSPLAN G1).
+A diode ring mixer converts 7.1 MHz to the 455 kHz IF; CH1 is the LO, CH2 the test signal (like MESSPLAN M-419).
 
 ```text
 CH2 7.100 MHz ── 30 dB ──────────► RF ┐
@@ -1781,7 +1781,7 @@ Image  = 7.555 + 0.455 = 8.010 MHz   (also gives 455 kHz)
 4. CLK0 to S0, CLK2 to S1, with lines of equal length.
 5. I and Q (after the audio amplifiers) to the stereo line input of a sound card; an SDR program in IQ mode, center frequency 7.100 MHz. At a 48 kHz sample rate 7.076–7.124 MHz are visible.
 6. If the spectrum is mirrored, choose phase `270` or swap I and Q in the program.
-7. Test signal: CH2 at 7.101 MHz through 40–60 dB attenuation to the RF input. The line appears 1 kHz above the center, its image 1 kHz below; the difference between both is the image rejection (table above, MESSPLAN E10).
+7. Test signal: CH2 at 7.101 MHz through 40–60 dB attenuation to the RF input. The line appears 1 kHz above the center, its image 1 kHz below; the difference between both is the image rejection (table above, MESSPLAN M-413).
 
 ### Never Unfiltered to an Antenna
 

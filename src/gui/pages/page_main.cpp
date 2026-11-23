@@ -8,7 +8,7 @@
 
 using namespace Layout;
 
-// Three cards above the status bar (W-E26); the bar replaces the navigation buttons CH1-CH3,
+// Three cards above the status bar (A-503); the bar replaces the navigation buttons CH1-CH3,
 // the cards open the channel pages.
 static constexpr int CARD_H = 62;
 static constexpr int CARD_Y = 4;
@@ -77,7 +77,7 @@ void Gui::createMain_() {
     }
 
     // Status bar like the header: save state, WiFi and REMOTE/LOCKED on the left, CONFIG at
-    // the right edge (W-E26).
+    // the right edge (A-503).
     lv_obj_t* bar = lv_obj_create(root_);
     lv_obj_set_pos(bar, 0, BAR_Y);
     lv_obj_set_size(bar, SCREEN_WIDTH, BAR_H);
@@ -140,7 +140,7 @@ void Gui::refreshMain_() {
     for (uint8_t ch = 1; ch <= 2; ++ch) {
         const uint8_t i = ch - 1;
         const Channel& c = app.channel(ch);
-        // A coupled CH2 shows the frequency it is set to (CH1 + offset, E-52).
+        // A coupled CH2 shows the frequency it is set to (CH1 + offset, E-213).
         setCardFrequency(w_.cardFreq[i], app, ch, app.frequency(ch));
         showState_(w_.cardState[i], StatusText::channel(app.channelStatus(ch)));
         // Special modes first (they change the signal); a long line ends in "...".

@@ -74,7 +74,7 @@ static void test_numpad_units_confirm() {
     TEST_ASSERT_EQUAL_UINT64(5000000ULL, hz);
 }
 
-// MESSPLAN B3: "500" MHz and "0.5" MHz are rejected and marked; the input stays, so it can be
+// MESSPLAN M-505: "500" MHz and "0.5" MHz are rejected and marked; the input stays, so it can be
 // corrected (audit U-9).
 static void test_numpad_rejects_out_of_range_and_empty() {
     struct Case {
@@ -167,7 +167,7 @@ static void test_step_markup() {
 }
 
 // ---------------------------------------------------------------------------
-// Message queue (audit T-12, A-38)
+// Message queue (audit T-12, A-315)
 
 // Tags as the GUI uses them (EventCategory).
 static constexpr uint8_t LINK = 1;
@@ -403,7 +403,7 @@ static void test_output_error_texts_name_channel_and_retry() {
     TEST_ASSERT_EQUAL_STRING("CH3: IQ setup failed, CLK2 stays off. CH1 keeps running. Retrying every 2 s.", buf);
 }
 
-// Hint on the channel page outside 1-100 MHz (E-16).
+// Hint on the channel page outside 1-100 MHz (E-203).
 static void test_range_note() {
     using namespace StatusText;
     TEST_ASSERT_EQUAL_STRING("", rangeNote(10000000ULL));

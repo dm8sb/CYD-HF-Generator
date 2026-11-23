@@ -65,7 +65,7 @@ static void test_execute_maps_to_the_setters() {
     TEST_ASSERT_EQUAL(Result::Conflict, execute(d.app, cmd(CommandType::Spread, 0, (int64_t)Spread::Down05)));
     TEST_ASSERT_EQUAL(Result::Ok, execute(d.app, cmd(CommandType::Correction, 0, -250)));
     TEST_ASSERT_EQUAL_INT32(-250, d.app.system().freq_correction);
-    // Values outside the type range are rejected in the full type (W-S19), never cut.
+    // Values outside the type range are rejected in the full type (A-719), never cut.
     TEST_ASSERT_EQUAL(Result::Invalid, execute(d.app, cmd(CommandType::Drive, 0, 258)));
     TEST_ASSERT_EQUAL(Result::Invalid, execute(d.app, cmd(CommandType::Ch3Phase, 3, 65626)));
     TEST_ASSERT_EQUAL(Result::OutOfRange, execute(d.app, cmd(CommandType::Backlight, 0, -1)));
@@ -118,7 +118,7 @@ static void test_queue_order_limit_and_results() {
     TEST_ASSERT_EQUAL(PushResult::Queued, q.push(cmd(CommandType::Drive, 0, 8, Source::Usb)));
 }
 
-// W-S11: at most REMOTE_WRITES_PER_S write commands per second and source.
+// A-711: at most REMOTE_WRITES_PER_S write commands per second and source.
 static void test_rate_limit_per_source() {
     Device d;
     CommandQueue q;
@@ -146,7 +146,7 @@ static void test_rate_limit_per_source() {
     TEST_ASSERT_EQUAL_UINT8(REMOTE_WRITES_PER_S, queued);
 }
 
-// W-E25 / W-S21: local only lets the network set everything and switch off, but not on.
+// E-610 / A-721: local only lets the network set everything and switch off, but not on.
 static void test_remote_outputs_local_only() {
     {
         Device d;
@@ -160,7 +160,7 @@ static void test_remote_outputs_local_only() {
         TEST_ASSERT_FALSE(d.app.channel(1).enabled);
         TEST_ASSERT_FALSE(d.app.ch3().enabled);
         TEST_ASSERT_EQUAL(Result::Ok, execute(d.app, cmd(CommandType::SetFrequency, 1, 7100000)));
-        // D22: off state High (DC on the switched-off outputs) is refused like switching on;
+        // E-611: off state High (DC on the switched-off outputs) is refused like switching on;
         // Low and High-Z stay allowed.
         TEST_ASSERT_EQUAL(Result::Denied, execute(d.app, cmd(CommandType::OffState, 0, (int64_t)OffState::High)));
         TEST_ASSERT_EQUAL(Result::Denied,
