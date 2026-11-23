@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <net/pbkdf2.h>
+#include <net/web_routes.h>
 #include <utils/ipv4.h>
 #include <utils/sanitize.h>
 
@@ -46,8 +47,6 @@ bool ieqValue(const char* v, const char* b) {
     trim(v, &s, &n);
     return ieqn(s, n, b);
 }
-
-bool startsWith(const char* s, const char* prefix) { return strncmp(s, prefix, strlen(prefix)) == 0; }
 
 // RFC 9110 token character.
 bool tchar(char c) {
@@ -99,8 +98,6 @@ bool splitPort(const char* s, size_t n, size_t* hostLen) {
     return true;
 }
 
-bool isApi(const char* path) { return startsWith(path, "/api/"); }
-bool isWs(const char* path) { return strcmp(path, "/ws") == 0; }
 
 // Plain decimal number (1..10 digits) after trimming; false for signs, lists, garbage.
 bool parseLength(const char* v, uint64_t* out) {
@@ -356,8 +353,8 @@ GuardDecision RequestGuard::check(const GuardRequest& r, uint64_t nowMs) {
     if (strlen(r.path) + queryLen > MAX_URL) return refuse(Verdict::UriTooLong, "URL too long");
     if (r.headerBytes > MAX_HEADERS) return refuse(Verdict::HeaderFieldsTooLarge, "Headers too large");
 
-    const bool api = isApi(r.path);
-    const bool ws = isWs(r.path);
+    const bool api = WebRoutes::isApi(r.path);
+    const bool ws = WebRoutes::isWs(r.path);
     const bool get = strcmp(r.method, "GET") == 0 || strcmp(r.method, "HEAD") == 0;
     const bool post = strcmp(r.method, "POST") == 0;
 
@@ -442,8 +439,8 @@ GuardDecision RequestGuard::check(const GuardRequest& r, uint64_t nowMs) {
     // With a web password: a session for every write and the WiFi settings, with loginForReads
     // also for the state and the WebSocket. The login and the logout never need one (a logout
     // with an expired session must not ask for the password first).
-    const bool sessionFree = post && (strcmp(r.path, "/api/login") == 0 || strcmp(r.path, "/api/logout") == 0);
-    const bool wifi = strcmp(r.path, "/api/wifi") == 0 || startsWith(r.path, "/api/wifi/");
+    const bool sessionFree = WebRoutes::sessionFree(post, r.path);
+    const bool wifi = WebRoutes::isWifi(r.path);
     const bool needed = post || wifi || (config_.loginForReads && (api || ws));
     if (config_.passwordSet && needed && !sessionFree) {
         const int s = cookie == 1 ? findSession_(id, nowMs) : -1;
