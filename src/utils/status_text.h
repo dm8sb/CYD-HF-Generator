@@ -21,6 +21,9 @@ struct Text {
 };
 
 Text channel(ChannelStatus s);
+// Why a coupled CH2 waits (E-52): "Waiting: CH1 + offset below 8 kHz" / "... above 160 MHz"
+// for a target (CH1 + offset in Hz) outside FREQ_MIN_HZ..FREQ_MAX_HZ, "" inside.
+const char* coupledWait(int64_t targetHz);
 Text ch3(Ch3Status s);
 
 // Settings that change the signal of a channel compared to the defaults (audit U-2), e.g.

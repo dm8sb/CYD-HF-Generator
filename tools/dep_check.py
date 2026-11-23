@@ -10,10 +10,12 @@ Python 3 standard library only. Used by .github/workflows/ci.yml and release.yml
   pio project metadata -e esp32-2432S028R --json-output > meta.json
   python tools/dep_check.py packages --pkg-list pkg-list.txt --metadata meta.json --env esp32-2432S028R
 
-packages: every package of `platform_packages` and every registry library of `lib_deps` in
-platformio.ini must resolve to exactly its pinned version; the framework packages and the
-toolchain the firmware is built with must be pinned there (not only through the platform's
-tilde ranges); and the versions THIRD_PARTY_NOTICES.md states (Arduino-ESP32, the ESP-IDF tag and
+packages: the platform must be one exact release asset URL and resolve to it; every package of
+`platform_packages` (by URL or version) and every registry library of `lib_deps` in platformio.ini
+must resolve to exactly its pin; the framework packages must be pinned there, the toolchain and
+esptool must resolve to the versions the pinned platform names (VIA_PLATFORM); every URL pin must
+match the SHA-256 digest GitHub publishes for the asset (ASSET_SHA256, E-51; token from
+GITHUB_TOKEN/GH_TOKEN); and the versions THIRD_PARTY_NOTICES.md states (Arduino-ESP32, the ESP-IDF tag and
 commit of the precompiled libraries, the GCC runtime, the libraries) must match what the build
 uses. --summary appends the resolved list as Markdown (job summary, release notes).
 
@@ -43,8 +45,25 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INI = os.path.join(ROOT, "platformio.ini")
 NOTICES = os.path.join(ROOT, "THIRD_PARTY_NOTICES.md")
 # The packages that compile, link and convert the firmware; each must be pinned exactly (AF22).
-MUST_PIN = ("framework-arduinoespressif32", "framework-arduinoespressif32-esp32-libs",
-            "toolchain-xtensa-esp-elf", "tool-esptool")
+MUST_PIN = ("framework-arduinoespressif32", "framework-arduinoespressif32-libs")
+# The toolchain and esptool cannot be pinned in platform_packages: pioarduino installs them with
+# ESP-IDF's idf_tools.py (checksums from its tools.json) and a platform_packages entry hides them
+# from the build (compiler not found). The platform names them by exact URL, and the platform
+# archive is pinned by its digest below, so they must resolve exactly to these versions.
+VIA_PLATFORM = {"toolchain-xtensa-esp-elf": "14.4.0+20261030", "tool-esptoolpy": "5.6.0"}
+# The pioarduino platform and its packages are GitHub release assets pinned by URL (E-51); PlatformIO
+# checks no checksum for them, so every pinned URL must be listed here with the SHA-256 digest GitHub
+# publishes for the asset (`packages` compares it over the API: a replaced asset fails).
+ASSET_SHA256 = {
+    "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.313/platform-espressif32.zip":
+        "ff81417ffa1167113517dcf0a6a957eda683a7ad66dc91f8bffb151b4d554193",
+    "https://github.com/espressif/arduino-esp32/releases/download/3.3.13/esp32-core-3.3.13.tar.xz":
+        "80c3e459f715fed3265e2c62cfc376216e1cc3fc75dce158636aec0ba5a1f0e6",
+    "https://github.com/espressif/arduino-esp32/releases/download/3.3.13/esp32-core-3.3.13-libs.tar.xz":
+        "98c080079485bbbd5147541de4f0750f7e565252b71d1dc1fb5281a4e11d7144",
+}
+RELEASE_ASSET = re.compile(r"^https://github\.com/([\w.-]+/[\w.-]+)/releases/download/([^/]+)/([^/]+)$")
+PLATFORM_LINE = re.compile(r"^Platform (\S+) @ (\S+) \(required: (.+)\)\s*$", re.M)
 PKG_LINE = re.compile(r"^[\s│]*[├└]── (\S+) @ (\S+) \(required: (.+)\)\s*$")
 
 
@@ -67,7 +86,11 @@ def ini_list(section, key):
 
 
 def parse_spec(spec):
-    """'owner/name @ 1.2.3' or 'owner/name@1.2.3' -> (name, version); None for git URLs."""
+    """'owner/name @ 1.2.3' or 'owner/name@1.2.3' -> (name, version), 'name @ https://...' ->
+    (name, url); None for git URLs without a package name (lib_deps)."""
+    m = re.match(r"^(?:[\w.-]+/)?([\w.-]+)\s*@\s*(https://\S+)$", spec.strip())
+    if m:
+        return m.group(1), m.group(2)
     if "://" in spec:
         return None
     m = re.match(r"^(?:[\w.-]+/)?([\w.-]+)\s*@\s*(\S+)$", spec.strip())
@@ -123,10 +146,64 @@ def arduino_version(framework):
     return ".".join(m.group(1) for m in parts)
 
 
+def asset_digest(url, token):
+    """SHA-256 digest GitHub publishes for a release asset URL, or None if the asset has none."""
+    m = RELEASE_ASSET.match(url)
+    if not m:
+        raise CheckError("%s is not a GitHub release asset" % url)
+    repo, tag, name = m.groups()
+    rel = _http_json("%s/repos/%s/releases/tags/%s" % (GITHUB_API, repo, tag), token=token)
+    for a in rel.get("assets", []):
+        if a.get("name") == name:
+            d = a.get("digest") or ""
+            return d.split(":", 1)[1] if d.startswith("sha256:") else None
+    raise CheckError("%s: no asset %s in release %s" % (repo, name, tag))
+
+
+def check_url_pins(urls, problems):
+    """Every URL pin must be listed in ASSET_SHA256 and match the digest GitHub publishes."""
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    for url in urls:
+        want = ASSET_SHA256.get(url)
+        if want is None:
+            problems.append("%s has no SHA-256 in ASSET_SHA256 (tools/dep_check.py)" % url)
+            continue
+        got = asset_digest(url, token)
+        if got != want:
+            problems.append("%s: GitHub digest %s, pinned %s" % (url, got, want))
+
+
+def idf_expectation(ref, commit, note):
+    """(wanted text, matches) for the ESP-IDF row. A tag build ('v5.5.5') must be named as
+    'v5.5.5 (`commit`)'; a branch build ('release/v5.5', the pioarduino libraries, E-51) as
+    'v5.5.6 (`commit`, branch release/v5.5)' with the newest release tag the commit contains, which
+    `advisories` checks against GitHub and uses for the advisories."""
+    if parse_version(ref):
+        want = "%s (`%s`)" % (ref, commit)
+        return want, note == want
+    want = "vX.Y.Z (`%s`, branch %s)" % (commit, ref)
+    m = re.match(r"^v\d+\.\d+\.\d+ \(`([0-9a-f]+)`, branch (\S+)\)$", note)
+    return want, bool(m) and m.group(1) == commit and m.group(2) == ref
+
+
 def cmd_packages(args):
     with open(args.pkg_list, encoding="utf-8") as f:
-        pkgs = parse_pkg_list(f.read())
+        text = f.read()
+    pkgs = parse_pkg_list(text)
     problems = []
+    # The platform: one exact release asset (E-51), never a registry range or a branch.
+    platform = ini_list("esp32", "platform")
+    platform = platform[0] if platform else ""
+    m = RELEASE_ASSET.match(platform)
+    if not m:
+        problems.append("platform %r is not pinned to a release asset URL" % platform)
+    url_pins = [platform] if m else []
+    resolved = PLATFORM_LINE.search(text)
+    if not resolved or resolved.group(3).strip() != platform:
+        problems.append("the build resolved platform %s, pinned %s"
+                        % (resolved.group(3).strip() if resolved else "nothing", platform))
+    elif m and resolved.group(2) != ".".join(str(int(x)) for x in m.group(2).split(".")):
+        problems.append("platform %s reports version %s" % (m.group(2), resolved.group(2)))
     pinned = {}
     for spec in ini_list("esp32", "platform_packages"):
         p = parse_spec(spec)
@@ -137,6 +214,12 @@ def cmd_packages(args):
     for name in MUST_PIN:
         if name not in pinned:
             problems.append("%s is not pinned exactly in platform_packages" % name)
+    for name, want in sorted(VIA_PLATFORM.items()):
+        got = pkgs.get(name)
+        if name in pinned:
+            problems.append("%s must not be in platform_packages (installed by the platform)" % name)
+        elif got is None or got[0] != want:
+            problems.append("%s resolved to %s, the platform pins %s" % (name, got[0] if got else "nothing", want))
     libs = {}
     for spec in ini_list("esp32", "lib_deps"):
         p = parse_spec(spec)
@@ -146,8 +229,16 @@ def cmd_packages(args):
         got = pkgs.get(name)
         if got is None:
             problems.append("%s @ %s is pinned but not in the resolved packages" % (name, want))
+        elif "://" in want:
+            url_pins.append(want)
+            if want not in got[1]:
+                problems.append("%s resolved from %s, pinned %s" % (name, got[1], want))
         elif got[0] != want:
             problems.append("%s resolved to %s, pinned %s" % (name, got[0], want))
+    try:
+        check_url_pins(url_pins, problems)
+    except OSError as e:
+        problems.append("GitHub release digests not readable: %s" % e)
 
     # THIRD_PARTY_NOTICES.md against the build (framework and ESP-IDF from the metadata).
     meta = flasher_site.read_json(args.metadata)
@@ -167,7 +258,7 @@ def cmd_packages(args):
     gcc = "%s (esp-%s_%s)" % (m.group(1), m.group(1), m.group(2)) if m else "?"
     expect = [
         ("arduino", arduino, notes["arduino"] == arduino),
-        ("esp-idf", "%s (`%s`)" % (idf_tag, idf_commit[:11]), notes["esp-idf"] == "%s (`%s`)" % (idf_tag, idf_commit[:11])),
+        ("esp-idf",) + idf_expectation(idf_tag, idf_commit[:11], notes["esp-idf"]),
         ("gcc", gcc, notes["gcc"] == gcc),
     ]
     for name in ("TFT_eSPI", "lvgl", "ArduinoJson", "AsyncTCP", "ESPAsyncWebServer"):
@@ -336,7 +427,13 @@ def collect_pins(token):
     with open(NOTICES, encoding="utf-8") as f:
         notes = notice_versions(f.read())
     pins.append(("Arduino-ESP32", "espressif/arduino-esp32", notes["arduino"], None))
-    pins.append(("ESP-IDF", "espressif/esp-idf", notes["esp-idf"].split()[0].lstrip("v"), None))
+    idf_tag = notes["esp-idf"].split()[0]
+    m = re.search(r"`([0-9a-f]{7,40})`, branch ", notes["esp-idf"])
+    if m:  # branch build (E-51): the commit must contain the tag the notices name
+        cmp_ = _http_json("%s/repos/espressif/esp-idf/compare/%s...%s" % (GITHUB_API, idf_tag, m.group(1)), token=token)
+        if cmp_.get("status") not in ("identical", "ahead"):
+            raise CheckError("ESP-IDF commit %s does not contain %s (THIRD_PARTY_NOTICES.md)" % (m.group(1), idf_tag))
+    pins.append(("ESP-IDF", "espressif/esp-idf", idf_tag.lstrip("v"), None))
     lock = flasher_site.read_json(LOCK_FILE)
     npm = {}
     for url in [lock["base"]] + [n["url"] for n in lock.get("notices", {}).values()]:

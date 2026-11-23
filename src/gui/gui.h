@@ -61,6 +61,7 @@ private:
         lv_obj_t* modes;       // special modes of the channel (U-2)
         lv_obj_t* chips[DELTA_STEP_COUNT];
         lv_obj_t* masterChips[2];
+        lv_obj_t* cplChips[2]; // CH2 page: Free / CH1 + offset (E-52)
         lv_obj_t* cardFreq[3];
         lv_obj_t* cardState[3];
         lv_obj_t* cardDetail[3];
@@ -100,6 +101,9 @@ private:
     // Feeds raw touch samples to the wizard and moves the cross (every loop on that page).
     void tickTouchCal_();
     void showCalTarget_();
+    // Display and touch follow the controller's rotation (E-53): MADCTL, touch mirroring and a
+    // full redraw; the calibration restarts in the new rotation. No-op while unchanged.
+    void applyRotation_();
 #if TEST_HIT_MAP
     // Test build only (MESSPLAN B8): target crosses instead of the GUI.
     void createHitMap_();
@@ -219,6 +223,7 @@ private:
     uint8_t configTab_ = 0;     // CONFIG tab shown on the next visit; RAM only
     uint32_t lastUpdateMs_ = 0;
     uint32_t lastRevision_ = 0;   // AppController::revision() of the last redraw
+    uint16_t shownRotation_ = 0;  // rotation applied to display and touch (degrees)
     uint16_t lastConnections_ = 0;
     StatusView lastView_ {};
     int8_t rssiShown_ = 0;          // CONFIG info card, with hysteresis
@@ -239,6 +244,7 @@ private:
     TouchCal::Wizard calWizard_; // touch calibration (host-tested)
     bool calFirstStart_ = false;
     bool numpadPpm_ = false;     // numpad opened from CONFIG: correction entry (U-11)
+    bool numpadOffset_ = false;  // numpad for a coupled CH2: offset entry with sign (E-52)
     PageId numpadReturn_ = PageId::CH1; // page the frequency numpad returns to
     uint32_t pressStartMs_ = 0;  // start of the current press of a repeat button (U-20)
     uint32_t lastStepMs_ = 0;    // last step of the current hold (slow phase, U-20)

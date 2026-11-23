@@ -17,6 +17,9 @@ public:
     // landscape and clears the screen. Never fails; the backlight should still be off.
     void begin();
     void flush(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels);
+    // Landscape upright or turned by 180 degrees (E-53), at once; the caller redraws the screen.
+    void setTurned(bool turned);
+    bool turned() const { return turned_; }
     PanelType panel() const { return panel_; }
     // How begin() chose the panel (DisplayDetect::sourceName() for the text).
     PanelSource source() const { return source_; }
@@ -28,4 +31,5 @@ private:
     PanelType panel_ = PanelType::ILI9341;
     PanelSource source_ = PanelSource::Default;
     ProbeResult probe_ {};
+    bool turned_ = false;
 };

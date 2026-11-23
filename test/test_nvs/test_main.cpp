@@ -74,7 +74,8 @@ static void test_all_written_keys_are_valid_names() {
     TEST_ASSERT_TRUE(settings.saveNow(s));
     TEST_ASSERT_TRUE(settings.saveTouchCalibration(TouchCalibration {500, 3900, 300, 3800}));
     TEST_ASSERT_TRUE(settings.saveRemoteOutputs(false));
-    TEST_ASSERT_EQUAL_size_t(11 + 4 + 1, Fake::nvs().count(SETTINGS_NAMESPACE));
+    // 11 keys of 2.0.0 + ch2_cpl, ch2_off (N14) + rot180 (N16), touch calibration (4), remote outputs.
+    TEST_ASSERT_EQUAL_size_t(14 + 4 + 1, Fake::nvs().count(SETTINGS_NAMESPACE));
 
     Storage net;
     TEST_ASSERT_TRUE(net.begin(NetConfig::NAMESPACE));
@@ -195,8 +196,9 @@ static void test_upgrade_from_old_keys() {
     TEST_ASSERT_EQUAL_HEX32(ip("192.168.4.2"), n.staticIp.dns);
     TEST_ASSERT_TRUE(WebPassword::verify("bench-secret", 12, n.webPassword));
 
-    // Saving again rewrites the same keys: nothing new appears, nothing old is lost.
-    const size_t genKeys = Fake::nvs().count("hfgen");
+    // Saving again rewrites the same keys: nothing old is lost; only the keys added after 2.0.0
+    // appear (ch2_cpl, ch2_off from N14, rot180 from N16), with their defaults.
+    const size_t genKeys = Fake::nvs().count("hfgen") + 3;
     const size_t netKeys = Fake::nvs().count("hfnet");
     settings.markDirty(SettingKey::All);
     TEST_ASSERT_TRUE(settings.saveNow(s));

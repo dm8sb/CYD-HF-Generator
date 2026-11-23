@@ -29,6 +29,7 @@ const char* numpadErrorText(NumpadError e) {
         case NumpadError::OutOfRange: return "8 kHz - 160 MHz";
         case NumpadError::TooLong: return "Max. 10 characters";
         case NumpadError::PpmRange: return "-50.00 to +50.00 ppm";
+        case NumpadError::OffsetRange: return "-160 to +160 MHz";
         case NumpadError::None: break;
     }
     return "";
@@ -96,6 +97,33 @@ NumpadEvent numpadPpmKey(Numpad& n, const char* key, int32_t* outCentiPpm) {
         }
         const int32_t centi = (int32_t)(v + 0.5);
         if (outCentiPpm) *outCentiPpm = n.negative ? -centi : centi;
+        return NumpadEvent::Confirmed;
+    }
+    if (!strcmp(key, "C")) n.negative = false;
+    return numpadKey(n, key, nullptr);
+}
+
+static_assert(CH2_OFFSET_MAX_HZ == 160000000, "numpadErrorText() names the offset range");
+
+NumpadEvent numpadOffsetKey(Numpad& n, const char* key, int32_t* outHz) {
+    if (!key) return NumpadEvent::Ignored;
+    if (!strcmp(key, KEY_SIGN)) {
+        n.error = NumpadError::None;
+        n.negative = !n.negative;
+        return NumpadEvent::Edited;
+    }
+    if (isUnit(key)) {
+        n.error = NumpadError::None;
+        if (!strpbrk(n.text, "0123456789")) {
+            n.error = NumpadError::Empty;
+            return NumpadEvent::Rejected;
+        }
+        uint64_t hz = 0;
+        if (!FrequencyUtils::parseDecimalHz(n.text, key, &hz) || hz > (uint64_t)CH2_OFFSET_MAX_HZ) {
+            n.error = NumpadError::OffsetRange;
+            return NumpadEvent::Rejected;
+        }
+        if (outHz) *outHz = n.negative ? -(int32_t)hz : (int32_t)hz;
         return NumpadEvent::Confirmed;
     }
     if (!strcmp(key, "C")) n.negative = false;

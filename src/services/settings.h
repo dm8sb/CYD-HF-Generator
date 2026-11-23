@@ -24,7 +24,10 @@ enum : uint16_t {
     Tune = 1 << 8,
     Ssc = 1 << 9,
     OffSt = 1 << 10,
-    All = (1 << 11) - 1
+    Ch2Cpl = 1 << 11,
+    Ch2Off = 1 << 12,
+    Rot = 1 << 13,
+    All = (1 << 14) - 1
 };
 }
 

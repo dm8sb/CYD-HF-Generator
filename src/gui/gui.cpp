@@ -20,7 +20,10 @@ void Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
     touch_ = &touch;
     display_ = &display;
     lastConnections_ = app.connectionCount();
-
+    // Stored rotation (E-53) before the first frame.
+    shownRotation_ = app.system().rotation;
+    display.setTurned(shownRotation_ == 180);
+    touch.setTurned(shownRotation_ == 180);
 
     // LVGL warnings through the switchable logger (C-16), already for lv_init().
     lv_log_register_print_cb([](const char* line) { Logger::raw(line); });
@@ -297,6 +300,8 @@ void Gui::navigate(PageId page) {
     if (page == PageId::Numpad) {
         numpadPpm_ = currentPage_ == PageId::Config;
         if (!numpadPpm_) numpadReturn_ = currentPage_; // CH1, CH2 or CH3 (master frequency)
+        // A coupled CH2 (also as master from CH3) takes its offset (E-52).
+        numpadOffset_ = !numpadPpm_ && channel_ == 2 && app_->ch2Coupled();
     }
     currentPage_ = page;
     if (page == PageId::CH1) channel_ = 1;
@@ -373,8 +378,22 @@ void Gui::refresh_() {
     ++refreshCount_;
 }
 
+void Gui::applyRotation_() {
+    const uint16_t r = app_->system().rotation;
+    if (r == shownRotation_) return;
+    shownRotation_ = r;
+    display_->setTurned(r == 180);
+    touch_->setTurned(r == 180);
+    // The whole screen including dialogs on the top layer is drawn again in the new rotation.
+    lv_obj_invalidate(lv_scr_act());
+    // The crosses are in screen coordinates: start the calibration again in the new rotation.
+    if (currentPage_ == PageId::TouchCal) navigate(PageId::TouchCal);
+}
+
 void Gui::update() {
     wifiPages_.update();
+    // Rotation from any source (touch, remote, Defaults, *RST), at once (E-53).
+    applyRotation_();
     if (currentPage_ == PageId::TouchCal) {
         tickTouchCal_();
         return;
@@ -452,11 +471,17 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::ChannelSwitch:
             app.setChannelEnabled(arg, lv_obj_has_state(obj, LV_STATE_CHECKED));
             break;
+        // A coupled CH2 changes its offset (E-52).
         case Action::FreqUp:
-            app.adjustChannelFrequency(channel_, steps * sys.delta_step);
+            if (channel_ == 2 && app.ch2Coupled()) app.adjustCh2Offset(steps * sys.delta_step);
+            else app.adjustChannelFrequency(channel_, steps * sys.delta_step);
             break;
         case Action::FreqDown:
-            app.adjustChannelFrequency(channel_, -steps * (int64_t)sys.delta_step);
+            if (channel_ == 2 && app.ch2Coupled()) app.adjustCh2Offset(-steps * (int64_t)sys.delta_step);
+            else app.adjustChannelFrequency(channel_, -steps * (int64_t)sys.delta_step);
+            break;
+        case Action::Ch2Couple:
+            app.setCh2Coupled(arg == 1);
             break;
         case Action::FreqTap:
             handleFreqTap_(obj);
@@ -517,6 +542,11 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             Logger::info("GUI", "Screen locked");
             requestNavigate_(PageId::Main);
             return;
+        case Action::RotateScreen:
+            // Each tap toggles 0 / 180 degrees; applied at once, the press has ended (CLICKED).
+            app.setRotation(sys.rotation == 180 ? 0 : 180);
+            applyRotation_();
+            break;
         case Action::ResetDefaults:
             confirm_(Confirm::ResetDefaults);
             return;

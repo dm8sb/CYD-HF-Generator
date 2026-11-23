@@ -37,6 +37,9 @@ void DisplayPanel::begin() {
     source_ = PanelSource::Detected;
 }
 
+// The images show the upright screen; a turned one would only be the same image upside down.
+void DisplayPanel::setTurned(bool turned) { turned_ = turned; }
+
 void DisplayPanel::flush(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels) {
     for (int16_t row = 0; row < h; ++row) {
         const int py = y + row;
@@ -61,6 +64,8 @@ void TouchDriver::setCalibration(const TouchCalibration& cal, bool stored) {
     cal_ = cal;
     calibrated_ = stored;
 }
+
+void TouchDriver::setTurned(bool turned) { turned_ = turned; }
 
 bool TouchDriver::readRaw(int16_t*, int16_t*) { return false; }
 

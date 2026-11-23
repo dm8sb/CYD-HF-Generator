@@ -17,9 +17,19 @@ Text channel(ChannelStatus s) {
         case ChannelStatus::On: return {"ON", Tone::Ok};
         case ChannelStatus::Error: return {"! ERR", Tone::Error};
         case ChannelStatus::NoDevice: return {"! NO HW", Tone::Error};
+        case ChannelStatus::FreqTooLow:
+        case ChannelStatus::FreqTooHigh: return {"WAIT", Tone::Warn};
         case ChannelStatus::Off: break;
     }
     return {"OFF", Tone::Muted};
+}
+
+static_assert(FREQ_MIN_HZ == 8000ULL && FREQ_MAX_HZ == 160000000ULL, "coupledWait() names the range");
+
+const char* coupledWait(int64_t targetHz) {
+    if (targetHz < (int64_t)FREQ_MIN_HZ) return "Waiting: CH1 + offset below 8 kHz";
+    if (targetHz > (int64_t)FREQ_MAX_HZ) return "Waiting: CH1 + offset above 160 MHz";
+    return "";
 }
 
 Text ch3(Ch3Status s) {

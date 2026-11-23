@@ -223,6 +223,9 @@ jobs:
       # AF22: the resolved framework, toolchain and libraries are exactly the pinned ones and the
       # ones THIRD_PARTY_NOTICES.md names (Arduino-ESP32, ESP-IDF tag and commit, GCC runtime).
       - name: Check pinned packages
+        env:
+          # E-51: the SHA-256 digests of the pinned release assets are read over the GitHub API.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           pio pkg list -e esp32-2432S028R > pkg-list.txt
           pio project metadata -e esp32-2432S028R --json-output > metadata.json

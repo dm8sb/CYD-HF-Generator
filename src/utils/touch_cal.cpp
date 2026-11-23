@@ -55,8 +55,9 @@ bool plausible(const TouchCalibration& cal) {
     return labs(cal.x_max - cal.x_min) >= MIN_RANGE && labs(cal.y_max - cal.y_min) >= MIN_RANGE;
 }
 
-void Wizard::start(uint32_t nowMs) {
+void Wizard::start(uint32_t nowMs, bool rotated) {
     *this = Wizard {};
+    rotated_ = rotated;
     lastActivityMs_ = nowMs;
     lastTouchMs_ = nowMs;
 }
@@ -102,13 +103,19 @@ void Wizard::update(bool touched, int16_t rawX, int16_t rawY, uint32_t nowMs) {
 }
 
 void Wizard::finish_() {
-    if (!compute(raw_, &cal_)) {
+    // Turned by 180 degrees, the cross drawn at corner i lies on the panel's opposite corner
+    // (i + 2) % 4 (TARGETS are symmetric to the center): reorder to the upright corners, so the
+    // calibration stays in the raw coordinates of the upright screen.
+    RawPoint corners[4];
+    for (uint8_t i = 0; i < 4; ++i) corners[rotated_ ? (i + 2) % 4 : i] = raw_[i];
+    if (!compute(corners, &cal_)) {
         phase_ = Phase::Failed;
         failure_ = Failure::Inconsistent;
         return;
     }
     int16_t mx = 0, my = 0;
     TouchFilter::mapPoint(cal_, raw_[4].x, raw_[4].y, &mx, &my);
+    if (rotated_) TouchFilter::rotate180(&mx, &my);
     dx_ = (int16_t)(mx - TARGETS[4].x);
     dy_ = (int16_t)(my - TARGETS[4].y);
     const bool ok = abs(dx_) <= CHECK_TOLERANCE_PX && abs(dy_) <= CHECK_TOLERANCE_PX;

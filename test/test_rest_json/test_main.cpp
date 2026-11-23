@@ -149,10 +149,10 @@ static void test_ch3_and_config_bodies() {
     assertCommand(c.list[1], CommandType::Ch3Phase, 3, 270);
     assertCommand(c.list[2], CommandType::SetEnabled, 3, 1);
     ASSERT_REPLY(200, 0,
-                 config("{\"backlight\":80,\"step\":1000,\"correction\":-250,\"drive\":8,\"offState\":\"hiz\","
-                        "\"spread\":\"center05\",\"tuning\":\"lownoise\"}",
+                 config("{\"rotation\":180,\"backlight\":80,\"step\":1000,\"correction\":-250,\"drive\":8,"
+                        "\"offState\":\"hiz\",\"spread\":\"center05\",\"tuning\":\"lownoise\"}",
                         &c));
-    TEST_ASSERT_EQUAL_UINT8(7, c.count);
+    TEST_ASSERT_EQUAL_UINT8(8, c.count);
     // Tuning before spread (spread in Integer is a conflict), then the rest.
     assertCommand(c.list[0], CommandType::Tuning, 0, (int64_t)TuningMode::LowNoise);
     assertCommand(c.list[1], CommandType::Spread, 0, (int64_t)Spread::Center05);
@@ -161,6 +161,7 @@ static void test_ch3_and_config_bodies() {
     assertCommand(c.list[4], CommandType::Correction, 0, -250);
     assertCommand(c.list[5], CommandType::Step, 0, 1000);
     assertCommand(c.list[6], CommandType::Backlight, 0, 80);
+    assertCommand(c.list[7], CommandType::Rotation, 0, 180); // N16, E-53
     const struct {
         const char* body;
         CommandType type;
@@ -312,6 +313,9 @@ static void test_values_are_checked_by_the_controller() {
         {"{\"backlight\":256}", 400, -222, nullptr},
         {"{\"step\":3}", 400, -224, nullptr},
         {"{\"step\":4294967297}", 400, -224, nullptr},
+        {"{\"rotation\":90}", 400, -224, nullptr},
+        {"{\"rotation\":-180}", 400, -224, nullptr},
+        {"{\"rotation\":65716}", 400, -224, nullptr}, // 180 + 65536: no narrowing to 180
         {"{\"tuning\":\"integer\",\"spread\":\"down05\"}", 400, -221, "{\"error\":\"-221,Spread spectrum is not possible in Integer tuning\"}"},
     };
     for (const auto& k : cases) {
@@ -381,6 +385,7 @@ static void test_result_mapping() {
     ASSERT_REPLY(400, -222, fromResult(Result::OutOfRange));
     ASSERT_REPLY(400, -224, fromResult(Result::Invalid));
     ASSERT_REPLY(400, -221, fromResult(Result::Conflict));
+    ASSERT_REPLY(400, -221, fromResult(Result::Coupled));
     ASSERT_REPLY(403, -221, fromResult(Result::Denied));
     const Reply hw = fromResult(Result::HwError);
     ASSERT_REPLY(500, -240, hw);
@@ -511,6 +516,11 @@ static void test_state_json_contract() {
     TEST_ASSERT_EQUAL_STRING("OFF", c2["status"]);
     TEST_ASSERT_EQUAL(2, (int)c2["modes"].size());
     TEST_ASSERT_EQUAL_STRING("8mA", c2["modes"][1]);
+    TEST_ASSERT_EQUAL(8, (int)keyCount(c2)); // + coupled, offset (E-52)
+    TEST_ASSERT_FALSE(c2["coupled"].as<bool>());
+    TEST_ASSERT_TRUE(c2["coupled"].is<bool>());
+    TEST_ASSERT_EQUAL(0, c2["offset"].as<int>());
+    TEST_ASSERT_TRUE(c1["coupled"].isNull());
     JsonObjectConst c3 = doc["ch3"];
     TEST_ASSERT_EQUAL(8, (int)keyCount(c3));
     TEST_ASSERT_FALSE(c3["enabled"].as<bool>());
@@ -522,7 +532,8 @@ static void test_state_json_contract() {
     TEST_ASSERT_EQUAL_UINT64(s.iqMaxHz, c3["iqMax"].as<uint64_t>());
     // Fixed limits for the web UI (AF48): range and step list of the firmware.
     JsonObjectConst lim = doc["limits"];
-    TEST_ASSERT_EQUAL(3, (int)keyCount(lim));
+    TEST_ASSERT_EQUAL(4, (int)keyCount(lim));
+    TEST_ASSERT_EQUAL_INT32(CH2_OFFSET_MAX_HZ, lim["offsetMax"].as<int32_t>());
     TEST_ASSERT_EQUAL_UINT64(FREQ_MIN_HZ, lim["fmin"].as<uint64_t>());
     TEST_ASSERT_EQUAL_UINT64(FREQ_MAX_HZ, lim["fmax"].as<uint64_t>());
     JsonArrayConst steps = lim["steps"];
@@ -530,7 +541,9 @@ static void test_state_json_contract() {
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) TEST_ASSERT_EQUAL_UINT32(DELTA_STEPS[i], steps[i].as<uint32_t>());
     TEST_ASSERT_TRUE(c3["actual"].is<double>());
     JsonObjectConst cfg = doc["config"];
-    TEST_ASSERT_EQUAL(8, (int)keyCount(cfg));
+    TEST_ASSERT_EQUAL(9, (int)keyCount(cfg));
+    TEST_ASSERT_EQUAL(0, cfg["rotation"].as<int>()); // N16, E-53: degrees
+    TEST_ASSERT_TRUE(cfg["rotation"].is<int>());
     TEST_ASSERT_EQUAL(8, cfg["drive"].as<int>());
     TEST_ASSERT_EQUAL_STRING("fractional", cfg["tuning"]);
     TEST_ASSERT_EQUAL_STRING("down05", cfg["spread"]);
@@ -585,6 +598,48 @@ static void test_state_json_contract() {
     char small[200];
     TEST_ASSERT_EQUAL(0, (int)buildState(s, info(), 0, small, sizeof(small)));
     TEST_ASSERT_EQUAL_STRING("", small);
+}
+
+// CH2 coupled to CH1 (E-52): coupled and offset only on channel 2, in a fixed order.
+static void test_coupled_channel_bodies() {
+    Commands c;
+    ASSERT_REPLY(200, 0, channel(2, "{\"enabled\":true,\"coupled\":true,\"offset\":-455000}", &c));
+    TEST_ASSERT_EQUAL_UINT8(3, c.count);
+    assertCommand(c.list[0], CommandType::Ch2Offset, 2, -455000);
+    assertCommand(c.list[1], CommandType::Ch2Couple, 2, 1);
+    assertCommand(c.list[2], CommandType::SetEnabled, 2, 1);
+    ASSERT_REPLY(200, 0, channel(2, "{\"frequency\":7000000,\"coupled\":false}", &c));
+    assertCommand(c.list[0], CommandType::Ch2Couple, 2, 0);
+    assertCommand(c.list[1], CommandType::SetFrequency, 2, 7000000);
+    ASSERT_REPLY(400, -108, channel(1, "{\"coupled\":true}", &c));
+    ASSERT_REPLY(400, -108, channel(1, "{\"offset\":5}", &c));
+    ASSERT_REPLY(400, -108, channel(2, "{\"frequency\":7000000,\"frequencyText\":\"7M\"}", &c));
+    ASSERT_REPLY(400, -104, channel(2, "{\"coupled\":1}", &c));
+    ASSERT_REPLY(400, -104, channel(2, "{\"offset\":\"455k\"}", &c));
+    ASSERT_REPLY(400, -104, channel(2, "{\"offset\":4.5}", &c));
+    ASSERT_REPLY(400, -102, channel(2, "{\"offset\":1,\"offset\":2}", &c));
+    ASSERT_REPLY(400, -222, channel(2, "{\"offset\":99999999999999999999}", &c));
+
+    // Through the controller.
+    Device d;
+    ASSERT_REPLY(400, -222, d.run((channel(2, "{\"offset\":160000001}", &c), c)));
+    ASSERT_REPLY(200, 0, d.run((channel(2, "{\"coupled\":true,\"offset\":455000}", &c), c)));
+    TEST_ASSERT_TRUE(d.app.ch2Coupled());
+    TEST_ASSERT_EQUAL_UINT64(DEFAULT_FREQ_CH1 + 455000, d.app.frequency(2));
+    const Reply r = d.run((channel(2, "{\"frequency\":7000000}", &c), c));
+    ASSERT_REPLY(400, -221, r);
+    TEST_ASSERT_EQUAL_STRING("{\"error\":\"-221,CH2 is coupled to CH1\"}", err(r).c_str());
+    ASSERT_REPLY(200, 0, d.run((channel(2, "{\"coupled\":false,\"frequency\":7000000}", &c), c)));
+    TEST_ASSERT_EQUAL_UINT64(7000000, d.app.frequency(2));
+    // State JSON: frequency is CH1 + offset while coupled, 0 below 0; status WAIT while on.
+    ASSERT_REPLY(200, 0, d.run((channel(2, "{\"coupled\":true,\"offset\":-20000000,\"enabled\":true}", &c), c)));
+    JsonDocument doc;
+    parse(state(d.snapshot(), info()), doc);
+    JsonObjectConst c2 = doc["ch"][1];
+    TEST_ASSERT_TRUE(c2["coupled"].as<bool>());
+    TEST_ASSERT_EQUAL(-20000000, c2["offset"].as<int>());
+    TEST_ASSERT_EQUAL_UINT64(0, c2["frequency"].as<uint64_t>());
+    TEST_ASSERT_EQUAL_STRING("WAIT", c2["status"]);
 }
 
 static void test_state_save_and_remote_indicator() {
@@ -733,11 +788,13 @@ static void test_state_status_texts() {
     s.state.sys.tuning_mode = TuningMode::Integer;
     s.state.sys.spread = Spread::Center05;
     s.state.sys.off_state = OffState::HighZ;
+    s.state.sys.rotation = 180;
     s.remoteOutputsAllowed = false;
     s.state.ch3.master = 2;
     s.actualHz[2] = 14000000.26;
     s.actualHz[0] = -1.0; // never shown as such
     parse(state(s, info()), doc);
+    TEST_ASSERT_EQUAL(180, doc["config"]["rotation"].as<int>());
     TEST_ASSERT_EQUAL_STRING("integer", doc["config"]["tuning"]);
     TEST_ASSERT_EQUAL_STRING("center05", doc["config"]["spread"]);
     TEST_ASSERT_EQUAL_STRING("hiz", doc["config"]["offState"]);
@@ -957,6 +1014,7 @@ static void test_shared_contract_vectors() {
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_channel_bodies);
+    RUN_TEST(test_coupled_channel_bodies);
     RUN_TEST(test_ch3_and_config_bodies);
     RUN_TEST(test_wrong_types_are_refused);
     RUN_TEST(test_unknown_keys_and_syntax);

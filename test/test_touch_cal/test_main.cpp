@@ -25,12 +25,19 @@ struct Model {
 };
 static const Model CYD {520.0f, 10.6f, 330.0f, 14.3f};
 
-// Holds each target for holdMs (10 ms reads), releases for 200 ms.
-static void tapAll(Wizard& w, const Model& m, uint32_t& t, uint32_t holdMs = 600, int16_t errX = 0) {
+// Holds each target for holdMs (10 ms reads), releases for 200 ms. rotated: the screen is turned
+// by 180 degrees (N16), so the finger on the cross at (x, y) presses the panel at (319 - x, 239 - y).
+static void tapAll(Wizard& w, const Model& m, uint32_t& t, uint32_t holdMs = 600, int16_t errX = 0,
+                   bool rotated = false) {
     for (uint8_t i = 0; i < POINT_COUNT && w.phase() != Phase::Done && w.phase() != Phase::Failed; ++i) {
         const Point p = TARGETS[w.target()];
         const int16_t ex = w.target() == POINT_COUNT - 1 ? errX : 0;
-        for (uint32_t k = 0; k < holdMs; k += 10, t += 10) w.update(true, m.rawX(p.x + ex), m.rawY(p.y), t);
+        int16_t x = (int16_t)(p.x + ex), y = p.y;
+        if (rotated) {
+            x = (int16_t)(SCREEN_WIDTH - 1 - x);
+            y = (int16_t)(SCREEN_HEIGHT - 1 - y);
+        }
+        for (uint32_t k = 0; k < holdMs; k += 10, t += 10) w.update(true, m.rawX(x), m.rawY(y), t);
         for (uint32_t k = 0; k < 200; k += 10, t += 10) w.update(false, 0, 0, t);
     }
 }
@@ -230,6 +237,89 @@ static void test_calibration_write_error() {
     TEST_ASSERT_EQUAL_INT32(3800, c.y_max);
 }
 
+// ---------------------------------------------------------------------------
+// Screen rotation by 180 degrees (N16, E-53)
+
+// After the calibration both axes are mirrored: x' = 319 - x, y' = 239 - y; twice is the identity.
+static void test_rotation_mirrors_both_axes() {
+    struct Case {
+        int16_t x, y, rx, ry;
+    };
+    const Case cases[] = {{0, 0, 319, 239}, {319, 239, 0, 0}, {319, 0, 0, 239}, {20, 219, 299, 20}, {160, 120, 159, 119}};
+    for (const Case& c : cases) {
+        int16_t x = c.x, y = c.y;
+        TouchFilter::rotate180(&x, &y);
+        TEST_ASSERT_EQUAL_INT16(c.rx, x);
+        TEST_ASSERT_EQUAL_INT16(c.ry, y);
+        TouchFilter::rotate180(&x, &y);
+        TEST_ASSERT_EQUAL_INT16(c.x, x);
+        TEST_ASSERT_EQUAL_INT16(c.y, y);
+    }
+}
+
+// The calibration is stored in raw coordinates: one made at 0 degrees serves 180 degrees too. A
+// press on the panel at (x, y) hits the rotated control at (319 - x, 239 - y), corners included.
+static void test_stored_calibration_serves_both_rotations() {
+    RawPoint raw[4];
+    for (uint8_t i = 0; i < 4; ++i) raw[i] = RawPoint {CYD.rawX(TARGETS[i].x), CYD.rawY(TARGETS[i].y)};
+    TouchCalibration cal {};
+    TEST_ASSERT_TRUE(compute(raw, &cal));
+    const int16_t xs[] = {0, 20, 160, 299, 319};
+    const int16_t ys[] = {0, 20, 120, 219, 239};
+    for (int16_t x : xs) {
+        for (int16_t y : ys) {
+            const TouchFilter::Sample s {true, CYD.rawX(x), CYD.rawY(y), 1000};
+            TouchFilter::Filter upright(cal, false), turned(cal, true);
+            const TouchFilter::Output a = upright.update(s, 100);
+            const TouchFilter::Output b = turned.update(s, 100);
+            TEST_ASSERT_TRUE(a.pressed && b.pressed);
+            TEST_ASSERT_INT16_WITHIN(1, x, a.x);
+            TEST_ASSERT_INT16_WITHIN(1, y, a.y);
+            TEST_ASSERT_INT16_WITHIN(1, SCREEN_WIDTH - 1 - x, b.x);
+            TEST_ASSERT_INT16_WITHIN(1, SCREEN_HEIGHT - 1 - y, b.y);
+        }
+    }
+    // The default filter is upright (0 degrees).
+    TouchFilter::Filter plain(cal);
+    const TouchFilter::Output o = plain.update(TouchFilter::Sample {true, CYD.rawX(10), CYD.rawY(10), 1000}, 100);
+    TEST_ASSERT_INT16_WITHIN(1, 10, o.x);
+}
+
+// The wizard at 180 degrees: the crosses are drawn in rotated screen coordinates, the result is
+// the same raw calibration as at 0 degrees, and the check cross is judged where it is drawn.
+static void test_wizard_in_rotation_gives_the_same_raw_calibration() {
+    Wizard upright;
+    uint32_t t = 0;
+    upright.start(t);
+    tapAll(upright, CYD, t);
+    TEST_ASSERT_EQUAL(Phase::Done, upright.phase());
+
+    Wizard turned;
+    turned.start(t, true);
+    tapAll(turned, CYD, t, 600, 3, true);
+    TEST_ASSERT_EQUAL(Phase::Done, turned.phase());
+    TEST_ASSERT_INT16_WITHIN(1, 3, turned.checkDx()); // in the coordinates of the drawn cross
+    TEST_ASSERT_INT16_WITHIN(1, 0, turned.checkDy());
+    const TouchCalibration& a = upright.result();
+    const TouchCalibration& b = turned.result();
+    TEST_ASSERT_INT32_WITHIN(1, a.x_min, b.x_min);
+    TEST_ASSERT_INT32_WITHIN(1, a.x_max, b.x_max);
+    TEST_ASSERT_INT32_WITHIN(1, a.y_min, b.y_min);
+    TEST_ASSERT_INT32_WITHIN(1, a.y_max, b.y_max);
+    // Used at 180 degrees, a press on the panel near its top left hits the bottom right control.
+    TouchFilter::Filter f(b, true);
+    const TouchFilter::Output o = f.update(TouchFilter::Sample {true, CYD.rawX(10), CYD.rawY(10), 1000}, 100);
+    TEST_ASSERT_INT16_WITHIN(1, 309, o.x);
+    TEST_ASSERT_INT16_WITHIN(1, 229, o.y);
+
+    // An off check cross fails at 180 degrees as well.
+    Wizard off;
+    off.start(t, true);
+    tapAll(off, CYD, t, 600, CHECK_TOLERANCE_PX + 4, true);
+    TEST_ASSERT_EQUAL(Phase::Failed, off.phase());
+    TEST_ASSERT_EQUAL(Failure::Check, off.failure());
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_targets_near_the_corners_and_center);
@@ -246,5 +336,8 @@ int main(int, char**) {
     RUN_TEST(test_wizard_fails_with_inconsistent_corners);
     RUN_TEST(test_plausible_limits);
     RUN_TEST(test_calibration_write_error);
+    RUN_TEST(test_rotation_mirrors_both_axes);
+    RUN_TEST(test_stored_calibration_serves_both_rotations);
+    RUN_TEST(test_wizard_in_rotation_gives_the_same_raw_calibration);
     return UNITY_END();
 }

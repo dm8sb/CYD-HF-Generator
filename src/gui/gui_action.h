@@ -28,6 +28,7 @@ enum class GuiAction : uint8_t {
     NumpadKey,
     TouchCal,       // CONFIG: start the touch calibration
     LockScreen,     // CONFIG: lock and go to MAIN (U-13)
+    RotateScreen,   // CONFIG: screen upright / turned by 180 degrees (E-53)
     ResetDefaults,  // CONFIG: confirm, then defaults (correction kept)
     FactoryReset,   // CONFIG: confirm, then erase the NVS and restart
     Ch3MasterFreq,  // CH3 page: tap on the frequency opens the master's numpad (U-16)
@@ -51,5 +52,6 @@ enum class GuiAction : uint8_t {
     DevIpField,     // device page: arg 0..3 address, mask, gateway, DNS
     DevWebPassword, // device page: set, change or remove the web password
     RemoteDisconnect, // CONFIG Net tab: disconnect all web and SCPI clients
-    ConfigTab         // CONFIG tab bar: arg tab 0..CONFIG_TAB_COUNT-1
+    ConfigTab,        // CONFIG tab bar: arg tab 0..CONFIG_TAB_COUNT-1
+    Ch2Couple         // CH2 page: arg 0 Free, 1 CH1 + offset (E-52)
 };

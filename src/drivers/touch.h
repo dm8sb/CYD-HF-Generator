@@ -22,6 +22,10 @@ public:
     void setCalibration(const TouchCalibration& cal, bool stored);
     const TouchCalibration& calibration() const { return cal_; }
     bool calibrated() const { return calibrated_; }
+    // Screen turned by 180 degrees (E-53): positions are mirrored after the calibration, which
+    // stays in raw coordinates and is valid in both rotations.
+    void setTurned(bool turned);
+    bool turned() const { return turned_; }
     // Raw position of a plausible touch for the calibration wizard.
     bool readRaw(int16_t* rawX, int16_t* rawY);
     void readLvgl(lv_indev_drv_t* drv, lv_indev_data_t* data);
@@ -36,6 +40,7 @@ private:
     TouchFilter::Filter filter_ {TouchCalibration {}};
     TouchCalibration cal_ {};
     bool calibrated_ = false;
+    bool turned_ = false;
 #if TEST_TOUCH_LOG
     TouchTest::Recorder recorder_;
 #endif

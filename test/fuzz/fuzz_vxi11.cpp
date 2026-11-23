@@ -49,7 +49,7 @@ public:
         Outcome o;
         const uint32_t r = rng.next();
         o.push = (r & 15) == 0 ? PushResult::Full : (r & 15) == 1 ? PushResult::RateLimited : PushResult::Queued;
-        o.result = (Result)((r >> 4) % 7);
+        o.result = (Result)((r >> 4) % 8);
         return o;
     }
     bool snapshot(Snapshot* out) override {

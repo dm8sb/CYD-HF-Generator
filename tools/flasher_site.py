@@ -171,10 +171,21 @@ def cmd_collect(args):
     env = meta[args.env]
     extra = env.get("extra") or {}
     images = [(int(i["offset"], 0), i["path"]) for i in extra.get("flash_images", [])]
-    if "application_offset" not in extra:
-        fail("metadata has no application_offset")
+    # The application goes to the first app partition of the built table (factory, else ota_0).
+    # pioarduino sets application_offset only while building, not for `pio project metadata`
+    # (E-51); where the metadata has it, it must agree with the table.
+    tables = [p for _, p in images if os.path.basename(p) == "partitions.bin"]
+    if len(tables) != 1:
+        fail("metadata names no single partitions.bin")
+    with open(tables[0], "rb") as f:
+        apps = [p for p in parse_partition_table(f.read()) if p["type"] == 0 and p["subtype"] in (0x00, 0x10)]
+    if not apps:
+        fail("%s: no factory or ota_0 app partition" % tables[0])
+    app_offset = min(apps, key=lambda p: p["subtype"])["offset"]
+    if "application_offset" in extra and int(extra["application_offset"], 0) != app_offset:
+        fail("metadata application_offset %s, partition table 0x%X" % (extra["application_offset"], app_offset))
     firmware = os.path.join(os.path.dirname(env["prog_path"]), "firmware.bin")
-    images.append((int(extra["application_offset"], 0), firmware))
+    images.append((app_offset, firmware))
     images.sort()
     os.makedirs(args.out, exist_ok=True)
     parts = []
@@ -289,12 +300,13 @@ def cmd_notices(args):
 # Parts of the Arduino-ESP32 package in lgpl-sources.tar.gz: the core and libraries, the board
 # variant of esp32dev, the partition tables and the build scripts that compile them (AF29, LIC-5).
 LGPL_FRAMEWORK_PARTS = ("package.json", "cores", "libraries", "variants/esp32", "tools/partitions",
-                        "tools/platformio-build.py", "tools/pioarduino-build.py")
+                        "tools/pioarduino-build.py")
 
 
 def _idf_versions(meta):
     """versions.txt of the precompiled ESP-IDF libraries of this build (found via the include
-    paths): {"esp-idf": "v5.5.5 b774170ff46", ...} and the package directory."""
+    paths): {"esp-idf": "release/v5.5 a45de8ccca1", ...} and the package directory (versions.txt
+    lies in the chip folder, e.g. esp32/, package.json one level up)."""
     seen = set()
     for path in (meta.get("includes") or {}).get("build", []):
         d = os.path.normpath(path)
@@ -304,14 +316,15 @@ def _idf_versions(meta):
                 break
             seen.add(d)
             vt = os.path.join(d, "versions.txt")
-            if os.path.isfile(vt) and os.path.isfile(os.path.join(d, "package.json")):
+            pkg_dir = next((p for p in (d, os.path.dirname(d)) if os.path.isfile(os.path.join(p, "package.json"))), None)
+            if os.path.isfile(vt) and pkg_dir:
                 versions = {}
                 with open(vt, "r", encoding="utf-8") as f:
                     for line in f:
                         k, _, v = line.partition(":")
                         versions[k.strip()] = v.strip()
                 if "esp-idf" in versions:
-                    return versions, d
+                    return versions, pkg_dir
     fail("metadata names no precompiled ESP-IDF libraries with versions.txt")
 
 
@@ -348,7 +361,7 @@ LICENSES/                       LGPL-2.1, LGPL-3.0 and the GNU GPL 3.0 the LGPL-
 Not in this archive (not under the LGPL): the precompiled ESP-IDF libraries the Arduino core is
 built against, PlatformIO package {libs_name} {libs_ver} (Apache-2.0 and the
 licenses in THIRD_PARTY_NOTICES.md), built by esp32-arduino-lib-builder {builder} from
-ESP-IDF {idf} (https://github.com/espressif/esp-idf/tree/{idf_tag}).
+ESP-IDF {idf} (https://github.com/espressif/esp-idf/tree/{idf_ref}).
 
 Relinking against a modified library: check out the tagged commit, replace the library (for
 example a copy of framework-arduinoespressif32 via platform_packages, or AsyncTCP via lib_deps
@@ -357,7 +370,7 @@ or the lib/ folder) and run `pio run -e esp32-2432S028R`.
            asynctcp=libver["AsyncTCP"], aws=libver["ESPAsyncWebServer"],
            libs_name=libs_pkg.get("name", "?"), libs_ver=libs_pkg.get("version", "?"),
            builder=versions.get("lib-builder", "?"), idf=versions["esp-idf"],
-           idf_tag=versions["esp-idf"].split()[0])
+           idf_ref=versions["esp-idf"].split()[-1])
 
 
 # ---------------------------------------------------------------------------------------------

@@ -284,6 +284,15 @@ const Field CHANNEL_FIELDS[] = {
     {"frequencyText", Kind::FrequencyText, CommandType::SetFrequency},
     {"enabled", Kind::Bool, CommandType::SetEnabled},
 };
+// CH2 (E-52): the offset before the coupling (no jump to CH1 + old offset), the coupling before
+// the frequency (decouple, then set it).
+const Field CH2_FIELDS[] = {
+    {"offset", Kind::Integer, CommandType::Ch2Offset},
+    {"coupled", Kind::Bool, CommandType::Ch2Couple},
+    {"frequency", Kind::Integer, CommandType::SetFrequency},
+    {"frequencyText", Kind::FrequencyText, CommandType::SetFrequency},
+    {"enabled", Kind::Bool, CommandType::SetEnabled},
+};
 const Field CH3_FIELDS[] = {
     {"master", Kind::Integer, CommandType::Ch3Master},
     {"phase", Kind::Integer, CommandType::Ch3Phase},
@@ -297,6 +306,7 @@ const Field CONFIG_FIELDS[] = {
     {"correction", Kind::Integer, CommandType::Correction},
     {"step", Kind::Integer, CommandType::Step},
     {"backlight", Kind::Integer, CommandType::Backlight},
+    {"rotation", Kind::Integer, CommandType::Rotation}, // E-53
     {"remoteOutputs", Kind::DeviceOnly, CommandType::SaveNow}, // never a command
 };
 
@@ -420,6 +430,8 @@ const char* channelStatusName(ChannelStatus s) {
         case ChannelStatus::On: return "ON";
         case ChannelStatus::Error: return "ERR";
         case ChannelStatus::NoDevice: return "NOHW";
+        case ChannelStatus::FreqTooLow:
+        case ChannelStatus::FreqTooHigh: return "WAIT";
         case ChannelStatus::Off: break;
     }
     return "OFF";
@@ -495,11 +507,14 @@ Reply parseChannel(uint8_t channel, const char* body, size_t len, Commands* out)
     if (out) out->count = 0;
     if (channel != 1 && channel != 2) return fail(404, HEADER_SUFFIX_OUT_OF_RANGE);
     if (!out) return bad(SYNTAX_ERROR);
+    const Field* fields = channel == 2 ? CH2_FIELDS : CHANNEL_FIELDS;
+    const uint8_t count = channel == 2 ? countOf(CH2_FIELDS) : countOf(CHANNEL_FIELDS);
+    const uint16_t both = channel == 2 ? 0x0Cu : 0x03u; // frequency and frequencyText
     Values v {};
-    const Reply r = read(CHANNEL_FIELDS, countOf(CHANNEL_FIELDS), body, len, &v);
+    const Reply r = read(fields, count, body, len, &v);
     if (!r.ok()) return r;
-    if ((v.seen & 3u) == 3u) return bad(PARAMETER_NOT_ALLOWED, "frequency or frequencyText, not both");
-    emit(CHANNEL_FIELDS, countOf(CHANNEL_FIELDS), v, channel, out);
+    if ((v.seen & both) == both) return bad(PARAMETER_NOT_ALLOWED, "frequency or frequencyText, not both");
+    emit(fields, count, v, channel, out);
     return ok();
 }
 
@@ -585,6 +600,7 @@ Reply fromResult(Result r) {
         case Result::Conflict: return bad(SETTINGS_CONFLICT, "Spread spectrum is not possible in Integer tuning");
         case Result::Denied: return fail(403, SETTINGS_CONFLICT, "Remote outputs: local only");
         case Result::HwError: return fail(500, HARDWARE_ERROR, "SI5351 setup failed");
+        case Result::Coupled: return bad(SETTINGS_CONFLICT, "CH2 is coupled to CH1");
     }
     return ok();
 }
@@ -668,6 +684,13 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
         // Spread spectrum is on PLL A: CH1 only (AppController::spreadOf).
         w.key("modes");
         addModes(w, sys, n == 1 ? sys.spread : Spread::Off);
+        if (n == 2) {
+            // Coupled to CH1 (E-52): frequency above is then CH1 + offset (0 below 0).
+            w.key("coupled");
+            w.boolean(s.state.ch2c.coupled);
+            w.key("offset");
+            w.number(s.state.ch2c.offset);
+        }
         w.endObject();
     }
     w.endArray();
@@ -704,6 +727,8 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
     w.beginArray();
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) w.number(DELTA_STEPS[i]);
     w.endArray();
+    w.key("offsetMax");
+    w.number(CH2_OFFSET_MAX_HZ);
     w.endObject();
 
     w.key("config");
@@ -722,6 +747,8 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
     w.number(sys.delta_step);
     w.key("backlight");
     w.number((uint32_t)sys.backlight);
+    w.key("rotation");
+    w.number((uint32_t)sys.rotation);
     w.key("remoteOutputs");
     w.string(s.remoteOutputsAllowed ? "allowed" : "local");
     w.endObject();

@@ -82,12 +82,22 @@ public:
     Result adjustChannelFrequency(uint8_t ch, int64_t delta);
     // A remote source may not switch an output on while remote outputs are local only (Denied).
     Result setChannelEnabled(uint8_t ch, bool en);
+    // CH2 coupled to CH1 (E-52): CH2 = CH1 + offset. setChannelFrequency(2) and
+    // adjustChannelFrequency(2) give Coupled meanwhile. Decoupling keeps the last frequency CH2
+    // ran at. The offset may be set while free too (it applies when coupling).
+    Result setCh2Coupled(bool coupled);
+    // -CH2_OFFSET_MAX_HZ..+CH2_OFFSET_MAX_HZ (OutOfRange beyond); adjustCh2Offset() clamps.
+    Result setCh2Offset(int64_t offset);
+    Result adjustCh2Offset(int64_t delta);
     Result setCH3Master(uint8_t master);
     Result setCH3Phase(uint16_t phase);
     Result setGlobalDriveStrength(uint8_t strength);
     // BACKLIGHT_MIN_PERCENT..100, rounded to BACKLIGHT_STEP_PERCENT.
     Result setBacklight(uint8_t percent);
     Result stepBacklight(int8_t direction);
+    // Screen rotation in degrees, 0 or 180 (E-53; anything else Invalid). The GUI applies it to the
+    // display and the touch when the revision changes; Defaults and *RST set 0 like the backlight.
+    Result setRotation(uint16_t degrees);
     // One of DELTA_STEPS.
     Result setDeltaStep(uint32_t step);
     // 0.01 ppm, at most +-CORRECTION_MAX.
@@ -122,6 +132,14 @@ public:
     // ch 1 or 2; anything else gives an empty channel (frequency 0, off), never CH2 (S-12).
     const Channel& channel(uint8_t ch) const;
     const Channel3& ch3() const { return state_.ch3; }
+    const Ch2Coupling& ch2Coupling() const { return state_.ch2c; }
+    bool ch2Coupled() const { return state_.ch2c.coupled; }
+    // CH1 + offset while coupled (may lie outside the range: then CH2 waits), else the CH2 frequency.
+    int64_t ch2TargetHz() const;
+    // CH2 is coupled and CH1 + offset lies outside FREQ_MIN_HZ..FREQ_MAX_HZ: CLK1 is off.
+    bool ch2Waiting() const;
+    // The frequency a channel is set to: ch 1, 2 (coupled: CH1 + offset, 0 below 0), 3 (its master).
+    uint64_t frequency(uint8_t ch) const;
     const SystemSettings& system() const { return state_.sys; }
 
     bool hardwareReady() const { return si5351_.ready(); }
@@ -181,6 +199,9 @@ private:
     void applyDefaults_();
     // HwError if the SI5351 was ready and the setup of clk failed or lost the connection.
     Result outcome_(bool wasReady, uint8_t clk) const;
+    // Coupled and not waiting: CH2's stored frequency follows CH1 + offset (decoupling then keeps
+    // it). Returns the keys to mark.
+    uint16_t syncCoupled_();
     bool masterEnabled_() const;
     uint64_t masterFrequency_() const;
 

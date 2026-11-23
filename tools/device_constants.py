@@ -69,8 +69,9 @@ DEFAULT_FREQ = {1: _C["DEFAULT_FREQ_CH1"], 2: _C["DEFAULT_FREQ_CH2"]}
 CORRECTION_MAX = _C["CORRECTION_MAX"]
 DRIVES = tuple(range(_C["DRIVE_MA_MIN"], _C["DRIVE_MA_MAX"] + 1, _C["DRIVE_MA_STEP"]))
 DEFAULT_DRIVE = _C["DEFAULT_DRIVE_MA"]
+OFFSET_MAX = _C["CH2_OFFSET_MAX_HZ"]
 
 if __name__ == "__main__":
     for k in ("FREQ_MIN", "FREQ_MAX", "IQ_MIN", "IQ_MAX", "STEPS", "DEFAULT_STEP", "DEFAULT_FREQ",
-              "CORRECTION_MAX", "DRIVES", "DEFAULT_DRIVE"):
+              "CORRECTION_MAX", "DRIVES", "DEFAULT_DRIVE", "OFFSET_MAX"):
         print(k, globals()[k])

@@ -198,11 +198,18 @@ int main(int argc, char** argv) {
     show(PageId::WifiScan, "wifi-scan");
     show(PageId::WifiDevice, "wifi-device");
     show(PageId::WifiAp, "wifi-ap");
+    // CH2 coupled to CH1 with +455 kHz (E-52), then back to the documentation state.
+    app.setCh2Offset(455000);
+    app.setCh2Coupled(true);
+    show(PageId::CH2, "ch2-coupled");
+    app.setCh2Coupled(false);
+    app.setCh2Offset(0);
+    app.setChannelFrequency(2, 14000000ULL);
     // Network change from the web without web password: the touch confirmation (W-S12).
     gui.navigate(PageId::Main);
     gNetConfirm = true;
     shot("dialog-network-change");
 
     printf("%d screens\n", gShots);
-    return gShots == 14 ? 0 : 1;
+    return gShots == 15 ? 0 : 1;
 }
