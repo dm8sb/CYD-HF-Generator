@@ -26,7 +26,7 @@ This README is not embedded and not served.
 - **CH1, CH2:** switch and state, frequency digits (the digit of the step in the channel color; click = step, wheel = change that digit, click on the unit = input field), `Out` line, mode line with `IQ master (90°)` and the range hint, step chips `1M` … `1`, `−`/`+` with hold-to-repeat as on the device, frequency field.
 - **CH2 coupled (E-52):** chips `Free` / `CH1 + offset` above the step chips (`{"coupled":bool}`). Coupled, the digits show `offset` with its sign (`+455.000 kHz`), `−`/`+`, wheel, keys and the field (label `Offset`, input `+455k`, `-10.7M`, `-455000`: sign, digits, one `.`/`,` with unit `Hz`/`k`/`kHz`/`M`/`MHz`, parsed by the UI into `{"offset":int}`) change the offset within ±`limits.offsetMax`; the MAIN card shows `frequency` (CH1 + offset) and `CH1 +455 kHz`; with CH1 + offset outside `fmin`..`fmax` the `Out` line says `Waiting: CH1 + offset below 8 kHz` / `above 160 MHz`. On CH3 with a coupled master CH2 the frequency keys change the offset.
 - **CH3 IQ:** switch, state, frequency, status line (`Off  |  follows CHx`, `Out …`, `Master CHx is off: click to switch on` as a button, `Waiting: CHx below 4.730 MHz`, …), master and phase chips, IQ range note, field for the master frequency.
-- **CONFIG:** `Drive all`, `Off state` (`High` asks first, as on the device; under `remoteOutputs` `local` the device refuses it with 403, so the UI sends it without asking and shows the error), `Tuning`, `Spread CH1` (locked as `Off (Integer)`), `Corr.` (field in ppm, step `0.01`/`0.1`/`1`, `−`/`+`), `Backlight` (`−`/`+` in 10 %), `Remote outputs` read-only, info (firmware, SI5351, device name).
+- **CONFIG:** `Drive all`, `Off state` (`High` asks first, as on the device; under `remoteOutputs` `local` the device refuses it with 403, so the UI sends it without asking and shows the error), `Tuning`, `Spread CH1` (locked as `Off (Integer)`), `Corr.` (field in ppm, step `0.01`/`0.1`/`1`, `−`/`+`), `Backlight` (`−`/`+` in 10 %), `Screen` (`0°`/`180°`: screen rotation of the device, E-53), `Remote outputs` read-only, info (firmware, SI5351, device name).
 - **WiFi:** status; form with mode, device name, two networks (password fields write-only, never pre-filled, empty = keep), `Delete`, scan list (≤ 15, `→ 1`/`→ 2` fills a slot), static IP, access point (`Open (not recommended)`, new password). `Apply` sends only what changed; then the countdown "Confirm within N s, otherwise the previous settings return" with `Confirm` and the address to open if the page loses the connection.
 
 Live updates: a changed value is outlined briefly; a field with focus is never overwritten. While disconnected all controls are disabled and gray.
@@ -73,7 +73,7 @@ State (`GET /api/state`, every WebSocket text message, body of every successful 
        {"n":2,"enabled":false,"frequency":14000000,"actual":14000000.0,"status":"OFF","modes":[],"coupled":false,"offset":0}],
  "ch3":{"enabled":false,"master":1,"phase":90,"status":"OFF","frequency":10000000,"actual":10000000.0,"iqMin":4730000,"iqMax":100000000},
  "limits":{"fmin":8000,"fmax":160000000,"steps":[1,10,100,1000,10000,100000,1000000],"offsetMax":160000000},
- "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"remoteOutputs":"allowed"},
+ "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"rotation":0,"remoteOutputs":"allowed"},
  "wifi":{"mode":"client","connected":true,"ssid":"Lab","rssi":-60,"ip":"192.168.1.50","name":"cyd-hf-1a2b",
          "ap":{"active":false,"ssid":"CYD-HF-1A2B","open":false,"stations":0},"confirmWithin":0},
  "device":{"version":"2.0.0","passwordSet":false}}
@@ -92,7 +92,7 @@ How the UI reads it:
 |---|---|---|
 | `POST /api/channel/<1\|2>` | subset of `{"enabled":bool,"frequency":int,"frequencyText":str}`, at most one of the two frequency keys; channel 2 also `"coupled":bool` and `"offset":int` (Hz, ±160 MHz), executed in the order offset, coupled, frequency, enabled; a frequency while coupled → 400 `-221,CH2 is coupled to CH1` | 200 state |
 | `POST /api/ch3` | subset of `{"enabled":bool,"master":1\|2,"phase":0\|90\|180\|270}` | 200 state |
-| `POST /api/config` | subset of `drive`, `tuning`, `spread`, `offState`, `correction`, `step`, `backlight`; `offState` `high` under `remoteOutputs` `local` → 403 `-221,Remote outputs: local only` (D22) | 200 state |
+| `POST /api/config` | subset of `drive`, `tuning`, `spread`, `offState`, `correction`, `step`, `backlight`, `rotation` (0 or 180 degrees); `offState` `high` under `remoteOutputs` `local` → 403 `-221,Remote outputs: local only` (D22) | 200 state |
 | `POST /api/save`, `POST /api/identify` | `{}` | 200 state; save: only the changed keys, at most once per 10 s per source, a further request within 10 s is merged silently (still 200) and saved 10 s after the previous save (D26) |
 | `POST /api/login` | `{"password":str}` | 204 + `Set-Cookie` (HttpOnly, SameSite=Strict, 12 h); over an open AP 403 `-221,Passwords cannot be sent over the open access point` (W-S1, SEC-3), the UI does not send it there (`wifi.ap.active` and `open`) |
 | `POST /api/logout` | `{}` | 204 + `Set-Cookie: cyd_sid=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict`; ends the session of the cookie; needs no session (token and JSON as every POST) |
@@ -120,7 +120,7 @@ Every error body is `{"error":"<code>,<text>"}` (the login lock adds `"retryAfte
 | `-109,Missing parameter` | `{}` where at least one key is needed |
 | `-221,Settings conflict` | spread in `Integer` tuning (`Spread spectrum is not possible in Integer tuning`); CH2 frequency while CH2 is coupled (`CH2 is coupled to CH1`); static IP = gateway, outside the subnet, network or broadcast address; `A network change waits for confirmation`; `Nothing to confirm`; `Confirm at the device as well` |
 | `-222,Data out of range` | frequency outside 8 kHz–160 MHz (also as `frequencyText`), CH2 offset beyond ±160 MHz, correction beyond ±5000, backlight outside 10–100, more than two `networks` or `delete` entries, an integer beyond 64 bits |
-| `-224,Illegal parameter value` | a value outside its list (master, phase, drive, step, `tuning`, `spread`, `offState`, `mode`, `slot` other than 0/1), `frequencyText` that is no frequency, SSID not 1–32 bytes, a network key that is neither `""`, 8–63 characters nor 64 hex digits, AP password not 8–63, bad device name or address text, `"\u0000"` in a string |
+| `-224,Illegal parameter value` | a value outside its list (master, phase, drive, step, `rotation` other than 0/180, `tuning`, `spread`, `offState`, `mode`, `slot` other than 0/1), `frequencyText` that is no frequency, SSID not 1–32 bytes, a network key that is neither `""`, 8–63 characters nor 64 hex digits, AP password not 8–63, bad device name or address text, `"\u0000"` in a string |
 
 Backlight takes every integer from 10 to 100 and rounds it to 10 % (half up: 55 → 60); it is never refused for not being a multiple of 10.
 

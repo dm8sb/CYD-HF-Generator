@@ -73,6 +73,7 @@ static Snapshot randomSnapshot() {
     s.state.sys.tuning_mode = (TuningMode)below(4);
     s.state.sys.spread = (Spread)below(5);
     s.state.sys.off_state = (OffState)below(4);
+    s.state.sys.rotation = (uint16_t)(below(4) ? 180 * below(2) : rnd());
     s.status[0] = (ChannelStatus)below(7);
     s.status[1] = (ChannelStatus)below(7);
     s.state.ch2c.coupled = below(2);

@@ -11,6 +11,7 @@
 #include <core/app_controller.h>
 #include <hal/i2c_bus.h>
 #include <pins.h>
+#include <remote/command.h>
 #include <helpers/si5351_model.h>
 #include <string.h>
 
@@ -1461,6 +1462,79 @@ static void test_settings_load_sanitizes_invalid_values() {
     TEST_ASSERT_EQUAL_INT32(-CORRECTION_MAX, d2.app.system().freq_correction);
 }
 
+// ---------------------------------------------------------------------------
+// Screen rotation (N16, E-53)
+
+// 0 or 180 degrees, stored in NVS (key rot180); Defaults resets it and saves 0, *RST resets it
+// in RAM like the backlight (not saved).
+static void test_rotation_set_persist_and_reset() {
+    Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
+    {
+        Device d;
+        TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+        TEST_ASSERT_EQUAL(Result::Invalid, d.app.setRotation(90));
+        TEST_ASSERT_EQUAL(Result::Invalid, d.app.setRotation(270));
+        TEST_ASSERT_EQUAL(Result::Invalid, d.app.setRotation(360));
+        TEST_ASSERT_EQUAL(Result::NoChange, d.app.setRotation(0));
+        const uint32_t rev = d.app.revision();
+        TEST_ASSERT_EQUAL(Result::Ok, d.app.setRotation(180));
+        TEST_ASSERT_EQUAL_UINT16(180, d.app.system().rotation);
+        TEST_ASSERT_TRUE(d.app.revision() != rev); // the GUI applies it on the revision
+        TEST_ASSERT_EQUAL(Result::NoChange, d.app.setRotation(180));
+        d.run(SETTINGS_AUTOSAVE_MS + 100);
+        TEST_ASSERT_EQUAL_UINT8(1, p.getUChar("rot180", 9));
+    }
+    Device d;
+    TEST_ASSERT_EQUAL_UINT16(180, d.app.system().rotation); // a restart keeps it
+    d.app.resetForRemote();
+    TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+    d.run(SETTINGS_REMOTE_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT8(1, p.getUChar("rot180", 9)); // *RST saves nothing
+    TEST_ASSERT_EQUAL(Result::Ok, d.app.setRotation(180));
+    d.app.resetToDefaults();
+    TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+    d.run(SETTINGS_AUTOSAVE_MS + 100);
+    TEST_ASSERT_EQUAL_UINT8(0, p.getUChar("rot180", 9));
+}
+
+// NVS from before N16 has no key: 0 degrees; a broken value gives 0 degrees too.
+static void test_rotation_old_and_invalid_nvs() {
+    Preferences p;
+    p.begin("hfgen"); // SETTINGS_NAMESPACE
+    p.putULong64("ch1_freq", 7000000);
+    p.putUChar("backlight", 60);
+    {
+        Device d;
+        TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+        TEST_ASSERT_EQUAL_UINT64(7000000, d.app.channel(1).frequency);
+    }
+    p.putUChar("rot180", 7);
+    Device d;
+    TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+}
+
+// SYSTem:DISPlay:ROTation and REST config.rotation: degrees in the full type, only 0 and 180.
+static void test_rotation_remote_command() {
+    Device d;
+    Command c {};
+    c.type = CommandType::Rotation;
+    c.source = Source::Scpi;
+    const int64_t bad[] = {90, 270, -180, 1, 180 + 65536LL, (int64_t)1 << 40};
+    for (int64_t v : bad) {
+        c.value = v;
+        TEST_ASSERT_EQUAL(Result::Invalid, execute(d.app, c));
+    }
+    TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+    c.value = 180;
+    TEST_ASSERT_EQUAL(Result::Ok, execute(d.app, c));
+    TEST_ASSERT_EQUAL_UINT16(180, d.app.system().rotation);
+    c.value = 0;
+    c.source = Source::Web;
+    TEST_ASSERT_EQUAL(Result::Ok, execute(d.app, c));
+    TEST_ASSERT_EQUAL_UINT16(0, d.app.system().rotation);
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_boot_with_defaults_all_outputs_off);
@@ -1536,5 +1610,8 @@ int main() {
     RUN_TEST(test_settings_survive_reboot_but_outputs_start_off);
     RUN_TEST(test_settings_load_sanitizes_invalid_values);
     RUN_TEST(test_actual_frequency_known_only_after_stored_settings);
+    RUN_TEST(test_rotation_set_persist_and_reset);
+    RUN_TEST(test_rotation_old_and_invalid_nvs);
+    RUN_TEST(test_rotation_remote_command);
     return UNITY_END();
 }

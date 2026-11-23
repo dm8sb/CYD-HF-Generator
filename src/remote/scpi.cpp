@@ -574,6 +574,22 @@ scpi_result_t backlightQ(scpi_t* c) {
     return SCPI_RES_OK;
 }
 
+// Screen rotation in degrees (E-53): 0 or 180; other values are refused by the controller (-224).
+const NumberSpec ROTATION_SPEC {0, DEG_UNITS, 0, 180, 0};
+
+scpi_result_t rotation(scpi_t* c) {
+    int64_t v;
+    if (!number(c, ROTATION_SPEC, &v)) return SCPI_RES_ERR;
+    return submit(c, CommandType::Rotation, 0, v);
+}
+
+scpi_result_t rotationQ(scpi_t* c) {
+    Snapshot s;
+    if (!state(c, &s)) return SCPI_RES_ERR;
+    SCPI_ResultUInt32(c, s.state.sys.rotation);
+    return SCPI_RES_OK;
+}
+
 scpi_result_t si5351Q(scpi_t* c) {
     Snapshot s;
     if (!state(c, &s)) return SCPI_RES_ERR;
@@ -677,6 +693,8 @@ const scpi_command_t COMMANDS[] = {
     {"SYSTem:STEP?", stepQ, 0},
     {"SYSTem:BACKlight", backlight, 0},
     {"SYSTem:BACKlight?", backlightQ, 0},
+    {"SYSTem:DISPlay:ROTation", rotation, 0},
+    {"SYSTem:DISPlay:ROTation?", rotationQ, 0},
     {"SYSTem:SI5351?", si5351Q, 0},
     {"SYSTem:HEAP?", heapQ, 0},
     {"SYSTem:IDENtify", identify, 0},

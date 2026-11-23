@@ -27,7 +27,8 @@ enum class CommandType : uint8_t {
     SaveNow,         // SYSTem:SAVE
     Identify,        // SYSTem:IDENtify
     Ch2Couple,       // value 0 free / 1 coupled to CH1 (E-52)
-    Ch2Offset        // value offset in Hz (CH2 = CH1 + offset)
+    Ch2Offset,       // value offset in Hz (CH2 = CH1 + offset)
+    Rotation         // value degrees 0/180 (E-53)
 };
 
 struct Command {

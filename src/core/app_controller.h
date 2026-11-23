@@ -95,6 +95,9 @@ public:
     // BACKLIGHT_MIN_PERCENT..100, rounded to BACKLIGHT_STEP_PERCENT.
     Result setBacklight(uint8_t percent);
     Result stepBacklight(int8_t direction);
+    // Screen rotation in degrees, 0 or 180 (E-53; anything else Invalid). The GUI applies it to the
+    // display and the touch when the revision changes; Defaults and *RST set 0 like the backlight.
+    Result setRotation(uint16_t degrees);
     // One of DELTA_STEPS.
     Result setDeltaStep(uint32_t step);
     // 0.01 ppm, at most +-CORRECTION_MAX.

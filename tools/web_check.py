@@ -244,6 +244,7 @@ ERROR_CASES = [
     ("/api/channel/1", {"coupled": True}, "-108"), ("/api/channel/1", {"offset": 0}, "-108"),
     ("/api/channel/2", {"coupled": 1}, "-104"), ("/api/channel/2", {"offset": "455k"}, "-104"),
     ("/api/channel/2", {"offset": 160000001}, "-222"),
+    ("/api/config", {"rotation": 90}, "-224"), ("/api/config", {"rotation": True}, "-104"),
 ]
 
 
@@ -268,6 +269,13 @@ def check_rest_errors(api, s0):
     check("POST backlight 55 -> 200, rounded to 60", st == 200 and isinstance(j, dict) and j["config"]["backlight"] == 60,
           "%d %s" % (st, j.get("config", {}).get("backlight") if isinstance(j, dict) else j))
     api.call("POST", "/api/config", {"backlight": bl0})
+    # E-53: screen rotation 0 / 180 degrees, read and written (restored right after).
+    rot0 = s0["config"].get("rotation")
+    check("state config.rotation is 0 or 180", rot0 in (0, 180), "%r" % rot0)
+    st, _, j = api.call("POST", "/api/config", {"rotation": 180})
+    check("POST rotation 180 -> 200, state 180", st == 200 and isinstance(j, dict) and j["config"]["rotation"] == 180,
+          "%d %s" % (st, j.get("config", {}).get("rotation") if isinstance(j, dict) else j))
+    api.call("POST", "/api/config", {"rotation": rot0 if rot0 in (0, 180) else 0})
     st, _, j = api.call("POST", "/api/config", b"[1]")
     check("POST /api/config [1] -> 400 -104", st == 400 and err(j).startswith("-104,"), "%d %s" % (st, j))
     st, _, j = api.call("POST", "/api/config", {"remoteOutputs": "allowed"})

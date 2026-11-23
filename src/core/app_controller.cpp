@@ -522,6 +522,15 @@ Result AppController::stepBacklight(int8_t direction) {
     return setBacklight(snapBacklight(state_.sys.backlight + direction * BACKLIGHT_STEP_PERCENT));
 }
 
+Result AppController::setRotation(uint16_t degrees) {
+    if (degrees != 0 && degrees != 180) return Result::Invalid;
+    if (degrees == state_.sys.rotation) return Result::NoChange;
+    state_.sys.rotation = degrees;
+    markChanged_(SettingKey::Rot);
+    Logger::info("APP", degrees ? "Screen rotated by 180 degrees" : "Screen upright");
+    return Result::Ok;
+}
+
 Result AppController::setTuningMode(TuningMode mode) {
     if (mode > TuningMode::Integer) return Result::Invalid;
     if (mode == state_.sys.tuning_mode) return Result::NoChange;

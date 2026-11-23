@@ -41,7 +41,7 @@ For the lab bench; details in the sections named, images of the pages in Appendi
 6. **Before measuring:** if a mode line appears below a frequency (e.g. `OFF=High`, `SSC -0.5%`, `Integer`), CONFIG differs from the factory settings (section 2).
 7. **On errors:** `! NO HW` = SI5351 not connected; `! ERR` = setup failed, the firmware retries every 2 s (section 11, Appendix C).
 
-Factory settings in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %; frequencies 10 MHz (CH1) and 14 MHz (CH2), CH2 `Free` (offset 0), step 1 kHz. For the next group: CONFIG `Device` → `Reset` → `Defaults` (the calibration stays); against accidental changes: CONFIG `Device` → `Screen` → `Lock`.
+Factory settings in CONFIG: `Drive all` 4 mA, `Off state` Low, `Tuning` Fractional, `Spread CH1` Off, `Corr.` 0 ppm, `Backlight` 80 %, screen upright (`Rotate` 0°); frequencies 10 MHz (CH1) and 14 MHz (CH2), CH2 `Free` (offset 0), step 1 kHz. For the next group: CONFIG `Device` → `Reset` → `Defaults` (the calibration stays); against accidental changes: CONFIG `Device` → `Screen` → `Lock`.
 
 ---
 
@@ -539,7 +539,7 @@ The title bar with `◀` stays fixed. Below it CONFIG shows at most three rows; 
 | | `Remote out.` | drop-down `allowed`, `local only` |
 | | `Clients` | `Reconnect all` button (disconnect remote connections) |
 | `Device` | `Backlight` | `−`, value, `+` |
-| | `Screen` | `Lock` (screen lock) and `Touch cal.` (touch calibration) buttons |
+| | `Screen` | `Lock` (screen lock), `Touch cal.` (touch calibration) and `Rotate` (turn the screen by 180°) buttons |
 | | `Reset` | `Defaults` and `Factory` (red) buttons |
 | `Info` | Info card | Firmware, Build, Display, Touch, SI5351, WiFi, remote access, memory |
 
@@ -821,6 +821,7 @@ It starts automatically as long as no calibration is stored (first start, after 
 - Otherwise the reason appears in orange below the cross (`Check cross off by … px. Again, please.` or `The corners did not match. Again, please.`) and the calibration starts over.
 - Without a touch for 30 s the calibration ends: at the first start with the fixed values (it appears again at the next start), from CONFIG without a change.
 - During the calibration, messages (e.g. `SI5351 not found`) wait until it has ended.
+- The calibration also works with the screen turned (`Rotate`): the crosses appear in the corners of the shown image. The raw values of the edges of the upright screen are stored, so one calibration is valid in both orientations; no new calibration is needed after `Rotate`. If the orientation changes during the calibration (e.g. over SCPI), it starts over in the new orientation.
 
 ### Screen (Screen Lock)
 
@@ -832,11 +833,21 @@ It starts automatically as long as no calibration is stored (first start, after 
 - The lock lasts until unlocking or power-off (it is not stored).
 - Dialogs also appear on a locked screen; unlock first to close them with `OK`.
 
+### Rotate (Turn the Screen by 180°)
+
+For mounting in a case with the USB and SMA sockets on the other side: `Rotate` (tab `Device`, row `Screen`) turns image and touch by 180°; the next tap puts both upright again (0°, default).
+
+- The rotation applies at once without a restart: the shown page is drawn again in the new orientation (an open dialog too), taps hit the turned controls up to the corners. The outputs keep running unchanged.
+- The orientation is stored (after 5 s like any change, section 9) and applies from the first image after power-on.
+- `Defaults` and `Factory` put the screen upright (0°). `*RST` over SCPI does so like for `Backlight` in RAM only: not stored, after a restart the stored orientation applies again.
+- The touch calibration stays valid and can be run in both orientations (section "Touch").
+- Remote control: SCPI `SYST:DISP:ROT 0|180` (section 15), REST `rotation` (section 16); the web interface shows it in CONFIG as row `Screen` with `0°` and `180°`.
+
 ### Reset (Defaults, Factory Reset)
 
 | Button | Effect |
 |---|---|
-| `Defaults` | After confirmation (`Reset`) all factory settings apply (quick start), including the frequencies, CH3 master and phase and the step; all outputs switch off. **Frequency correction and touch calibration stay.** Saved after 5 s like any change. |
+| `Defaults` | After confirmation (`Reset`) all factory settings apply (quick start), including the frequencies, CH3 master and phase, the step and the upright screen (`Rotate` 0°); all outputs switch off. **Frequency correction and touch calibration stay.** Saved after 5 s like any change. |
 | `Factory` (red) | After confirmation (`Erase`) the device erases all stored settings including frequency correction, touch calibration, `Remote outputs` and the WiFi settings (also those of the WiFi driver) and restarts. Then the touch calibration appears as at the first start. |
 
 `Cancel` leaves everything unchanged.
@@ -897,11 +908,12 @@ The following are saved:
 - Global drive strength
 - `Tuning`, `Spread CH1` and `Off state`
 - CH2 coupling (`Free` / `CH1 + offset`) and offset
+- the screen orientation (`Rotate`: 0° or 180°)
 - the touch calibration (right after the calibration, not by autosave)
 - `Remote out.` (at once when changed, not by autosave)
 - the WiFi settings: mode, networks with password, access point, device name, static IP and the web password (as a hash); at once when changed, in a storage area of their own, not by autosave (changes from the browser only after the confirmation, section 16)
 
-If the three new options are missing from storage (settings from firmware 1.2.0), the defaults `Fractional`, `Off` and `Low` apply, i.e. the behavior of 1.2.0. If coupling and offset are missing (settings from a firmware without coupling), CH2 stays `Free` with its stored frequency, offset 0. Invalid stored values are replaced by the default value at startup.
+If the three new options are missing from storage (settings from firmware 1.2.0), the defaults `Fractional`, `Off` and `Low` apply, i.e. the behavior of 1.2.0. If coupling and offset are missing (settings from a firmware without coupling), CH2 stays `Free` with its stored frequency, offset 0. If the screen orientation is missing (settings from a firmware without `Rotate`), the screen is upright (0°). Invalid stored values are replaced by the default value at startup.
 
 The display controller is not stored but detected at every startup (section 13).
 
@@ -1174,6 +1186,7 @@ Important messages:
 | `[APP] *RST: defaults in RAM, not saved` | `*RST` executed over SCPI |
 | `[APP] Identify` | `SYST:IDEN`: backlight and LED blink for 5 s |
 | `[APP] CH2 coupled to CH1` / `CH2 free` | CH2 chip `CH1 + offset` or `Free` (also over SCPI and REST) |
+| `[APP] Screen rotated by 180 degrees` / `Screen upright` | `Rotate` (also over SCPI and REST; `Defaults` and `*RST` without this line) |
 | `[WIFI] Mode Off, name cyd-hf-1a2b` | WiFi mode at boot or after a change and the device name; default `Off` (radio off) |
 | `[WIFI] Seen <network>, RSSI -61 dBm, WPA2/WPA3` / `No stored network among 12 seen; next scan in 30 s` | Scan result for the stored networks; without a match with the time to the next search (section 8, `WiFi`) |
 | `[WIFI] Connecting to <network>`, `[WIFI] Connected to <network>, 192.168.1.50, RSSI -60 dBm` | Connecting and connected with an address |
@@ -1236,7 +1249,7 @@ Two boards are sold under the name ESP32-2432S028R; they differ only in the disp
 | Original CYD | micro-USB port only | ILI9341 |
 | CYD2USB | additional USB-C port | ST7789 |
 
-The info card on CONFIG and the serial monitor show the result, for example `Display ST7789 (detected)` and `[DISPLAY] ST7789 (detected); ...` respectively. Pinout, touch and operation are the same on both variants.
+The info card on CONFIG and the serial monitor show the result, for example `Display ST7789 (detected)` and `[DISPLAY] ST7789 (detected); ...` respectively. Pinout, touch and operation are the same on both variants, `Rotate` too (turn the screen by 180°, section 8).
 
 A touch at power-on has no effect and is not passed on to the user interface as a tap. The boot gesture of firmware 1.3.0 and 1.3.1 (holding the display at power-on) no longer exists; a choice stored with it is deleted at the first startup (log `[SETTINGS] Stored display choice removed; the controller is detected`).
 
@@ -1354,7 +1367,7 @@ Short form in capitals, any case (`FREQ`, `freq`, `FREQuency`). `<n>` is the cha
 | Command | Query answer | Meaning |
 |---|---|---|
 | `*IDN?` | `CYD,HF-Generator,<MAC>,<version>` | Identification |
-| `*RST` | – | All outputs off, defaults in RAM (correction kept), **not saved** until `SYST:SAVE` or the next change (then only its value) |
+| `*RST` | – | All outputs off, defaults in RAM (correction kept; also `Backlight` 80 % and the screen upright), **not saved** until `SYST:SAVE` or the next change (then only its value) |
 | `*CLS`, `*ESE`, `*ESE?`, `*ESR?`, `*SRE`, `*SRE?`, `*STB?`, `*OPC`, `*OPC?`, `*WAI` | | Status registers per IEEE 488.2; commands run at once, `*OPC?` answers `1` |
 | `*TST?` | `0` / `1` | `1`: no SI5351 connected |
 | `OUTPut<n>[:STATe] ON\|OFF\|1\|0` | `1` / `0` | Output on/off (CH3: request like the switch) |
@@ -1374,6 +1387,7 @@ Short form in capitals, any case (`FREQ`, `freq`, `FREQuency`). `<n>` is the cha
 | `SYSTem:CORRection <ppm>` | ppm with 2 places | Frequency correction, ±50 ppm, rounded to 0.01 ppm; unit `PPM` allowed |
 | `SYSTem:STEP <Hz>` | Hz | Frequency step (1 Hz … 1 MHz, powers of ten); units `HZ`, `KHZ`, `MHZ` allowed (`STEP 1KHZ`) |
 | `SYSTem:BACKlight <%>` | % | Brightness (10–100 %), rounded to 10 % (`55` → 60); unit `PCT` allowed |
+| `SYSTem:DISPlay:ROTation 0\|180` | `0` / `180` | Screen orientation in degrees (`Rotate`), applies at once; other values −224; unit `DEG` allowed |
 | `SYSTem:SI5351?` | `CONN`, `NFO`, `BLOC`, `UNKN` | Connection: connected, not found, line held low, foreign device |
 | `SYSTem:HEAP?` | `<free>,<minimum>,<largest block>` | Memory in bytes (at most 0.1 s old) |
 | `SYSTem:IDENtify` | – | Backlight and RGB LED blink for 5 s |
@@ -1442,6 +1456,7 @@ WiFi runs without power save and at full transmit power: the device answers in t
 - Changes at the device or over SCPI appear after about 1 s and are highlighted briefly; a field with focus is not overwritten. Without connection everything is gray. With very fast changes (e.g. a SCPI loop) the device sends at most 10 states per second; the latest state always arrives. When the device runs short of memory, it skips single updates or refuses new connections (`Low memory`) instead of restarting.
 - After a change from the browser the device status bar shows `REMOTE WEB` for 10 s. `Remote out.` `local only` (section 8) applies here too: switching on and `Off state` `High` are refused (then without a question, the message shows next to the selection).
 - At most 3 browsers at a time; a fourth sees `Too many clients (max. 3)`. A tab in the background (covered or minimized) frees its place after 60 s and connects again as soon as it is shown. A connection that does not answer the device's checks (every 15 s) is closed after 30 s; one that floods the device with checks of its own (WebSocket ping) at once.
+- CONFIG shows the screen orientation of the device as row `Screen` with `0°` and `180°`; a click turns the device screen at once (section 8).
 - Only at the device: defaults and factory reset, touch calibration, screen lock, new access point password, web password (WIFI → `Device`, row `Web pw.`).
 - The footer at the end of the page shows `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` and `licenses` open the repository and `THIRD_PARTY_NOTICES.md` on GitHub as of the release tag of the firmware (e.g. `v2.0.0`) in a new tab (this needs internet access in the browser, section 1, "Licenses").
 
@@ -1475,7 +1490,7 @@ Programs can use the same functions over HTTP and JSON; example in `tools/rest_e
 | `GET /api/state` | State as JSON (channels, CH3, frequency range and step list, CONFIG, WiFi, saving, `REMOTE`); with a web password only with a login |
 | `POST /api/channel/1`, `/api/channel/2` | `{"enabled":true,"frequency":7100000}` or `{"frequencyText":"7.1M"}`; CH2 also `{"coupled":true,"offset":-455000}` (offset in Hz, ±160 MHz; order offset, coupling, frequency, on/off). While coupled, a CH2 frequency gives 400 `-221,CH2 is coupled to CH1`; the state has `coupled` and `offset` for CH2, and `frequency` is then CH1 + offset |
 | `POST /api/ch3` | `{"enabled":true,"master":1,"phase":90}` |
-| `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` under `local only` 403), `correction` (0.01 ppm), `step`, `backlight` |
+| `POST /api/config` | `drive`, `tuning`, `spread`, `offState` (`high` under `local only` 403), `correction` (0.01 ppm), `step`, `backlight`, `rotation` (0 or 180) |
 | `POST /api/save`, `/api/identify` | `{}`; saving like `SYST:SAVE` at most once per 10 s (section 15) |
 | `POST /api/login`, `POST /api/logout` | `{"password":"…"}` or `{}`, answer with a session cookie or an expired cookie |
 | `GET`/`POST /api/wifi`, `POST /api/wifi/confirm`, `GET /api/wifi/scan` | Network settings (passwords write-only; `slot` 0 and 1 = network 1 and 2 at the device; network password 8–63 characters or 64 hex digits), confirmation, network scan (at most every 10 s) |

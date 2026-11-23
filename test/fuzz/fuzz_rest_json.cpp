@@ -334,7 +334,7 @@ struct Field {
 };
 // The documented order (rest_json.h): channel frequency before enabled; CH3 master and phase
 // before enabled; config tuning before spread, then off state, drive, correction, step,
-// backlight.
+// backlight, rotation.
 const Field CHANNEL[] = {{"frequency", Kind::Integer, CommandType::SetFrequency},
                          {"frequencyText", Kind::FrequencyText, CommandType::SetFrequency},
                          {"enabled", Kind::Bool, CommandType::SetEnabled}};
@@ -354,7 +354,9 @@ const Field CONFIG[] = {{"tuning", Kind::Tuning, CommandType::Tuning},
                         {"correction", Kind::Integer, CommandType::Correction},
                         {"step", Kind::Integer, CommandType::Step},
                         {"backlight", Kind::Integer, CommandType::Backlight},
+                        {"rotation", Kind::Integer, CommandType::Rotation},
                         {"remoteOutputs", Kind::DeviceOnly, CommandType::SaveNow}};
+static_assert(sizeof(CONFIG) / sizeof(CONFIG[0]) <= 16, "values[] in expectFields");
 const char* const TUNING[] = {"fractional", "lownoise", "integer"};
 const char* const SPREAD[] = {"off", "down05", "down15", "center05"};
 const char* const OFFSTATE[] = {"low", "high", "hiz"};
@@ -459,7 +461,7 @@ Want expectFields(const Field* fields, size_t count, uint8_t channel, const Body
     cmds->clear();
     Want w {};
     if (!loadBody(b, &w)) return w;
-    int64_t values[8] = {};
+    int64_t values[16] = {}; // at least as many as the longest field table (CONFIG)
     unsigned seen = 0;
     for (size_t i = 0; i < b.top.keys.size(); ++i) {
         size_t f = 0;
@@ -566,7 +568,7 @@ void requestBody(uint8_t op, uint8_t param, const Body& b) {
             break;
         case 4:
             r = parseConfig(b.ptr, b.len, &out);
-            w = expectFields(CONFIG, 8, 0, b, &cmds);
+            w = expectFields(CONFIG, sizeof(CONFIG) / sizeof(CONFIG[0]), 0, b, &cmds);
             break;
         default: {
             const CommandType type = op == 5 ? CommandType::SaveNow
@@ -754,6 +756,7 @@ void deviceRanges(Snapshot& s, DeviceInfo& di) {
     s.state.sys.delta_step = DELTA_STEPS[s.state.sys.delta_step % DELTA_STEP_COUNT];
     s.state.sys.freq_correction %= CORRECTION_MAX + 1;
     s.state.sys.backlight = (uint8_t)(10 + s.state.sys.backlight % 91);
+    s.state.sys.rotation = (uint16_t)(s.state.sys.rotation % 2 ? 180 : 0);
     s.state.sys.drive_ma = (uint8_t)(2 + 2 * (s.state.sys.drive_ma % 4));
     for (double& a : s.actualHz) {
         if (!(a >= 0.0 && a <= 2.0 * FREQ_MAX_HZ)) a = fmod(fabs(a), 2.0 * FREQ_MAX_HZ);
@@ -816,6 +819,7 @@ void state(const uint8_t* d, size_t n) {
     const uint8_t sizeSel = rd.u8();
     s.state.ch2c.coupled = rd.u8() & 1; // read last: older seeds keep their meaning
     s.state.ch2c.offset = (int32_t)rd.u32();
+    s.state.sys.rotation = rd.u16(); // read last as well (E-53)
     if (device) deviceRanges(s, di);
 
     // Built into a large buffer first (the size only limits the output); with device values the
@@ -901,6 +905,7 @@ void state(const uint8_t* d, size_t n) {
     needNum(cfg, "correction", i64s(s.state.sys.freq_correction));
     needNum(cfg, "step", u64s(s.state.sys.delta_step));
     needNum(cfg, "backlight", u64s(s.state.sys.backlight));
+    needNum(cfg, "rotation", u64s(s.state.sys.rotation));
     needStr(cfg, "remoteOutputs", s.remoteOutputsAllowed ? "allowed" : "local");
 
     const JV& wifi = need(doc, "wifi", JV::Obj);

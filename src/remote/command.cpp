@@ -84,6 +84,9 @@ Result run(AppController& app, const Command& c) {
             return app.setCh2Coupled(v == 1);
         case CommandType::Ch2Offset:
             return app.setCh2Offset(v);
+        case CommandType::Rotation:
+            if (!inRange(v, 0, 0xFFFF)) return Result::Invalid;
+            return app.setRotation((uint16_t)v);
     }
     return Result::Invalid;
 }

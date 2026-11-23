@@ -30,6 +30,13 @@ static constexpr int DROPDOWN_W = 140;
 static constexpr int DROPDOWN_LINE_SPACE = 9;                      // opened list: 25 px per entry
 static constexpr int DROPDOWN_LIST_PAD = 4;
 static constexpr int SAVE_STATE_X = 164;                           // header, after the title
+// Row "Screen": Lock, Touch cal., Rotate after the title "Screen" (ends at x 50), up to the row end.
+static constexpr int SCREEN_BTN_X = 56;
+static constexpr int SCREEN_BTN_GAP = 4;
+static constexpr int SCREEN_LOCK_W = 60;
+static constexpr int SCREEN_CAL_W = 100;
+static constexpr int SCREEN_ROT_W = ROW_CONTENT_W - SCREEN_BTN_X - SCREEN_LOCK_W - SCREEN_CAL_W - 2 * SCREEN_BTN_GAP;
+static_assert(SCREEN_ROT_W >= 64, "Rotate fits its button");
 // Tab bar: 5 tabs of 60 px with 3 px gaps, 34 px high (touch targets on the resistive panel).
 static constexpr int TAB_H = 36;
 static constexpr int TAB_Y = SCREEN_HEIGHT - TAB_H;
@@ -139,7 +146,7 @@ void Gui::createConfig_() {
             addButton_(row, "Reconnect all", VALUE_X, 0, DROPDOWN_W + 56, ROW_CONTENT_H, btnColor,
                        Action::RemoteDisconnect);
             break;
-        case 3: // Device: backlight, screen (lock, touch calibration U-26) and reset (U-13; both ask first).
+        case 3: // Device: backlight, screen (lock, touch cal. U-26, rotate E-53) and reset (U-13; both ask first).
             row = addConfigRow_(root_, 0, ROW_H, "Backlight");
             addButton_(row, LV_SYMBOL_MINUS, VALUE_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::BacklightDown);
             w_.blValue = addLabel_(row, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
@@ -148,8 +155,12 @@ void Gui::createConfig_() {
             lv_obj_align(w_.blValue, LV_ALIGN_LEFT_MID, VALUE_X + BTN_W, 0);
             addButton_(row, LV_SYMBOL_PLUS, BTN_RIGHT_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::BacklightUp);
             row = addConfigRow_(root_, 1, ROW_H, "Screen");
-            addButton_(row, "Lock", VALUE_X, 0, 96, ROW_CONTENT_H, btnColor, Action::LockScreen);
-            addButton_(row, "Touch cal.", VALUE_X + 100, 0, 96, ROW_CONTENT_H, btnColor, Action::TouchCal);
+            // Three buttons from right after the title to the row end (E-53: Rotate toggles 0/180 degrees).
+            addButton_(row, "Lock", SCREEN_BTN_X, 0, SCREEN_LOCK_W, ROW_CONTENT_H, btnColor, Action::LockScreen);
+            addButton_(row, "Touch cal.", SCREEN_BTN_X + SCREEN_LOCK_W + SCREEN_BTN_GAP, 0, SCREEN_CAL_W, ROW_CONTENT_H,
+                       btnColor, Action::TouchCal);
+            addButton_(row, "Rotate", SCREEN_BTN_X + SCREEN_LOCK_W + SCREEN_CAL_W + 2 * SCREEN_BTN_GAP, 0, SCREEN_ROT_W,
+                       ROW_CONTENT_H, btnColor, Action::RotateScreen);
             row = addConfigRow_(root_, 2, ROW_H, "Reset");
             addButton_(row, "Defaults", VALUE_X, 0, 96, ROW_CONTENT_H, btnColor, Action::ResetDefaults);
             addButton_(row, "Factory", VALUE_X + 100, 0, 96, ROW_CONTENT_H, Colors::error(), Action::FactoryReset);

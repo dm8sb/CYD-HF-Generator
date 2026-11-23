@@ -152,6 +152,25 @@ static void test_madctl_tables() {
     TEST_ASSERT_EQUAL_HEX8(0x68, MADCTL_ST7789[1]); // landscape as built for the CYD2USB before
 }
 
+// 180 degree rotation (N16, E-53): landscape 1 and the turned landscape 3 differ in MX and MY
+// only (both address directions reversed = point reflection about the center, no mirror image);
+// MV (row/column exchange) and BGR stay.
+static void test_madctl_turned_landscape_flips_both_axes() {
+    const uint8_t up = landscapeRotation(false);
+    const uint8_t turned = landscapeRotation(true);
+    TEST_ASSERT_EQUAL_UINT8(1, up);
+    TEST_ASSERT_EQUAL_UINT8(3, turned);
+    const uint8_t* tables[] = {MADCTL_ILI9341, MADCTL_ST7789};
+    for (const uint8_t* t : tables) {
+        TEST_ASSERT_EQUAL_HEX8(0xC0, t[up] ^ t[turned]); // MY 0x80 | MX 0x40
+        TEST_ASSERT_EQUAL_HEX8(0x28, t[up] & 0x28);      // MV and BGR in both
+        TEST_ASSERT_EQUAL_HEX8(0x28, t[turned] & 0x28);
+    }
+    TEST_ASSERT_EQUAL_HEX8(0x28, MADCTL_ILI9341[turned] ^ 0xC0); // TFT_eSPI ILI9341 rotation 1
+    TEST_ASSERT_EQUAL_HEX8(0xE8, MADCTL_ILI9341[turned]);        // MY | MX | MV | BGR
+    TEST_ASSERT_EQUAL_HEX8(0xA8, MADCTL_ST7789[turned]);         // MY | MV | BGR (TFT_eSPI ST7789 rotation 3)
+}
+
 static void test_st7789_init_table() {
     bool colmod = false, invoff = false, caset = false, raset = false;
     uint32_t sinceSlpout = 0;
@@ -265,6 +284,7 @@ int main() {
     RUN_TEST(test_probe_rejects_unstable_id);
     RUN_TEST(test_probe_rejects_id_ffffff);
     RUN_TEST(test_madctl_tables);
+    RUN_TEST(test_madctl_turned_landscape_flips_both_axes);
     RUN_TEST(test_st7789_init_table);
     RUN_TEST(test_post_init_ili9341_writes_nothing);
     RUN_TEST(test_post_init_st7789);

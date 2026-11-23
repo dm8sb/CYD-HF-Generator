@@ -306,6 +306,7 @@ const Field CONFIG_FIELDS[] = {
     {"correction", Kind::Integer, CommandType::Correction},
     {"step", Kind::Integer, CommandType::Step},
     {"backlight", Kind::Integer, CommandType::Backlight},
+    {"rotation", Kind::Integer, CommandType::Rotation}, // E-53
     {"remoteOutputs", Kind::DeviceOnly, CommandType::SaveNow}, // never a command
 };
 
@@ -746,6 +747,8 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
     w.number(sys.delta_step);
     w.key("backlight");
     w.number((uint32_t)sys.backlight);
+    w.key("rotation");
+    w.number((uint32_t)sys.rotation);
     w.key("remoteOutputs");
     w.string(s.remoteOutputsAllowed ? "allowed" : "local");
     w.endObject();

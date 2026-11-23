@@ -618,6 +618,7 @@ function renderConfig(wf) {
   const pv = fmtPpm(pend('corr', cf.correction));
   if (D.activeElement !== C.corr && C.corr.value !== pv) { C.corr.value = pv; flash(C.corr); }
   set(C.bl, pend('bl', cf.backlight) + ' %');
+  C.rot.forEach((b, i) => press(b, cf.rotation === i * 180));
   const local = cf.remoteOutputs === 'local';
   line(C.remote, local ? 'local only — switch on at the device' : 'allowed', local ? 'warn' : '');
   U.local.hidden = !local;
@@ -774,6 +775,10 @@ function buildCfg() {
       h('button', {type: 'button', class: 'big sm', text: '−', 'aria-label': 'Backlight down', onclick: () => tuneBl(-1)}),
       C.bl = h('span', {class: 'val'}),
       h('button', {type: 'button', class: 'big sm', text: '+', 'aria-label': 'Backlight up', onclick: () => tuneBl(1)}))),
+    // Screen rotation of the device (E-53).
+    row('Screen', h('div', {class: 'chips', role: 'group', 'aria-label': 'Screen rotation'},
+      C.rot = [0, 180].map((d) => h('button', {type: 'button', class: 'chip', text: d + '°',
+        onclick: () => act(api('/api/config', {rotation: d}))})))),
     row('Remote outputs', C.remote = h('span', {class: 'val'})),
     h('dl', {class: 'info'},
       h('dt', {text: 'Firmware'}), C.fw = h('dd'),

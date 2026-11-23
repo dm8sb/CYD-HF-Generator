@@ -148,10 +148,10 @@ static void test_ch3_and_config_bodies() {
     assertCommand(c.list[1], CommandType::Ch3Phase, 3, 270);
     assertCommand(c.list[2], CommandType::SetEnabled, 3, 1);
     ASSERT_REPLY(200, 0,
-                 config("{\"backlight\":80,\"step\":1000,\"correction\":-250,\"drive\":8,\"offState\":\"hiz\","
-                        "\"spread\":\"center05\",\"tuning\":\"lownoise\"}",
+                 config("{\"rotation\":180,\"backlight\":80,\"step\":1000,\"correction\":-250,\"drive\":8,"
+                        "\"offState\":\"hiz\",\"spread\":\"center05\",\"tuning\":\"lownoise\"}",
                         &c));
-    TEST_ASSERT_EQUAL_UINT8(7, c.count);
+    TEST_ASSERT_EQUAL_UINT8(8, c.count);
     // Tuning before spread (spread in Integer is a conflict), then the rest.
     assertCommand(c.list[0], CommandType::Tuning, 0, (int64_t)TuningMode::LowNoise);
     assertCommand(c.list[1], CommandType::Spread, 0, (int64_t)Spread::Center05);
@@ -160,6 +160,7 @@ static void test_ch3_and_config_bodies() {
     assertCommand(c.list[4], CommandType::Correction, 0, -250);
     assertCommand(c.list[5], CommandType::Step, 0, 1000);
     assertCommand(c.list[6], CommandType::Backlight, 0, 80);
+    assertCommand(c.list[7], CommandType::Rotation, 0, 180); // N16, E-53
     const struct {
         const char* body;
         CommandType type;
@@ -311,6 +312,9 @@ static void test_values_are_checked_by_the_controller() {
         {"{\"backlight\":256}", 400, -222, nullptr},
         {"{\"step\":3}", 400, -224, nullptr},
         {"{\"step\":4294967297}", 400, -224, nullptr},
+        {"{\"rotation\":90}", 400, -224, nullptr},
+        {"{\"rotation\":-180}", 400, -224, nullptr},
+        {"{\"rotation\":65716}", 400, -224, nullptr}, // 180 + 65536: no narrowing to 180
         {"{\"tuning\":\"integer\",\"spread\":\"down05\"}", 400, -221, "{\"error\":\"-221,Spread spectrum is not possible in Integer tuning\"}"},
     };
     for (const auto& k : cases) {
@@ -536,7 +540,9 @@ static void test_state_json_contract() {
     for (uint8_t i = 0; i < DELTA_STEP_COUNT; ++i) TEST_ASSERT_EQUAL_UINT32(DELTA_STEPS[i], steps[i].as<uint32_t>());
     TEST_ASSERT_TRUE(c3["actual"].is<double>());
     JsonObjectConst cfg = doc["config"];
-    TEST_ASSERT_EQUAL(8, (int)keyCount(cfg));
+    TEST_ASSERT_EQUAL(9, (int)keyCount(cfg));
+    TEST_ASSERT_EQUAL(0, cfg["rotation"].as<int>()); // N16, E-53: degrees
+    TEST_ASSERT_TRUE(cfg["rotation"].is<int>());
     TEST_ASSERT_EQUAL(8, cfg["drive"].as<int>());
     TEST_ASSERT_EQUAL_STRING("fractional", cfg["tuning"]);
     TEST_ASSERT_EQUAL_STRING("down05", cfg["spread"]);
@@ -781,11 +787,13 @@ static void test_state_status_texts() {
     s.state.sys.tuning_mode = TuningMode::Integer;
     s.state.sys.spread = Spread::Center05;
     s.state.sys.off_state = OffState::HighZ;
+    s.state.sys.rotation = 180;
     s.remoteOutputsAllowed = false;
     s.state.ch3.master = 2;
     s.actualHz[2] = 14000000.26;
     s.actualHz[0] = -1.0; // never shown as such
     parse(state(s, info()), doc);
+    TEST_ASSERT_EQUAL(180, doc["config"]["rotation"].as<int>());
     TEST_ASSERT_EQUAL_STRING("integer", doc["config"]["tuning"]);
     TEST_ASSERT_EQUAL_STRING("center05", doc["config"]["spread"]);
     TEST_ASSERT_EQUAL_STRING("hiz", doc["config"]["offState"]);

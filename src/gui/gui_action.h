@@ -28,6 +28,7 @@ enum class GuiAction : uint8_t {
     NumpadKey,
     TouchCal,       // CONFIG: start the touch calibration
     LockScreen,     // CONFIG: lock and go to MAIN (U-13)
+    RotateScreen,   // CONFIG: screen upright / turned by 180 degrees (E-53)
     ResetDefaults,  // CONFIG: confirm, then defaults (correction kept)
     FactoryReset,   // CONFIG: confirm, then erase the NVS and restart
     Ch3MasterFreq,  // CH3 page: tap on the frequency opens the master's numpad (U-16)

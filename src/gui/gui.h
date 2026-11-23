@@ -101,6 +101,9 @@ private:
     // Feeds raw touch samples to the wizard and moves the cross (every loop on that page).
     void tickTouchCal_();
     void showCalTarget_();
+    // Display and touch follow the controller's rotation (E-53): MADCTL, touch mirroring and a
+    // full redraw; the calibration restarts in the new rotation. No-op while unchanged.
+    void applyRotation_();
 #if TEST_HIT_MAP
     // Test build only (MESSPLAN B8): target crosses instead of the GUI.
     void createHitMap_();
@@ -220,6 +223,7 @@ private:
     uint8_t configTab_ = 0;     // CONFIG tab shown on the next visit; RAM only
     uint32_t lastUpdateMs_ = 0;
     uint32_t lastRevision_ = 0;   // AppController::revision() of the last redraw
+    uint16_t shownRotation_ = 0;  // rotation applied to display and touch (degrees)
     uint16_t lastConnections_ = 0;
     StatusView lastView_ {};
     int8_t rssiShown_ = 0;          // CONFIG info card, with hysteresis

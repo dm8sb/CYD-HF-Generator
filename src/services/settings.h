@@ -26,7 +26,8 @@ enum : uint16_t {
     OffSt = 1 << 10,
     Ch2Cpl = 1 << 11,
     Ch2Off = 1 << 12,
-    All = (1 << 13) - 1
+    Rot = 1 << 13,
+    All = (1 << 14) - 1
 };
 }
 

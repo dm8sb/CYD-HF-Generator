@@ -20,7 +20,10 @@ void Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
     touch_ = &touch;
     display_ = &display;
     lastConnections_ = app.connectionCount();
-
+    // Stored rotation (E-53) before the first frame.
+    shownRotation_ = app.system().rotation;
+    display.setTurned(shownRotation_ == 180);
+    touch.setTurned(shownRotation_ == 180);
 
     // LVGL warnings through the switchable logger (C-16), already for lv_init().
     lv_log_register_print_cb([](const char* line) { Logger::raw(line); });
@@ -375,8 +378,22 @@ void Gui::refresh_() {
     ++refreshCount_;
 }
 
+void Gui::applyRotation_() {
+    const uint16_t r = app_->system().rotation;
+    if (r == shownRotation_) return;
+    shownRotation_ = r;
+    display_->setTurned(r == 180);
+    touch_->setTurned(r == 180);
+    // The whole screen including dialogs on the top layer is drawn again in the new rotation.
+    lv_obj_invalidate(lv_scr_act());
+    // The crosses are in screen coordinates: start the calibration again in the new rotation.
+    if (currentPage_ == PageId::TouchCal) navigate(PageId::TouchCal);
+}
+
 void Gui::update() {
     wifiPages_.update();
+    // Rotation from any source (touch, remote, Defaults, *RST), at once (E-53).
+    applyRotation_();
     if (currentPage_ == PageId::TouchCal) {
         tickTouchCal_();
         return;
@@ -525,6 +542,11 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
             Logger::info("GUI", "Screen locked");
             requestNavigate_(PageId::Main);
             return;
+        case Action::RotateScreen:
+            // Each tap toggles 0 / 180 degrees; applied at once, the press has ended (CLICKED).
+            app.setRotation(sys.rotation == 180 ? 0 : 180);
+            applyRotation_();
+            break;
         case Action::ResetDefaults:
             confirm_(Confirm::ResetDefaults);
             return;

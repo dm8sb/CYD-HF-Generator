@@ -85,7 +85,7 @@ The same command set and the same line rules apply over USB, TCP 5025 and VXI-11
 | Command | Query answer | Meaning |
 |---|---|---|
 | `*IDN?` | `CYD,HF-Generator,<MAC>,<version>` | Identification |
-| `*RST` | – | All outputs off, defaults in RAM (correction and `Remote out.` kept), not saved until `SYST:SAVE` or the next change |
+| `*RST` | – | All outputs off, defaults in RAM (correction and `Remote out.` kept; backlight 80 %, screen upright), not saved until `SYST:SAVE` or the next change |
 | `*CLS` | – | Clear the error queue and event status |
 | `*ESE <n>`, `*ESE?` | `<n>` | Event status enable register |
 | `*ESR?` | `<n>` | Event status register (read clears) |
@@ -110,6 +110,7 @@ The same command set and the same line rules apply over USB, TCP 5025 and VXI-11
 | `SYSTem:CORRection <ppm>` | ppm, 2 decimals | Crystal correction ±50 ppm, rounded to 0.01 ppm; unit `PPM` allowed |
 | `SYSTem:STEP <Hz>` | Hz | Step of `+`/`−` at the device: 1 Hz … 1 MHz in powers of ten; units allowed |
 | `SYSTem:BACKlight <%>` | % | Display brightness 10–100 %, rounded to 10 % (55 → 60); unit `PCT` allowed |
+| `SYSTem:DISPlay:ROTation 0\|180` | `0` / `180` | Screen rotation in degrees (CONFIG `Rotate`), applies at once; other values −224; unit `DEG` allowed |
 | `SYSTem:SI5351?` | `CONN` / `NFO` / `BLOC` / `UNKN` | SI5351 link: connected, not found, line held low, foreign device |
 | `SYSTem:HEAP?` | `<free>,<minimum>,<largest block>` | Memory in bytes (at most 0.1 s old) |
 | `SYSTem:IDENtify` | – | Backlight and RGB LED blink for 5 s |
@@ -276,7 +277,7 @@ Only when a web password is set at the device:
        {"n":2,"enabled":false,"frequency":14000000,"actual":14000000.0,"status":"OFF","modes":[],"coupled":false,"offset":0}],
  "ch3":{"enabled":false,"master":1,"phase":90,"status":"OFF","frequency":10000000,"actual":10000000.0,"iqMin":4730000,"iqMax":100000000},
  "limits":{"fmin":8000,"fmax":160000000,"steps":[1,10,100,1000,10000,100000,1000000],"offsetMax":160000000},
- "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"remoteOutputs":"allowed"},
+ "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"rotation":0,"remoteOutputs":"allowed"},
  "wifi":{"mode":"client","connected":true,"ssid":"Lab","rssi":-60,"ip":"192.168.1.50","name":"cyd-hf-1a2b",
          "ap":{"active":false,"ssid":"CYD-HF-1A2B","open":false,"stations":0},"confirmWithin":0},
  "device":{"version":"2.0.0","passwordSet":false}}
@@ -308,7 +309,7 @@ Only when a web password is set at the device:
 | `GET /api/state` | – | 200 state |
 | `POST /api/channel/1`, `/api/channel/2` | subset of `{"enabled":bool,"frequency":int,"frequencyText":str}` (one frequency key at most; `frequencyText` like `"7.1M"`, `"455k"`, `"10,7 MHz"`); channel 2 also `"coupled":bool`, `"offset":int` (Hz, ±160 MHz), applied in the order offset, coupled, frequency, enabled; a CH2 frequency while coupled gives 400 `-221,CH2 is coupled to CH1` | 200 state |
 | `POST /api/ch3` | subset of `{"enabled":bool,"master":1\|2,"phase":0\|90\|180\|270}` | 200 state |
-| `POST /api/config` | subset of `drive` (2/4/6/8), `tuning`, `spread`, `offState`, `correction` (0.01 ppm), `step` (1…1000000, powers of ten), `backlight` (10–100, rounded to 10) | 200 state |
+| `POST /api/config` | subset of `drive` (2/4/6/8), `tuning`, `spread`, `offState`, `correction` (0.01 ppm), `step` (1…1000000, powers of ten), `backlight` (10–100, rounded to 10), `rotation` (0 or 180) | 200 state |
 | `POST /api/save` | `{}` | 200 state |
 | `POST /api/identify` | `{}` | 200 state (display and LED blink 5 s) |
 | `POST /api/login` | `{"password":str}` | 204 + cookie |

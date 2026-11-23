@@ -199,6 +199,7 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
     cfg["correction"] = sys.freq_correction;
     cfg["step"] = sys.delta_step;
     cfg["backlight"] = (unsigned)sys.backlight;
+    cfg["rotation"] = (unsigned)sys.rotation;
     cfg["remoteOutputs"] = s.remoteOutputsAllowed ? "allowed" : "local";
 
     char ssid[33], name[33], apSsid[33], version[33], ip[Ipv4::TEXT_SIZE];

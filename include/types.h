@@ -57,6 +57,7 @@ struct SystemSettings {
     TuningMode tuning_mode;
     Spread spread;      // always Off in TuningMode::Integer
     OffState off_state;
+    uint16_t rotation;  // screen rotation in degrees: 0 or 180 (CONFIG "Rotate", E-53)
 };
 
 struct TouchCalibration {

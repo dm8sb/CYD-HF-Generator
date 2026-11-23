@@ -38,7 +38,8 @@ void Gui::createTouchCal_() {
     lv_obj_set_style_text_align(w_.calStatus, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(w_.calStatus, LV_LABEL_LONG_WRAP);
     lv_obj_align(w_.calStatus, LV_ALIGN_TOP_MID, 0, 156);
-    calWizard_.start(millis());
+    // Crosses in screen coordinates; turned by 180 degrees the wizard mirrors them (E-53).
+    calWizard_.start(millis(), shownRotation_ == 180);
     calShownTarget_ = 0xFF;
     showCalTarget_();
     Logger::info("TOUCH", "Calibration started");
@@ -92,7 +93,7 @@ void Gui::tickTouchCal_() {
             }
             Logger::error("TOUCH", buf);
             lv_label_set_text(w_.calStatus, buf);
-            calWizard_.start(now);
+            calWizard_.start(now, shownRotation_ == 180);
             break;
         case TouchCal::Phase::Touch:
         case TouchCal::Phase::Release:

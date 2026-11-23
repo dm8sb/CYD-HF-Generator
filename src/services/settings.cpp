@@ -45,6 +45,8 @@ void SettingsService::load(PersistentState& s) {
     s.ch2c.coupled = storage_.getU8("ch2_cpl", 0) == 1;
     const int32_t offset = storage_.getI32("ch2_off", 0);
     s.ch2c.offset = (offset < -CH2_OFFSET_MAX_HZ || offset > CH2_OFFSET_MAX_HZ) ? 0 : offset;
+    // Screen rotation (E-53): 1 = 180 degrees; NVS from before has no key (0 degrees), other values too.
+    s.sys.rotation = storage_.getU8("rot180", 0) == 1 ? 180 : 0;
     Logger::info("SETTINGS", available_ ? "Loaded from NVS" : "NVS unavailable; defaults loaded");
 }
 
@@ -64,6 +66,7 @@ bool SettingsService::save_(const PersistentState& s, uint16_t keys) {
     if (keys & OffSt) ok &= storage_.putU8("off_st", (uint8_t)s.sys.off_state);
     if (keys & Ch2Cpl) ok &= storage_.putU8("ch2_cpl", s.ch2c.coupled ? 1 : 0);
     if (keys & Ch2Off) ok &= storage_.putI32("ch2_off", s.ch2c.offset);
+    if (keys & Rot) ok &= storage_.putU8("rot180", s.sys.rotation == 180 ? 1 : 0);
     if (ok) Logger::info("SETTINGS", "Saved to NVS");
     else Logger::error("SETTINGS", "Saving to NVS failed");
     return ok;
@@ -98,6 +101,7 @@ void SettingsService::defaults(PersistentState& s) {
     s.sys.spread = Spread::Off;
     s.sys.off_state = OffState::Low;
     s.ch2c = Ch2Coupling {false, 0};
+    s.sys.rotation = 0;
 }
 
 bool SettingsService::eraseAll() {

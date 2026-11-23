@@ -163,7 +163,8 @@ class Model:
                    {"enabled": False, "frequency": dc.DEFAULT_FREQ[2], "coupled": False, "offset": 0}]
         self.ch3 = {"enabled": False, "master": 1, "phase": 90}
         self.cfg = {"drive": dc.DEFAULT_DRIVE, "tuning": "fractional", "spread": "off", "offState": "low", "correction": 0,
-                    "step": dc.DEFAULT_STEP, "backlight": 80, "remoteOutputs": "local" if args.local_only else "allowed"}
+                    "step": dc.DEFAULT_STEP, "backlight": 80, "rotation": 0,
+                    "remoteOutputs": "local" if args.local_only else "allowed"}
         self.save, self.save_due = "saved", 0.0
         self.remote, self.remote_until = None, 0.0
         self.net = {"mode": "ap" if args.open_ap else "client",
@@ -367,9 +368,11 @@ class Model:
     def post_config(self, b):
         if isinstance(b, dict) and "remoteOutputs" in b:
             raise ApiError(403, "-221,Remote outputs can only be changed at the device")
-        check_obj(b, {"drive": int, "tuning": str, "spread": str, "offState": str, "correction": int, "step": int, "backlight": int}, need_one=True)
+        check_obj(b, {"drive": int, "tuning": str, "spread": str, "offState": str, "correction": int, "step": int, "backlight": int,
+                       "rotation": int}, need_one=True)
         enums = {"drive": dc.DRIVES, "tuning": ("fractional", "lownoise", "integer"),
-                 "spread": ("off", "down05", "down15", "center05"), "offState": ("low", "high", "hiz"), "step": STEPS}
+                 "spread": ("off", "down05", "down15", "center05"), "offState": ("low", "high", "hiz"), "step": STEPS,
+                 "rotation": (0, 180)}  # degrees (E-53)
         for k, allowed in enums.items():
             if k in b and b[k] not in allowed:
                 raise ApiError(400, E_ILLEGAL)
