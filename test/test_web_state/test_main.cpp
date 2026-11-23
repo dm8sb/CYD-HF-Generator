@@ -695,6 +695,103 @@ static void test_job_slot_wipes_inputs() {
     TEST_ASSERT_EQUAL(0, g_owned);
 }
 
+// AF33: random interleavings of the two sides as the server runs them, async_tcp (submit,
+// collect, give up after a timeout) and loop() (take, work for a while, finish), with a fixed
+// seed. Every request gets its own result or none, no result goes to a later request, every
+// buffer is freed exactly once, and the slot never keeps a key once loop() took the job.
+static uint32_t jobRngState = 12345;
+static uint32_t jobRng() {
+    jobRngState ^= jobRngState << 13;
+    jobRngState ^= jobRngState >> 17;
+    jobRngState ^= jobRngState << 5;
+    return jobRngState;
+}
+
+static void test_job_slot_random_interleavings() {
+    g_owned = 0;
+    jobRngState = 12345;
+    JobSlot<TestJob> slot;
+    int nextId = 1;
+    int waiting = 0;       // id of the request async_tcp waits for, 0 = none
+    bool working = false;  // loop() holds a taken job
+    TestJob work;
+    memset(&work, 0, sizeof(work));
+    unsigned collected = 0, abandoned = 0, late = 0;
+    for (int step = 0; step < 200000; ++step) {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "seed 12345, step %d", step);
+        switch (jobRng() % 6) {
+            case 0: { // async_tcp: a new request
+                if (waiting) break;
+                char secret[8];
+                snprintf(secret, sizeof(secret), "k%d", nextId % 100000);
+                if (slot.submit(job(nextId, secret))) waiting = nextId++;
+                else TEST_ASSERT_TRUE_MESSAGE(working && slot.state() == JobSlot<TestJob>::State::Abandoned, msg); // busy only with a given-up job
+                break;
+            }
+            case 1: { // async_tcp: is the answer there?
+                TestJob out;
+                memset(&out, 0, sizeof(out));
+                if (slot.collect(&out)) {
+                    TEST_ASSERT_TRUE_MESSAGE(waiting != 0, msg);
+                    TEST_ASSERT_EQUAL_INT_MESSAGE(waiting, out.kind, msg); // its own result
+                    TEST_ASSERT_EQUAL_INT_MESSAGE(200 + waiting % 7, out.status, msg);
+                    TestJob::clear(out);
+                    waiting = 0;
+                    ++collected;
+                }
+                break;
+            }
+            case 2: // async_tcp: timeout or connection closed
+                if (waiting && jobRng() % 4 == 0) {
+                    slot.abandon();
+                    waiting = 0;
+                    ++abandoned;
+                }
+                break;
+            case 3: // loop(): take a job
+                if (!working && slot.take(&work)) {
+                    working = true;
+                    char expect[8];
+                    snprintf(expect, sizeof(expect), "k%d", work.kind % 100000);
+                    TEST_ASSERT_EQUAL_STRING_MESSAGE(expect, work.secret, msg);
+                }
+                break;
+            case 4: // loop(): finish it (a scan has an output buffer)
+                if (working) {
+                    const int id = work.kind;
+                    memset(work.secret, 0, sizeof(work.secret));
+                    result(work, 200 + id % 7, id % 2 == 0);
+                    if (!slot.finish(work)) {
+                        TEST_ASSERT_NULL_MESSAGE(work.out, msg); // cleared by the slot
+                        ++late;
+                    }
+                    memset(&work, 0, sizeof(work));
+                    working = false;
+                }
+                break;
+            default: // a stray abandon while nobody waits (free, or loop() works on a given-up job)
+                if (!waiting) {
+                    const JobSlot<TestJob>::State before = slot.state();
+                    slot.abandon();
+                    TEST_ASSERT_EQUAL_MESSAGE(before, slot.state(), msg);
+                }
+                break;
+        }
+        // At most the one result in the slot owns a buffer; the worker's is not created yet.
+        TEST_ASSERT_TRUE_MESSAGE(g_owned == 0 || g_owned == 1, msg);
+        if (g_owned == 1) TEST_ASSERT_EQUAL_MESSAGE(JobSlot<TestJob>::State::Done, slot.state(), msg);
+    }
+    // Drain: loop() finishes, async_tcp gives up.
+    if (working) {
+        result(work, 200, true);
+        slot.finish(work);
+    }
+    slot.abandon();
+    TEST_ASSERT_EQUAL(0, g_owned);
+    TEST_ASSERT_TRUE(collected > 1000 && abandoned > 1000 && late > 100);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_change_applies_after_the_answer_and_reverts_without_confirmation);
@@ -717,5 +814,6 @@ int main(int, char**) {
     RUN_TEST(test_job_slot_runs_one_job);
     RUN_TEST(test_job_slot_abandon_in_every_state);
     RUN_TEST(test_job_slot_wipes_inputs);
+    RUN_TEST(test_job_slot_random_interleavings);
     return UNITY_END();
 }

@@ -7,6 +7,7 @@
 // web password hash; a random-input test with a fixed seed (W-S25).
 
 #include <unity.h>
+#include <helpers/contract_vectors.h>
 #include <stdio.h>
 #include <string.h>
 #include <string>
@@ -912,6 +913,38 @@ static void test_random_requests_keep_the_rules() {
     TEST_ASSERT_TRUE(sessions > 100);
 }
 
+// AF35 (TEST-4, M7): an Authorization header of exactly 1024 bytes is well-formed (ignored),
+// 1025 bytes are refused.
+static void test_authorization_length_limit() {
+    RequestGuard g = guard(config());
+    GuardRequest r = get("/api/state");
+    const std::string fits = "Bearer " + std::string(1024 - 7, 'a');
+    const std::string tooLong = fits + "a";
+    TEST_ASSERT_EQUAL_size_t(1024, fits.size());
+    r.authorization = fits.c_str();
+    TEST_ASSERT_EQUAL_UINT16(200, status(g, r));
+    r.authorization = tooLong.c_str();
+    TEST_ASSERT_EQUAL_UINT16(400, status(g, r));
+    TEST_ASSERT_EQUAL_STRING("Bad Authorization header", g.check(r, 0).reason);
+}
+
+// AF34: the guard stage of the shared contract vectors (test/contract/vectors.json), which
+// tools/contract_check.py also sends to tools/web_mock.py.
+static void test_shared_contract_vectors() {
+    std::vector<ContractVectors::Vector> vs;
+    std::string error;
+    TEST_ASSERT_TRUE_MESSAGE(ContractVectors::load(&vs, &error), error.c_str());
+    unsigned n = 0;
+    for (size_t i = 0; i < vs.size(); ++i) {
+        if (vs[i].stage != "guard") continue;
+        const GuardDecision d = ContractVectors::guardDecision(vs[i]);
+        TEST_ASSERT_EQUAL_UINT16_MESSAGE(vs[i].status, d.status(), vs[i].name.c_str());
+        TEST_ASSERT_EQUAL_INT_MESSAGE(vs[i].code, d.allowed() ? 0 : -200, vs[i].name.c_str());
+        ++n;
+    }
+    TEST_ASSERT_TRUE(n >= 15);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_host_allowlist);
@@ -931,5 +964,7 @@ int main(int, char**) {
     RUN_TEST(test_tokens);
     RUN_TEST(test_web_password_hash);
     RUN_TEST(test_random_requests_keep_the_rules);
+    RUN_TEST(test_authorization_length_limit);
+    RUN_TEST(test_shared_contract_vectors);
     return UNITY_END();
 }

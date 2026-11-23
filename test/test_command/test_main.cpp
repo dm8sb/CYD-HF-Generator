@@ -289,6 +289,42 @@ static void test_visible_after_publish() {
     TEST_ASSERT_FALSE(q.visible(t2));
 }
 
+// AF35 (TEST-4, M6): the refill keeps the remainder of a token. Pushing every 75 ms gets 1.5
+// tokens per step (alternately 1 and 2), not one per step.
+static unsigned pushAll(CommandQueue& q, Device& d, unsigned tries) {
+    unsigned queued = 0;
+    for (unsigned i = 0; i < tries; ++i) {
+        if (q.push(cmd(CommandType::Step, 0, 1000)) == PushResult::Queued) ++queued;
+        q.drain(d.app);
+    }
+    return queued;
+}
+
+static void test_rate_limit_keeps_the_refill_remainder() {
+    Device d;
+    CommandQueue q;
+    TEST_ASSERT_EQUAL_UINT(REMOTE_WRITES_PER_S, pushAll(q, d, REMOTE_WRITES_PER_S + 1));
+    unsigned queued = 0;
+    for (int step = 0; step < 20; ++step) {
+        Fake::advanceMs(75);
+        queued += pushAll(q, d, 3);
+    }
+    TEST_ASSERT_EQUAL_UINT(20 * 75 / (1000 / REMOTE_WRITES_PER_S), queued); // 30
+}
+
+// The bucket works across the millis() overflow.
+static void test_rate_limit_across_millis_wrap() {
+    Fake::clockMs() = 0xFFFFFFFFu - 30;
+    Device d;
+    CommandQueue q;
+    TEST_ASSERT_EQUAL_UINT(REMOTE_WRITES_PER_S, pushAll(q, d, REMOTE_WRITES_PER_S + 1));
+    Fake::advanceMs(1000 / REMOTE_WRITES_PER_S); // wraps
+    TEST_ASSERT_TRUE(Fake::clockMs() < 100);
+    TEST_ASSERT_EQUAL_UINT(1, pushAll(q, d, 2));
+    Fake::advanceMs(5000);
+    TEST_ASSERT_EQUAL_UINT(REMOTE_WRITES_PER_S, pushAll(q, d, 2 * REMOTE_WRITES_PER_S));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_execute_maps_to_the_setters);
@@ -299,5 +335,7 @@ int main(int, char**) {
     RUN_TEST(test_snapshot_publish_and_read);
     RUN_TEST(test_batch_is_atomic_and_stops_at_the_first_error);
     RUN_TEST(test_visible_after_publish);
+    RUN_TEST(test_rate_limit_keeps_the_refill_remainder);
+    RUN_TEST(test_rate_limit_across_millis_wrap);
     return UNITY_END();
 }

@@ -119,6 +119,41 @@ static void test_write_regs_writes_the_block() {
     TEST_ASSERT_EQUAL_HEX8(0xC3, chip.regs[44]);
 }
 
+// AF35 (TEST-10): a closed bus refuses every access without touching Wire.
+static void test_closed_bus_refuses_every_access() {
+    Wire.failEnd = true;
+    TEST_ASSERT_FALSE(I2CBus::open(I2CMap::Swapped));
+    Wire.resetCounters();
+    const uint32_t clock = Wire.clockHz;
+    TEST_ASSERT_EQUAL_UINT8(4, I2CBus::probe(ADDR));
+    const uint8_t w[1] = {0x12};
+    TEST_ASSERT_FALSE(I2CBus::writeRegs(ADDR, 26, w, 1));
+    uint8_t r = 0;
+    TEST_ASSERT_FALSE(I2CBus::readRegs(ADDR, 26, &r, 1));
+    I2CBus::setRunClock();
+    TEST_ASSERT_EQUAL_UINT32(clock, Wire.clockHz);
+    TEST_ASSERT_EQUAL_UINT(0, Wire.setClockCalls);
+    TEST_ASSERT_EQUAL_UINT(0, Wire.deferredWrites);
+    TEST_ASSERT_FALSE(Fake::wireMisuse());
+    // The next open with a working end() recovers.
+    Wire.failEnd = false;
+    TEST_ASSERT_TRUE(I2CBus::open(I2CMap::Default));
+    TEST_ASSERT_EQUAL_UINT8(0, I2CBus::probe(ADDR));
+    I2CBus::setRunClock();
+    TEST_ASSERT_EQUAL_UINT32(I2C_FREQ_HZ, Wire.clockHz);
+}
+
+// A short read (fewer bytes than requested) and a NACK on the write fail.
+static void test_short_read_and_nack_fail() {
+    uint8_t buf[40] = {0};
+    TEST_ASSERT_FALSE(I2CBus::readRegs(ADDR, 0, buf, sizeof(buf))); // the fake returns at most 32
+    chip.present = false;
+    const uint8_t w[1] = {0x12};
+    TEST_ASSERT_FALSE(I2CBus::writeRegs(ADDR, 26, w, 1));
+    TEST_ASSERT_EQUAL_UINT8(2, I2CBus::probe(ADDR));
+    TEST_ASSERT_FALSE(Fake::wireMisuse());
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_core_begin_on_running_bus_keeps_pins);
@@ -130,5 +165,7 @@ int main(int, char**) {
     RUN_TEST(test_core_nack_is_code_2);
     RUN_TEST(test_core_repeated_start_fails_in_the_read);
     RUN_TEST(test_write_regs_writes_the_block);
+    RUN_TEST(test_closed_bus_refuses_every_access);
+    RUN_TEST(test_short_read_and_nack_fail);
     return UNITY_END();
 }

@@ -102,8 +102,10 @@ void emitf(const char* fmt, ...) {
     char line[LINE_LEN + 32];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(line, sizeof(line), fmt, args);
+    const int n = vsnprintf(line, sizeof(line), fmt, args);
     va_end(args);
+    // A cut line still ends with a newline, so the next one starts on its own line.
+    if (n >= (int)sizeof(line)) line[sizeof(line) - 2] = '\n';
     emit(line);
 }
 }

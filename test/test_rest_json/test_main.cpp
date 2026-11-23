@@ -7,6 +7,7 @@
 // random-input tests with a fixed seed (W-S25). Values run through the real controller.
 
 #include <unity.h>
+#include <helpers/contract_vectors.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <Wire.h>
@@ -939,6 +940,20 @@ static void test_random_ssids_stay_valid_json() {
     }
 }
 
+// AF34: every shared contract vector (test/contract/vectors.json) through guard, route and REST
+// parser as web_server.cpp chains them; tools/contract_check.py sends the same to the mock.
+static void test_shared_contract_vectors() {
+    std::vector<ContractVectors::Vector> vs;
+    std::string error;
+    TEST_ASSERT_TRUE_MESSAGE(ContractVectors::load(&vs, &error), error.c_str());
+    for (size_t i = 0; i < vs.size(); ++i) {
+        const ContractVectors::Outcome o = ContractVectors::evaluate(vs[i]);
+        TEST_ASSERT_EQUAL_UINT16_MESSAGE(vs[i].status, o.status, vs[i].name.c_str());
+        TEST_ASSERT_EQUAL_INT_MESSAGE(vs[i].code, o.code, vs[i].name.c_str());
+    }
+    TEST_ASSERT_TRUE(vs.size() >= 40);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_channel_bodies);
@@ -956,5 +971,6 @@ int main(int, char**) {
     RUN_TEST(test_state_escapes_hostile_ssids);
     RUN_TEST(test_random_bodies_keep_the_rules);
     RUN_TEST(test_random_ssids_stay_valid_json);
+    RUN_TEST(test_shared_contract_vectors);
     return UNITY_END();
 }

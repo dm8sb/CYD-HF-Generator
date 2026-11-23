@@ -15,6 +15,7 @@ path = [
     "tools/*.json",
     "test/fuzz/*.dict",
     "test/fuzz/corpus/**",
+    "test/contract/*.json",
     ".editorconfig",
     ".gitattributes",
     ".gitignore",

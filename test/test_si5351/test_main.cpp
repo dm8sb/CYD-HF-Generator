@@ -24,7 +24,15 @@ static SI5351Manager si;
 static Fake::Si5351Chip& chip = Fake::si5351();
 static char msg[160];
 
+// Deterministic pseudo-random frequencies; every test starts from the same seed (TEST-14), so
+// a failure does not depend on which tests ran before. The messages name it.
+static constexpr uint32_t LCG_SEED = 1;
+static uint32_t lcgState = LCG_SEED;
+static uint32_t seedUsed = LCG_SEED; // the last seed set, for the messages
+static void reseed(uint32_t seed) { lcgState = seedUsed = seed; }
+
 void setUp() {
+    reseed(LCG_SEED);
     chip.reset();
     Fake::clockMs() = 0;
     Fake::wireMisuse() = false;
@@ -39,8 +47,6 @@ void setUp() {
 }
 void tearDown() { TEST_ASSERT_FALSE(Fake::wireMisuse()); }
 
-// Deterministic pseudo-random frequencies.
-static uint32_t lcgState = 1;
 // The core range 1-100 MHz with the tightest error limits; 8 kHz-1 MHz and 100-160 MHz
 // (range extension E-16) have their own tests.
 static constexpr uint64_t CORE_MIN_HZ = 1000000ULL;
@@ -55,11 +61,12 @@ static uint64_t randomHz(uint64_t lo, uint64_t hi) {
 
 static void assertOutput(uint8_t clk, uint64_t freq, int32_t corr, double maxErr) {
     const char* violation = limitViolation(clk, corr);
-    snprintf(msg, sizeof(msg), "CLK%u %llu Hz corr %ld: %s", clk, (unsigned long long)freq, (long)corr,
-             violation ? violation : "");
+    snprintf(msg, sizeof(msg), "CLK%u %llu Hz corr %ld (seed %lu): %s", clk, (unsigned long long)freq, (long)corr,
+             (unsigned long)seedUsed, violation ? violation : "");
     TEST_ASSERT_NULL_MESSAGE(violation, msg);
     const double err = fabs(outputHz(clk, corr) - (double)freq);
-    snprintf(msg, sizeof(msg), "CLK%u %llu Hz corr %ld: error %.3f Hz", clk, (unsigned long long)freq, (long)corr, err);
+    snprintf(msg, sizeof(msg), "CLK%u %llu Hz corr %ld (seed %lu): error %.3f Hz", clk, (unsigned long long)freq, (long)corr,
+             (unsigned long)seedUsed, err);
     TEST_ASSERT_TRUE_MESSAGE(err <= maxErr, msg);
     // The deviation shown on the channel page.
     TEST_ASSERT_DOUBLE_WITHIN_MESSAGE(1e-3, outputHz(clk, corr), si.actualHz(clk), msg);
@@ -226,7 +233,7 @@ static void test_failed_transfer_marks_device_lost_and_begin_recovers() {
 static void test_standalone_accuracy_1_to_100_mhz() {
     for (int32_t corr : CORRECTIONS) {
         TEST_ASSERT_TRUE(si.begin(corr));
-        lcgState = 7;
+        reseed(7);
         for (int i = 0; i < 4000; ++i) checkStandalone(randomHz(CORE_MIN_HZ, CORE_MAX_HZ), corr, STANDALONE_MAX_ERR_HZ);
         checkStandalone(CORE_MIN_HZ, corr, STANDALONE_MAX_ERR_HZ);
         checkStandalone(CORE_MAX_HZ, corr, STANDALONE_MAX_ERR_HZ);
@@ -695,8 +702,8 @@ static double rasterErr(uint64_t freq, int32_t corr, uint8_t rLog2, int divMin, 
 
 static void assertRasterPoint(uint8_t clk, uint64_t freq, int32_t corr, int divMin, int divMax, int divStep) {
     const char* violation = limitViolation(clk, corr);
-    snprintf(msg, sizeof(msg), "CLK%u %llu Hz corr %ld: %s", clk, (unsigned long long)freq, (long)corr,
-             violation ? violation : "");
+    snprintf(msg, sizeof(msg), "CLK%u %llu Hz corr %ld (seed %lu): %s", clk, (unsigned long long)freq, (long)corr,
+             (unsigned long)seedUsed, violation ? violation : "");
     TEST_ASSERT_NULL_MESSAGE(violation, msg);
     const Block p = pll(clk);
     TEST_ASSERT_TRUE_MESSAGE(p.integer() && p.ratio() >= 24.0 && p.ratio() <= 36.0, msg);
@@ -1084,6 +1091,33 @@ static void test_power_down_keeps_driver_for_high_and_high_z() {
     }
 }
 
+// AF35 (TEST-10): a transfer failing at any point of begin() (probe, identity, the SYS_INIT
+// wait, read-back, every init write) ends in NoAck or Io, never enables an output and never
+// leaves the driver ready; the next begin() on a working bus succeeds.
+static void test_begin_fails_cleanly_at_every_transfer() {
+    int n = 0;
+    for (;; ++n) {
+        chip.reset(); // SYS_INIT is reported for the first status reads
+        chip.failAfter = n;
+        const bool ok = si.begin(0);
+        snprintf(msg, sizeof(msg), "failing transfer %d", n + 1);
+        if (ok) break;
+        TEST_ASSERT_FALSE_MESSAGE(si.ready(), msg);
+        TEST_ASSERT_EQUAL_MESSAGE(n == 0 ? SI5351Manager::Error::NoAck : SI5351Manager::Error::Io, si.lastError(), msg);
+        TEST_ASSERT_EQUAL_UINT_MESSAGE(1, chip.failedTransfers, msg); // stops at the first error
+        for (const auto& w : chip.writes) {
+            if (w.reg == 3) TEST_ASSERT_EQUAL_HEX8_MESSAGE(0xFF, w.value, msg); // outputs stay disabled
+        }
+        TEST_ASSERT_FALSE_MESSAGE(si.setupStandalone(0, Pll::A, 10000000, 8), msg);
+        TEST_ASSERT_TRUE_MESSAGE(n < 60, msg);
+    }
+    // Probe, status, reg183, two SYS_INIT reads, OE write and read-back, off state, 8 CLK
+    // controls, PLL source, SSC block, crystal load: begin() succeeds once failAfter covers all.
+    TEST_ASSERT_EQUAL_INT(19, n);
+    TEST_ASSERT_TRUE(si.ready());
+    TEST_ASSERT_EQUAL(SI5351Manager::Error::None, si.lastError());
+}
+
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_begin_without_device_fails);
@@ -1140,5 +1174,6 @@ int main() {
     RUN_TEST(test_begin_writes_off_state_before_outputs);
     RUN_TEST(test_set_off_state_writes_at_once);
     RUN_TEST(test_power_down_keeps_driver_for_high_and_high_z);
+    RUN_TEST(test_begin_fails_cleanly_at_every_transfer);
     return UNITY_END();
 }

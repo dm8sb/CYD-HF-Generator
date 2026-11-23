@@ -63,6 +63,30 @@ jobs:
       # warning in the tested sources, the tests or the fakes fails the job (AF24).
       - name: Host tests in C++20
         run: pio test -e native-cpp20
+      # AF36: the same tests under ASan and UBSan; any report fails the job.
+      - name: Host tests under ASan/UBSan
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: pio test -e native-asan
+      # The probe must be caught: a deliberate overflow has to fail the sanitizer run.
+      # pio test does not show the program's stderr: ASan writes its report to asan-probe.<pid>.
+      - name: Sanitizer probe
+        env:
+          PLATFORMIO_BUILD_FLAGS: -DSANITIZER_PROBE=1
+          ASAN_OPTIONS: log_path=/tmp/asan-probe
+        run: |
+          set +e
+          pio test -e native-asan -f test_sanitizer > probe.log 2>&1
+          status=$?
+          set -e
+          tail -n 8 probe.log
+          cat /tmp/asan-probe.* 2>/dev/null | head -n 12
+          if [ "$status" -eq 0 ] || ! grep -qs "AddressSanitizer: heap-buffer-overflow" /tmp/asan-probe.*; then
+            echo "::error::the deliberate overflow was not reported by native-asan"
+            exit 1
+          fi
+          echo "sanitizer probe reported as expected"
       - if: steps.cache.outputs.cache-hit != 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -101,6 +125,55 @@ jobs:
           fi
       - name: Build the host screen renderer
         run: pio run -e screens
+
+  # AF34 (TEST-8, TEST-1, OPS-6): the Python tools against the mock and the fake device, and the
+  # shared contract vectors (test/contract/vectors.json, also read by the C++ host tests). Not a
+  # required check.
+  tools:
+    name: Tool checks (mock, fake device, vectors)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Self-tests
+        run: |
+          python tools/size_report.py --self-test
+          python tools/hostport.py
+      - name: Web UI without HTML or code from strings
+        run: |
+          if grep -nE 'innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function' data/www/*.js data/www/*.html data/www/*.css; then
+            echo "::error::forbidden in data/www (W-S7, W-S8; embed_www.py stops the build too)"
+            exit 1
+          fi
+      # web_check logs in when CYD_WEB_PASSWORD is set (--password without a value would prompt).
+      - name: Mock, web check and contract vectors
+        env:
+          PW: ci-bench-secret
+        run: |
+          python tools/web_mock.py --port 18080 > mock.log 2>&1 &
+          python tools/web_mock.py --port 18081 --password "$PW" > mock-pw.log 2>&1 &
+          for p in 18080 18081; do
+            for _ in $(seq 50); do python -c "import socket,sys; socket.create_connection(('127.0.0.1',$p),1)" 2>/dev/null && break; sleep 0.2; done
+          done
+          python tools/contract_check.py 127.0.0.1:18080
+          python tools/web_check.py 127.0.0.1:18080
+          CYD_WEB_PASSWORD="$PW" python tools/web_check.py 127.0.0.1:18081
+          python tools/slowloris.py 127.0.0.1:18080 -n 5 --hold 2 --trickle 1
+      - name: Fake device and device check
+        run: |
+          python tools/fake_scpi_device.py --port 15025 > fake.log 2>&1 &
+          for _ in $(seq 50); do python -c "import socket; socket.create_connection(('127.0.0.1',15025),1)" 2>/dev/null && break; sleep 0.2; done
+          python tools/device_check.py --tcp 127.0.0.1:15025
+          python tools/device_check.py --tcp 127.0.0.1:15025 --profile L22
+          python tools/counter_log.py --tcp 127.0.0.1:15025 --query "FREQ:ACT?" --interval 0.2 --count 3
+      - name: Logs
+        if: failure()
+        run: tail -n 50 mock.log mock-pw.log fake.log 2>/dev/null || true
 
   firmware:
     # Required check in the ruleset of main: keep the name.

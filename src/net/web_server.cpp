@@ -26,6 +26,7 @@
 #include "ip_address.h"
 #include "request_guard.h"
 #include "web_limits.h"
+#include "web_routes.h"
 #include "web_state.h"
 
 namespace {
@@ -337,7 +338,7 @@ struct WebHmiServer::Impl {
             char pw[LoginQueue::MAX_PASSWORD + 1];
             size_t pwLen = 0;
             const RestJson::Reply rep = RestJson::parseLogin(bodyText, bodyLen, pw, sizeof(pw), &pwLen);
-            if (r->_tempObject) wipe(r->_tempObject, bodyLen);
+            WebBody::wipe(r->_tempObject);
             if (!rep.ok()) {
                 wipe(pw, sizeof(pw));
                 return sendReply(r, rep);
@@ -768,12 +769,8 @@ struct WebHmiServer::Impl {
 
     // ---------------------------------------------------------------- body (async_tcp)
     void body(AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
-        if (total > RequestGuard::MAX_BODY || index + len > total) return; // the guard answers 413
-        if (index == 0) {
-            if (req->_tempObject) free(req->_tempObject);
-            req->_tempObject = calloc(1, total + 1);
-        }
-        if (req->_tempObject) memcpy((char*)req->_tempObject + index, data, len);
+        // Larger bodies are not kept: the guard answers 413 from Content-Length.
+        WebBody::chunk(&req->_tempObject, data, len, index, total, RequestGuard::MAX_BODY);
     }
 
     // ---------------------------------------------------------------- requests (async_tcp)
@@ -836,42 +833,45 @@ struct WebHmiServer::Impl {
         }
         const char* path = g.path;
         const bool post = strcmp(g.method, "POST") == 0;
-        const char* bodyText = (const char*)req->_tempObject;
-        const size_t bodyLen = bodyText ? strlen(bodyText) : 0;
+        const char* bodyText = WebBody::text(req->_tempObject);
+        const size_t bodyLen = WebBody::length(req->_tempObject); // embedded NUL bytes included: -102
+        const WebRoutes::Kind route = WebRoutes::find(g.method, path);
 
         if (!post) {
-            if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0) return page(req);
+            if (route == WebRoutes::Kind::Page) return page(req);
             for (const WwwAsset& a : WWW_ASSETS) {
                 if (a.gzip && strcmp(path, a.path) == 0) return asset(req, a);
             }
-            if (strcmp(path, "/api/state") == 0) return state(req, 200);
-            if (strcmp(path, "/lxi/identification") == 0) return lxiIdentification(req, g.localIp);
-            if (strcmp(path, "/api/token") == 0) {
-                char buf[64];
-                snprintf(buf, sizeof(buf), "{\"token\":\"%s\"}", token);
-                return sendJson(req, 200, buf);
-            }
-            if (strcmp(path, "/api/wifi") == 0) {
-                char buf[RestWifi::SETTINGS_SIZE];
-                {
-                    Lock l(mutex);
-                    memcpy(buf, shared.wifiJson, sizeof(buf));
+            switch (route) {
+                case WebRoutes::Kind::State: return state(req, 200);
+                case WebRoutes::Kind::Lxi: return lxiIdentification(req, g.localIp);
+                case WebRoutes::Kind::Token: {
+                    char buf[64];
+                    snprintf(buf, sizeof(buf), "{\"token\":\"%s\"}", token);
+                    return sendJson(req, 200, buf);
                 }
-                return sendJson(req, 200, buf);
-            }
-            if (strcmp(path, "/api/wifi/scan") == 0) return runJob(req, JobKind::Scan, nullptr);
-            if (strcmp(path, "/ws") == 0) {
-                {
-                    Lock l(mutex);
-                    if (shared.wsc.count() >= WsClients::MAX) {
-                        // Released like any HTTP connection; the WebSocket would not get a place.
-                        return sendRefusal(req, 503, TOO_MANY_CLIENTS);
+                case WebRoutes::Kind::WifiSettings: {
+                    char buf[RestWifi::SETTINGS_SIZE];
+                    {
+                        Lock l(mutex);
+                        memcpy(buf, shared.wifiJson, sizeof(buf));
                     }
+                    return sendJson(req, 200, buf);
                 }
-                ws->handleRequest(req);
-                return;
+                case WebRoutes::Kind::Scan: return runJob(req, JobKind::Scan, nullptr);
+                case WebRoutes::Kind::WebSocket: {
+                    {
+                        Lock l(mutex);
+                        if (shared.wsc.count() >= WsClients::MAX) {
+                            // Released like any HTTP connection; the WebSocket would not get a place.
+                            return sendRefusal(req, 503, TOO_MANY_CLIENTS);
+                        }
+                    }
+                    ws->handleRequest(req);
+                    return;
+                }
+                default: return sendRefusal(req, 404, "Not found");
             }
-            return sendRefusal(req, 404, "Not found");
         }
 
         // POST /api/* (the guard checked type, token, origin and session).
@@ -884,7 +884,7 @@ struct WebHmiServer::Impl {
                 sec = shared.guard.checkSecrets(g, RestJson::carriesSecret(bodyText, bodyLen));
             }
             if (!sec.allowed()) {
-                if (req->_tempObject) wipe(req->_tempObject, bodyLen);
+                WebBody::wipe(req->_tempObject);
                 char buf[RestJson::ERROR_SIZE];
                 RestJson::errorJson(RestJson::Reply {403, RestJson::SETTINGS_CONFLICT, "Passwords cannot be sent over the open access point"},
                                     buf, sizeof(buf));
@@ -893,21 +893,23 @@ struct WebHmiServer::Impl {
         }
         RestJson::Commands cmds {};
         RestJson::Reply rep {200, 0, nullptr};
-        const uint8_t ch = RestJson::channelFromPath(path);
-        if (ch) rep = RestJson::parseChannel(ch, bodyText, bodyLen, &cmds);
-        else if (strcmp(path, "/api/ch3") == 0) rep = RestJson::parseCh3(bodyText, bodyLen, &cmds);
-        else if (strcmp(path, "/api/config") == 0) rep = RestJson::parseConfig(bodyText, bodyLen, &cmds);
-        else if (strcmp(path, "/api/save") == 0) rep = RestJson::parseAction(CommandType::SaveNow, bodyText, bodyLen, &cmds);
-        else if (strcmp(path, "/api/identify") == 0) rep = RestJson::parseAction(CommandType::Identify, bodyText, bodyLen, &cmds);
-        else if (strcmp(path, "/api/login") == 0) return login.start(req, bodyText, bodyLen);
-        else if (strcmp(path, "/api/logout") == 0) return logout(req, g, bodyText, bodyLen);
-        else if (strcmp(path, "/api/wifi") == 0) return wifiChange(req, bodyText, bodyLen);
-        else if (strcmp(path, "/api/wifi/confirm") == 0) {
-            rep = RestWifi::parseConfirm(bodyText, bodyLen);
-            if (!rep.ok()) return sendReply(req, rep);
-            return runJob(req, JobKind::WifiConfirm, nullptr);
-        } else {
-            return sendRefusal(req, 404, "Not found");
+        switch (route) {
+            case WebRoutes::Kind::Channel1:
+            case WebRoutes::Kind::Channel2:
+                rep = RestJson::parseChannel(WebRoutes::channelOf(route), bodyText, bodyLen, &cmds);
+                break;
+            case WebRoutes::Kind::Ch3: rep = RestJson::parseCh3(bodyText, bodyLen, &cmds); break;
+            case WebRoutes::Kind::Config: rep = RestJson::parseConfig(bodyText, bodyLen, &cmds); break;
+            case WebRoutes::Kind::Save: rep = RestJson::parseAction(CommandType::SaveNow, bodyText, bodyLen, &cmds); break;
+            case WebRoutes::Kind::Identify: rep = RestJson::parseAction(CommandType::Identify, bodyText, bodyLen, &cmds); break;
+            case WebRoutes::Kind::Login: return login.start(req, bodyText, bodyLen);
+            case WebRoutes::Kind::Logout: return logout(req, g, bodyText, bodyLen);
+            case WebRoutes::Kind::WifiChange: return wifiChange(req, bodyText, bodyLen);
+            case WebRoutes::Kind::WifiConfirm:
+                rep = RestWifi::parseConfirm(bodyText, bodyLen);
+                if (!rep.ok()) return sendReply(req, rep);
+                return runJob(req, JobKind::WifiConfirm, nullptr);
+            default: return sendRefusal(req, 404, "Not found");
         }
         if (!rep.ok()) return sendReply(req, rep);
         runCommands(req, cmds);
@@ -1126,7 +1128,7 @@ struct WebHmiServer::Impl {
         else sendReply(req, rep);
         RestWifi::wipe(c);
         delete c;
-        if (req->_tempObject) wipe(req->_tempObject, bodyLen);
+        WebBody::wipe(req->_tempObject);
     }
 
     // POST /api/logout {}: ends the session of this cookie (if any) and expires the cookie.

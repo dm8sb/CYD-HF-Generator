@@ -10,9 +10,11 @@
 
 #include "../fuzz/fuzz_line_framer.cpp"
 #include "../fuzz/fuzz_net_settings.cpp"
+#include "../fuzz/fuzz_prefilter.cpp"
 #include "../fuzz/fuzz_remote_frequency.cpp"
 #include "../fuzz/fuzz_request_guard.cpp"
 #include "../fuzz/fuzz_rest_json.cpp"
+#include "../fuzz/fuzz_rest_wifi.cpp"
 #include "../fuzz/fuzz_sanitize.cpp"
 #include "../fuzz/fuzz_scan_list.cpp"
 #include "../fuzz/fuzz_scpi.cpp"
@@ -75,6 +77,8 @@ static void test_scan_list() { runTarget("scan_list"); }
 static void test_request_guard() { runTarget("request_guard"); }
 static void test_rest_json() { runTarget("rest_json"); }
 static void test_vxi11() { runTarget("vxi11"); }
+static void test_prefilter() { runTarget("prefilter"); }
+static void test_rest_wifi() { runTarget("rest_wifi"); }
 
 int main() {
     UNITY_BEGIN();
@@ -88,5 +92,7 @@ int main() {
     RUN_TEST(test_request_guard);
     RUN_TEST(test_rest_json);
     RUN_TEST(test_vxi11);
+    RUN_TEST(test_prefilter);
+    RUN_TEST(test_rest_wifi);
     return UNITY_END();
 }

@@ -18,7 +18,10 @@ using namespace RestWifi;
 
 static const uint8_t MAC[6] = {0x8C, 0x94, 0xDF, 0x93, 0x1A, 0x2B};
 
-void setUp() {}
+// The random bodies start from the same seed in every run and test (TEST-14).
+static constexpr uint32_t RANDOM_SEED = 7;
+static uint32_t seed = RANDOM_SEED;
+void setUp() { seed = RANDOM_SEED; }
 void tearDown() {}
 
 static uint32_t ip(const char* t) {
@@ -272,7 +275,6 @@ static void test_scan_json() {
 
 // W-S25: random bodies from WiFi pieces never crash, never leave a half-merged state, and a
 // success always gives settings that pass NetConfig's own checks.
-static uint32_t seed = 7;
 static uint32_t rnd() {
     seed ^= seed << 13;
     seed ^= seed >> 17;
@@ -293,22 +295,27 @@ static void test_random_bodies() {
         for (int k = 0; k < n; ++k) b += PIECES[rnd() % (sizeof(PIECES) / sizeof(PIECES[0]))];
         NetSettings next;
         const Reply r = apply(b.c_str(), cur, &next);
+        // A failure names the seed and the body, so it can be reproduced (TEST-14).
+        char where[48];
+        snprintf(where, sizeof(where), "seed %lu, body %d: ", (unsigned long)RANDOM_SEED, i);
+        const std::string m = where + b;
+        const char* msg = m.c_str();
         if (!r.ok()) {
-            TEST_ASSERT_EQUAL_MEMORY(&cur, &next, sizeof(cur));
-            TEST_ASSERT_TRUE(r.code < 0);
+            TEST_ASSERT_EQUAL_MEMORY_MESSAGE(&cur, &next, sizeof(cur), msg);
+            TEST_ASSERT_TRUE_MESSAGE(r.code < 0, msg);
             continue;
         }
-        TEST_ASSERT_TRUE(NetConfig::validDeviceName(next.deviceName));
+        TEST_ASSERT_TRUE_MESSAGE(NetConfig::validDeviceName(next.deviceName), msg);
         for (int s = 0; s < 2; ++s) {
-            if (next.networks[s].ssid[0]) TEST_ASSERT_TRUE(NetConfig::validSsid(next.networks[s].ssid));
+            if (next.networks[s].ssid[0]) TEST_ASSERT_TRUE_MESSAGE(NetConfig::validSsid(next.networks[s].ssid), msg);
         }
-        if (next.staticIp.enabled) TEST_ASSERT_TRUE(NetConfig::checkStaticIp(next.staticIp) == NetConfig::IpCheck::Ok);
-        TEST_ASSERT_EQUAL_STRING(cur.webPassword, next.webPassword);
+        if (next.staticIp.enabled) TEST_ASSERT_TRUE_MESSAGE(NetConfig::checkStaticIp(next.staticIp) == NetConfig::IpCheck::Ok, msg);
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(cur.webPassword, next.webPassword, msg);
         // D23: a final change differs from the current settings in the mode only.
         if (isFinal(next)) {
             NetSettings onlyMode = cur;
             onlyMode.mode = WifiMode::Off;
-            TEST_ASSERT_EQUAL_MEMORY_MESSAGE(&onlyMode, &next, sizeof(cur), b.c_str());
+            TEST_ASSERT_EQUAL_MEMORY_MESSAGE(&onlyMode, &next, sizeof(cur), msg);
         }
     }
 }

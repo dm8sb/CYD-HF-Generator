@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [line_framer, sanitize, scpi, scpi_number, remote_frequency, net_settings, scan_list, request_guard, rest_json, vxi11]
+        target: [line_framer, sanitize, scpi, scpi_number, remote_frequency, net_settings, scan_list, request_guard, rest_json, vxi11, prefilter, rest_wifi]
     env:
       CC: clang-18
       CXX: clang++-18
@@ -70,6 +70,8 @@ jobs:
           case "$TARGET" in
             scpi|scpi_number) dict="-dict=test/fuzz/scpi.dict" ;;
             request_guard|rest_json) dict="-dict=test/fuzz/$TARGET.dict" ;;
+            prefilter) dict="-dict=test/fuzz/request_guard.dict" ;;
+            rest_wifi) dict="-dict=test/fuzz/rest_json.dict" ;;
           esac
           # A writable copy: new inputs go there, the seeds in the repository stay as they are.
           mkdir -p findings corpus
@@ -114,6 +116,6 @@ jobs:
         run: SANITIZE=1 test/fuzz/build.sh --standalone
       - name: Run
         run: |
-          for t in line_framer sanitize scpi scpi_number remote_frequency net_settings scan_list request_guard rest_json vxi11; do
+          for t in line_framer sanitize scpi scpi_number remote_frequency net_settings scan_list request_guard rest_json vxi11 prefilter rest_wifi; do
             ".pio/fuzz/fuzz_$t" -runs=100000 -seed=1 "test/fuzz/corpus/$t"
           done
