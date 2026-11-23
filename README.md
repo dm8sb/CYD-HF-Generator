@@ -54,7 +54,9 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 
 ## Changes
 
-### Next release
+### 2.1.0
+
+Framework Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 (fixes the lwIP DNS advisory GHSA-ch63-jxm5-vmvf), CH2 coupled to CH1, screen rotation, a uniform operation after user tests, WiFi and web hardening, and the remaining audit follow-ups (supply chain, CI, tests, structure).
 
 - Screen rotation by 180° (E-53): CONFIG `Device` → `Screen` → `Rotate` toggles 0°/180° at once, for mounting with USB and SMA on the other side; touch follows, the touch calibration stays valid and runs in both orientations; stored in NVS, `Defaults` resets it. SCPI `SYSTem:DISPlay:ROTation 0|180`, REST `config.rotation`, web UI CONFIG `Screen` `0°`/`180°`
 - CH2 coupled to CH1 (`CH2 = CH1 + offset`, E-52): chips `Free` / `CH1 + offset` on the CH2 page, offset −160 to +160 MHz in 1 Hz with sign (`+`/`−`, step chips, NUMPAD with `+/-`), `Out` shows the CH2 frequency, MAIN `CH1 +455 kHz`; outside 8 kHz–160 MHz CH2 waits (`WAIT`, `Waiting: CH1 + offset below 8 kHz`) and starts by itself; CH3 with master CH2 follows; stored in NVS. SCPI `SOURce2:COUPle OFF|CH1`, `SOURce2:FREQuency:OFFSet`, REST `coupled`/`offset` on `/api/channel/2`, web UI chips; a CH2 frequency while coupled gives −221 `CH2 is coupled to CH1`

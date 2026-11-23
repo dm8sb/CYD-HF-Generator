@@ -1,6 +1,6 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: Release **2.0.0** auf `main`; auf `dev` fertig und am Gerät geprüft: U27 (einheitliche Bedienung), AF55, AF11–AF19 (HF-Ruhe, WLAN-Ablauf, Speichern, Web-Login für Lesen, WebSocket), AF44–AF46, AF48, AF51a, AF52, AF53, API-Seite `docs/REMOTE_API.md`, Handbuch §17 Firmware aktualisieren und §18 Mischer-Experimente · Arbeitszweig `dev`, `main` nur per Pull Request · nächste Ziele: Release, dann AF47, AF49, AF50, AF51b, AF54 (Struktur, mit Bedientest) und Priorität 3–5; die Messungen kommen zuletzt (D38), danach S63 (Messwerte in §18) und S64
+Stand: Release **2.1.0** (nach 2.0.0: einheitliche Bedienung U27, HF-Ruhe und WLAN-Ablauf AF11–AF19/AF55, Audit-Folgearbeiten Priorität 3, 4 und 6, Framework Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 über pioarduino N11, gekoppelter CH2 N14, Bildschirmdrehung N16, Handbuch §17/§18, API-Seite) · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · offen: G9 (Doku als Pages-Seiten), DK1 (Doku konsolidieren), N9, Unity 2.7.0 (N11), Rückkehr ins PlatformIO-Register (E-51); die Messungen (S41c, S49, S57, S59–S63) kommen zuletzt, danach S64
 
 Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufgabenliste. Sie ersetzt `todo.md`, `AUDIT_2026-11.md` und `KONZEPT_WEB_HMI.md`. Die Befund-IDs aus dem Audit (C-n Code, S-n Security, U-n Bedienung, P-n Plattform, T-n Tests) und dem Konzept (W-E, W-S, V-n) bleiben als Namen gültig. Messungen am Gerät: [MESSPLAN.md](MESSPLAN.md). Verhalten: [USER_MANUAL_DE.md](USER_MANUAL_DE.md); Anforderungen und Entscheidungen: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md).
 
@@ -45,6 +45,7 @@ Einzige Planungsdatei: offene Befunde, WEB-HMI-Konzept, Entscheidungen und Aufga
 | 2.0.0 | 2.0.0 | Version 2.0.0, Historie neu ab 2.0.0 (D44, D45); `v2.0.0-rc1` getestet, `v2.0.0` veröffentlicht |
 | Nach 2.0.0 | `main` | U27 einheitliche Bedienung nach Nutzer-Feedback: CONFIG in fünf Registern (E-42), eine Kopfzeile mit `◀` auf allen Seiten außer MAIN (E-43), keine Anzeige `Saved`/`Saving...` (E-44); Handbuch: Wirkung der CONFIG-Optionen ausführlich; API-Referenz `docs/REMOTE_API.md` |
 | Nach 2.0.0 (2) | `dev` | AF55 WLAN ohne Energiesparen (E-45); AF11 WLAN-Status zwischengespeichert; AF12 Neuzeichnen nur bei Änderung; AF13/AF14 Netzwahl in `WifiPolicy`, Suche mit Backoff (E-46); AF15/AF16 ein Besitzer der Netzeinstellungen, Hinweis `Web change pending` (E-47); AF17 `SAVE` höchstens alle 10 s, nur geänderte Werte; AF18 Login auch für Lesen mit Web-Passwort, WebSocket gegen PING-Flut und tote Clients (E-48); AF19 Push gebündelt, Speichermangel abgefangen; AF44 Texte an Konstanten; AF45 ein IPv4-Helfer; AF46 NUMPAD rundet exakt; AF48 Grenzen in `/api/state`; AF51a Planer aufgeteilt; AF52 Web-UI und Werkzeuge aufgeräumt; AF53 Log-Puffer und SI5351-Suche mit Backoff (1 h am Gerät geprüft); Handbuch §17 und §18 (Pegel typisch, Messwerte mit S63); Bedientest AF12/AF16/AF18 bestanden
+| 2.1.0 | 2.1.0 | Priorität 3 (CI-Trigger, Warnungs-Gate, exakte Pins, reproduzierbare Stempel, Release-Probelauf als Pflicht-Check, Advisory-Prüfung, Werkzeug-Hygiene, Repo-Einstellungen; D49), Priorität 4 (Vertragsvektoren, ASan/UBSan, neue Fuzz-Ziele, NVS-Grenzen, Messhelfer; ein Log-Fehler behoben), Priorität 6 (Texteingabe als Logik, `Gui` und Webserver aufgeteilt, LED aus der GUI, asynchrone REST-Antworten E-50), N11 (3.3.13 / 5.5.6 über pioarduino, GHSA-ch63 behoben, E-51), N14 (CH2 = CH1 + Offset, E-52), N16 (`Rotate`, E-53); am Gerät geprüft |
 
 Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 
@@ -147,11 +148,6 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 
 ### 2.3 Code und Tests
 
-- [ ] **DMA und Doppelpuffer** (nach der Migration): zwei Puffer 320 × 40 px (`DMA_ATTR`, je 25,6 KB), `LV_COLOR_16_SWAP` = 1, `setSwapBytes(false)`; in `DisplayPanel::begin()` erst Erkennung und Init mit rohem Buszugriff, dann `initDMA()` und einmal `startWrite()` (CS bleibt LOW, `endWrite()` nie); `flush()` = `dmaWait()`, `setAddrWindow()`, `pushPixelsDMA()`, `lv_disp_flush_ready()` sofort. Erwartung bis ≈ 30 Bilder/s, +36 KB RAM; Messung mit `LV_USE_PERF_MONITOR`. → N13
-- [x] **Fakes:** Bei NVS-Schemaänderungen Migrationstest mit alten Schlüsseln (mehrere Namespaces und Strings im Preferences-Fake). Dazu NVS-Grenzen im Fake (Schlüssel und Namespaces > 15 Zeichen, Strings > 4000 B) und ein Upgrade-Test mit alten Schlüsseln (TEST-11). → AF38
-- [ ] **Geräte-Glue ohne Test** (TEST-1, CQ-6): `web_server.cpp`, `wifi_manager.cpp`, `scpi_tcp_server.cpp` nicht host-kompiliert; `web_check` prüft nur den Mock. → AF32, AF33, AF34, S61
-- [ ] **Testlücken** (TEST-4 bis TEST-8, TEST-10, TEST-12, TEST-14): überlebende Mutanten, Identify ungetestet, keine Sanitizer für die Unit-Tests, keine Fuzz-Ziele für Vorfilter und `RestWifi`, Python-Werkzeuge nicht in der CI. → AF34–AF38, AF47
-- [ ] **Struktur** (CQ-3, CQ-4, CQ-6, CQ-7, CQ-8 und Niedrig-Punkte CQ-9 bis CQ-23): `Gui`- und `WebHmiServer::Impl`-Größe, Texteingabe an LVGL gebunden, Texte zwischen Firmware/JS/Mocks dupliziert, Farbe außerhalb der Palette. → AF47, AF49–AF51 (CH1-Farbe in der Palette entfällt mit D48)
 
 ### 2.4 Plattform und Lieferkette
 
@@ -163,15 +159,10 @@ Host-Tests: 432 Fälle in `native-win` und 4 in `native-win-fault` (nach AF19).
 | P-9 | Web-Bibliotheken | scpi-parser `8866159` (v2.3 + `strings.h`- und `-Wdouble-promotion`-Fix, seit S51, E-29) | ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, ArduinoJson 7.4.3, alle exakt gepinnt |
 | S-20 | Prüfung | XPT2046 auf Commit gepinnt | Plattform-Prüfsumme in der CI, Advisory-Check je Release (W-S24); Framework-Pakete exakt gepinnt (AF22), Advisory-Workflow wöchentlich und vor dem Release (AF26); Actions-Policy mit SHA-Zwang gesetzt (D41) |
 
-- [x] **Framework nur per Tilde gepinnt** (OPS-3 = LIC-4, OPS-10, OPS-17): Arduino-Framework und `-esp32-libs` als Bereich; Release-Image hängt am CI-Cache; Notices behaupten exakte Pakete. → AF22
-- [ ] **CI-Workflows** (OPS-1, OPS-2, OPS-6, OPS-11, OPS-12, OPS-13, OPS-18 = CQ-20 = TEST-13, OPS-19): CodeQL-Alerts auf `main` fälschlich „fixed“, CI auf `main` abgebrochen, Release-Pfad vor dem Tag ungeprüft, Warnungs-Gate nicht erzwungen, Stempel nicht reproduzierbar. → AF21, AF23, AF24, AF25
-- [ ] **Advisory-Prüfung und Rest Repo-Einstellungen** (OPS-8, OPS-16): keine automatische Schwachstellenprüfung der Firmware-Abhängigkeiten (ESPAsyncWebServer, AsyncTCP, ArduinoJson, scpi-parser, Arduino-ESP32/IDF, LVGL, ESP Web Tools; Dependabot sieht kein Manifest); aus OPS-16 offen: Dependabot-Security-Updates, Non-Provider-Patterns, Fork-Freigabe, Environment `copilot`, Topics (OPS-7 gesetzt, D41). → AF26 (erledigt), AF28
 
 ### 2.5 Dokumentation
 
 - [M] **„50 % Tastverhältnis“** (Handbuch §1) ist nicht belegt (E5). → S72
-
-### 2.6 Sicherheit und Netz (Audit)
 
 ---
 
@@ -287,26 +278,7 @@ Umgesetzt: Host-Suites in `test/`, Fuzzing nach W-S25 ([test/fuzz/README.md](tes
 
 ### 3.9 Konzepte aus dem Audit
 
-Entwürfe zu größeren Audit-Befunden für offene Schritte in Phase 10. Entfernt sind Konzept 1 (Zugriffskontrolle für Netz-SCPI: nur Doku, D24; die Einstellung `Net SCPI` bleibt eine Option für später), Konzept 8 (GPLv3-§7-Erlaubnis und Notices: erledigt mit AF29–AF31, E-38, E-39), Konzepte 2, 3 und 4 (umgesetzt mit AF6, AF11, AF12, AF15, AF16) und Konzept 9 (Antrag zur alten Historie: entfällt, D28). Die Nummern 2–7 bleiben, weil Schritte darauf verweisen.
-
-#### Konzept 5 · Release-Integrität
-
-- **Erledigt bzw. in AF7:** Tag-Ruleset `refs/tags/v*` und Immutable Releases (D29); kein öffentlicher Deploy aus einem manuellen Lauf (D30); AF7 prüft Herkunft (`merge-base --is-ancestor … origin/main`) und Host-Tests des Tag-Commits, bricht bei vorhandenem Release ab, deployt erst nach dem Release (Concurrency `pages`) und attestiert `SHA256SUMS`.
-- **Offen:**
-  - ~~Build hermetisch ohne Cache mit exakt gepinnten Paketen, `pio pkg list` in den Notes (OPS-3, OPS-10; AF22).~~ Erledigt mit AF22.
-  - ~~Probelauf des Release-Pfads in PRs ohne Veröffentlichung (OPS-6; AF23).~~ Erledigt mit AF23.
-  - ~~Reproduzierbare Stempel, damit sich ein unabhängiger Nachbau gegen die Attestation prüfen lässt (OPS-13; AF25).~~ Erledigt mit AF25 (E-49).
-- **Folgen:** Release-Abschnitt im README (Prüfung mit `gh attestation verify` für alle Assets), `SECURITY.md` (Lieferkette). Prüfung per `workflow_dispatch` ohne Deploy; ein Probe-Tag nur auf Anweisung.
-
-#### Konzept 6 · Geräte-Glue testen
-
-- **Problem:** 42 % der Firmware-Zeilen sind nicht host-kompiliert (GUI, `web_server`, `wifi_manager`, `scpi_tcp_server`, `main`). `web_check` prüft nur den Mock. Unit-Tests laufen ohne Sanitizer (TEST-1, TEST-6, TEST-9, TEST-12).
-- **Option a – Host-Shims für ESPAsyncWebServer/AsyncTCP und `WiFi`:** `web_server.cpp` unverändert kompilieren. Das ist viel Fake-API (Request, Response, WebSocket, `onPacket`), und die Fakes können Bibliotheksdetails falsch nachbilden. Für `WiFi` passt das Muster des vorhandenen `Wire`-Fakes eher.
-- **Option b – Reine Module herausziehen:** Routen und Body (AF32), `JobSlot` (AF33), Ablauf der Netzwahl (AF13), Texte und Seitenaufteilung (AF47). Kostet wenig und folgt dem bewährten Muster von `request_guard` und `input_logic`.
-- **Option c – Vertragstest gegen die Firmware:** `web_check.py` fest in S61 gegen das Gerät, dazu gemeinsame JSON-Vektoren, die C++-Tests und Mock lesen (AF34). Drift zwischen Mock und Firmware fällt dann auf beiden Seiten auf.
-- **Option d – ASan/UBSan-Env für alle Unit-Tests (AF36):** Fuzz-Ziele für Vorfilter und `RestWifi` (AF37).
-- **Empfehlung:** b + c + d. Option a nur für einen schmalen `WiFi`-Fake, falls nach AF13 noch Logik in `wifi_manager.cpp` übrig ist. Optional `screens-win` als Compile-Check der GUI in der CI.
-- **Folgen:** `build_src_filter` und die Liste in CLAUDE.md, README-Tests, `test/fuzz/README.md`, MESSPLAN (S61 mit `web_check`-Protokoll).
+Alle Konzepte sind umgesetzt oder entschieden (Phase 10 abgeschlossen, D24, D28, D48); ihr Text steht im Git-Verlauf. Offen aus Konzept 6 bleibt nur der Vertragstest gegen das Gerät in S61 (`web_check`, `contract_check`).
 
 ---
 
@@ -344,7 +316,6 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 
 ### Phase 9 – Folgearbeiten (je ein Commit, nach Messergebnis oder Rückfrage)
 
-- [x] **N16 · Bildschirm um 180° drehen (CONFIG-Option, M).** Für den Einbau im Gehäuse mit USB/SMA auf der anderen Seite. Taste `Rotate` (D53) als dritte Taste in der Zeile `Screen` des Registers `Device` neben `Lock` und `Touch cal.`; jeder Tipp schaltet zwischen 0° (Standard) und 180° um. Umsetzung: `DisplayPanel` dreht über `setRotation_(1|3)` (ILI9341 per TFT_eSPI, ST7789 über `MADCTL_ST7789[3]`, MADCTL-Werte für beide Controller prüfen), der Touch wird gespiegelt (x' = 319 − x, y' = 239 − y nach der Kalibrierung; der Abgleich bleibt gültig, weil er in Rohkoordinaten gespeichert ist – im Host-Test von `touch_cal` absichern), Wechsel sofort ohne Neustart (Bildschirm neu zeichnen), gespeichert in NVS (neuer Schlüssel, Standard 0°, Migrationstest), `Defaults` setzt zurück, SCPI `SYST:DISP:ROT 0|180` und REST `config.rotation` optional (Vorschlag: ja, Abfrage und Setzen). Prüfung: Host-Tests (Touch-Spiegelung, NVS), `render_images.py screens` unverändert für 0°, Bedientest auf **beiden** Boards (ILI9341 und ST7789): Anzeige, alle Ränder und Ecken treffen, Touch-Abgleich in 180°, Hit-Map-Build, Neustart behält die Drehung. Handbuch DE/EN §8 (Device) und §13, Spezifikation A-n/E-n, README, `docs/REMOTE_API.md`. *Commit:* `N16: Add a 180 degree screen rotation option` *Erledigt auf `agent/n16` (A-80, E-53; Taste `Rotate`, NVS `rot180`, MADCTL 1/3 = MX+MY getauscht, Touch nach der Kalibrierung gespiegelt, Abgleich in beiden Lagen, SCPI `SYST:DISP:ROT`, REST `config.rotation`, `*RST` wie Backlight); Bedientest am Gerät offen (beide Boards).*
 - [ ] **DK1 · Doku konsolidieren (nach dem Merge von Priorität 3 und 6, vom Hauptagenten selbst).** README („Next release“ zu einer Release-Liste zusammenfassen, Doppelungen mit Handbuch und API-Seite entfernen), Handbuch DE/EN (neue Abschnitte §8, §17, §18 und die Änderungen aus AF11–AF19 auf Doppelungen und Querverweise prüfen, Inhaltsverzeichnis, Glossar), `docs/REMOTE_API.md` gegen §15/§16 und den REST-Vertrag abgleichen, CLAUDE.md, SECURITY.md, `tools/README.md`, Plan (Erledigtes entfernen); Linkprüfung und Parität DE/EN. *Commit:* `DK1: Consolidate the documentation`
 - [ ] **N1 · Standard-Tuning** ändern, wenn die Stufe-2-Messungen es tragen (Rückfrage 1, E-19).
 - [ ] **N2 · IQ-Abstimmen ohne Aussetzer** (Abschnitt 2.1).
@@ -355,36 +326,10 @@ Je Messtag ein Commit mit dem Protokoll `messungen/<Datum>_<Board>_<Firmware>.md
 - [ ] **N9 · Sticky-Bit und „PLL locked“** (Abschnitt 2.1).
 - [ ] **N10 · Hardware-Hinweise** in den Handbüchern.
 - [ ] **N11 · Spätere Updates:** Unity 2.7.0, sobald es im Register steht (offen). Erledigt: Arduino 3.3.13 / IDF 5.5.6 über pioarduino 55.03.313 (D51, E-51; behebt GHSA-ch63, Advisory-Check ohne Fund; `lib_archive = yes`; Flash 1 553 065 B, RAM 78 992 B) – **Gerätetest offen** (Boot, Display-Erkennung beider Boards, Touch, SI5351, WLAN Client und AP, Weboberfläche, SCPI USB/TCP, VXI-11/LXI, Heap nach 10 min). Advisory-Check je Release läuft (AF26).
-- [x] **N14 · Gekoppelter Betrieb CH2 = CH1 ± Offset (D18, D52).** CH2 folgt CH1 mit festem Offset (positiv oder negativ, z. B. Überlagerungsempfänger mit fester ZF): Einstellung und Anzeige auf der CH2-Seite, Grenzen 8 kHz–160 MHz für beide, CH3-IQ und Spread berücksichtigen, SCPI/REST und Weboberfläche; Planung vor der Umsetzung. *Commit:* `N14: Add the coupled CH2 mode (CH1 + offset)` *Erledigt auf `agent/n14` (A-79, E-52; CH2-Chips `Free` / `CH1 + offset`, Offset ±160 MHz, `WAIT` mit Neustart, SCPI `SOUR2:COUP`/`SOUR2:FREQ:OFFS`, REST `coupled`/`offset`); Bedientest am Gerät offen.*
 
-### Phase 10 – Audit-Folgearbeiten (je ein Commit)
+### Phase 10 – Audit-Folgearbeiten
 
-Jeder Schritt nennt Befund-IDs, Ort, Problem und Richtung selbst. „Konzept n“ = Abschnitt 3.9. Reihenfolge nach Priorität. AF1–AF10 und AF29–AF31 sind erledigt (1.1), AF5 und AF20 entfallen (D28, D24). AF11–AF19, AF55, AF44–AF46, AF48, AF51a, AF52 und AF53 sind ebenfalls erledigt (1.1). Aufwand: S < 2 h, M 2 h–1 d, L > 1 d. `[Nutzer]` = Einstellung, nur durch den Nutzer. Für UI-Änderungen gilt Regel 0.4 (Bedientest am Gerät vor dem Commit).
-
-#### Priorität 3 – Lieferkette und CI
-
-Erledigt (AF21–AF28, D49; Details im Git-Verlauf).
-
-#### Priorität 4 – Tests
-
-- [x] **AF32 · Routing und Body-Zusammenbau als reines Modul (M–L).** TEST-1, CQ-6 (Routen). Heute sind die Routen in `handle()`, `RequestGuard` und `isApi`/`isWs` doppelt gepflegt und `web_server.cpp` ist nicht host-kompiliert. `net/web_routes.*`: Routentabelle (Methode, Pfad, Handler-Art, Sitzung) für `handle()` und `RequestGuard`, Body-Zusammenbau (`index/len/total`, NUL wird nicht mehr per `strlen` abgeschnitten → `-102`). Prüfung: Host-Tests (alle Pfade aus `data/www/README.md`, 404, GET auf POST-Pfad, `/index.html`, 4. WebSocket → 503, Body in 3 Teilen, `index+len > total`, eingebettetes NUL); `build_src_filter`, CLAUDE.md. *Commit:* `AF32: Extract web routing and body assembly into a tested module`
-- [x] **AF33 · Job-Postfach als reines Modul (M).** CQ-6 (JobSlot). Das Job-Postfach in `WebHmiServer::Impl` (`Free/Queued/Taken/Done/Abandoned`, `malloc`/`free` an 4 Stellen, `runJob` in `async_tcp`, `serveJob` in `loop()`) ist das einzige Cross-Thread-Protokoll ohne Host-Test. `JobSlot` (take/finish/abandon/collect, Besitz des Ausgabepuffers) in `net/web_state.*`. Prüfung: Host-Tests für Abandon, späte Fertigmeldung, doppeltes Abholen; Gerät: Scan und Netzänderung aus dem Web. *Commit:* `AF33: Extract the web job mailbox and test its races` *Teil JobSlot mit AF50 erledigt (`net/web_state.h`, Host-Tests für Abandon, späte Fertigmeldung, doppeltes Abholen); dazu zufällige Verschachtelungen beider Seiten (200 000 Schritte, fester Seed). Gerätetest Scan und Netzänderung aus dem Web → S61.*
-- [x] **AF34 · Python-Werkzeuge und Vertragsvektoren in der CI (M).** TEST-8, TEST-1 (Teil 3), CQ-7/CQ-19 (CI-Teil), OPS-6 (`--self-test`). CI-Job: `size_report --self-test`, `web_mock` + `web_check` (ohne/mit Passwort), `fake_scpi_device` + `device_check --tcp`; `web_mock.py` mit `allow_reuse_address = False`; `embed_www.py` bricht bei `innerHTML`/`outerHTML`/`eval(`/`new Function` ab; gemeinsame JSON-Vektoren (Anfrage → Status, Code) für `test_http_guard`/`test_rest_json` und einen Python-Test des Mocks. Prüfung: CI grün, absichtliche Abweichung im Mock fällt auf. *Commit:* `AF34: Run the tool checks and shared contract vectors in CI`
-- [x] **AF35 · Grenzfälle, Identify und Fehlerpfade (M).** TEST-4, TEST-5, TEST-10, TEST-14. Überlebende Mutanten (TEST-4): M2 `app_controller.cpp` CH3-Master genau bei 100 MHz, M5 `wifi_policy.cpp` RSSI-Gleichstand, M6 `command.cpp` Bruchteil beim Refill des Ratenlimits, M7 `request_guard.cpp` Authorization 1024/1025 B, M10 `sanitize.cpp` überlanges `E0 9F BF`, M12 umgekehrte Blinkphase von Identify (TEST-5: `updateIdentify_` nach dem ersten Aufruf nie ausgeführt), M13 `settings.cpp` Autosave-Grenze. Fälle: CH3 an IQ_MIN/IQ_MAX, Ratenlimit im 75-ms-Raster und über den `millis()`-Überlauf, Authorization 1024/1025, fünf UTF-8-Grenzfälle (auch in `corpus/sanitize`), Autosave `MS-1`/`MS`, RSSI-Gleichstand dokumentieren; `test_identify_blinks_and_restores_backlight` (Duty im Wechsel, danach eingestellte Helligkeit, zweites `identify()`, Helligkeitsänderung beim Blinken). Fehlerpfade (TEST-10): `SI5351Manager::begin()` (75 % Zweige) mit `failAfter`, `initReads`, NoReadback, `failWrites`; `i2c_bus.cpp`, Logger-Schnittzeile, `touch_cal.cpp`, NVS-Schreibfehler in `settings.cpp`, `Failure::Inconsistent`. TEST-14: gemeinsamer Zufallszustand in `test_si5351` und `test_rest_wifi`, Seed in `setUp()` zurücksetzen und in der Meldung ausgeben. Prüfung: die überlebenden Mutanten M2, M5–M7, M10–M13 werden getötet (Gegenprobe). *Commit:* `AF35: Pin boundary, identify and error-path behavior in host tests`
-- [x] **AF36 · Host-Tests unter ASan/UBSan (S–M).** TEST-6. Env `native-asan` (Linux, `-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer`, Link-Flags per `extra_scripts`) in `ci.yml`. Prüfung: CI grün; absichtlicher Überlauf in einem Test wird gemeldet. *Commit:* `AF36: Run the host tests under ASan and UBSan in CI`
-- [x] **AF37 · Fuzz-Ziele für Vorfilter und `RestWifi` (M).** TEST-7. `fuzz_prefilter` (Chunks, Zeitschritte, Monotonie, Grenzen 414/431/413, differentiell gegen `RequestGuard`), `fuzz_rest_wifi` gegen unabhängige Referenz (unbekannter Schlüssel → −108, PSK nie im Echo, Ablehnung → `next == cur`); `fuzz.yml`, `test/fuzz/README.md`. Prüfung: 60-s-Lauf je Ziel in der CI, danach 10-Mio.-Lauf vor dem nächsten Release. *Commit:* `AF37: Add fuzz targets for the pre-filter and the WiFi REST parser` *Erledigt; 10-Mio.-Lauf je Ziel (fuzz.yml von Hand) vor dem nächsten Release offen.*
-- [x] **AF38 · NVS-Grenzen im Fake, Upgrade-Test (S–M).** TEST-11 (Abschnitt 2.3 „Fakes“). Fake lehnt Schlüssel/Namespaces > 15 Zeichen und Strings > 4000 B ab; `test_upgrade_from_old_keys` mit dem vollständigen Schlüsselsatz des letzten Release. Prüfung: Test scheitert mit einem absichtlich zu langen Schlüssel. *Commit:* `AF38: Model NVS limits in the fake and test the upgrade`
-- [x] **AF39 · Messhelfer für S61 (M).** TEST-2. `tools/slowloris.py` (L-S5: 30 offene Anfragen, Abschluss nach 10 s), fehlende Helfer aus dem MESSPLAN-Anhang anlegen oder dort streichen (`lsec_check.py`, `scpi_selftest.py`, `touchstat.py`, `counter_log.py`), Firmware-Env mit `TEST_FAULT_IQ=1` für die Mess-ID A8 (MESSPLAN), `device_check.py`-Profile für L6/L22. `tools/README.md`, MESSPLAN-Anhang. Prüfung: Helfer gegen Mock/Fake. *Commit:* `AF39: Add the measurement helpers for tier 1W`
-
-#### Priorität 6 – Struktur und Kleinkram
-
-- [x] **AF47 · Texteingabe und WLAN-Texte als reine Logik (M).** CQ-4, TEST-12. Heute liegen die sechs `EntryPurpose`-Zweige (Name, IP-Feld, Web-Passwort mit „leer = entfernen“, AP-Passwort, SSID → Passwort, verstecktes offenes Netz) im LVGL-Handler von `page_wifi.cpp`, „Zweck setzen und navigieren“ steht 7-mal dort; WLAN-Statustext und Seitenaufteilung der Scan-Liste ebenso. `openEntry_()`, `InputLogic::submitEntry()`, `StatusText::wifiLine()`, Seitenaufteilung der Scan-Liste in `InputLogic`. Prüfung: Host-Tests je Eingabezweck und Zustand, Textbreite; Bedientest WIFI-Seiten. *Commit:* `AF47: Move text entry validation and WiFi status texts into tested logic` *Erledigt auf `agent/prio6c`; Bedientest am Gerät offen.*
-- [x] **AF49 · `Gui` aufteilen (L, drei Commits).** CQ-3. Heute ≈ 100 Member, `handleAction_` (45 Actions, CCN 53) reicht 16 WLAN-Actions an `handleWifiAction_` (218 Zeilen, CCN 65), `confirm_` ist eine if/else-Kette mit 9 Zweigen, ein `Widgets`-Struct für alle Seiten (`entrySsid_` für drei Zwecke). **AF49a** `confirm_` über `ConfirmSpec`-Tabelle; **AF49b** Klasse `WifiPages` mit eigenem Zustand und Widgets; **AF49c** `GuiServices` statt 9 Callbacks. Je Teil Bedientest. *Commits:* `AF49a: Drive confirmation dialogs from a table`, `AF49b: Split the WiFi pages out of Gui`, `AF49c: Pass GUI services as one struct` *Erledigt auf `agent/prio6c` (AF49a–c, drei Commits); Bedientest am Gerät offen.*
-- [x] **AF50 · `WebHmiServer::Impl` aufteilen (M–L, Aufräumen).** CQ-6 (Rest). Heute ein Struct mit ≈ 910 Zeilen über drei Ausführungskontexte (`async_tcp`, `loop()`, Login-Task); die Zuordnung der Felder steht nur in Kommentaren. `ConnectionGate`, `LoginService`, `Pusher` mit dokumentiertem Thread je Struct, nach AF32/AF33. Prüfung: `web_check` gegen das Gerät unverändert. *Commit:* `AF50: Split the web server into connection, login and push parts` *Erledigt auf `agent/prio6c`; JobSlot aus AF33 mit erledigt; Prüfung web_check gegen das Gerät offen.*
-- [x] **AF51b · LED/Heap-Schichtung (S, Aufräumen, nach AF12).** CQ-13/CQ-17, Teil LED. Heute steuert die GUI die Status-LED und liest den Heap direkt (`gui.cpp`, `page_config.cpp`, `page_main.cpp`; Identify hat zwei Besitzer, die LED bleibt dunkel, wenn die GUI nicht aktualisiert). `StatusLed` aus `AppController`/`main`, Heap per Callback. Prüfung: Identify am Gerät. *Commit:* `AF51b: Move the status LED out of the GUI` *Erledigt auf `agent/prio6c`; Bedientest am Gerät offen.*
-- [x] **AF54 · Asynchrone REST-Antworten, JSON ohne Allokation (M–L).** PERF-7, PERF-9. Heute blockieren REST-Schreibvorgänge und WLAN-Jobs `async_tcp` bis 80/180 ms mit 1-ms-Polling (laut W-S23 akzeptiert), der ArduinoJson-Zustandsaufbau allokiert je Aufruf ≈ 20–30-mal. `req->pause()` + Antwort aus `onPoll` für Schreibvorgänge und Jobs; Writer mit festem Puffer (bzw. Arena) für Zustand und Fehler. Prüfung: Host-Test des Writers gegen ArduinoJson-Ausgabe; Gerät: WS-Latenz während Halten-Wiederholen in einem zweiten Tab. *Commit:* `AF54: Answer REST writes asynchronously and build JSON without allocations` *Erledigt auf `agent/prio6c`; Prüfung WS-Latenz und web_check am Gerät offen.*
-
-In bestehende Schritte eingeordnet (kein eigener AF-Schritt): PERF-13 → entfällt (D50), PERF-14 und der PERF-8-Worst-Case → S57, PERF-15 → AF55 (D38) und S49, TEST-2 → S41c/S59/S61 (+ AF39), DOC-14 → AF4.
+Abgeschlossen: Priorität 1–4 und 6 umgesetzt, Priorität 5 entfällt (D48), N15 entfällt (D50); die Befund-IDs bleiben als Namen gültig, Details im Git-Verlauf. In bestehende Schritte eingeordnet: PERF-14 und der PERF-8-Worst-Case → S57, PERF-15 → S49 (D38), TEST-2 → S41c/S59/S61.
 
 ---
 

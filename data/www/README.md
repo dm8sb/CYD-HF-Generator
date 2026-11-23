@@ -78,7 +78,7 @@ State (`GET /api/state`, every WebSocket text message, body of every successful 
  "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"rotation":0,"remoteOutputs":"allowed"},
  "wifi":{"mode":"client","connected":true,"ssid":"Lab","rssi":-60,"ip":"192.168.1.50","name":"cyd-hf-1a2b",
          "ap":{"active":false,"ssid":"CYD-HF-1A2B","open":false,"stations":0},"confirmWithin":0},
- "device":{"version":"2.0.0","passwordSet":false}}
+ "device":{"version":"2.1.0","passwordSet":false}}
 ```
 
 Values: `hw` CONN | NFO | BLOC | UNKN; `save` saved | pending | failed | unavailable; `remote` null | usb | web | scpi; status ON | OFF | ERR | WAIT | NOHW; `correction` in 0.01 ppm (±5000); `tuning` fractional | lownoise | integer; `spread` off | down05 | down15 | center05; `offState` low | high | hiz; `remoteOutputs` allowed | local; `wifi.mode` off | client | ap.
