@@ -170,6 +170,7 @@ jobs:
           for _ in $(seq 50); do python -c "import socket; socket.create_connection(('127.0.0.1',15025),1)" 2>/dev/null && break; sleep 0.2; done
           python tools/device_check.py --tcp 127.0.0.1:15025
           python tools/device_check.py --tcp 127.0.0.1:15025 --profile L22
+          python tools/device_check.py --tcp 127.0.0.1:15025 --outputs --repeat 20   # WAIT of a coupled CH2 (fake only)
           python tools/counter_log.py --tcp 127.0.0.1:15025 --query "FREQ:ACT?" --interval 0.2 --count 3
       - name: Logs
         if: failure()

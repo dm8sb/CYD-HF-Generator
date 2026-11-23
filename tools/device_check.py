@@ -11,8 +11,10 @@ with --allow-rst. Outputs are switched ON only with --outputs (the generator
 outputs RF: no unfiltered antenna!).
 
 Checks: *IDN? format, empty error queue, valid settings round trips, rejected
-inputs with the documented error codes (state unchanged), compound lines, line
-limits, rate limit, *IDN? timing, SYST:LOG? drain.
+inputs with the documented error codes (state unchanged), CH2 coupled to CH1
+(CH1 + offset, -221 for a CH2 frequency, WAIT outside 8 kHz - 160 MHz, CH3 with
+master CH2, the last valid frequency after decoupling), screen rotation (short,
+restored), compound lines, line limits, rate limit, *IDN? timing, SYST:LOG? drain.
 
 Profiles of the measurement plan (AF39): --profile L6 (1000 x *IDN?, median < 50 ms, no log
 line in the data stream) and --profile L22 (the whole command tree: every query followed by
@@ -57,6 +59,8 @@ EXPECT = {
     "rate_error": '-200,"Execution error;Too many commands"',
     "idn_median_ms": 50.0,         # MESSPLAN L6
     "iq_min_hz": 4730000,          # CH3 IQ range minimum without spread
+    "offset_max": 160000000,       # Hz, offset of a coupled CH2 (either sign)
+    "coupled_error": "CH2 is coupled to CH1",
 }
 
 # (label, set command, query, expected answer, kind)
@@ -103,6 +107,21 @@ ROUNDTRIPS = [
     ("CH3 phase 180", "SOUR3:PHAS 180", "SOUR3:PHAS?", 180, "int"),
     ("CH3 phase 270", "SOUR3:PHAS 270", "SOUR3:PHAS?", 270, "int"),
     ("CH3 phase 0", "SOUR3:PHAS 0", "SOUR3:PHAS?", 0, "int"),
+    # CH2 coupling (section 4): the offset can be set while CH2 is free; the table ends free.
+    ("CH2 offset +455 kHz while free", "SOUR2:FREQ:OFFS 455KHZ", "SOUR2:FREQ:OFFS?", 455000, "int"),
+    ("CH2 offset -10.7 MHZ", "SOUR2:FREQuency:OFFSet -10.7 MHZ", "SOUR2:FREQ:OFFS?", -10700000, "int"),
+    ("CH2 offset exponent -4.55E5", "SOUR2:FREQ:OFFS -4.55E5", "SOUR2:FREQ:OFFS?", -455000, "int"),
+    ("CH2 offset rounds half away from zero", "SOUR2:FREQ:OFFS -2.5", "SOUR2:FREQ:OFFS?", -3, "int"),
+    ("CH2 offset MAX", "SOUR2:FREQ:OFFS MAX", "SOUR2:FREQ:OFFS?", 160000000, "int"),
+    ("CH2 offset MIN", "SOUR2:FREQ:OFFS MIN", "SOUR2:FREQ:OFFS?", -160000000, "int"),
+    ("CH2 offset DEF", "SOUR2:FREQ:OFFS DEF", "SOUR2:FREQ:OFFS?", 0, "int"),
+    ("CH2 coupled lower case", "sour2:coup ch1", "SOUR2:COUP?", "CH1", "text"),
+    ("CH2 free", "SOURce2:COUPle OFF", "SOUR2:COUP?", "OFF", "text"),
+    # Screen rotation (section 8): turned and back at once; the restore writes the original.
+    ("rotation 180", "SYST:DISP:ROT 180", "SYST:DISP:ROT?", 180, "int"),
+    ("rotation 0 DEG", "SYSTem:DISPlay:ROTation 0 DEG", "SYST:DISP:ROT?", 0, "int"),
+    ("rotation MAX", "SYST:DISP:ROT MAX", "SYST:DISP:ROT?", 180, "int"),
+    ("rotation DEF", "SYST:DISP:ROT DEF", "SYST:DISP:ROT?", 0, "int"),
 ]
 # Only with --outputs (a switched-off output then carries DC for a moment).
 ROUNDTRIPS_OUTPUTS_ONLY = [
@@ -132,6 +151,18 @@ REJECTS = [
     ("SYST:TUN FOO", -224, "SYST:TUN?"),
     ("SOUR3:PHAS 45", -224, "SOUR3:PHAS?"),
     ("SOUR3:IQ:MAST 3", -224, "SOUR3:IQ:MAST?"),
+    ("SOUR2:FREQ:OFFS 161MHZ", -222, "SOUR2:FREQ:OFFS?"),
+    ("SOUR2:FREQ:OFFS -160000001", -222, "SOUR2:FREQ:OFFS?"),
+    ("SOUR2:FREQ:OFFS 1 DEG", -224, "SOUR2:FREQ:OFFS?"),
+    ("SOUR2:FREQ:OFFS", -109, "SOUR2:FREQ:OFFS?"),
+    ("SOUR1:FREQ:OFFS 1KHZ", -114, "SOUR2:FREQ:OFFS?"),
+    ("SOUR3:FREQ:OFFS 1KHZ", -114, "SOUR2:FREQ:OFFS?"),
+    ("SOUR1:COUP CH1", -114, "SOUR2:COUP?"),
+    ("SOUR2:COUP CH2", -224, "SOUR2:COUP?"),
+    ("SOUR2:COUP", -109, "SOUR2:COUP?"),
+    ("SYST:DISP:ROT 90", -224, "SYST:DISP:ROT?"),
+    ("SYST:DISP:ROT 270", -224, "SYST:DISP:ROT?"),
+    ("SYST:DISP:ROT 180 HZ", -224, "SYST:DISP:ROT?"),
 ]
 
 # Never sent: SYST:SAVE.  Only with --allow-rst: *RST.
@@ -318,16 +349,26 @@ STATE_QUERIES = [
     ("offstate", "OUTP:OFFS?", "OUTP:OFFS"),
     ("master", "SOUR3:IQ:MAST?", "SOUR3:IQ:MAST"),
     ("phase", "SOUR3:PHAS?", "SOUR3:PHAS"),
+    ("offset", "SOUR2:FREQ:OFFS?", "SOUR2:FREQ:OFFS"),
+    ("rotation", "SYST:DISP:ROT?", "SYST:DISP:ROT"),
+    ("coupling", "SOUR2:COUP?", "SOUR2:COUP"),   # last: a coupled CH2 refuses its frequency
 ]
 
 
 def read_state(dev):
+    """Read every setting; a coupled CH2 is decoupled to read its own frequency (FREQ? of a
+    coupled CH2 is CH1 + offset), so the checks start with CH2 free."""
     state = {}
     for key, query, _ in STATE_QUERIES:
         try:
             state[key] = dev.q(query)
         except LinkTimeout:
             state[key] = None
+            dev.resync()
+    if (state.get("coupling") or "").upper() == "CH1":
+        dev.set("SOUR2:COUP OFF")
+        state["freq2_free"] = dev.q("SOUR2:FREQ?")
+    dev.drain()  # a firmware without a command leaves -113 here
     return state
 
 
@@ -337,10 +378,12 @@ def restore_state(dev, orig):
         dev.set("OUTP%d OFF" % n)
     tuning = orig.get("tuning")
     dev.set("SYST:TUN FRAC")            # spread is locked in Integer
+    dev.set("SOUR2:COUP OFF")           # CH2 frequency only while free
     for key, _, cmd in STATE_QUERIES:
-        if key in ("tuning",) or orig.get(key) is None:
+        value = orig.get("freq2_free", orig.get(key)) if key == "freq2" else orig.get(key)
+        if key in ("tuning",) or value is None:
             continue
-        dev.set("%s %s" % (cmd, orig[key]))
+        dev.set("%s %s" % (cmd, value))
     if tuning:
         dev.set("SYST:TUN %s" % tuning)
     time.sleep(0.2)
@@ -373,7 +416,11 @@ def check_basic_queries(dev):
         ("OUTP:REM?", lambda a: a in ("ALLOWED", "LOCAL")),
         ("SYST:ERR:COUN?", lambda a: a.isdigit()),
         ("OUTP1:COND?", lambda a: a in ("ON", "OFF", "ERR", "WAIT", "NOHW")),
+        ("OUTP2:COND?", lambda a: a in ("ON", "OFF", "ERR", "WAIT", "NOHW")),
         ("OUTP3:COND?", lambda a: a in ("ON", "OFF", "ERR", "WAIT", "NOHW")),
+        ("SOUR2:COUP?", lambda a: a in ("OFF", "CH1")),
+        ("SOUR2:FREQ:OFFS?", lambda a: abs(int(a)) <= EXPECT["offset_max"]),
+        ("SYST:DISP:ROT?", lambda a: a in ("0", "180")),
         ("OUTP1?", lambda a: a in ("0", "1")),
         ("FREQ:ACT?", lambda a: num(a) >= 0),
         ("SOUR3:FREQ?", lambda a: num(a) >= 0),
@@ -442,6 +489,73 @@ def check_conflict(dev):
         dev.drain()
         return code_of(e) == -221 and state == "0", "OUTP1 ON -> %s, OUTP1? %s" % (e, state)
     return f
+
+
+def check_coupling(dev, outputs):
+    """CH2 coupled to CH1 (USER_MANUAL section 4), one step per check in this order. CH2 is
+    switched on only with --outputs (to see WAIT); a waiting CH2 keeps CLK1 off anyway."""
+    def query_all(pairs):
+        """[(query, expected)] -> (all equal, 'query answer' list)."""
+        got = [(qy, dev.q(qy), exp) for qy, exp in pairs]
+        same = [a.strip().upper() == str(e).upper() for _, a, e in got]
+        return all(same), ", ".join("%s %s%s" % (qy, a, "" if ok else " (want %s)" % e)
+                                    for (qy, a, e), ok in zip(got, same))
+
+    def steps(cmds, pairs):
+        def f():
+            dev.drain()
+            for c in cmds:
+                dev.set(c)
+            ok, detail = query_all(pairs)
+            errs = dev.drain()
+            if errs:
+                detail += "; errors: " + "; ".join(errs)
+            return ok and not errs, detail
+        return f
+
+    def refused():
+        dev.drain()
+        dev.set("SOUR2:FREQ 3.5MHZ")
+        e = dev.err()
+        ok, detail = query_all([("SOUR2:FREQ?", 7655000), ("SOUR2:COUP?", "CH1")])
+        extra = dev.drain()
+        ok = ok and code_of(e) == -221 and EXPECT["coupled_error"] in e and not extra
+        return ok, "SOUR2:FREQ 3.5MHZ -> %s; %s%s" % (e, detail, "; extra: " + "; ".join(extra) if extra else "")
+
+    out = [
+        ("coupling: CH2 = CH1 + 455 kHz", steps(
+            ["SOUR1:FREQ 7.1MHZ", "SOUR2:FREQ:OFFS 455KHZ", "SOUR2:COUP CH1"],
+            [("SOUR2:COUP?", "CH1"), ("SOUR2:FREQ?", 7555000)])),
+        ("coupling: CH2 follows CH1 to 7.2 MHz", steps(
+            ["SOUR1:FREQ 7.2MHZ"], [("SOUR2:FREQ?", 7655000)])),
+        ("coupling: SOUR2:FREQ while coupled -> -221 %s" % EXPECT["coupled_error"], refused),
+        ("coupling: CH3 with master CH2 follows CH1 + offset", steps(
+            ["SOUR3:IQ:MAST 2"], [("SOUR3:FREQ?", 7655000)])),
+        ("coupling: below 8 kHz CH2 waits (FREQ? = CH1 + offset)", steps(
+            ["SOUR2:FREQ:OFFS -7.195MHZ"], [("SOUR2:FREQ?", 5000), ("OUTP2:COND?", "OFF")])),
+    ]
+    if outputs:
+        out += [
+            ("coupling: switched-on waiting CH2 shows WAIT", steps(
+                ["OUTP2 ON"], [("OUTP2:COND?", "WAIT")])),
+            ("coupling: back in range CH2 starts by itself", steps(
+                ["SOUR2:FREQ:OFFS 455KHZ"], [("OUTP2:COND?", "ON"), ("SOUR2:FREQ?", 7655000)])),
+            ("coupling: CH2 off, waiting again", steps(
+                ["OUTP2 OFF", "SOUR2:FREQ:OFFS -7.195MHZ"], [("OUTP2?", "0"), ("SOUR2:FREQ?", 5000)])),
+        ]
+    out += [
+        ("coupling: below 0 Hz FREQ? answers 0", steps(
+            ["SOUR2:FREQ:OFFS -10MHZ"], [("SOUR2:FREQ?", 0)])),
+        ("coupling: free keeps the last valid frequency and the offset", steps(
+            ["SOUR2:COUP OFF"], [("SOUR2:FREQ?", 7655000), ("SOUR2:FREQ:OFFS?", -10000000)])),
+        ("coupling: offset set while free changes no frequency", steps(
+            ["SOUR2:FREQ:OFFS 1MHZ", "SOUR1:FREQ MAX"], [("SOUR2:FREQ?", 7655000), ("SOUR2:COUP?", "OFF")])),
+        ("coupling: above 160 MHz CH2 waits", steps(
+            ["SOUR2:COUP CH1"], [("SOUR2:FREQ?", 161000000), ("OUTP2:COND?", "OFF")])),
+        ("coupling: free after waiting -> last valid frequency", steps(
+            ["SOUR2:COUP OFF", "SOUR3:IQ:MAST 1"], [("SOUR2:FREQ?", 7655000), ("SOUR2:COUP?", "OFF")])),
+    ]
+    return out
 
 
 def check_compound(dev):
@@ -637,11 +751,17 @@ def check_outputs(dev):
 def check_rst(dev):
     def f():
         dev.drain()
+        # Coupling, offset and rotation in RAM go back to free, 0 and 0 deg (manual sections 4, 8, 15).
+        for c in ("SOUR2:FREQ:OFFS 455KHZ", "SOUR2:COUP CH1", "SYST:DISP:ROT 180"):
+            dev.set(c)
         dev.set("*RST")
         time.sleep(0.5)
         states = [dev.q("OUTP%d?" % n) for n in (1, 2, 3)]
+        extra = [dev.q(qy) for qy in ("SOUR2:COUP?", "SOUR2:FREQ:OFFS?", "SYST:DISP:ROT?")]
         errs = dev.drain()
-        return states == ["0", "0", "0"] and not errs, "outputs after *RST: %s" % ",".join(states)
+        ok = states == ["0", "0", "0"] and extra == ["OFF", "0", "0"] and not errs
+        return ok, "after *RST: outputs %s, COUP %s, OFFS %s, ROT %s%s" % (
+            ",".join(states), extra[0], extra[1], extra[2], "; errors: " + "; ".join(errs) if errs else "")
     return f
 
 
@@ -711,6 +831,8 @@ def main():
             for cmd, ecode, probe in REJECTS:
                 run(rep, "reject %r -> %d" % (cmd, ecode), reject_check(dev, cmd, ecode, probe))
             run(rep, "reject OUTP1 ON with Remote outputs local only -> -221", check_conflict(dev))
+            for name, fn in check_coupling(dev, args.outputs):
+                run(rep, name, fn)
             for name, fn in check_compound(dev):
                 run(rep, name, fn)
             for name, fn in check_line_limits(dev):
@@ -719,7 +841,7 @@ def main():
                 for name, fn in check_outputs(dev):
                     run(rep, name, fn)
             if args.allow_rst:
-                run(rep, "*RST switches outputs off", check_rst(dev))
+                run(rep, "*RST: outputs off, CH2 free, offset 0, rotation 0", check_rst(dev))
             else:
                 rep.add("*RST", "SKIP", "needs --allow-rst")
             run(rep, "rate limit: > 20 setting commands in 1 s -> -200", check_rate_limit(
