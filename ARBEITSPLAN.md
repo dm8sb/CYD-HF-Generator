@@ -1,6 +1,6 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: Release **2.1.0** · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · auf `dev` nach 2.1.0: Doku als Pages-Seiten (G9), Werkzeuge kennen CH2-Kopplung und Drehung, Doku konsolidiert (DK1), Planungsdateien neu nummeriert, Warnung `Heap low` (FW-08) · als Nächstes: MES-01 (Gerätetest 3.3.13), FW-07, REL-02/REL-03 sobald möglich; die Messungen (MES-02 bis MES-08) kommen zuletzt, danach REL-01
+Stand: Release **2.1.0** · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · auf `dev` nach 2.1.0: Doku als Pages-Seiten (G9), Werkzeuge kennen CH2-Kopplung und Drehung, Doku konsolidiert (DK1), Planungsdateien neu nummeriert, Warnung `Heap low` (FW-08) · als Nächstes: MES-01 (Gerätetest 3.3.13), FW-07 (Gerätetest), REL-02/REL-03 sobald möglich; die Messungen (MES-02 bis MES-08) kommen zuletzt, danach REL-01
 
 Einzige Planungsdatei: Arbeitsregeln, Stand, offene Befunde und offene Aufgaben. Anforderungen (A-nnn) und alle Entscheidungen (E-nnn, auch die früheren Entscheidungen Dn dieser Datei und das WEB-HMI-Konzept mit W-E und W-S) stehen in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), Messungen (M-nnn) in [MESSPLAN.md](MESSPLAN.md), das Verhalten in [USER_MANUAL_DE.md](USER_MANUAL_DE.md).
 
@@ -43,7 +43,7 @@ Einzige Planungsdatei: Arbeitsregeln, Stand, offene Befunde und offene Aufgaben.
 | 2.1.0 | Audit-Priorität 3 (CI-Trigger, Warnungs-Gate, exakte Pins, reproduzierbare Stempel E-806, Release-Probelauf, Advisory-Prüfung; E-807), Priorität 4 (Vertragsvektoren, ASan/UBSan, neue Fuzz-Ziele, NVS-Grenzen, Messhelfer), Priorität 6 (Texteingabe als Logik, `Gui` und Webserver aufgeteilt, asynchrone REST-Antworten E-622); Priorität 5 entfällt (E-315); N11 Arduino 3.3.13 / IDF 5.5.6 über pioarduino (E-804); N14 CH2 = CH1 + Offset (E-213); N16 `Rotate` (E-314); am Gerät geprüft |
 | nach 2.1.0 (`dev`) | G9 Handbuch, Hardware-Seite und Remote-API als Pages-Seiten (E-903); Werkzeuge kennen CH2-Kopplung und Drehung; DK1 Doku konsolidiert; DOK-03 Hardware-Hinweise im Handbuch §13 (eigener LDO mit Ferrit, kurze Masse, Abschirmung, TCXO optional, SI5351 läuft beim Flashen weiter) und VCO-Hinweis bei `Fractional` mit +50 ppm (§8); 10-Mio.-Fuzz-Lauf ohne Fund; Spezifikation, Messplan und Arbeitsplan neu aufgebaut und einheitlich nummeriert; FW-08 Warnung `Heap low` unter 40 KB freiem Heap mit Hysterese bis 48 KB (A-726, S-13, `HeapWatch` host-getestet) |
 
-Host-Tests: 528 Fälle in `native-win` und 4 in `native-win-fault`.
+Host-Tests: 536 Fälle in `native-win` und 4 in `native-win-fault`.
 
 ### 1.2 Referenzwerte
 
@@ -71,7 +71,7 @@ Host-Tests: 528 Fälle in `native-win` und 4 in `native-win-fault`.
 - [M] **Störquellen der Plattform** (M-310, M-418): Backlight-PWM 5 kHz (Seitenlinien ±5 kHz möglich), I2C-Überwachung alle 2 s; das Neuzeichnen nur bei Änderung ist mit AF12 erledigt. → FW-06
 - [M] **IQ-Abstimmen mit Aussetzer** (M-304, M-305, M-303, M-306): jede Frequenz- oder Korrekturänderung im IQ-Betrieb setzt die PLL zurück (1000 Schritte → 1000 Resets). → FW-02
 - [M] **180°/270° bei ungeraden Teilern** (M-308): die Invertierung ergibt nur bei exakt 50 % Tastverhältnis 180°; der IQ-Teiler `min(127, ⌊900 MHz / f⌋)` ist in 54 % der Fälle ungerade (14,2 MHz → 63, 99 MHz → 9). → FW-03
-- [ ] **Spannungseinbruch des Moduls ohne aktiven Ausgang unbemerkt:** `checkAlive()` erkennt einen SI5351-Neustart nur, solange ein Ausgang konfiguriert ist. → FW-07
+- [M] **Spannungseinbruch des Moduls ohne aktiven Ausgang** (Gerätetest wie M-106): `checkAlive()` erkannte einen SI5351-Neustart nur, solange ein Ausgang konfiguriert war. Umgesetzt und host-getestet: die Überwachung liest `SYS_INIT`/`SYS_INIT_STKY` (Register 0/1) mit, die Info-Karte zeigt `PLL locked` (A-226, E-214); offen ist nur der Gerätetest mit SI5351. → FW-07
 - [M] **Hinweise im Handbuch ohne Messwert:** Dauer, die der SI5351 beim Flashen und nach ESP32-Reset mit der letzten Einstellung weiterläuft (M-119; Hinweis in §13 und §17 steht, die Dauer fehlt); Empfehlung zum TCXO (M-313, M-411; im Handbuch §13 und in `docs/hardware.md` als Option genannt). → DOK-01, DOK-02
 
 ### 2.2 Bedienung
@@ -125,11 +125,11 @@ Je Aufgabe: **Warum** (Anlass, Befund), **Was** (Umfang), **Prüfung** und Commi
   - *Was:* Backlight-PWM ≥ 20 kHz oder 100 % ohne PWM, Ruhemodus der I2C-Überwachung; „Neuzeichnen nur bei Änderung“ (AF12) und der Backoff der SI5351-Suche (AF53, PERF-11) sind erledigt.
   - *Prüfung:* M-310 wiederholen; Host-Test der Überwachungstakte.
   - *Commit:* `FW-06: Reduce platform spurs`
-- [ ] **FW-07 · Sticky-Bit und „PLL locked“** (braucht einen Gerätetest mit SI5351)
-  - *Warum:* Befund 2.1 „Spannungseinbruch ohne aktiven Ausgang unbemerkt“.
-  - *Was:* Register 1 (`SYS_INIT_STKY`) nach `begin()` löschen und zyklisch lesen; dasselbe Register meldet `LOL_A`/`LOL_B` → Zeile „PLL locked“ auf der Info-Karte (A-226).
-  - *Prüfung:* Host-Test im Registermodell (Sticky-Bit gesetzt → Wiederverbinden); am Gerät die Versorgung des Moduls ohne eingeschalteten Ausgang unterbrechen (wie M-106).
-  - *Commit:* `FW-07: Detect SI5351 power loss by the sticky bit`
+- [ ] **FW-07 · Gerätetest Sticky-Bit und „PLL locked“** (Umsetzung erledigt; offen nur der Gerätetest mit SI5351, Hardware derzeit nicht verfügbar)
+  - *Warum:* Befund 2.1 „Spannungseinbruch ohne aktiven Ausgang“.
+  - *Erledigt:* Commit `FW-07: Detect SI5351 power loss by the sticky bit` – `begin()` löscht Register 1, die Überwachung liest Register 0/1 alle 2 s in einer Übertragung mit; `SYS_INIT`/`SYS_INIT_STKY` gesetzt → Wiederverbinden und neu einrichten, auch ohne Ausgang; Zeile `PLL locked: A ok  B ok` auf der Info-Karte (A-226, E-214); Host-Tests im Registermodell.
+  - *Offen (Gerätetest):* alle Ausgänge aus, die Versorgung des Moduls kurz unterbrechen (wie M-106) → Meldung `Connection lost`, Log `[ERROR][SI5351] Device restarted (SYS_INIT)`, danach verbunden; Off state `High` bleibt nach dem Einbruch wirksam (Register 24 neu geschrieben). Info-Karte: `PLL locked: A ok  B ok`, ohne Modul `PLL locked: -`; Layout der 9 Zeilen ohne Abschneiden auf beiden Boards.
+  - *Abschluss:* Ergebnis im Messprotokoll, Haken hier und in Befund 2.1.
 
 ### 3.2 Dokumentation (DOK)
 

@@ -63,6 +63,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - Manual section 13 "Assembly and Supply": hardware hints (own LDO with ferrite, short ground, shielding, TCXO optional, SI5351 keeps running while flashing); section 8 notes the VCO at 900.045 MHz in `Fractional` with +50 ppm
 - Planning documents restructured with uniform numbers: the specification by topic in nine chapters (requirements `A-<chapter><nn>`, decisions `E-<chapter><nn>`, the former work-plan decisions and the WEB-HMI concept included), measurements `M-<tier><nn>`, open tasks with area IDs `FW-`, `DOK-`, `REL-`, `MES-`, `USR-nn`; the `device_check.py` profiles are now `M-203` and `M-452`
 - Log warning `[ERROR][MEM] Heap low` with the free heap and the largest block when the free heap drops below 40 KB, checked once per second; repeated only after recovering above 48 KB (A-726)
+- SI5351 supervision detects a restart of the module by the sticky `SYS_INIT` bit also with all outputs off and sets it up again; the CONFIG info card shows the PLL lock (`PLL locked: A ok  B ok`, `LOL` in orange) (FW-07, E-214)
 
 ### 2.1.0
 

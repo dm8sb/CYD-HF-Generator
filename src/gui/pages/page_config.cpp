@@ -19,7 +19,7 @@ static constexpr int ROW_PAD = 4;
 static constexpr int ROW_CONTENT_W = CONTENT_W - 2 * ROW_PAD - 2; // border 1
 static constexpr int ROW_CONTENT_H = ROW_H - 2 * ROW_PAD - 2;
 static constexpr uint8_t ROWS_PER_TAB = 3;
-static constexpr uint8_t INFO_LINES = 8;
+static constexpr uint8_t INFO_LINES = 9;
 static constexpr int INFO_LINE_H = 15;                             // montserrat 12
 static constexpr int INFO_H = INFO_LINES * INFO_LINE_H + 2 * ROW_PAD + 2;
 static constexpr int VALUE_X = 92;                                 // values and dropdowns
@@ -165,7 +165,7 @@ void Gui::createConfig_() {
             addButton_(row, "Defaults", VALUE_X, 0, 96, ROW_CONTENT_H, btnColor, Action::ResetDefaults);
             addButton_(row, "Factory", VALUE_X + 100, 0, 96, ROW_CONTENT_H, Colors::error(), Action::FactoryReset);
             break;
-        default: { // Info: firmware, build, display, touch, SI5351 link, WiFi, remote clients, heap.
+        default: { // Info: firmware, build, display, touch, SI5351 link, PLL lock, WiFi, remote clients, heap.
             row = addConfigRow_(root_, 0, INFO_H, nullptr);
             lv_obj_t* info[INFO_LINES];
             for (uint8_t i = 0; i < INFO_LINES; ++i) {
@@ -185,9 +185,10 @@ void Gui::createConfig_() {
             Ui::setText(info[2], buf);
             w_.touchInfo = info[3];
             w_.si5351Info = info[4];
-            w_.wifiInfo = info[5];
-            w_.remoteInfo = info[6];
-            w_.heapInfo = info[7];
+            w_.pllInfo = info[5];
+            w_.wifiInfo = info[6];
+            w_.remoteInfo = info[7];
+            w_.heapInfo = info[8];
             break;
         }
     }
@@ -246,6 +247,19 @@ void Gui::refreshConfig_() {
     } else {
         Ui::setText(w_.si5351Info, "SI5351 not found");
         Ui::setTextColor(w_.si5351Info, Colors::error());
+    }
+    // PLL lock from register 0 (A-226): "-" for a PLL not set up yet, LOL in the warning color.
+    if (app.hardwareReady()) {
+        static const char* const LOCK_TEXT[] = {"-", "ok", "LOL"};
+        const SI5351Manager::PllLock a = app.pllLock(SI5351Manager::Pll::A);
+        const SI5351Manager::PllLock b = app.pllLock(SI5351Manager::Pll::B);
+        snprintf(buf, sizeof(buf), "PLL locked: A %s  B %s", LOCK_TEXT[(uint8_t)a], LOCK_TEXT[(uint8_t)b]);
+        Ui::setText(w_.pllInfo, buf);
+        const bool lol = a == SI5351Manager::PllLock::Unlocked || b == SI5351Manager::PllLock::Unlocked;
+        Ui::setTextColor(w_.pllInfo, lol ? Colors::warn() : Colors::muted());
+    } else {
+        Ui::setText(w_.pllInfo, "PLL locked: -");
+        Ui::setTextColor(w_.pllInfo, Colors::error());
     }
 
     // WiFi line; a foreign SSID only through sanitize (A-709).

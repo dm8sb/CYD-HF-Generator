@@ -375,6 +375,53 @@ static void test_power_glitch_is_restored_in_the_same_cycle() {
     assertHz(0, DEFAULT_FREQ_CH1);
 }
 
+// FW-07 (finding 2.1): a power dip with no output on leaves the output registers as the driver
+// wrote them; the sticky SYS_INIT bit still leads to the reconnect and a new init.
+static void test_power_dip_without_output_reinitializes() {
+    Device d;
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    const uint16_t before = d.app.connectionCount();
+    chip.powerOn();
+    chip.initReads = 0;   // only SYS_INIT_STKY tells
+    chip.regs[24] = 0x15; // marks the register, so the new init shows by its write
+    chip.clearLog();
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT16(before + 1, d.app.connectionCount());
+    TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[1]);  // sticky bits cleared again
+    TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[24]); // off state Low written again
+    TEST_ASSERT_EQUAL_UINT(1, chip.writesTo(1));
+    // Quiet afterwards: no further reconnect.
+    d.run(3 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_EQUAL_UINT16(before + 1, d.app.connectionCount());
+}
+
+// FW-07: the LOL bits of register 0 reach the controller (CONFIG info card) as a revision.
+static void test_pll_lock_is_shown_as_state() {
+    using Lock = SI5351Manager::PllLock;
+    Device d; // the stored channel settings set up both PLLs, outputs off
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(Lock::Locked, d.app.pllLock(SI5351Manager::Pll::A));
+    TEST_ASSERT_EQUAL(Lock::Locked, d.app.pllLock(SI5351Manager::Pll::B));
+    const uint32_t rev = d.app.revision();
+    chip.setLol(true, false);
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(Lock::Unlocked, d.app.pllLock(SI5351Manager::Pll::A));
+    TEST_ASSERT_TRUE(d.app.revision() != rev);
+    TEST_ASSERT_TRUE(d.app.hardwareReady()); // no reconnect for a loss of lock
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    const uint32_t rev2 = d.app.revision();
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT32(rev2, d.app.revision()); // unchanged: no redraw
+    chip.setLol(false, false);
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(Lock::Locked, d.app.pllLock(SI5351Manager::Pll::A));
+    TEST_ASSERT_TRUE(d.app.revision() != rev2);
+}
+
 // Audit T-3: millis() wraps after 49.7 days; supervision and autosave keep working.
 static void test_millis_wrap_keeps_supervision_and_autosave() {
     Fake::clockMs() = 0xFFFFFFFFUL - 3000;
@@ -1633,6 +1680,8 @@ int main() {
     RUN_TEST(test_boot_without_si5351_then_hot_plug);
     RUN_TEST(test_power_glitch_reports_once_and_restores);
     RUN_TEST(test_power_glitch_is_restored_in_the_same_cycle);
+    RUN_TEST(test_power_dip_without_output_reinitializes);
+    RUN_TEST(test_pll_lock_is_shown_as_state);
     RUN_TEST(test_millis_wrap_keeps_supervision_and_autosave);
     RUN_TEST(test_failing_bus_reinit_is_survived);
     RUN_TEST(test_reconnect_restores_spread_spectrum);

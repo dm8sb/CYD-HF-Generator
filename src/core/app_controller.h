@@ -168,6 +168,9 @@ public:
     int i2cSclPin() const;
     bool i2cSwapped() const;
     bool si5351IdUnverified() const { return si5351_.idUnverified(); }
+    // PLL lock per PLL from the supervision read of register 0 (CONFIG info card, A-226); only
+    // meaningful while hardwareReady(). A change counts as a revision.
+    SI5351Manager::PllLock pllLock(SI5351Manager::Pll p) const { return si5351_.pllLock(p); }
 
 private:
     Channel& channel_(uint8_t ch);
@@ -241,4 +244,7 @@ private:
     bool fault_[3] {};
     // Periodic retries of failed setups report to the log only, not as a dialog.
     bool quietRetry_ = false;
+    // Unlocked PLLs of the last supervision (lockCode_()), to bump the revision on a change.
+    uint8_t lockSeen_ = 0;
+    uint8_t lockCode_() const;
 };
