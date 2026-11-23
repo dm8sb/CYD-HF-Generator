@@ -59,55 +59,40 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 ### Next release
 
 - Manual (DE, EN), hardware page and remote API as web pages on GitHub Pages next to the web flasher, rendered from the Markdown at the release tag and deployed with it; the flasher page links them (E-54)
+- Host tools: `device_check.py` and the fake device cover CH2 coupling and screen rotation; CI runs `device_check --outputs` against the fake
 
 ### 2.1.0
 
 Framework Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 (fixes the lwIP DNS advisory GHSA-ch63-jxm5-vmvf), CH2 coupled to CH1, screen rotation, a uniform operation after user tests, WiFi and web hardening, and the remaining audit follow-ups (supply chain, CI, tests, structure).
 
-- Screen rotation by 180° (E-53): CONFIG `Device` → `Screen` → `Rotate` toggles 0°/180° at once, for mounting with USB and SMA on the other side; touch follows, the touch calibration stays valid and runs in both orientations; stored in NVS, `Defaults` resets it. SCPI `SYSTem:DISPlay:ROTation 0|180`, REST `config.rotation`, web UI CONFIG `Screen` `0°`/`180°`
-- CH2 coupled to CH1 (`CH2 = CH1 + offset`, E-52): chips `Free` / `CH1 + offset` on the CH2 page, offset −160 to +160 MHz in 1 Hz with sign (`+`/`−`, step chips, NUMPAD with `+/-`), `Out` shows the CH2 frequency, MAIN `CH1 +455 kHz`; outside 8 kHz–160 MHz CH2 waits (`WAIT`, `Waiting: CH1 + offset below 8 kHz`) and starts by itself; CH3 with master CH2 follows; stored in NVS. SCPI `SOURce2:COUPle OFF|CH1`, `SOURce2:FREQuency:OFFSet`, REST `coupled`/`offset` on `/api/channel/2`, web UI chips; a CH2 frequency while coupled gives −221 `CH2 is coupled to CH1`
-- Remote control API reference in English (`docs/REMOTE_API.md`): setup of USB and WiFi, all SCPI commands for USB, TCP 5025 and VXI-11, REST and WebSocket, examples
-- CONFIG in five tabs instead of a scrolled list (`Signal`, `Freq`, `Net`, `Device`, `Info`; tab bar at the bottom, at most three rows each, nothing scrolls); `Reconnect all` moved to `Net`, the touch calibration next to `Lock` in `Device` (E-42)
-- One header for every page except MAIN: `◀` at the top left goes one level back (replaces the `MAIN` button of the channel pages and CONFIG), page actions at the right; the WiFi scan list pages with `▲`/`▼` (E-43)
-- The device no longer shows `Saved` / `Saving...`; only save errors appear in red (E-44)
-- WiFi without power save and at full TX power: the device answers in the network within milliseconds instead of up to 0.4 s, at about 80–100 mA more current (E-45)
-- The WiFi status is cached: addresses and network name once per connection, signal strength and AP stations at most once per second, instead of several driver calls in every loop; the web server rebuilds its shared state only on a change
-- The display redraws only what changes: labels, colors and the AP QR code are set only for a new value, a touch action redraws once, the RSSI on the info card follows changes of 3 dB or more, the heap line is sampled every 5 s; `SYSTem:HEAP?` answers from a cache of at most 100 ms
-- WiFi search with backoff: no background scan without a stored network, 15 s doubling to 5 min while no stored network is seen, at most every 2 min with devices on the fallback AP (E-46)
-- One owner of the network settings during a web change: only the confirmed state is saved (a power loss brings back the previous settings), the device refuses network changes meanwhile with `Web change pending` (`Revert` / `Keep`), also with a web password (E-47)
-- `SYSTem:SAVE` and `POST /api/save` write only the changed keys and at most once per 10 s per source; further requests are merged silently (no flash wear from a save loop)
-- With a web password reading needs the login as well: the page asks for the password when it opens, state, token and WebSocket answer 401 without a session; `/lxi/identification` stays open. WebSocket: only the PONG to the device's random PING counts, a PING flood closes the client, a hidden tab frees its slot after 60 s (E-48)
-- WebSocket pushes at most every 100 ms (the first change at once, then the latest state); pushes and new connections check the largest free heap block, so a fragmented heap skips a push or answers 503 instead of restarting
-- Manual: new section 17 "Updating the firmware" (web flasher, first installation or update, checking the download, esptool, building from source)
-- Manual: new section 18 "Mixer experiments" (settings, typical levels per drive strength, harmonics and low-pass filters, diode ring mixer, NE612/SA612, Tayloe detector with CH3 IQ, cable lengths, phase error and image rejection, two worked examples); levels are calculated or datasheet values until the measurements
-- Log lines go into a 1 KB serial transmit buffer instead of waiting for the UART; without an SI5351 the search slows down from every 2 s to every 10 s after one minute (log line `[APP] SI5351 search every 10 s`)
-- The numpad rounds half a hertz exactly like SCPI and REST (integer arithmetic instead of `double`; e.g. `1.0079105 MHz` gave 1 007 910 Hz instead of 1 007 911 Hz)
-- REST and WebSocket state: new `limits` (frequency range and step list of the firmware); the web UI takes its range checks and step buttons from it, the mock and the fake SCPI device read `include/constants.h`
-- The web UI refuses static addresses with leading zeros (`192.168.001.5`) itself, like the device; the host tools parse `host:port` in one place (`[v6]:port`, a bad port is reported)
-- WIFI pages: text entry (limits, title, counter, what OK does for each of the six purposes), the status line and the pages of the scan list moved into host-tested logic (`InputLogic::submitEntry()`, `StatusText::wifiLine()`, suite `test_wifi_entry`); no visible change
-- Confirmation dialogs (title, text, buttons, action) come from one table instead of an if/else chain; no visible change
-- The WIFI pages are a class of their own (`WifiPages`: overview, scan list, text entry, access point, device page with their widgets and state) instead of part of the GUI class; no visible change
-- GUI callbacks of main (touch calibration store, factory reset, WiFi manager and save, web change confirmation, web password worker, remote clients) are passed as one `GuiServices` struct instead of six setters; no visible change
-- The status LED is driven by `main` in every loop (color of the shown channel page, or Identify blinking with the backlight) instead of by the GUI; the GUI reads the heap line through a callback; no visible change
-- Web server code grouped by task: connection gate (async_tcp), login service (async_tcp and its worker task), pusher (loop), shared data under one lock; the job mailbox for WiFi changes and scans is a host-tested `JobSlot`; no change of the API
-- REST writes and WiFi jobs no longer block the network task for up to 80/180 ms with 1-ms polling: they wait at most 20 ms, woken by the main loop, and a slow loop answers them from the connection's poll callback; the state JSON and error bodies are written into a fixed buffer without heap allocations (byte-identical output, E-50)
-- Host tools: `rest_example.py` and `web_check.py` ask for the web password (`--password` without a value) or take `CYD_WEB_PASSWORD`; a password on the command line still works with a warning. CI fails if `include/test_wifi_local.h` or Python bytecode is tracked
-- Advisory check: weekly and before every release, the pinned dependencies (libraries, Arduino-ESP32, ESP-IDF, ESP Web Tools with its npm packages) are checked against the GitHub advisories of their upstream repositories and OSV; a finding fails the run and opens an issue (`tools/dep_check.py advisories`, accepted exceptions with reason in `tools/advisories_accepted.json`)
-- Release dry run: pull requests to `main` run the release workflow without release and deploy; asset names, licenses archive, `SHA256SUMS` and notes come from `tools/release_files.py` for the dry run and the release alike
-- Reproducible stamps: the info card and boot line show the commit time in UTC instead of the local build time, a release candidate shows its tag version (`2.0.0-rc1`) and the tag instead of `HEAD`; the license and LGPL archives of a release are deterministic (sorted, commit time, no owner, gzip without name and time), so an independent rebuild can be compared with the attested assets
-- Framework pinned exactly: `platform_packages` fixes the Arduino-ESP32 packages, the toolchain and esptool (the platform only asked for tilde ranges); CI and the release check the resolved packages against the pins and `THIRD_PARTY_NOTICES.md` (`tools/dep_check.py`), the release build runs without a package cache and its notes list every package; PlatformIO Core in CI is installed with hashes (`tools/requirements-ci.txt`, kept current by Dependabot); the package cache of CI is written only on `main` and `dev`
-- Zero-warning gate in CI: a compiler warning in `src/` or `include/` of the firmware builds fails the job `Firmware build`; host tests with `-Wall -Wextra`, `native-cpp20` with `-Werror`; a further job builds the touch log firmware and the host screen renderer
-- Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 on the pioarduino platform 55.03.313 (the PlatformIO registry has no 3.3.13 yet): fixes the lwIP DNS cache overflow GHSA-ch63-jxm5-vmvf of ESP-IDF 5.5.5; platform and framework pinned by release URL, CI and the release compare the SHA-256 digests GitHub publishes; Flash +26 KB, static RAM +384 B (E-51)
-- CI, fuzzing and CodeQL run on pushes to `main`, `dev` and `agent/**` and on pull requests (no longer on tags or other branches); runs on `main` are never cancelled by a later push, so the CodeQL alerts of `main` always come from a complete analysis
-- Host tests: the `Preferences` fake rejects NVS names over 15 characters and strings over 4000 bytes like the real NVS; `test_nvs` loads the complete key set of 2.0.0 from both namespaces (upgrade test)
-- Host tests pin the boundaries and error paths the mutation audit found open (AF35): CH3 exactly at 4.730 and 100 MHz, the remainder of the remote rate limit (75 ms steps, `millis()` overflow), Authorization 1024/1025 bytes, five UTF-8 edges, the autosave and retry delays, the Identify blinking with the backlight, the RSSI tie of two WiFi networks (the first one wins), every failing transfer of the SI5351 init, closed I2C bus, cut log lines, an inconsistent touch calibration and NVS write errors; the random tests restart from their seed in every test and name it in the message
-- Fix: a log line longer than 127 bytes on the serial port lost its newline, so the next line was glued to it; the cut line now ends with a newline like in the SCPI log buffer (found by the AF35 tests)
-- Fuzzing: two more harnesses (12): `prefilter` (the byte filter in front of the HTTP parser, in random chunks and time steps, against an independent reference and differentially against the request guard) and `rest_wifi` (POST/GET `/api/wifi` against an independent model of the rules: unknown key −108, refusals leave the settings unchanged, no secret in any answer); both run 60 s per push in the CI job `Fuzz`
-- Host tests: random interleavings of the web job mailbox (`JobSlot`, request, timeout and late result of loop(), 200 000 steps): every request gets its own result or none, every scan buffer is freed exactly once (AF33)
-- Web server: the routes are one table in `net/web_routes.*` used by the request dispatch and the request guard, and the request body is assembled there (host-tested against every path of `data/www/README.md`); a body with an embedded NUL byte is now refused with `-102` instead of being cut at the NUL, and the whole body is wiped after a password (AF32)
-- CI: the host tests also run under ASan and UBSan (env `native-asan`, Linux), and a deliberate overflow in the probe suite `test_sanitizer` must be reported (AF36)
-- CI job `Tool checks`: size report self-test, mock with web check (without and with password), fake device with device check, and shared contract vectors (`test/contract/vectors.json`) that the C++ host tests and `tools/contract_check.py` read; they found the mock answering differently from the firmware (Origin, Sec-Fetch-Site and token rules on GET, POST outside `/api/`, broken Cookie/Authorization, duplicate keys, rate limit counting refused bodies), now fixed in the mock; the build stops on `innerHTML` and friends in `data/www` (AF34)
-- Measurement helpers for tier 1W (AF39): `tools/slowloris.py` (L-S5), `tools/touchstat.py` (touch logs), `tools/counter_log.py` (counter CSV), `device_check.py --profile L6|L22`, test build env `esp32-2432S028R-faultiq` for A8/A11; the fake SCPI device knows `*RST`
+**Operation (device)**
+- CONFIG in five tabs (`Signal`, `Freq`, `Net`, `Device`, `Info`) instead of a scrolled list; one header with `◀` (one level back) on every page except MAIN; no `Saved` / `Saving...` any more, only save errors in red (E-42 to E-44)
+- CH2 coupled to CH1: chips `Free` / `CH1 + offset` on the CH2 page, offset −160 to +160 MHz in 1 Hz, CH2 waits (`WAIT`) outside 8 kHz–160 MHz and restarts by itself; SCPI `SOUR2:COUP`, `SOUR2:FREQ:OFFS`, REST and web UI (E-52)
+- Screen rotation by 180°: CONFIG `Device` → `Screen` → `Rotate`, touch follows, one calibration for both orientations; SCPI `SYST:DISP:ROT`, REST `config.rotation` (E-53)
+- The numpad rounds half a hertz exactly like SCPI and REST; the display redraws only what changes
+
+**WiFi, web and remote control**
+- WiFi without power save and at full TX power (answers within milliseconds), cached status, scan backoff 15 s → 5 min and no scan without a stored network (E-45, E-46)
+- One owner of the network settings during a web change: only the confirmed state is saved, touch changes meanwhile are refused with `Web change pending` (E-47)
+- With a web password, reading needs the login as well (page, state, token, WebSocket); `/lxi/identification` stays open; WebSocket pings and dead clients bounded (E-48)
+- `SYST:SAVE` / `POST /api/save` at most once per 10 s per source and only changed keys; WebSocket pushes at most every 100 ms; REST writes and WiFi jobs answered without blocking the network task (E-50)
+- REST state has `limits` (frequency range, steps, offset); the web UI refuses static addresses with leading zeros like the device
+
+**Documentation**
+- Manual: effects of the CONFIG options in detail, section 17 "Updating the firmware", section 18 "Mixer experiments" (typical levels until the measurements)
+- Remote control API reference in English: `docs/REMOTE_API.md`
+
+**Build, supply chain and CI**
+- Arduino-ESP32 3.3.13 / ESP-IDF 5.5.6 on the pioarduino platform 55.03.313, platform and framework pinned exactly by URL and SHA-256 (E-51)
+- Reproducible builds: stamps from the tag and the commit time (UTC), deterministic archives (E-49); release builds without cache
+- CI: pushes to `main`, `dev`, `agent/**` and pull requests; zero-warning gate; release dry run on pull requests to `main` (required check); weekly advisory check of the pinned dependencies (finding = red run and issue)
+- Host tools ask for the web password instead of taking it on the command line
+
+**Tests and structure**
+- Shared contract vectors for firmware and mock (13 mock differences fixed), host tests under ASan/UBSan, two more fuzz targets (`prefilter`, `rest_wifi`), NVS limits in the fake and an upgrade test, boundary and error-path tests for the mutation audit
+- GUI split (WIFI pages class, confirmation table, services struct, LED out of the GUI), web server split by task, pure route table and job mailbox, JSON writer without heap
+- Measurement helpers for tier 1W (`slowloris.py`, `touchstat.py`, `counter_log.py`, `device_check.py` profiles)
+- Fix: a serial log line longer than 127 bytes lost its newline
 
 ### 2.0.0
 
