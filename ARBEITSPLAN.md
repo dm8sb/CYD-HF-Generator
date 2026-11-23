@@ -1,6 +1,6 @@
 # Arbeitsplan – CYD HF Generator
 
-Stand: Release **2.1.0** · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · auf `dev` nach 2.1.0: Doku als Pages-Seiten (G9), Werkzeuge kennen CH2-Kopplung und Drehung, Doku konsolidiert (DK1), Planungsdateien neu nummeriert · als Nächstes: MES-01 (Gerätetest 3.3.13), FW-07, FW-08, REL-02/REL-03 sobald möglich; die Messungen (MES-02 bis MES-08) kommen zuletzt, danach REL-01
+Stand: Release **2.1.0** · Arbeitszweig `dev`, `main` nur per Pull Request (Merge-Commit) · auf `dev` nach 2.1.0: Doku als Pages-Seiten (G9), Werkzeuge kennen CH2-Kopplung und Drehung, Doku konsolidiert (DK1), Planungsdateien neu nummeriert, Warnung `Heap low` (FW-08) · als Nächstes: MES-01 (Gerätetest 3.3.13), FW-07, REL-02/REL-03 sobald möglich; die Messungen (MES-02 bis MES-08) kommen zuletzt, danach REL-01
 
 Einzige Planungsdatei: Arbeitsregeln, Stand, offene Befunde und offene Aufgaben. Anforderungen (A-nnn) und alle Entscheidungen (E-nnn, auch die früheren Entscheidungen Dn dieser Datei und das WEB-HMI-Konzept mit W-E und W-S) stehen in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), Messungen (M-nnn) in [MESSPLAN.md](MESSPLAN.md), das Verhalten in [USER_MANUAL_DE.md](USER_MANUAL_DE.md).
 
@@ -41,9 +41,9 @@ Einzige Planungsdatei: Arbeitsregeln, Stand, offene Befunde und offene Aufgaben.
 | 2.0.0 | LXI und VXI-11 (LX1, E-614 bis E-616); GitHub: Release-Workflow mit Herkunftsnachweis und Webflasher (G1, G2, G11, E-905), Tag-Ruleset (E-809), `SECURITY.md`, CodeQL, Dependabot, Größenbericht, Vorlagen, gerenderte Bilder, Gehäuse (G4–G9, G11–G13); Projekt-Audit mit Folgearbeiten AF1–AF10, AF29–AF31 (E-611, E-704, E-906 bis E-908); Version 2.0.0 mit neuer Historie (E-904) |
 | nach 2.0.0 | U27 einheitliche Bedienung: CONFIG in fünf Registern (E-311), eine Kopfzeile mit `◀` (E-312), kein `Saved`/`Saving...` am Gerät (E-313); API-Referenz `docs/REMOTE_API.md`; AF11–AF19, AF44–AF46, AF48, AF51a–AF53, AF55: WLAN ohne Energiesparen (E-512), Suche mit Backoff (E-513), ein Besitzer der Netzeinstellungen (E-514), `SAVE` höchstens alle 10 s (E-402), Login auch für Lesen (E-703), Push gebündelt; Handbuch §17 und §18 |
 | 2.1.0 | Audit-Priorität 3 (CI-Trigger, Warnungs-Gate, exakte Pins, reproduzierbare Stempel E-806, Release-Probelauf, Advisory-Prüfung; E-807), Priorität 4 (Vertragsvektoren, ASan/UBSan, neue Fuzz-Ziele, NVS-Grenzen, Messhelfer), Priorität 6 (Texteingabe als Logik, `Gui` und Webserver aufgeteilt, asynchrone REST-Antworten E-622); Priorität 5 entfällt (E-315); N11 Arduino 3.3.13 / IDF 5.5.6 über pioarduino (E-804); N14 CH2 = CH1 + Offset (E-213); N16 `Rotate` (E-314); am Gerät geprüft |
-| nach 2.1.0 (`dev`) | G9 Handbuch, Hardware-Seite und Remote-API als Pages-Seiten (E-903); Werkzeuge kennen CH2-Kopplung und Drehung; DK1 Doku konsolidiert; DOK-03 Hardware-Hinweise im Handbuch §13 (eigener LDO mit Ferrit, kurze Masse, Abschirmung, TCXO optional, SI5351 läuft beim Flashen weiter) und VCO-Hinweis bei `Fractional` mit +50 ppm (§8); 10-Mio.-Fuzz-Lauf ohne Fund; Spezifikation, Messplan und Arbeitsplan neu aufgebaut und einheitlich nummeriert |
+| nach 2.1.0 (`dev`) | G9 Handbuch, Hardware-Seite und Remote-API als Pages-Seiten (E-903); Werkzeuge kennen CH2-Kopplung und Drehung; DK1 Doku konsolidiert; DOK-03 Hardware-Hinweise im Handbuch §13 (eigener LDO mit Ferrit, kurze Masse, Abschirmung, TCXO optional, SI5351 läuft beim Flashen weiter) und VCO-Hinweis bei `Fractional` mit +50 ppm (§8); 10-Mio.-Fuzz-Lauf ohne Fund; Spezifikation, Messplan und Arbeitsplan neu aufgebaut und einheitlich nummeriert; FW-08 Warnung `Heap low` unter 40 KB freiem Heap mit Hysterese bis 48 KB (A-726, S-13, `HeapWatch` host-getestet) |
 
-Host-Tests: 524 Fälle in `native-win` und 4 in `native-win-fault`.
+Host-Tests: 528 Fälle in `native-win` und 4 in `native-win-fault`.
 
 ### 1.2 Referenzwerte
 
@@ -82,7 +82,6 @@ Host-Tests: 524 Fälle in `native-win` und 4 in `native-win-fault`.
 
 - [ ] **Plattform außerhalb des PlatformIO-Registers** (P-2, P-4, S-19): pioarduino 55.03.313 / Arduino 3.3.13 / IDF 5.5.6 per Release-URL mit SHA-256-Prüfung (E-804). → REL-03; Gerätetest des Updates → MES-01
 - [ ] **Unity 2.6.1** (P-8): 2.7.0 noch nicht im Register. → REL-02
-- [ ] **Keine Warnung bei knappem Heap** (S-13): die Betriebsgrenze A-726 (40 KB / 16 KB) braucht eine Logzeile `Heap low`, die es noch nicht gibt. → FW-08
 
 ### 2.4 Dokumentation
 
@@ -131,11 +130,6 @@ Je Aufgabe: **Warum** (Anlass, Befund), **Was** (Umfang), **Prüfung** und Commi
   - *Was:* Register 1 (`SYS_INIT_STKY`) nach `begin()` löschen und zyklisch lesen; dasselbe Register meldet `LOL_A`/`LOL_B` → Zeile „PLL locked“ auf der Info-Karte (A-226).
   - *Prüfung:* Host-Test im Registermodell (Sticky-Bit gesetzt → Wiederverbinden); am Gerät die Versorgung des Moduls ohne eingeschalteten Ausgang unterbrechen (wie M-106).
   - *Commit:* `FW-07: Detect SI5351 power loss by the sticky bit`
-- [ ] **FW-08 · Warnung `Heap low`** (vor MES-04)
-  - *Warum:* A-726 verlangt eine Logzeile unter 40 KB freiem Heap; M-205 prüft sie, die Firmware hat sie noch nicht.
-  - *Was:* in `loop()` den freien Heap prüfen; unter 40 KB einmal `Heap low` mit freiem Heap und größtem Block loggen, erneut erst nach Erholung über 48 KB (Hysterese); Grenzen in `constants.h`.
-  - *Prüfung:* Host-Test der Hysterese; Handbuch DE/EN (Logzeilen); im Debug-Build mit 3 WebSockets keine Warnung.
-  - *Commit:* `FW-08: Log a warning when the free heap drops below 40 KB`
 
 ### 3.2 Dokumentation (DOK)
 
