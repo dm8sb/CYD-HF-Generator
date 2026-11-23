@@ -104,6 +104,8 @@ NOTES = """Firmware {version} (commit `{commit}`) for the ESP32-2432S028R (CYD a
 
 **Web flasher** (Chrome/Edge on a desktop): {pages}
 
+**Documentation** of this release: manual [English]({pages}manual/en.html) / [Deutsch]({pages}manual/de.html), [hardware]({pages}hardware.html), [remote API]({pages}remote-api.html)
+
 | File | Content |
 |---|---|
 | `{p}-firmware.bin` | Application at 0x10000 (the build behind the web flasher) |

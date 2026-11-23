@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- SPDX-FileCopyrightText: 2026 DM8SB -->
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
-<!-- Web flasher page (ARBEITSPLAN G2, G11). Template: tools/flasher_site.py fills the double-brace
+<!-- Web flasher page (ARBEITSPLAN G2, G9, G11). Template: tools/flasher_site.py fills the double-brace
      fields. ESP Web Tools is served by this site in the exact version of esp-web-tools.json
      (downloaded and checked against its pins when the site is built, E-36), so the CSP allows
      scripts only from the site itself and the page makes no request to another origin. -->
@@ -36,6 +36,9 @@
 </ol>
 <p>If the connection fails, hold the <strong>BOOT</strong> button while clicking Connect, close any serial monitor that holds the port, and try another USB cable (some cables carry power only).</p>
 <p class="warn">The generator is not a transmitter. Never connect an output to an antenna without a suitable low-pass filter; radiating a signal needs an amateur radio licence and must stay within the permitted bands and spurious-emission limits.</p>
+
+<h2>Documentation</h2>
+<p>For firmware {{VERSION}}: user manual in <a href="manual/en.html">English</a> and <a href="manual/de.html" lang="de">Deutsch</a>, <a href="hardware.html">hardware</a> (parts, wiring, case) and the <a href="remote-api.html">remote control API</a> (SCPI over USB, TCP and VXI-11, REST, WebSocket).</p>
 
 <h2>Files</h2>
 <p>The flasher writes these parts to the board's flash (no single merged image, so an update never touches the settings partition):</p>
