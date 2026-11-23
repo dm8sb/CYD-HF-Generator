@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 DM8SB
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Automated SCPI check for the CYD HF generator (smoke test / MESSPLAN L6, L-S).
+"""Automated SCPI check for the CYD HF generator (smoke test / MESSPLAN M-203, M-206 to M-216).
 
 Talks to a real device over USB serial (--usb) or TCP (--tcp). It only changes
 RAM state: the settings it touches are read first and written back at the end,
@@ -16,13 +16,13 @@ inputs with the documented error codes (state unchanged), CH2 coupled to CH1
 master CH2, the last valid frequency after decoupling), screen rotation (short,
 restored), compound lines, line limits, rate limit, *IDN? timing, SYST:LOG? drain.
 
-Profiles of the measurement plan (AF39): --profile L6 (1000 x *IDN?, median < 50 ms, no log
-line in the data stream) and --profile L22 (the whole command tree: every query followed by
+Profiles of the measurement plan (AF39): --profile M-203 (1000 x *IDN?, median < 50 ms, no log
+line in the data stream) and --profile M-452 (the whole command tree: every query followed by
 SYST:ERR? = 0, the valid round trips, the invalid parameters with their codes, *RST).
 
 Examples:
     python device_check.py --usb COM5
-    python device_check.py --tcp cyd-hf-1a2b.local --profile L22
+    python device_check.py --tcp cyd-hf-1a2b.local --profile M-452
     python device_check.py --tcp cyd-hf-1a2b.local --repeat 1000 --json > report.json
     python device_check.py --tcp 127.0.0.1:5025 --outputs
 
@@ -57,7 +57,7 @@ EXPECT = {
     "max_commands": 16,
     "max_setting_cmds_per_s": 20,
     "rate_error": '-200,"Execution error;Too many commands"',
-    "idn_median_ms": 50.0,         # MESSPLAN L6
+    "idn_median_ms": 50.0,         # MESSPLAN M-203
     "iq_min_hz": 4730000,          # CH3 IQ range minimum without spread
     "offset_max": 160000000,       # Hz, offset of a coupled CH2 (either sign)
     "coupled_error": "CH2 is coupled to CH1",
@@ -671,22 +671,22 @@ def check_timing(dev, repeat):
     return f
 
 
-# Every query of the command tree (USER_MANUAL_EN.md section 15) for the L22 sweep.
+# Every query of the command tree (USER_MANUAL_EN.md section 15) for the M-452 sweep.
 QUERY_TREE = ["*IDN?", "*OPC?", "*TST?", "*ESR?", "*STB?", "SYST:VERS?", "SYST:ERR:COUN?", "SYST:SI5351?",
               "SYST:HEAP?", "OUTP:REM?", "SOUR3:IQ:RANG?", "FREQ:ACT?", "SOUR2:FREQ:ACT?", "SOUR3:FREQ?"] + \
              ["OUTP%d?" % n for n in (1, 2, 3)] + ["OUTP%d:COND?" % n for n in (1, 2, 3)] + \
              [query for _, query, _ in STATE_QUERIES]
 
 PROFILES = {
-    # MESSPLAN L6: 1000 valid answers, median below EXPECT["idn_median_ms"].
-    "L6": {"repeat": 1000, "allow_rst": False, "sweep": False},
-    # MESSPLAN L22: command tree complete, SYST:ERR? after every command.
-    "L22": {"repeat": 100, "allow_rst": True, "sweep": True},
+    # MESSPLAN M-203: 1000 valid answers, median below EXPECT["idn_median_ms"].
+    "M-203": {"repeat": 1000, "allow_rst": False, "sweep": False},
+    # MESSPLAN M-452: command tree complete, SYST:ERR? after every command.
+    "M-452": {"repeat": 100, "allow_rst": True, "sweep": True},
 }
 
 
 def check_query_sweep(dev):
-    """L22: every query answers and leaves the error queue empty."""
+    """M-452: every query answers and leaves the error queue empty."""
     out = []
     for cmd in QUERY_TREE:
         def f(cmd=cmd):
@@ -776,8 +776,8 @@ def main():
     grp.add_argument("--usb", metavar="PORT", help="serial port, e.g. COM5 (DTR/RTS stay off)")
     grp.add_argument("--tcp", metavar="HOST[:PORT]", help="TCP address, port defaults to 5025")
     ap.add_argument("--repeat", type=int, default=None, metavar="N",
-                    help="number of *IDN? queries for the timing check (default 100, 1000 with --profile L6)")
-    ap.add_argument("--profile", choices=sorted(PROFILES), help="measurement profile of MESSPLAN.md (L6, L22)")
+                    help="number of *IDN? queries for the timing check (default 100, 1000 with --profile M-203)")
+    ap.add_argument("--profile", choices=sorted(PROFILES), help="measurement profile of MESSPLAN.md (M-203, M-452)")
     ap.add_argument("--outputs", action="store_true",
                     help="also switch outputs ON briefly (RF!); without it no output is enabled")
     ap.add_argument("--allow-rst", action="store_true", help="also test *RST (all settings in RAM reset)")

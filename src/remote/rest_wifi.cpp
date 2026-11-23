@@ -175,8 +175,8 @@ Reply parseInto(const char* body, size_t len, Change* c) {
         if (!r.ok()) return r;
     }
     if (!any) return bad(RestJson::MISSING_PARAMETER);
-    // D23: the final change takes only the mode; any other key (even an empty one) would be
-    // saved without the confirmation of W-S12.
+    // E-515: the final change takes only the mode; any other key (even an empty one) would be
+    // saved without the confirmation of A-712.
     if (c->hasMode && c->mode == WifiMode::Off && doc.as<JsonObjectConst>().size() > 1) {
         return bad(RestJson::PARAMETER_NOT_ALLOWED);
     }
@@ -214,7 +214,7 @@ Reply merge(const Change& c, const NetSettings& cur, NetSettings* next) {
     NetSettings n = cur;
     Reply r = ok();
     if (c.hasMode) n.mode = c.mode;
-    // D23: a final change (WiFi off, also when it already is) carries nothing but the mode.
+    // E-515: a final change (WiFi off, also when it already is) carries nothing but the mode.
     if (isFinal(n) && (c.netCount || c.deleteMask || c.hasName || c.hasStaticIp || c.hasAp)) {
         *next = cur;
         wipeBytes(&n, sizeof(n));
@@ -327,7 +327,7 @@ size_t buildScan(const char* state, const ScanList* list, char* out, size_t outS
         for (uint8_t i = 0; i < list->count(); ++i) {
             const ScanEntry& e = list->at(i);
             JsonObject o = nets.add<JsonObject>();
-            o["ssid"] = (const char*)e.shown; // sanitized at the scan (W-S9)
+            o["ssid"] = (const char*)e.shown; // sanitized at the scan (A-709)
             o["rssi"] = e.rssi;
             o["secure"] = e.secure;
         }

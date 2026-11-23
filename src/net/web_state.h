@@ -12,7 +12,7 @@
 // (net/web_server.*) runs them in loop() (NetChange, ScanSession) or under its lock
 // (LoginQueue, JobSlot). Time comes in as nowMs.
 
-// Two-stage network change from the web (W-E9, W-S12): the new settings are applied
+// Two-stage network change from the web (E-618, A-712): the new settings are applied
 // APPLY_DELAY_MS after the request (so the 202 answer leaves before the radio restarts), then
 // they must be confirmed within CONFIRM_MS over the new connection, and without a web password
 // also at the touch screen; otherwise the previous settings return. A final change (mode Off:
@@ -82,7 +82,7 @@ private:
     NetSettings next_ {};
 };
 
-// GET /api/wifi/scan (W-S11, ARBEITSPLAN 3.6 point 6): a GET starts a scan unless one runs,
+// GET /api/wifi/scan (A-711, A-622): a GET starts a scan unless one runs,
 // GETs during the scan answer "running", the first GET after it finished gets the result once
 // ("done" / "failed"), and a new start within INTERVAL_MS of the previous start is refused (429).
 // A scan the touch screen started is reported the same way.
@@ -102,7 +102,7 @@ private:
     uint32_t lastStartMs_ = 0;
 };
 
-// One web password check at a time (W-S23): the async_tcp task submits it, a worker task runs
+// One web password check at a time (A-723): the async_tcp task submits it, a worker task runs
 // the slow PBKDF2 (WebPassword::verify, about 1.3 s) outside of it, and the async_tcp task
 // collects the result. Ids tell a late result of a cancelled check from the current one.
 class LoginQueue {

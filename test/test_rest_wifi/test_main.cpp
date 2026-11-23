@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// REST mapping of the WiFi settings (S55, ARBEITSPLAN 3.6, W-E9, W-S12): POST /api/wifi bodies
+// REST mapping of the WiFi settings (S55, PROJECT_SPECIFICATION.md 6.4, E-618, A-712): POST /api/wifi bodies
 // with strict types, merged with the NetConfig rules (all or nothing), GET /api/wifi without
-// any key, the scan answer, and random bodies with a fixed seed (W-S25).
+// any key, the scan answer, and random bodies with a fixed seed (A-725).
 
 #include <unity.h>
 #include <ArduinoJson.h>
@@ -115,7 +115,7 @@ static void test_static_ip_and_ap() {
     TEST_ASSERT_TRUE(n.apOpen);
     TEST_ASSERT_TRUE(apply("{\"ap\":{\"password\":\"newAPpass9\"}}", cur, &n).ok());
     TEST_ASSERT_EQUAL_STRING("newAPpass9", n.apPassword);
-    // Plausibility (W-S12): -221 with the reason; bad mask or text -224.
+    // Plausibility (A-712): -221 with the reason; bad mask or text -224.
     NetSettings c2 = cur;
     Change c;
     const char* sameGw = "{\"staticIp\":{\"enabled\":true,\"ip\":\"10.0.0.1\",\"mask\":\"255.255.255.0\",\"gateway\":\"10.0.0.1\"}}";
@@ -152,7 +152,7 @@ static void test_refusals() {
     assertError(-224, "{\"networks\":[{\"slot\":0,\"ssid\":\"123456789012345678901234567890123\"}]}");
     assertError(-224, "{\"networks\":[{\"slot\":0,\"ssid\":\"a\"},{\"slot\":0,\"ssid\":\"b\"}]}");
     assertError(-224, "{\"networks\":[{\"slot\":0,\"ssid\":\"a\",\"password\":\"short\"}]}");
-    // 64 characters that are not all hex: no passphrase (max. 63) and no PMK (D31).
+    // 64 characters that are not all hex: no passphrase (max. 63) and no PMK (E-510).
     assertError(-224, "{\"networks\":[{\"slot\":0,\"ssid\":\"a\",\"password\":"
                       "\"0DC0D6EB90555ED6419756B9A15EC3E3209B63DF707DD508D14581F8982721AG\"}]}");
     assertError(-224, "{\"networks\":[{\"slot\":0,\"ssid\":\"a\",\"password\":\"tab\\tinside\"}]}");
@@ -169,8 +169,8 @@ static void test_refusals() {
     assertError(-108, "{\"ap\":{\"ssid\":\"x\"}}");
     // Partly valid: nothing changes (checked by assertError) even if the first part was fine.
     assertError(-224, "{\"name\":\"bench\",\"ap\":{\"password\":\"short\"}}");
-    // D23 / SEC-2: the final change (mode off) takes only the mode; anything else would be
-    // saved without the confirmation of W-S12.
+    // E-515 / SEC-2: the final change (mode off) takes only the mode; anything else would be
+    // saved without the confirmation of A-712.
     assertError(-108, "{\"mode\":\"off\",\"networks\":[{\"slot\":1,\"ssid\":\"Rogue\",\"password\":\"roguepass\"}],"
                       "\"ap\":{\"open\":true},\"name\":\"x\"}");
     assertError(-108, "{\"mode\":\"off\",\"name\":\"bench\"}");
@@ -225,7 +225,7 @@ static void test_settings_json_has_no_keys() {
     buildSettings(s, "CYD-HF-1A2B", buf, sizeof(buf));
     TEST_ASSERT_FALSE(deserializeJson(d, buf));
     TEST_ASSERT_EQUAL_STRING("none", d["networks"][1]["key"]);
-    // Hostile stored SSIDs stay valid JSON (W-S8, W-S9); the longest form fits.
+    // Hostile stored SSIDs stay valid JSON (A-708, A-709); the longest form fits.
     memset(s.networks[0].ssid, '"', 32);
     s.networks[0].ssid[32] = '\0';
     memset(s.networks[1].ssid, 0xC3, 32);
@@ -273,7 +273,7 @@ static void test_scan_json() {
     TEST_ASSERT_EQUAL(15, (int)d["networks"].size());
 }
 
-// W-S25: random bodies from WiFi pieces never crash, never leave a half-merged state, and a
+// A-725: random bodies from WiFi pieces never crash, never leave a half-merged state, and a
 // success always gives settings that pass NetConfig's own checks.
 static uint32_t rnd() {
     seed ^= seed << 13;
@@ -311,7 +311,7 @@ static void test_random_bodies() {
         }
         if (next.staticIp.enabled) TEST_ASSERT_TRUE_MESSAGE(NetConfig::checkStaticIp(next.staticIp) == NetConfig::IpCheck::Ok, msg);
         TEST_ASSERT_EQUAL_STRING_MESSAGE(cur.webPassword, next.webPassword, msg);
-        // D23: a final change differs from the current settings in the mode only.
+        // E-515: a final change differs from the current settings in the mode only.
         if (isFinal(next)) {
             NetSettings onlyMode = cur;
             onlyMode.mode = WifiMode::Off;

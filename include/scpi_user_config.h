@@ -16,7 +16,7 @@
 #define USE_MEMORY_ALLOCATION_FREE 0
 #define USE_COMMAND_TAGS 1
 #define USE_DEPRECATED_FUNCTIONS 0
-// Numbers and units are parsed by remote/scpi.cpp itself (exact integers, W-S19); the library's
+// Numbers and units are parsed by remote/scpi.cpp itself (exact integers, A-719); the library's
 // unit table stays empty.
 #define USE_UNITS_IMPERIAL 0
 #define USE_UNITS_ANGLE 0

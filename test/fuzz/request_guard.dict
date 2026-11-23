@@ -1,5 +1,5 @@
 # libFuzzer dictionary for the request_guard target (-dict=test/fuzz/request_guard.dict):
-# request lines, header names and values of W-S4, W-S5, W-S6, W-S10, W-S13 and the script
+# request lines, header names and values of A-704, A-705, A-706, A-710, A-713 and the script
 # operations of fuzz_request_guard.cpp.
 
 lf="\x0a"

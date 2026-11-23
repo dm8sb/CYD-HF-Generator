@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// REST JSON mapping (ARBEITSPLAN 3.6): bodies to Commands with strict checks (unknown keys and
-// wrong types refused, W-S19), Result/PushResult to HTTP status and SCPI error codes (W-S21),
-// password fields (W-S1), the state JSON with escaped foreign strings (W-S8, W-S9), and
-// random-input tests with a fixed seed (W-S25). Values run through the real controller.
+// REST JSON mapping (PROJECT_SPECIFICATION.md 6.4): bodies to Commands with strict checks (unknown keys and
+// wrong types refused, A-719), Result/PushResult to HTTP status and SCPI error codes (A-721),
+// password fields (A-701), the state JSON with escaped foreign strings (A-708, A-709), and
+// random-input tests with a fixed seed (A-725). Values run through the real controller.
 
 #include <unity.h>
 #include <helpers/contract_vectors.h>
@@ -161,7 +161,7 @@ static void test_ch3_and_config_bodies() {
     assertCommand(c.list[4], CommandType::Correction, 0, -250);
     assertCommand(c.list[5], CommandType::Step, 0, 1000);
     assertCommand(c.list[6], CommandType::Backlight, 0, 80);
-    assertCommand(c.list[7], CommandType::Rotation, 0, 180); // N16, E-53
+    assertCommand(c.list[7], CommandType::Rotation, 0, 180); // N16, E-314
     const struct {
         const char* body;
         CommandType type;
@@ -177,7 +177,7 @@ static void test_ch3_and_config_bodies() {
     const char* const unknownNames[] = {"{\"tuning\":\"Integer\"}", "{\"tuning\":\"lowNoise\"}", "{\"spread\":\"down5\"}",
                                         "{\"offState\":\"High-Z\"}", "{\"offState\":\"\"}", "{\"tuning\":\"integer \"}"};
     for (const char* b : unknownNames) ASSERT_REPLY(400, -224, config(b, &c));
-    // Remote outputs can only be changed on the device (W-E25).
+    // Remote outputs can only be changed on the device (E-610).
     const Reply r = config("{\"remoteOutputs\":\"local\"}", &c);
     ASSERT_REPLY(403, -221, r);
     TEST_ASSERT_EQUAL_STRING("{\"error\":\"-221,Remote outputs can only be changed at the device\"}", err(r).c_str());
@@ -198,7 +198,7 @@ static void test_ch3_and_config_bodies() {
 
 static void test_wrong_types_are_refused() {
     Commands c;
-    // ARBEITSPLAN 3.6: {"drive":"4"}, {"drive":4.5} -> 400.
+    // A-621: {"drive":"4"}, {"drive":4.5} -> 400.
     const char* const config104[] = {"{\"drive\":\"4\"}", "{\"drive\":4.5}", "{\"drive\":4.0}", "{\"drive\":4e0}",
                                      "{\"drive\":40E-1}", "{\"drive\":true}", "{\"drive\":false}", "{\"drive\":null}",
                                      "{\"drive\":[4]}", "{\"drive\":{\"v\":4}}", "{\"correction\":-2.5}",
@@ -220,7 +220,7 @@ static void test_wrong_types_are_refused() {
     }
     ASSERT_REPLY(400, -104, ch3("{\"master\":\"1\"}", &c));
     ASSERT_REPLY(400, -104, ch3("{\"phase\":90.0}", &c));
-    // Integers that do not fit into int64 are out of range, not cut (W-S19).
+    // Integers that do not fit into int64 are out of range, not cut (A-719).
     ASSERT_REPLY(400, -222, channel(1, "{\"frequency\":9223372036854775808}", &c));
     ASSERT_REPLY(400, -222, channel(1, "{\"frequency\":18446744073709551616}", &c));
     ASSERT_REPLY(400, -222, channel(1, "{\"frequency\":-9223372036854775809}", &c));
@@ -339,14 +339,14 @@ static void test_values_are_checked_by_the_controller() {
     ASSERT_REPLY(200, 0, ch3("{\"master\":2,\"phase\":180}", &c));
     ASSERT_REPLY(200, 0, d.run(c));
     TEST_ASSERT_EQUAL_UINT8(2, d.app.ch3().master);
-    // Remote outputs local only (W-S21): switching on 403/-221, switching off allowed.
+    // Remote outputs local only (A-721): switching on 403/-221, switching off allowed.
     TEST_ASSERT_EQUAL((int)Result::Ok, (int)d.app.setRemoteOutputsAllowed(false));
     ASSERT_REPLY(200, 0, channel(2, "{\"enabled\":true}", &c));
     const Reply denied = d.run(c);
     ASSERT_REPLY(403, -221, denied);
     TEST_ASSERT_EQUAL_STRING("{\"error\":\"-221,Remote outputs: local only\"}", err(denied).c_str());
     TEST_ASSERT_FALSE(d.app.channel(2).enabled);
-    // D22: off state High is refused the same way, High-Z stays allowed.
+    // E-611: off state High is refused the same way, High-Z stays allowed.
     ASSERT_REPLY(200, 0, config("{\"offState\":\"high\"}", &c));
     ASSERT_REPLY(403, -221, d.run(c));
     TEST_ASSERT_EQUAL((int)OffState::Low, (int)d.app.system().off_state);
@@ -359,7 +359,7 @@ static void test_values_are_checked_by_the_controller() {
     // Save and identify.
     ASSERT_REPLY(200, 0, parseAction(CommandType::SaveNow, "{}", 2, &c));
     ASSERT_REPLY(200, 0, d.run(c));
-    // Through the queue: the source is Web, the write limit is the queue's (W-S11).
+    // Through the queue: the source is Web, the write limit is the queue's (A-711).
     CommandQueue q;
     ASSERT_REPLY(200, 0, config("{\"drive\":6}", &c));
     for (int i = 0; i < REMOTE_WRITES_PER_S; ++i) {
@@ -418,7 +418,7 @@ static void test_login_body_and_password_fields() {
     ASSERT_REPLY(400, -222, parseLogin(longBody.c_str(), longBody.size(), pw, sizeof(pw), &len));
     TEST_ASSERT_EQUAL(0, (int)len);
     TEST_ASSERT_EQUAL_STRING("", pw);
-    // W-S1: bodies with password or key fields, at any depth and in any case.
+    // A-701: bodies with password or key fields, at any depth and in any case.
     const char* const secret[] = {"{\"password\":\"x\"}", "{\"networks\":[{\"ssid\":\"a\",\"key\":\"b\"}]}",
                                   "{\"apPassword\":\"x\"}", "{\"PASSWORD\":1}", "{\"wifi\":{\"psk\":\"x\"}}",
                                   "{\"secret\":null}", "{\"pass\\u0077ord\":\"x\"}", "[{\"a\":[{\"newPassphrase\":1}]}]"};
@@ -516,7 +516,7 @@ static void test_state_json_contract() {
     TEST_ASSERT_EQUAL_STRING("OFF", c2["status"]);
     TEST_ASSERT_EQUAL(2, (int)c2["modes"].size());
     TEST_ASSERT_EQUAL_STRING("8mA", c2["modes"][1]);
-    TEST_ASSERT_EQUAL(8, (int)keyCount(c2)); // + coupled, offset (E-52)
+    TEST_ASSERT_EQUAL(8, (int)keyCount(c2)); // + coupled, offset (E-213)
     TEST_ASSERT_FALSE(c2["coupled"].as<bool>());
     TEST_ASSERT_TRUE(c2["coupled"].is<bool>());
     TEST_ASSERT_EQUAL(0, c2["offset"].as<int>());
@@ -542,7 +542,7 @@ static void test_state_json_contract() {
     TEST_ASSERT_TRUE(c3["actual"].is<double>());
     JsonObjectConst cfg = doc["config"];
     TEST_ASSERT_EQUAL(9, (int)keyCount(cfg));
-    TEST_ASSERT_EQUAL(0, cfg["rotation"].as<int>()); // N16, E-53: degrees
+    TEST_ASSERT_EQUAL(0, cfg["rotation"].as<int>()); // N16, E-314: degrees
     TEST_ASSERT_TRUE(cfg["rotation"].is<int>());
     TEST_ASSERT_EQUAL(8, cfg["drive"].as<int>());
     TEST_ASSERT_EQUAL_STRING("fractional", cfg["tuning"]);
@@ -600,7 +600,7 @@ static void test_state_json_contract() {
     TEST_ASSERT_EQUAL_STRING("", small);
 }
 
-// CH2 coupled to CH1 (E-52): coupled and offset only on channel 2, in a fixed order.
+// CH2 coupled to CH1 (E-213): coupled and offset only on channel 2, in a fixed order.
 static void test_coupled_channel_bodies() {
     Commands c;
     ASSERT_REPLY(200, 0, channel(2, "{\"enabled\":true,\"coupled\":true,\"offset\":-455000}", &c));
@@ -722,7 +722,7 @@ static void test_push_key() {
     TEST_ASSERT_FALSE(pushKey(t, i, 5000 + REMOTE_INDICATOR_MS).remote);
 }
 
-// S55: refusals of the guard and the server as {"error":"-200,<text>"} (ARBEITSPLAN 3.6 point 4).
+// S55: refusals of the guard and the server as {"error":"-200,<text>"} (A-620).
 static void test_guard_error_bodies() {
     char buf[ERROR_SIZE];
     TEST_ASSERT_TRUE(guardErrorJson(403, "Bad token", buf, sizeof(buf)) > 0);
@@ -833,7 +833,7 @@ static void test_state_status_texts() {
     TEST_ASSERT_EQUAL_STRING("", doc["wifi"]["ip"]);
 }
 
-// Foreign strings are sanitized and escaped by ArduinoJson (W-S8, W-S9): the JSON stays valid
+// Foreign strings are sanitized and escaped by ArduinoJson (A-708, A-709): the JSON stays valid
 // and gives back exactly the sanitized text.
 static void assertNoControlBytes(const std::string& json) {
     for (char ch : json) TEST_ASSERT_TRUE((unsigned char)ch >= 0x20);
@@ -878,7 +878,7 @@ static void test_state_escapes_hostile_ssids() {
     TEST_ASSERT_EQUAL(32, (int)strlen(doc["wifi"]["ssid"].as<const char*>()));
 }
 
-// --- random inputs with a fixed seed (W-S25; fuzzing proper in S57) ---------------------
+// --- random inputs with a fixed seed (A-725; fuzzing proper in S57a–c) ---------------------
 
 static const char* const PIECES[] = {"{", "}", "[", "]", ":", ",", " ", "\"enabled\"", "\"frequency\"", "\"frequencyText\"",
                                      "\"drive\"", "\"tuning\"", "\"spread\"", "\"offState\"", "\"correction\"", "\"step\"",

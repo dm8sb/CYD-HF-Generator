@@ -14,12 +14,12 @@ packages: the platform must be one exact release asset URL and resolve to it; ev
 `platform_packages` (by URL or version) and every registry library of `lib_deps` in platformio.ini
 must resolve to exactly its pin; the framework packages must be pinned there, the toolchain and
 esptool must resolve to the versions the pinned platform names (VIA_PLATFORM); every URL pin must
-match the SHA-256 digest GitHub publishes for the asset (ASSET_SHA256, E-51; token from
+match the SHA-256 digest GitHub publishes for the asset (ASSET_SHA256, E-804; token from
 GITHUB_TOKEN/GH_TOKEN); and the versions THIRD_PARTY_NOTICES.md states (Arduino-ESP32, the ESP-IDF tag and
 commit of the precompiled libraries, the GCC runtime, the libraries) must match what the build
 uses. --summary appends the resolved list as Markdown (job summary, release notes).
 
-advisories (AF26, W-S24): the pinned versions against the published security advisories of
+advisories (AF26, A-724): the pinned versions against the published security advisories of
 their upstream repositories (GitHub repository advisories: the libraries of lib_deps, the version
 of git pins from their newest contained tag, Arduino-ESP32 and ESP-IDF as THIRD_PARTY_NOTICES.md
 names them, ESP Web Tools and esptool-js) and against OSV (the npm packages of
@@ -51,7 +51,7 @@ MUST_PIN = ("framework-arduinoespressif32", "framework-arduinoespressif32-libs")
 # from the build (compiler not found). The platform names them by exact URL, and the platform
 # archive is pinned by its digest below, so they must resolve exactly to these versions.
 VIA_PLATFORM = {"toolchain-xtensa-esp-elf": "14.4.0+20261030", "tool-esptoolpy": "5.6.0"}
-# The pioarduino platform and its packages are GitHub release assets pinned by URL (E-51); PlatformIO
+# The pioarduino platform and its packages are GitHub release assets pinned by URL (E-804); PlatformIO
 # checks no checksum for them, so every pinned URL must be listed here with the SHA-256 digest GitHub
 # publishes for the asset (`packages` compares it over the API: a replaced asset fails).
 ASSET_SHA256 = {
@@ -175,7 +175,7 @@ def check_url_pins(urls, problems):
 
 def idf_expectation(ref, commit, note):
     """(wanted text, matches) for the ESP-IDF row. A tag build ('v5.5.5') must be named as
-    'v5.5.5 (`commit`)'; a branch build ('release/v5.5', the pioarduino libraries, E-51) as
+    'v5.5.5 (`commit`)'; a branch build ('release/v5.5', the pioarduino libraries, E-804) as
     'v5.5.6 (`commit`, branch release/v5.5)' with the newest release tag the commit contains, which
     `advisories` checks against GitHub and uses for the advisories."""
     if parse_version(ref):
@@ -191,7 +191,7 @@ def cmd_packages(args):
         text = f.read()
     pkgs = parse_pkg_list(text)
     problems = []
-    # The platform: one exact release asset (E-51), never a registry range or a branch.
+    # The platform: one exact release asset (E-804), never a registry range or a branch.
     platform = ini_list("esp32", "platform")
     platform = platform[0] if platform else ""
     m = RELEASE_ASSET.match(platform)
@@ -429,7 +429,7 @@ def collect_pins(token):
     pins.append(("Arduino-ESP32", "espressif/arduino-esp32", notes["arduino"], None))
     idf_tag = notes["esp-idf"].split()[0]
     m = re.search(r"`([0-9a-f]{7,40})`, branch ", notes["esp-idf"])
-    if m:  # branch build (E-51): the commit must contain the tag the notices name
+    if m:  # branch build (E-804): the commit must contain the tag the notices name
         cmp_ = _http_json("%s/repos/espressif/esp-idf/compare/%s...%s" % (GITHUB_API, idf_tag, m.group(1)), token=token)
         if cmp_.get("status") not in ("identical", "ahead"):
             raise CheckError("ESP-IDF commit %s does not contain %s (THIRD_PARTY_NOTICES.md)" % (m.group(1), idf_tag))

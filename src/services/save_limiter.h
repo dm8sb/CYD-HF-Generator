@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-// Explicit saves (SYSTem:SAVE, POST /api/save) per source (AF17, D26, SEC-V-3): at most one
+// Explicit saves (SYSTem:SAVE, POST /api/save) per source (AF17, E-402, SEC-V-3): at most one
 // NVS save per MIN_INTERVAL_MS and source; a request within the interval is merged silently and
 // carried out MIN_INTERVAL_MS after the previous save (so at the latest that long after the
 // request). Without it, "FREQ ...;:SYST:SAVE" in a loop wrote the flash about 10 times per

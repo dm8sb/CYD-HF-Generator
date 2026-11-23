@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 // Dialog bookkeeping without LVGL (audit T-12): at most one dialog is open, further ones wait
-// in a short queue, identical texts are dropped (A-38). Gui shows the dialogs.
+// in a short queue, identical texts are dropped (A-315). Gui shows the dialogs.
 class MessageQueue {
 public:
     static constexpr uint8_t CAPACITY = 3;
@@ -39,7 +39,7 @@ private:
     bool open_ = false;
 };
 
-// Confirmation dialogs without LVGL (audit CQ-1, CQ-15, ARBEITSPLAN Konzept 3): at most one is
+// Confirmation dialogs without LVGL (audit CQ-1, CQ-15, audit concept 3, A-315): at most one is
 // open, further ones wait in order (an automatic question such as the open fallback AP never
 // covers an open one). Every opened dialog gets a new generation; an answer counts only for the
 // generation that is open, so a tap on a stale box can never trigger another dialog's action.

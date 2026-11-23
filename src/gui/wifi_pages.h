@@ -32,7 +32,7 @@ public:
     // A new page is built: the widgets of the old one are gone.
     void clearWidgets() { w_ = Widgets{}; }
     void handleAction(GuiAction action, uint8_t arg, lv_obj_t* obj);
-    // Every loop(): questions at the touch (open fallback AP W-S2, web change W-S12 / AF16) and
+    // Every loop(): questions at the touch (open fallback AP A-702, web change A-712 / AF16) and
     // a finished web password hash.
     void update();
 
@@ -109,8 +109,8 @@ private:
     const GuiServices& svc_;
     Widgets w_ {};
     // State (RAM only)
-    bool openFallbackAsked_ = false; // W-S2 question shown for the current need
-    bool netConfirmAsked_ = false;   // W-S12 question shown for the current web change
+    bool openFallbackAsked_ = false; // A-702 question shown for the current need
+    bool netConfirmAsked_ = false;   // A-712 question shown for the current web change
     bool netPendingAsked_ = false;   // AF16 hint shown for the current web change (with web password)
     bool webPwHashing_ = false;      // the device page shows "Saving..."
     uint8_t wifiSlot_ = 0;

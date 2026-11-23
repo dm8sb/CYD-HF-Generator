@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 DM8SB
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Builds the fuzz harnesses in test/fuzz (W-S25). See test/fuzz/README.md.
+# Builds the fuzz harnesses in test/fuzz (A-725). See test/fuzz/README.md.
 #
 #   test/fuzz/build.sh [--standalone] [target ...]
 #

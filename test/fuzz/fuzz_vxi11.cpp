@@ -3,7 +3,7 @@
 
 // Fuzz target vxi11: ONC RPC record marking (RpcTcpLink), the VXI-11 core channel (Vxi11Core
 // with its ScpiSession behind the LineFramer) and the portmapper (Portmap::handle) as the device
-// glue runs them (A-78, E-37).
+// glue runs them (A-615, E-614).
 // Input: 5 configuration bytes, then a script of operations.
 //   byte 0: bit 0 the portmapper as the TCP program instead of the core channel, bit 1 the
 //           socket takes only part of a reply, bit 2 a send may fail, bit 3 log lines

@@ -22,7 +22,7 @@
 #define TEST_FAULT_IQ 0
 #endif
 
-// 1 = test hooks for the restart paths (MESSPLAN Q4, Q5), triggered TEST_TRIGGER_MS after boot:
+// 1 = test hooks for the restart paths (MESSPLAN M-128, M-129), triggered TEST_TRIGGER_MS after boot:
 // TEST_LVGL_ASSERT fills the LVGL pool and creates a widget (malloc assert),
 // TEST_LOOP_HANG blocks loop() so the task watchdog restarts the device.
 #ifndef TEST_LVGL_ASSERT
@@ -32,7 +32,7 @@
 #define TEST_LOOP_HANG 0
 #endif
 
-// Touch test builds (MESSPLAN B8, B9, B12), never in the release: TEST_TOUCH_LOG logs one line
+// Touch test builds (MESSPLAN M-126, M-425, M-316), never in the release: TEST_TOUCH_LOG logs one line
 // per touch (position, pressure, duration, dropouts, target); TEST_HIT_MAP shows the hit map
 // with 20 target crosses instead of the GUI and implies the touch log.
 #ifndef TEST_HIT_MAP

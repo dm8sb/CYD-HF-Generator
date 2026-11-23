@@ -7,7 +7,7 @@
 #include <config.h>
 
 // Log lines "[TAG] text" (V-5). The output is switchable because SCPI over the USB serial port
-// uses the same interface (C-16, W-E27): Serial, a ring buffer (read by SYSTem:LOG?) or off.
+// uses the same interface (C-16, E-612): Serial, a ring buffer (read by SYSTem:LOG?) or off.
 // Thread-safe on the ESP32 (mutex), so network tasks may log. Control characters inside a line
 // are written as '?' (SEC-6: an SSID cannot forge lines or send terminal escapes); a line is cut
 // at LINE_LEN + 31 bytes.

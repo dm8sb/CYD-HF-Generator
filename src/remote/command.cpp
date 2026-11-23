@@ -187,7 +187,7 @@ void StateSnapshot::publish(const AppController& app) {
     Snapshot& s = data_;
     s.state.ch1 = app.channel(1);
     s.state.ch2 = app.channel(2);
-    // Remote readers see the frequency CH2 is set to: CH1 + offset while coupled (E-52).
+    // Remote readers see the frequency CH2 is set to: CH1 + offset while coupled (E-213).
     s.state.ch2.frequency = app.frequency(2);
     s.state.ch2c = app.ch2Coupling();
     s.state.ch3 = app.ch3();

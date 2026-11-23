@@ -2,14 +2,14 @@
 # SPDX-FileCopyrightText: 2026 DM8SB
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Slow-request load for MESSPLAN L-S5 (W-S10, AF39): only against your own device in your own lab.
+"""Slow-request load for MESSPLAN M-210 (A-710, AF39): only against your own device in your own lab.
 
 Opens N connections (default 30) to the web server, sends a request line and one header line,
 then a further header byte every few seconds, and completes the requests after --hold seconds
 (default 10). For each connection it records whether it was accepted, when the server closed it
 and what it answered. The device takes at most 4 HTTP connections, refuses more and closes a
 request that is not complete after 10 s (pre-filter deadline); it must stay usable at the touch
-screen meanwhile (L-S5). Python 3 standard library only.
+screen meanwhile (M-210). Python 3 standard library only.
 
     python tools/slowloris.py 192.168.1.50                  # 30 connections, complete after 10 s
     python tools/slowloris.py 127.0.0.1:8099 -n 10 --hold 3  # against tools/web_mock.py

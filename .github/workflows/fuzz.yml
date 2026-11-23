@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: 2026 DM8SB
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Fuzzing of the pure parsers (W-S25, test/fuzz/README.md): libFuzzer with ASan/UBSan.
+# Fuzzing of the pure parsers (A-725, test/fuzz/README.md): libFuzzer with ASan/UBSan.
 # Push and pull request: 60 s per target. Manual run (workflow_dispatch): the release run with
 # at least 10 million executions per target; findings and the grown corpus are uploaded.
-# Actions are pinned by commit SHA (W-S24, audit S-20, S-27); the token is read-only.
+# Actions are pinned by commit SHA (A-724, audit S-20, S-27); the token is read-only.
 name: Fuzz
 
 on:
-  # Pushes only on the working branches (D49): main, dev and the agent branches; tags run only
+  # Pushes only on the working branches (E-807): main, dev and the agent branches; tags run only
   # in release.yml. Pull requests to main always (the ruleset requires the checks), to dev for
   # Dependabot.
   push:
@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       runs:
-        description: "Executions per target (release: at least 10000000, W-S25)"
+        description: "Executions per target (release: at least 10000000, A-725)"
         required: true
         default: "10000000"
 

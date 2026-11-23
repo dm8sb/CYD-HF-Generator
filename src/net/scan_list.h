@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Networks found by a scan for the WIFI page (ARBEITSPLAN 3.4, W-S9): hidden networks dropped,
+// Networks found by a scan for the WIFI page (A-504, A-709): hidden networks dropped,
 // one entry per SSID (the strongest), sorted by signal, at most MAX entries, each with the raw
 // SSID (to connect) and a sanitized one (to show). Pure, host-tested.
 struct ScanEntry {

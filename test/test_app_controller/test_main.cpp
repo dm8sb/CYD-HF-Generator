@@ -517,7 +517,7 @@ static void test_config_options_default_and_persist() {
     TEST_ASSERT_EQUAL(TuningMode::LowNoise, d.si.tuningMode());
 }
 
-// D22 / SEC-V-1: off state High puts DC on every switched-off output, so under
+// E-611 / SEC-V-1: off state High puts DC on every switched-off output, so under
 // `Remote outputs: local only` a remote source may not select it (Denied); Low and High-Z stay
 // allowed, the touch source keeps High (after its own confirmation), and `allowed` lets the
 // network set it without a question.
@@ -706,7 +706,7 @@ static void test_autosave_writes_only_changed_keys() {
     TEST_ASSERT_EQUAL_UINT(before + 3, nvs.writeCount);
 }
 
-// W-E17: SCPI changes are saved after 30 s of quiet, touch and web changes after 5 s.
+// E-402: SCPI changes are saved after 30 s of quiet, touch and web changes after 5 s.
 static void test_remote_changes_save_later() {
     Device d;
     d.app.setSource(Source::Scpi);
@@ -724,7 +724,7 @@ static void test_remote_changes_save_later() {
     TEST_ASSERT_EQUAL_UINT(before + 2, nvs.writeCount);
 }
 
-// W-E19 / C-17: after *RST the defaults are not saved; a later change saves only its own key,
+// E-608 / C-17: after *RST the defaults are not saved; a later change saves only its own key,
 // SYSTem:SAVE (saveNow) saves everything at once.
 static void test_reset_for_remote_is_not_saved() {
     {
@@ -758,7 +758,7 @@ static void test_reset_for_remote_is_not_saved() {
     TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
 }
 
-// AF17, D26: explicit saves (SYSTem:SAVE, POST /api/save) at most once per 10 s per source;
+// AF17, E-402: explicit saves (SYSTem:SAVE, POST /api/save) at most once per 10 s per source;
 // more are merged silently and saved at the latest 10 s after the previous save. A save writes
 // only the keys that changed.
 static void test_explicit_save_rate_limited_per_source() {
@@ -773,7 +773,7 @@ static void test_explicit_save_rate_limited_per_source() {
     for (int i = 0; i < 300; ++i) {
         d.app.setSource(Source::Scpi);
         d.app.setChannelFrequency(1, 7000000 + 1000 * (uint64_t)(i % 7));
-        TEST_ASSERT_TRUE(d.app.saveNow()); // never an error (D26)
+        TEST_ASSERT_TRUE(d.app.saveNow()); // never an error (E-402)
         d.app.setSource(Source::Touch);
         d.run(100);
     }
@@ -961,7 +961,7 @@ static void test_spread_and_off_state_reach_the_chip() {
     TEST_ASSERT_EQUAL_UINT(0, errorCount);
 }
 
-// Range extension (E-16): CH1/CH2 8 kHz-160 MHz, CH3 stays at 4.730-100 MHz and waits above.
+// Range extension (E-203): CH1/CH2 8 kHz-160 MHz, CH3 stays at 4.730-100 MHz and waits above.
 static void test_extended_range_and_ch3_limit() {
     Device d;
     d.app.setChannelFrequency(2, 8000);
@@ -1300,7 +1300,7 @@ static void test_autosave_after_quiet_period() {
     TEST_ASSERT_EQUAL_UINT64(7110000ULL, p.getULong64("ch1_freq", 0));
 }
 
-// Audit C-5 / T-7: output states are not stored (A-4), so switching them must not write
+// Audit C-5 / T-7: output states are not stored (A-204), so switching them must not write
 // the flash; neither must setting a stored value to the value it already has.
 static void test_unchanged_settings_do_not_write_flash() {
     Device d;
@@ -1541,7 +1541,7 @@ static void test_identify_blinks_and_restores_backlight() {
 }
 
 // ---------------------------------------------------------------------------
-// Screen rotation (N16, E-53)
+// Screen rotation (N16, E-314)
 
 // 0 or 180 degrees, stored in NVS (key rot180); Defaults resets it and saves 0, *RST resets it
 // in RAM like the backlight (not saved).

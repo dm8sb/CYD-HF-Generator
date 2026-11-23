@@ -20,7 +20,7 @@ public:
     virtual void closeConnection() = 0;
 };
 
-// SCPI over TCP 5025 (W-E12, W-E13, W-S18, W-S20). Pure logic, host-tested; it runs in loop()
+// SCPI over TCP 5025 (E-601, E-603, A-718, A-720). Pure logic, host-tested; it runs in loop()
 // like the USB link, so commands go through LoopScpiBackend with Source::Scpi.
 // - One connection: a second one is refused while one is active (the glue closes it at once).
 // - A line that looks like HTTP (request or header line) closes the connection without executing
@@ -41,7 +41,7 @@ public:
     // serial: *IDN? field 3 as for the USB session.
     ScpiTcpLink(ScpiBackend& backend, ScpiTcpSocket& socket, const char* serial = nullptr);
 
-    // SCPI over TCP runs while WiFi is up, but not while the access point is open (W-S20).
+    // SCPI over TCP runs while WiFi is up, but not while the access point is open (A-720).
     static bool allowedFor(bool staConnected, bool apActive, bool apOpen);
     // false closes an active connection.
     void setAllowed(bool allowed);
@@ -55,7 +55,7 @@ public:
     void update(uint32_t nowMs);
     // The client closed the connection or it failed.
     void peerClosed();
-    // Disconnect at the device (W-E13; button on the info card later).
+    // Disconnect at the device (E-603; button on the info card later).
     void disconnect();
 
     bool active() const { return active_; }

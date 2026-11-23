@@ -22,7 +22,7 @@ public:
     void setCalibration(const TouchCalibration& cal, bool stored);
     const TouchCalibration& calibration() const { return cal_; }
     bool calibrated() const { return calibrated_; }
-    // Screen turned by 180 degrees (E-53): positions are mirrored after the calibration, which
+    // Screen turned by 180 degrees (E-314): positions are mirrored after the calibration, which
     // stays in raw coordinates and is valid in both rotations.
     void setTurned(bool turned);
     bool turned() const { return turned_; }

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Fuzz target scpi_number: ScpiNumber::decimal and ScpiNumber::frequency (W-S19).
+// Fuzz target scpi_number: ScpiNumber::decimal and ScpiNumber::frequency (A-719).
 // Input: byte 0 = scale exponent (-4..4), byte 1 = unit table, rest = the number token.
 // Invariants, against an independent reference (grammar check plus long double value):
 // - Ok only for text of the grammar; Syntax for grammar text only with > 18 significant digits.

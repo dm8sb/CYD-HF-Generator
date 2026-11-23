@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 DM8SB
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Frequency counter logger for MESSPLAN C7, C8 (AF39): reads a SCPI instrument in the rhythm of
+"""Frequency counter logger for MESSPLAN M-313, M-411 (AF39): reads a SCPI instrument in the rhythm of
 its gate time and writes "time;frequency;temperature" lines (CSV with ';', ISO time in UTC).
 
 The counter is reached over TCP (raw SCPI socket, e.g. port 5025) or a serial port (needs

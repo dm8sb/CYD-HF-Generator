@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Fuzz target sanitize: Sanitize::text (W-S9).
+// Fuzz target sanitize: Sanitize::text (A-709).
 // Input: byte 0 = maxBytes (0..63; bit 7: in = nullptr), byte 1 = outSize (0..71), rest = text.
 // Invariants: never writes past outSize; result <= min(maxBytes, outSize - 1), NUL-terminated,
 // strictly valid UTF-8 without control characters; idempotent; valid text that fits comes back

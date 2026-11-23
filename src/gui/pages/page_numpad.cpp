@@ -29,7 +29,7 @@ static const char* ppmMap[] = {
     ".", "0", "C", ""};
 static const uint16_t PPM_CONFIRM_IDS[] = {7};
 
-// Offset of a coupled CH2 (E-52): the frequency keys plus "+/-" for the sign.
+// Offset of a coupled CH2 (E-213): the frequency keys plus "+/-" for the sign.
 static const char* offsetMap[] = {
     "7", "8", "9", "MHz", "\n",
     "4", "5", "6", "kHz", "\n",

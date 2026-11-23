@@ -238,7 +238,7 @@ static void test_calibration_write_error() {
 }
 
 // ---------------------------------------------------------------------------
-// Screen rotation by 180 degrees (N16, E-53)
+// Screen rotation by 180 degrees (N16, E-314)
 
 // After the calibration both axes are mirrored: x' = 319 - x, y' = 239 - y; twice is the identity.
 static void test_rotation_mirrors_both_axes() {

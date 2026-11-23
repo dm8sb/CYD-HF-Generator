@@ -69,7 +69,7 @@ extern const uint8_t ST7789_INIT_LEN;
 // MADCTL per rotation 0..3 (BGR); TFT_eSPI writes the ILI9341 values.
 constexpr uint8_t MADCTL_ILI9341[4] = {0x48, 0x28, 0x88, 0xE8};
 constexpr uint8_t MADCTL_ST7789[4] = {0x08, 0x68, 0xC8, 0xA8};
-// Landscape rotation: 1 upright, 3 turned by 180 degrees (E-53). Both tables differ between 1
+// Landscape rotation: 1 upright, 3 turned by 180 degrees (E-314). Both tables differ between 1
 // and 3 in MX and MY only (both address directions reversed: a rotation, not a mirror image);
 // both panels use their full 240 x 320 RAM, so no window offset changes (test_display_detect).
 constexpr uint8_t landscapeRotation(bool turned) { return turned ? 3 : 1; }

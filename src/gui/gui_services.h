@@ -23,7 +23,7 @@ struct GuiServices {
     // the network settings.
     WifiManager* wifi = nullptr;
     bool (*saveNet)(const NetSettings&) = nullptr;
-    // Web network change without web password (W-S12, S55): netConfirmNeeded asks whether the
+    // Web network change without web password (A-712, S55): netConfirmNeeded asks whether the
     // touch must confirm now, netConfirmAnswer(true) keeps the new settings, (false) restores
     // the old ones. netPendingS: seconds an open web change still waits (0 = none, AF16);
     // network settings are not changed at the touch screen meanwhile.

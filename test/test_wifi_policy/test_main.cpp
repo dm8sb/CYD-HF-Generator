@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// WiFi policy (W-E1, W-S2, W-S3, D14): which interfaces run for the observed state.
+// WiFi policy (E-501, A-702, A-703, E-511): which interfaces run for the observed state.
 
 #include <unity.h>
 #include <net/wifi_policy.h>
@@ -33,7 +33,7 @@ static void test_access_point_mode() {
     t = WifiPolicy::decide(i);
     TEST_ASSERT_TRUE(t.ap);
     TEST_ASSERT_TRUE(t.apOpen);
-    // W-S2: an open AP without station for 15 min goes off; a closed one stays.
+    // A-702: an open AP without station for 15 min goes off; a closed one stays.
     i.openApTimedOut = true;
     TEST_ASSERT_FALSE(WifiPolicy::decide(i).ap);
     i.apOpen = false;
@@ -54,7 +54,7 @@ static void test_client_fallback_after_60_s() {
     TEST_ASSERT_FALSE(t.apOpen);
 }
 
-// W-S3 / D14: as soon as the client has an address the AP goes, whatever else is set.
+// A-703 / E-511: as soon as the client has an address the AP goes, whatever else is set.
 static void test_ap_never_with_client_address() {
     Inputs i = in(WifiMode::Client);
     i.staHasIp = true;
@@ -67,7 +67,7 @@ static void test_ap_never_with_client_address() {
     TEST_ASSERT_FALSE(t.needsOpenConfirmation);
 }
 
-// W-E1 / W-S2: an open fallback AP only after the touch confirmed it.
+// E-501 / A-702: an open fallback AP only after the touch confirmed it.
 static void test_open_fallback_needs_confirmation() {
     Inputs i = in(WifiMode::Client);
     i.msWithoutIp = WifiPolicy::FALLBACK_AFTER_MS;
@@ -190,7 +190,7 @@ static void test_scan_due_and_millis_wrap() {
     TEST_ASSERT_FALSE(c.scanDue(50000 + Connector::SCAN_INTERVAL_MS - 1, ONE_STORED, false));
 }
 
-// AF14, D32: no background scan without a stored network.
+// AF14, E-513: no background scan without a stored network.
 static void test_no_scan_without_stored_network() {
     Connector c;
     c.reset();
@@ -200,7 +200,7 @@ static void test_no_scan_without_stored_network() {
     TEST_ASSERT_TRUE(c.scanDue(10 * 60000, ONE_STORED, false));
 }
 
-// AF14, D32: 15 s, doubling while no stored network is seen, at most 5 min; a seen network
+// AF14, E-513: 15 s, doubling while no stored network is seen, at most 5 min; a seen network
 // (or a connection) starts again at 15 s.
 static void test_scan_backoff() {
     Connector c;
@@ -229,7 +229,7 @@ static void test_scan_backoff() {
     TEST_ASSERT_EQUAL_UINT32(Connector::SCAN_INTERVAL_MS, c.scanIntervalMs(false));
 }
 
-// AF14, D32: with stations at the fallback AP at most every 2 min (the AP leaves its channel
+// AF14, E-513: with stations at the fallback AP at most every 2 min (the AP leaves its channel
 // for every scan and attempt).
 static void test_scan_with_ap_stations() {
     Connector c;

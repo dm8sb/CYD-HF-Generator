@@ -9,7 +9,7 @@
 #include <utils/logger.h>
 #include <utils/touch_test.h>
 
-// Hit map of the touch test build (MESSPLAN B8): 20 target crosses, a marker at the last
+// Hit map of the touch test build (MESSPLAN M-126): 20 target crosses, a marker at the last
 // release point and the deviation from the nearest target, also in the log. Leave by restart.
 static constexpr int CROSS = 11;
 static lv_obj_t* marker;

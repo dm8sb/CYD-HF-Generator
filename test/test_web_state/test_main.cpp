@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// State machines of the web server (S55): two-stage network change with fallback (W-S12),
-// scan semantics (ARBEITSPLAN 3.6 point 6, W-S11), one password check at a time outside the
-// async_tcp task (W-S23), the byte and connection limits (W-S6, W-S10) and the job mailbox
+// State machines of the web server (S55): two-stage network change with fallback (A-712),
+// scan semantics (A-622, A-711), one password check at a time outside the
+// async_tcp task (A-723), the byte and connection limits (A-706, A-710) and the job mailbox
 // (AF33: abandon, late finish, double collect).
 
 #include <unity.h>
@@ -70,7 +70,7 @@ static void test_change_confirmed_over_the_web() {
     TEST_ASSERT_EQUAL(NetChange::Action::None, c.update(NetChange::CONFIRM_MS * 2));
 }
 
-// Without a web password the touch screen confirms as well (W-S12), in either order.
+// Without a web password the touch screen confirms as well (A-712), in either order.
 static void test_change_without_password_needs_the_touch() {
     const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::Client, "new");
     {
@@ -166,7 +166,7 @@ static void test_touch_revert_before_apply() {
     TEST_ASSERT_TRUE(c.acceptsTouchChange());
 }
 
-// The NVS model: only a confirmed state is ever saved (W-S12). A power loss at any moment of
+// The NVS model: only a confirmed state is ever saved (A-712). A power loss at any moment of
 // the window finds the previous settings; the manager's own saves (AP password) wait.
 static void test_power_loss_finds_the_previous_settings() {
     const NetSettings a = settings(WifiMode::Client, "old"), b = settings(WifiMode::AccessPoint, "new");
@@ -198,7 +198,7 @@ static void test_power_loss_finds_the_previous_settings() {
     TEST_ASSERT_TRUE(NetChange::saves(NetChange::Action::ApplyAndSave));
 }
 
-// Mode Off over the web (ARBEITSPLAN 3.6 point 2): final, applied and saved, nothing to confirm.
+// Mode Off over the web (A-618): final, applied and saved, nothing to confirm.
 static void test_final_change() {
     NetChange c;
     const NetSettings a = settings(WifiMode::Client, "x"), b = settings(WifiMode::Off, "x");
@@ -461,7 +461,7 @@ static void test_push_pacer() {
 static void test_heap_block_limits() {
     TEST_ASSERT_FALSE(HeapLimits::acceptOk(200000, HeapLimits::MIN_BLOCK_ACCEPT - 1));
     TEST_ASSERT_TRUE(HeapLimits::acceptOk(200000, HeapLimits::MIN_BLOCK_ACCEPT));
-    TEST_ASSERT_FALSE(HeapLimits::acceptOk(RequestGuard::MIN_FREE_HEAP - 1, 100000)); // W-S10 stays
+    TEST_ASSERT_FALSE(HeapLimits::acceptOk(RequestGuard::MIN_FREE_HEAP - 1, 100000)); // A-710 stays
     TEST_ASSERT_FALSE(HeapLimits::pushOk(1000, 1000 + HeapLimits::PUSH_RESERVE - 1));
     TEST_ASSERT_TRUE(HeapLimits::pushOk(1000, 1000 + HeapLimits::PUSH_RESERVE));
 }
@@ -528,7 +528,7 @@ static void test_connection_tables() {
         slots[i] = c.acquire(0);
         TEST_ASSERT_TRUE(slots[i] >= 0);
     }
-    TEST_ASSERT_EQUAL(-1, c.acquire(0)); // W-S10: <= 4 HTTP connections
+    TEST_ASSERT_EQUAL(-1, c.acquire(0)); // A-710: <= 4 HTTP connections
     TEST_ASSERT_EQUAL_UINT8(4, c.count());
     c.release(slots[2]);
     TEST_ASSERT_FALSE(c.used(slots[2]));
@@ -541,7 +541,7 @@ static void test_connection_tables() {
     TEST_ASSERT_TRUE(w.add(12, 0));
     TEST_ASSERT_TRUE(w.add(13, 0));
     TEST_ASSERT_TRUE(w.add(12, 0)); // known
-    TEST_ASSERT_FALSE(w.add(14, 0)); // W-E10: a fourth is refused
+    TEST_ASSERT_FALSE(w.add(14, 0)); // E-619: a fourth is refused
     TEST_ASSERT_FALSE(w.add(0, 0));
     TEST_ASSERT_EQUAL_UINT8(3, w.count());
     // A new client waits for the state.
@@ -570,7 +570,7 @@ static void test_connection_tables() {
     w.remove(11);
     TEST_ASSERT_EQUAL_UINT8(1, w.count());
     TEST_ASSERT_TRUE(w.add(14, 50000));
-    // W-S6: inbound frames up to 512 bytes.
+    // A-706: inbound frames up to 512 bytes.
     TEST_ASSERT_TRUE(WsClients::frameAllowed(512));
     TEST_ASSERT_FALSE(WsClients::frameAllowed(513));
 }

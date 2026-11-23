@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Touch test builds (MESSPLAN B8, B9, B12): one record per touch for the touch log and the
+// Touch test builds (MESSPLAN M-126, M-425, M-316): one record per touch for the touch log and the
 // targets of the hit map. Pure functions, host-tested in test_touch_filter; the firmware uses
 // them only with TEST_TOUCH_LOG / TEST_HIT_MAP (config.h), never in the release build.
 namespace TouchTest {

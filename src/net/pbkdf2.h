@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 // SHA-1, HMAC-SHA1 and PBKDF2-HMAC-SHA1 (RFC 3174, 2104, 8018) without platform dependency,
-// so the WPA2 PMK (W-S14) is computed the same on the ESP32 and in the host tests, which check
+// so the WPA2 PMK (A-714) is computed the same on the ESP32 and in the host tests, which check
 // it against the RFC 6070 and IEEE 802.11i vectors. Not for anything needing speed or
 // side-channel resistance: it runs once when a network is saved.
 namespace Crypto {

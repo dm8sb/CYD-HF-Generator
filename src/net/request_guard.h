@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Request guard of the web server (ARBEITSPLAN 3.3, 3.7): decides about every HTTP request and
+// Request guard of the web server (A-605, PROJECT_SPECIFICATION.md chapter 7): decides about every HTTP request and
 // WebSocket upgrade before the server reads a body or queues a command. Pure and deterministic:
 // the time comes in as nowMs, randomness through a function pointer, nothing is executed here.
 // nowMs is a 64-bit monotonic millisecond count (the server passes esp_timer_get_time() / 1000):
@@ -16,30 +16,30 @@
 // thread-safe: the server calls it from one task (async_tcp) or under its own lock.
 //
 // Order of the checks in check() (the first failing one answers):
-//   503 free heap < MIN_FREE_HEAP (W-S10)
-//   414 URL > MAX_URL, 431 headers > MAX_HEADERS (W-S10)
+//   503 free heap < MIN_FREE_HEAP (A-710)
+//   414 URL > MAX_URL, 431 headers > MAX_HEADERS (A-710)
 //   421 Host not the own IPv4 (optional port), <name> or <name>.local; IPv6 literals never
-//       (W-S4). Over the AP with captive DNS a GET/HEAD of a page (not /api/, not /ws) with a
+//       (A-704). Over the AP with captive DNS a GET/HEAD of a page (not /api/, not /ws) with a
 //       well-formed foreign host gets 302 to the AP address instead (captive portal).
-//   405 OPTIONS (no CORS) and every method except GET, HEAD, POST; POST only on /api/ (W-S5)
-//   415 Transfer-Encoding (chunked) on any request (W-S10)
-//   400 Content-Length not a plain decimal number; 413 above MAX_BODY (W-S10)
-//   400 broken Cookie or Authorization header (W-S13); a well-formed Authorization is ignored
-//       (no Basic-Auth, W-E8), it never grants access
+//   405 OPTIONS (no CORS) and every method except GET, HEAD, POST; POST only on /api/ (A-705)
+//   415 Transfer-Encoding (chunked) on any request (A-710)
+//   400 Content-Length not a plain decimal number; 413 above MAX_BODY (A-710)
+//   400 broken Cookie or Authorization header (A-713); a well-formed Authorization is ignored
+//       (no Basic-Auth, E-617), it never grants access
 //   400 Upgrade other than a WebSocket upgrade of GET /ws, or GET /ws without upgrade
 //   403 /api/ and /ws: Origin present and not http://<allowed host>, Sec-Fetch-Site cross-site;
-//       GET /api/token only same-origin (Sec-Fetch-Site absent, same-origin or none) (W-S5)
+//       GET /api/token only same-origin (Sec-Fetch-Site absent, same-origin or none) (A-705)
 //   415 POST without Content-Type application/json (optional ;charset=utf-8), 411 without
-//       Content-Length, 403 without the valid X-CYD-Token (W-S5)
-//   403 WebSocket upgrade without the valid token in the query (t=<token>) (W-S6)
+//       Content-Length, 403 without the valid X-CYD-Token (A-705)
+//   403 WebSocket upgrade without the valid token in the query (t=<token>) (A-706)
 //   401 a web password is set and the request has no valid session: every POST except
 //       /api/login and /api/logout, and GET /api/wifi, /api/wifi/*; with loginForReads also all
 //       other /api/ and /ws (like the mock's --login-all; the device sets it with every web
-//       password, E-48). Pages and their files always load without login; the state never
-//       holds secrets, MAC or commit (ARBEITSPLAN 3.6)
-// After parsing a body the server calls checkSecrets() (W-S1), on /api/login loginAllowed()
-// (W-S11), on /api/wifi/scan scanAllowed() (W-S11). The write rate limit (20/s per source) is
-// done by CommandQueue::push() (W-S11) and not repeated here.
+//       password, E-703). Pages and their files always load without login; the state never
+//       holds secrets, MAC or commit (A-623)
+// After parsing a body the server calls checkSecrets() (A-701), on /api/login loginAllowed()
+// (A-711), on /api/wifi/scan scanAllowed() (A-711). The write rate limit (20/s per source) is
+// done by CommandQueue::push() (A-711) and not repeated here.
 
 enum class Verdict : uint16_t {
     Allow = 200,
@@ -69,7 +69,7 @@ struct GuardDecision {
 struct GuardConfig {
     uint32_t staIp = 0;               // own address in the client network
     uint32_t apIp = 0;                // own address while the access point runs
-    bool apOpen = false;              // the access point runs without a password (W-S1)
+    bool apOpen = false;              // the access point runs without a password (A-701)
     bool captive = false;             // captive DNS runs (AP mode): page requests are redirected
     const char* deviceName = nullptr; // RFC 1123, e.g. "cyd-hf-1a2b" (copied)
     const char* token = nullptr;      // per-boot token, see makeToken() (copied)
@@ -102,14 +102,14 @@ class RequestGuard {
 public:
     typedef uint32_t (*Random32)();
 
-    static constexpr size_t MAX_URL = 256;             // path and query (W-S10)
-    static constexpr size_t MAX_HEADERS = 2048;        // W-S10
-    static constexpr size_t MAX_BODY = 1024;           // W-S10
-    static constexpr uint32_t MIN_FREE_HEAP = 24 * 1024; // below: 503 (ARBEITSPLAN 3.4)
+    static constexpr size_t MAX_URL = 256;             // path and query (A-710)
+    static constexpr size_t MAX_HEADERS = 2048;        // A-710
+    static constexpr size_t MAX_BODY = 1024;           // A-710
+    static constexpr uint32_t MIN_FREE_HEAP = 24 * 1024; // below: 503 (A-710)
     static constexpr size_t TOKEN_LEN = 32;            // hex digits = 128 bit
-    static constexpr size_t MAX_NAME = 32;             // device name (W-E5)
-    // Sessions (W-S13): random 128-bit id as 32 hex digits in the cookie, 12 h from the login,
-    // at most MAX_SESSIONS (W-E10: 3 clients plus one re-login); a new login replaces the
+    static constexpr size_t MAX_NAME = 32;             // device name (E-505)
+    // Sessions (A-713): random 128-bit id as 32 hex digits in the cookie, 12 h from the login,
+    // at most MAX_SESSIONS (E-619: 3 clients plus one re-login); a new login replaces the
     // least recently used one.
     static constexpr const char* COOKIE_NAME = "cyd_sid";
     static constexpr size_t SESSION_ID_LEN = 32;
@@ -117,7 +117,7 @@ public:
     static constexpr uint32_t SESSION_MS = 12UL * 3600UL * 1000UL;
     // Set-Cookie value incl. NUL: "cyd_sid=<32>; Path=/; Max-Age=43200; HttpOnly; SameSite=Strict".
     static constexpr size_t SET_COOKIE_SIZE = 96;
-    // Login (W-S11): after LOGIN_FAILURES wrong passwords LOGIN_LOCK_MS locked, each further lock
+    // Login (A-711): after LOGIN_FAILURES wrong passwords LOGIN_LOCK_MS locked, each further lock
     // doubles up to 2^LOGIN_MAX_DOUBLINGS (16 min). One counter for all clients: an attacker
     // cannot spread the attempts over addresses; the price is that he can lock the web login
     // (the touch screen stays usable). The level falls back to 0 after a correct login or
@@ -126,14 +126,14 @@ public:
     static constexpr uint32_t LOGIN_LOCK_MS = 30000;
     static constexpr uint8_t LOGIN_MAX_DOUBLINGS = 5;
     static constexpr uint32_t LOGIN_FORGET_MS = 3600000;
-    static constexpr uint32_t SCAN_INTERVAL_MS = 10000; // WiFi scan (W-S11)
+    static constexpr uint32_t SCAN_INTERVAL_MS = 10000; // WiFi scan (A-711)
 
     void configure(const GuardConfig& c);
     const GuardConfig& config() const { return config_; }
 
     // The decision for one request (see the order above); nowMs for the session expiry.
     GuardDecision check(const GuardRequest& r, uint64_t nowMs);
-    // W-S1: over an open access point a body with password fields (RestJson::carriesSecret())
+    // A-701: over an open access point a body with password fields (RestJson::carriesSecret())
     // is refused with 403, whatever the endpoint.
     GuardDecision checkSecrets(const GuardRequest& r, bool bodyCarriesSecret) const;
     // The connection arrived over the access point (localIp, or else clientIp in its /24).
@@ -193,7 +193,7 @@ private:
     uint64_t lastScanMs_ = 0;
 };
 
-// Web password (W-S13): 8..64 bytes of UTF-8 without control characters, stored as
+// Web password (A-713): 8..64 bytes of UTF-8 without control characters, stored as
 // "pbkdf2-sha1$10000$<salt 32 hex>$<hash 40 hex>" (PBKDF2-HMAC-SHA1, RFC 8018, 128-bit random
 // salt). Crypto::pbkdf2HmacSha1 (net/pbkdf2.*, checked against RFC 6070) instead of mbedTLS:
 // the same code runs in the host tests and gives the same hash; mbedTLS computes the same
@@ -202,7 +202,7 @@ private:
 // OWASP value for SHA-1 is far beyond an ESP32). The implementation hashes both HMAC pads in
 // every iteration (4 SHA-1 blocks), i.e. 40 000 blocks per check; about 1.3 s on the ESP32
 // (software SHA-1, 240 MHz). verify() therefore must not run in the
-// async_tcp task (W-S23: no network task blocks > 100 ms); the login lock bounds it to
+// async_tcp task (A-723: no network task blocks > 100 ms); the login lock bounds it to
 // LOGIN_FAILURES checks per lock period. The iteration count is part of the record, so it can
 // be raised later; verify() accepts MIN_ITERATIONS..MAX_ITERATIONS only (a damaged record must
 // not hang the device).

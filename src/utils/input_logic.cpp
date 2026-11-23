@@ -229,7 +229,7 @@ bool contains(const Area& a, int16_t x, int16_t y) {
 const char* const ENTRY_BUSY = "Busy, try again";
 const char* const ENTRY_NOT_ACCEPTED = "Not accepted";
 
-// A network key may be a 64-digit hex PMK (D31), the AP password is a passphrase (63).
+// A network key may be a 64-digit hex PMK (E-510), the AP password is a passphrase (63).
 EntrySpec entrySpec(EntryPurpose p) {
     switch (p) {
         case EntryPurpose::Password: return {64, true, true, false, false, nullptr};

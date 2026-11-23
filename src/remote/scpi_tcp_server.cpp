@@ -66,11 +66,11 @@ void ScpiTcpServer::accept_(uint32_t nowMs) {
         WiFiClient c = server_.accept();
         if (c.fd() < 0) return;
         if (link_.offer(fromIpAddress(c.remoteIP()), nowMs) != ScpiTcpLink::Accept::Accepted) {
-            c.stop(); // W-E13: one connection; refused without an answer
+            c.stop(); // E-603: one connection; refused without an answer
             continue;
         }
         client_ = c;
-        // W-S20: a vanished client (cable, sleeping laptop) is detected by keepalive probes.
+        // A-720: a vanished client (cable, sleeping laptop) is detected by keepalive probes.
         int on = 1;
         int idle = SCPI_TCP_KEEPALIVE_IDLE_S;
         int interval = SCPI_TCP_KEEPALIVE_INTERVAL_S;

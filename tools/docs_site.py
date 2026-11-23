@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 DM8SB
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Documentation pages of the GitHub Pages site (ARBEITSPLAN G9, E-54): the user manual (DE, EN),
+"""Documentation pages of the GitHub Pages site (ARBEITSPLAN G9, E-903): the user manual (DE, EN),
 the hardware page and the remote API rendered from the Markdown at the release tag.
 
   python tools/docs_site.py build --out site --version 2.1.0 --ref v2.1.0
@@ -17,7 +17,7 @@ the documents rely on it: heading anchors in GitHub's slug style (so the in-docu
 anchors work unchanged), bare https URLs as links, raw HTML (images with a width), HTML comments
 dropped. Links to the published documents become links to their pages, images under docs/img/
 are copied to img/ (only the ones a page uses), and links to any other file of the repository go
-to GitHub at the tag or commit of the build (E-39). A link to a missing file fails the build.
+to GitHub at the tag or commit of the build (E-907). A link to a missing file fails the build.
 
 check: every page present, the CSP of the flasher page without scripts (style and images only
 from the site), no script, style element, style or event attribute, only the tags Markdown and

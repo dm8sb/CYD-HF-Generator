@@ -26,15 +26,15 @@ enum class CommandType : uint8_t {
     ResetRemote,     // *RST
     SaveNow,         // SYSTem:SAVE
     Identify,        // SYSTem:IDENtify
-    Ch2Couple,       // value 0 free / 1 coupled to CH1 (E-52)
+    Ch2Couple,       // value 0 free / 1 coupled to CH1 (E-213)
     Ch2Offset,       // value offset in Hz (CH2 = CH1 + offset)
-    Rotation         // value degrees 0/180 (E-53)
+    Rotation         // value degrees 0/180 (E-314)
 };
 
 struct Command {
     CommandType type;
     uint8_t channel;
-    int64_t value; // full type: checked before it is narrowed (W-S19)
+    int64_t value; // full type: checked before it is narrowed (A-719)
     Source source;
 };
 
@@ -44,7 +44,7 @@ Result execute(AppController& app, const Command& c);
 enum class PushResult : uint8_t {
     Queued,
     Full,       // CAPACITY commands waiting (the server answers "busy")
-    RateLimited // more than REMOTE_WRITES_PER_S from this source (W-S11)
+    RateLimited // more than REMOTE_WRITES_PER_S from this source (A-711)
 };
 
 // Bounded queue for network tasks; thread-safe on the ESP32 (mutex), never blocks the caller.

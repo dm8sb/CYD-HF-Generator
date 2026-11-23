@@ -10,7 +10,7 @@ struct Channel {
     bool enabled;
 };
 
-// CH2 coupled to CH1 (CH2 page "CH1 + offset", E-52): while coupled CH2 runs at CH1 + offset;
+// CH2 coupled to CH1 (CH2 page "CH1 + offset", E-213): while coupled CH2 runs at CH1 + offset;
 // outside FREQ_MIN_HZ..FREQ_MAX_HZ it waits. Both values are stored in NVS.
 struct Ch2Coupling {
     bool coupled;
@@ -44,7 +44,7 @@ enum class Result : uint8_t {
     OutOfRange, // a number outside its range
     Invalid,    // not one of the allowed values (channel index, phase, drive, enum, step)
     Conflict,   // not possible in the current state (spread spectrum in Integer)
-    Denied,     // not allowed for this source (Remote outputs: local only, W-E25)
+    Denied,     // not allowed for this source (Remote outputs: local only, E-610)
     HwError,    // applied, but the SI5351 could not be set up (ERR or connection lost)
     Coupled     // CH2 frequency while CH2 is coupled to CH1 (set the offset or decouple first)
 };
@@ -57,7 +57,7 @@ struct SystemSettings {
     TuningMode tuning_mode;
     Spread spread;      // always Off in TuningMode::Integer
     OffState off_state;
-    uint16_t rotation;  // screen rotation in degrees: 0 or 180 (CONFIG "Rotate", E-53)
+    uint16_t rotation;  // screen rotation in degrees: 0 or 180 (CONFIG "Rotate", E-314)
 };
 
 struct TouchCalibration {

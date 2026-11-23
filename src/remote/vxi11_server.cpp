@@ -176,7 +176,7 @@ void Vxi11Server::accept_(int listenFd, Conn& conn, RpcTcpLink& link, uint32_t n
         conn.fd = fd;
         int on = 1;
         lwip_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on)); // one reply per call
-        // W-S20: a vanished client is detected by keepalive probes, as for SCPI over TCP.
+        // A-720: a vanished client is detected by keepalive probes, as for SCPI over TCP.
         int idle = SCPI_TCP_KEEPALIVE_IDLE_S;
         int interval = SCPI_TCP_KEEPALIVE_INTERVAL_S;
         int count = SCPI_TCP_KEEPALIVE_COUNT;

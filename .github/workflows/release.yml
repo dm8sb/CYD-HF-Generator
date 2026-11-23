@@ -1,14 +1,14 @@
 # Release (ARBEITSPLAN G1) and web flasher on GitHub Pages (G2, G11) with the manual (DE, EN),
-# the hardware page and the remote API rendered from the Markdown at the tag (G9, E-54).
+# the hardware page and the remote API rendered from the Markdown at the tag (G9, E-903).
 # Tag v*: the tagged commit must be on main and pass the host tests (AF7, OPS-4/5, TEST-3); then
 # build, GitHub release with the firmware, the flash parts of the flasher env, license notices
 # and LGPL sources (THIRD_PARTY_NOTICES.md) and SHA256SUMS, build provenance over all assets
-# (SHA256SUMS, W-S24, OPS-14). An existing release is never changed (no --clobber; the tag
-# ruleset and immutable releases protect it on GitHub, D29). Every pushed tag (also a release
-# candidate, D21) deploys the flasher site after its release, which serves ESP Web Tools itself
-# (E-36). Manual run: tests, build and the assembled site as an artifact for testing; it never
-# deploys (D30, LIC-6).
-# Dry run (AF23, D49): every pull request to main, and pushes to dev or agent/** that change the
+# (SHA256SUMS, A-724, OPS-14). An existing release is never changed (no --clobber; the tag
+# ruleset and immutable releases protect it on GitHub, E-809). Every pushed tag (also a release
+# candidate, E-808) deploys the flasher site after its release, which serves ESP Web Tools itself
+# (E-905). Manual run: tests, build and the assembled site as an artifact for testing; it never
+# deploys (E-810, LIC-6).
+# Dry run (AF23, E-807): every pull request to main, and pushes to dev or agent/** that change the
 # release path, run everything except the release and the deploy; the job "Release dry run" names
 # the assets and writes the notes with the same script as the release (tools/release_files.py).
 # The flasher writes the parts separately (no merged image from 0: it would erase NVS on every
@@ -44,7 +44,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref_type != 'tag' && github.event_name != 'workflow_dispatch' }}
 
 env:
-  # The env behind the web flasher and the flash parts of the release (Arduino core 3, E-32).
+  # The env behind the web flasher and the flash parts of the release (Arduino core 3, E-803).
   FLASHER_ENV: esp32-2432S028R
 
 jobs:
@@ -90,7 +90,7 @@ jobs:
             # a pull request with green checks.
             git rev-parse --verify -q refs/remotes/origin/main > /dev/null || { echo "origin/main not fetched" >&2; exit 1; }
             git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main || { echo "tag $REF_NAME ($GITHUB_SHA) is not on main" >&2; exit 1; }
-            # Every pushed tag deploys the public flasher, a release candidate too (D21); the
+            # Every pushed tag deploys the public flasher, a release candidate too (E-808); the
             # release is marked as a prerelease.
             [ "$EVENT" = push ] && deploy=true
           else
@@ -178,7 +178,7 @@ jobs:
       # the list goes into the job summary and the release notes (packages.md in the artifact).
       - name: Check pinned packages
         env:
-          # E-51: the SHA-256 digests of the pinned release assets are read over the GitHub API.
+          # E-804: the SHA-256 digests of the pinned release assets are read over the GitHub API.
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           pio pkg list -e "$ENV_NAME" > pkg-list.txt
@@ -218,7 +218,7 @@ jobs:
           python-version: "3.12"
       - name: Install the Markdown renderer
         run: pip install --require-hashes -r tools/requirements-ci.txt
-      # ESP Web Tools is served by the site itself (E-36): the pinned modules, license files and
+      # ESP Web Tools is served by the site itself (E-905): the pinned modules, license files and
       # flasher stub sources of flasher/esp-web-tools.json, each checked against its hash.
       - name: Download ESP Web Tools
         run: python3 tools/flasher_site.py vendor --out ewt
@@ -237,7 +237,7 @@ jobs:
         with:
           path: site/
 
-  # Only after the release exists (rc1 went live without one) and only for a pushed tag (D30).
+  # Only after the release exists (rc1 went live without one) and only for a pushed tag (E-810).
   deploy:
     name: Deploy to GitHub Pages
     needs: [meta, site, release]
@@ -257,7 +257,7 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
-  # AF26, D49: no release with an open advisory finding of a pinned dependency (the same check as
+  # AF26, E-807: no release with an open advisory finding of a pinned dependency (the same check as
   # the weekly advisories.yml). Dry runs report the result without failing.
   advisories:
     name: Advisory check

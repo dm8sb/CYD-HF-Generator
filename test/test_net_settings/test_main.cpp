@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Network settings (ARBEITSPLAN 3.3, W-E3, W-E5, W-E7, W-S12, W-S14, W-S16, D15): SHA-1/PBKDF2
+// Network settings (A-502, E-503, E-505, E-507, A-712, A-714, A-716, E-510): SHA-1/PBKDF2
 // against the RFC and IEEE 802.11i vectors (kept for the web password, S55), WiFi keys,
 // AP password, device name, static IP plausibility, NVS namespace "hfnet", factory reset.
 
@@ -112,7 +112,7 @@ static void test_ap_password() {
     TEST_ASSERT_EQUAL_size_t(23, seqPos); // 12 accepted, 11 skipped in between
 }
 
-// D15: the passphrase is stored as it is (WPA3-SAE needs it), a PMK in hex is accepted too.
+// E-510: the passphrase is stored as it is (WPA3-SAE needs it), a PMK in hex is accepted too.
 static void test_network_keys() {
     NetSettings s;
     NetConfig::defaults(s, MAC);
@@ -142,7 +142,7 @@ static void test_network_keys() {
     TEST_ASSERT_EQUAL_STRING("", s.networks[0].ssid);
 }
 
-// D31 / DOC-13: one rule for a network key at the touch keyboard, REST and the web UI: ""
+// E-510 / DOC-13: one rule for a network key at the touch keyboard, REST and the web UI: ""
 // (open), a passphrase of 8..63 printable characters or exactly 64 hex digits (PMK); it accepts
 // exactly what setNetwork() stores.
 static void test_network_key_rule() {
@@ -289,7 +289,7 @@ static void test_load_replaces_invalid_values() {
 static uint32_t counterValue = 1;
 static uint32_t counter() { return counterValue++; }
 
-// W-E8, W-S13 (S55): the web password is stored as a PBKDF2 record only, set at the device.
+// E-617, A-713 (S55): the web password is stored as a PBKDF2 record only, set at the device.
 static void test_web_password() {
     Storage st;
     st.begin(NetConfig::NAMESPACE);

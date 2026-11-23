@@ -6,7 +6,7 @@
 
 Python 3 standard library only. Runs against the device or tools/web_mock.py and prints one
 PASS/FAIL line per check, like device_check.py does for SCPI. It changes the step, the CH2
-frequency and the CH2 coupling (E-52) briefly and restores them; it never switches an output on
+frequency and the CH2 coupling (E-213) briefly and restores them; it never switches an output on
 and never changes WiFi.
 
     python tools/web_check.py cyd-hf-1a2b.local            # the device (port 80)
@@ -143,7 +143,7 @@ def ws_read(s, buf, timeout=5):
 
 
 def check_page(api):
-    """Page and assets (W-S7); sets api.token. False if the page has no token."""
+    """Page and assets (A-707); sets api.token. False if the page has no token."""
     st, hd, raw = api.raw("GET", "/")
     page = raw.decode("utf-8", "replace")
     m = TOKEN_RE.search(page)
@@ -151,7 +151,7 @@ def check_page(api):
     if not m:
         return False
     api.token = m.group(1)
-    # Footer (E-39): source and notices at a release tag, no placeholder left.
+    # Footer (E-907): source and notices at a release tag, no placeholder left.
     check("footer links the release tag", "{{" not in page and "/blob/main/" not in page
           and re.search(r'CYD-HF-Generator/tree/v[0-9A-Za-z.+-]+"', page) is not None)
     csp = hd.get("Content-Security-Policy", "")
@@ -178,16 +178,16 @@ def check_page(api):
 
 def check_login(api, password):
     """With a password only the page and the LXI identification are readable until the login
-    (D25, D33); then logs in and keeps the session cookie in api."""
+    (E-703, E-614); then logs in and keeps the session cookie in api."""
     st, _, j = api.call("GET", "/api/state")
-    check("state without login -> 401 (D25)", st == 401 and "Login required" in err(j), "%d %s" % (st, j))
+    check("state without login -> 401 (E-703)", st == 401 and "Login required" in err(j), "%d %s" % (st, j))
     st, _, _ = api.call("GET", "/api/token")
-    check("token without login -> 401 (D25)", st == 401, "HTTP %d" % st)
+    check("token without login -> 401 (E-703)", st == 401, "HTTP %d" % st)
     s, st, _ = ws_open(api.hostport, "/ws?t=" + api.token)
-    check("WebSocket without login -> 401 (D25)", st == 401, "HTTP %d" % st)
+    check("WebSocket without login -> 401 (E-703)", st == 401, "HTTP %d" % st)
     s.close()
     st, _, raw = api.raw("GET", "/lxi/identification")
-    check("LXI identification without login -> 200 (D33)", st == 200 and b"<LXIDevice" in raw, "HTTP %d" % st)
+    check("LXI identification without login -> 200 (E-614)", st == 200 and b"<LXIDevice" in raw, "HTTP %d" % st)
     st, _, j = api.call("POST", "/api/config", {"step": 1000})
     check("write without login -> 401", st == 401 and "Login required" in err(j), "%d %s" % (st, j))
     st, _, j = api.call("POST", "/api/login", {"password": password + "x"})
@@ -213,7 +213,7 @@ def check_state(api):
           isinstance(s0["wifi"].get("confirmWithin"), int) and isinstance(s0["device"].get("passwordSet"), bool))
     check("state.limits as in include/constants.h", s0["limits"] == LIMITS, str(s0["limits"]))
     c2 = s0["ch"][1]
-    check("ch[1].coupled and ch[1].offset (E-52)", isinstance(c2.get("coupled"), bool) and type(c2.get("offset")) is int
+    check("ch[1].coupled and ch[1].offset (E-213)", isinstance(c2.get("coupled"), bool) and type(c2.get("offset")) is int
           and "coupled" not in s0["ch"][0], str({k: c2.get(k) for k in ("coupled", "offset")}))
     check("state has no MAC/commit", "mac" not in json.dumps(s0).lower() and "commit" not in json.dumps(s0).lower())
     st, _, j = api.call("GET", "/api/token")
@@ -221,7 +221,7 @@ def check_state(api):
     return s0
 
 
-# Guard answers (W-S4, W-S5, W-S10): (name, method, path, body, call options, accepted statuses).
+# Guard answers (A-704, A-705, A-710): (name, method, path, body, call options, accepted statuses).
 GUARD_CASES = [
     ("POST text/plain -> 415", "POST", "/api/config", b"step=1", {"ctype": "text/plain"}, (415,)),
     ("foreign Origin -> 403", "POST", "/api/config", {"step": 1000}, {"headers": {"Origin": "http://evil.example"}}, (403,)),
@@ -234,7 +234,7 @@ GUARD_CASES = [
     ("URL > 256 B -> 414", "GET", "/api/state?" + "a" * 300, None, {}, (414,)),
 ]
 
-# REST errors (ARBEITSPLAN 3.6 point 5, 9, 11): (path, body, SCPI code of the 400 answer).
+# REST errors (A-621, A-625, A-627): (path, body, SCPI code of the 400 answer).
 ERROR_CASES = [
     ("/api/config", b"{\"drive\":", "-102"), ("/api/config", {"drive": "4"}, "-104"), ("/api/config", {"drive": 4.5}, "-104"),
     ("/api/config", {"x": 1}, "-108"), ("/api/config", {"drive": 5}, "-224"), ("/api/config", {"correction": 99999}, "-222"),
@@ -269,7 +269,7 @@ def check_rest_errors(api, s0):
     check("POST backlight 55 -> 200, rounded to 60", st == 200 and isinstance(j, dict) and j["config"]["backlight"] == 60,
           "%d %s" % (st, j.get("config", {}).get("backlight") if isinstance(j, dict) else j))
     api.call("POST", "/api/config", {"backlight": bl0})
-    # E-53: screen rotation 0 / 180 degrees, read and written (restored right after).
+    # E-314: screen rotation 0 / 180 degrees, read and written (restored right after).
     rot0 = s0["config"].get("rotation")
     check("state config.rotation is 0 or 180", rot0 in (0, 180), "%r" % rot0)
     st, _, j = api.call("POST", "/api/config", {"rotation": 180})
@@ -296,7 +296,7 @@ def check_writes(api, s0):
         check("REMOTE web after a write", j.get("remote") == "web", str(j.get("remote")))
     api.call("POST", "/api/channel/2", {"frequency": f0})
     api.call("POST", "/api/config", {"step": step0})
-    # CH2 coupled to CH1 (E-52): CH1 + offset, the CH2 frequency refused, then restored.
+    # CH2 coupled to CH1 (E-213): CH1 + offset, the CH2 frequency refused, then restored.
     c2 = s0["ch"][1]
     st, _, j = api.call("POST", "/api/channel/2", {"coupled": True, "offset": -455000})
     want = max(0, s0["ch"][0]["frequency"] - 455000)
@@ -330,7 +330,7 @@ def check_wifi(api, skip_scan):
         check("no keys in /api/wifi", all(set(n) == {"ssid", "key"} for n in w["networks"]) and "password" not in w["ap"])
     st, _, j = api.call("POST", "/api/wifi/confirm", {})
     check("confirm without change -> 400 -221", st == 400 and err(j).startswith("-221,"), "%d %s" % (st, j))
-    # D23: mode off takes nothing else. The invalid name keeps older firmware from applying it
+    # E-515: mode off takes nothing else. The invalid name keeps older firmware from applying it
     # (-224 there), so this never switches WiFi off.
     st, _, j = api.call("POST", "/api/wifi", {"mode": "off", "name": "Bad_Name"})
     check("WiFi off with another key -> 400 -108", st == 400 and err(j).startswith("-108,"), "%d %s" % (st, j))
@@ -405,7 +405,7 @@ def check_ws_ping_flood(api):
 
 
 def check_websocket(api, step0):
-    """WebSocket (W-S6, W-E10)."""
+    """WebSocket (A-706, E-619)."""
     s, st, _ = ws_connect(api, "0" * 32)
     check("WebSocket with a wrong token -> 403", st == 403, "HTTP %d" % st)
     s.close()

@@ -42,7 +42,7 @@ extern const char* const KEY_SIGN;
 // Correction entry (audit U-11): digits, point, backspace and C as numpadKey(), KEY_SIGN toggles the
 // sign, "ppm" confirms with *outCentiPpm in 0.01 ppm (rounded, at most CORRECTION_MAX).
 NumpadEvent numpadPpmKey(Numpad& n, const char* key, int32_t* outCentiPpm);
-// Offset entry of the coupled CH2 (E-52): as numpadKey(), KEY_SIGN toggles the sign, a unit key
+// Offset entry of the coupled CH2 (E-213): as numpadKey(), KEY_SIGN toggles the sign, a unit key
 // confirms with *outHz in -CH2_OFFSET_MAX_HZ..+CH2_OFFSET_MAX_HZ (0 allowed).
 NumpadEvent numpadOffsetKey(Numpad& n, const char* key, int32_t* outHz);
 // Short text for the error line of the numpad ("" for None).
@@ -148,7 +148,7 @@ enum class EntryStep : uint8_t {
     HashWebPassword, // valid web password: hand it to the hashing worker
     StoreApPassword,
     AskPassword,     // hidden network: the name is accepted, the password follows
-    StoreNetwork,    // network key; empty for an open hidden network, 64 hex digits = PMK (D31)
+    StoreNetwork,    // network key; empty for an open hidden network, 64 hex digits = PMK (E-510)
 };
 
 struct EntryResult {
