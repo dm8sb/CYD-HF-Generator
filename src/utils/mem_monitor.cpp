@@ -10,6 +10,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <lvgl.h>
+#include <utils/heap_watch.h>
 #include <utils/logger.h>
 
 namespace MemMonitor {
@@ -28,10 +29,25 @@ void log(const char* when) {
     Logger::info("MEM", line);
 }
 
+// Below HEAP_LOW_BYTES: one error line with the free heap and the largest block (A-726).
+static void checkHeap(uint32_t now) {
+    static HeapWatch watch(HEAP_LOW_BYTES, HEAP_RECOVER_BYTES);
+    static uint32_t last = 0;
+    if (now - last < HEAP_CHECK_INTERVAL_MS) return;
+    last = now;
+    const uint32_t freeBytes = ESP.getFreeHeap();
+    if (!watch.update(freeBytes)) return;
+    char line[80];
+    snprintf(line, sizeof(line), "Heap low: free %u B, largest block %u B", (unsigned)freeBytes,
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    Logger::error("MEM", line);
+}
+
 void update() {
+    const uint32_t now = millis();
+    checkHeap(now);
     if (!LOG_DEBUG) return;
     static uint32_t last = 0;
-    const uint32_t now = millis();
     if (now - last < MEM_LOG_INTERVAL_MS) return;
     last = now;
     log("periodic");

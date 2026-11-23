@@ -77,6 +77,11 @@ static constexpr uint32_t SI5351_SEARCH_FAST_PHASE_MS = 60000;
 static constexpr uint32_t SI5351_SEARCH_SLOW_INTERVAL_MS = 10000;
 // Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).
 static constexpr uint32_t MEM_LOG_INTERVAL_MS = 30000;
+// Heap warning (A-726, FW-08): checked once per second in every build; below HEAP_LOW_BYTES
+// one `Heap low` line, the next only after the heap recovered above HEAP_RECOVER_BYTES.
+static constexpr uint32_t HEAP_CHECK_INTERVAL_MS = 1000;
+static constexpr uint32_t HEAP_LOW_BYTES = 40u * 1024u;
+static constexpr uint32_t HEAP_RECOVER_BYTES = 48u * 1024u;
 // GUI and touch timing.
 static constexpr uint32_t GUI_UPDATE_INTERVAL_MS = 300;  // save state, connection, output errors
 // Pressure dropouts (and weak pressure) shorter than this keep a press (audit U-20: 60-80 ms;
