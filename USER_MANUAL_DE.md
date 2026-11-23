@@ -631,6 +631,7 @@ Die PLL bleibt fest auf einem von zwei Werten (900 oder 887,5 MHz); nur der Mult
 - **Abstimmen:** Ein neuer Teiler wird ohne Neustart der PLL übernommen; der Ausgang läuft durch. Nur wenn die aktuelle PLL-Frequenz eine Frequenz nicht genau genug trifft, wechselt sie auf den anderen Wert und startet neu: Der Ausgang setzt einmal kurz aus. Die Firmware bleibt bei der bisherigen PLL, solange sie auf 0,25 Hz genau ist; Wechsel sind deshalb selten.
 - **Nebenlinien:** Der Teiler ist fast immer fraktional. Selbst 10 MHz (900 MHz / 90) wird fraktional, sobald eine Frequenzkorrektur eingestellt ist. Die Nebenlinien können deshalb bei jeder Frequenz auftreten und beim Abstimmen wandern.
 - **Über 100 MHz:** Trifft keine der beiden festen PLL-Frequenzen auf 0,25 Hz, nimmt die Firmware wie bei `Low noise` einen geraden Teiler (8, 6 oder 4) mit fraktionaler PLL, wenn das genauer ist. Ab 112,5 MHz ist das immer so; dann ändert jeder Schritt die PLL und der Ausgang setzt bei jedem Schritt kurz aus.
+- **VCO mit Korrektur:** Die feste PLL von 900 MHz ist das 36-Fache des Quarzes und folgt dessen tatsächlicher Frequenz. Bei einer Korrektur von +50 ppm läuft der VCO deshalb auf 900,045 MHz, 45 kHz über der Grenze von 900 MHz aus dem Datenblatt. Das ist unkritisch und bewusst zugelassen.
 - **Geeignet für:** allgemeinen Gebrauch, Durchstimmen ohne Unterbrechung (z. B. als VFO, Wobbeln von Hand), Kalibrieren.
 
 #### Low noise
@@ -1240,6 +1241,16 @@ SI5351 Adresse = 0x60
 
 Display und Touch verwenden separate SPI-Busse. Die vollständige Pinbelegung steht in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), Abschnitt 1.3.
 
+### Aufbau und Versorgung
+
+Diese Hinweise sind übliche Praxis bei SI5351-Aufbauten; ihre Wirkung an diesem Gerät wird noch gemessen (MESSPLAN M-310, M-418). Stückliste, Verdrahtung und Bauteilwerte stehen auf der Hardware-Seite [docs/hardware.md](docs/hardware.md) (englisch).
+
+- **Eigener LDO mit Ferrit:** Den SI5351 aus einem eigenen rauscharmen 3,3-V-Regler versorgen, der über eine Ferritperle gespeist wird. So bleiben Störungen von ESP32, WLAN und Display aus den Ausgängen heraus. Die Massen von Board und Modul bleiben verbunden.
+- **Kurze Masse:** Board und Modul mit einer kurzen, breiten Masseverbindung verbinden; die Schirme der Koaxkabel direkt am Ausgang auf die Masse des Moduls legen.
+- **Abschirmung:** Modul und Ausgangsleitungen abschirmen, etwa mit einem Metallgehäuse oder einem Schirmblech über dem Modul und mit Koaxkabeln statt freier Drähte. Die Ausgangsleitungen vom CN1-Kabel und vom Display fernhalten.
+- **TCXO (optional):** Ein 25-MHz-TCXO statt des Quarzes ist eine Option. Ob er sich lohnt, hängt von der Aufwärmdrift und der Kurzzeitstabilität ab; eine Empfehlung folgt nach den Messungen (MESSPLAN M-313, M-411). Den festen Fehler des Quarzes gleicht die Frequenzkorrektur aus (`Corr.`, Abschnitt 8).
+- **Flashen und Reset:** Der SI5351 läuft beim Flashen und nach einem Reset des ESP32 mit der letzten Einstellung weiter, bis die neu gestartete Firmware ihn einstellt; mit eigener Versorgung auch, solange das Board aus ist. Empfindliche Schaltungen vorher abtrennen. Die Dauer folgt nach den Messungen (MESSPLAN M-119).
+
 ### Board-Varianten
 
 Unter der Bezeichnung ESP32-2432S028R werden zwei Boards verkauft, die sich nur im Display-Controller unterscheiden. Dieselbe Firmware läuft auf beiden; sie erkennt den Controller beim Einschalten:
@@ -1526,7 +1537,7 @@ Eine Firmware gilt für beide Boards (CYD mit ILI9341 und CYD2USB mit ST7789); d
    - **Update:** nicht löschen.
 5. Die Installation abwarten; der Flasher zeigt den Fortschritt. Danach startet das Board neu.
 
-Nach jedem Start, auch nach einem Update, sind alle Ausgänge aus (Abschnitt 9).
+Nach jedem Start, auch nach einem Update, sind alle Ausgänge aus (Abschnitt 9). Während des Flashens läuft der SI5351 mit der letzten Einstellung weiter (Abschnitt 13, „Aufbau und Versorgung“).
 
 ### Erstinstallation oder Update
 
