@@ -60,6 +60,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 
 - Manual (DE, EN), hardware page and remote API as web pages on GitHub Pages next to the web flasher, rendered from the Markdown at the release tag and deployed with it; the flasher page links them (E-903)
 - Host tools: `device_check.py` and the fake device cover CH2 coupling and screen rotation; CI runs `device_check --outputs` against the fake
+- Manual section 13 "Assembly and Supply": hardware hints (own LDO with ferrite, short ground, shielding, TCXO optional, SI5351 keeps running while flashing); section 8 notes the VCO at 900.045 MHz in `Fractional` with +50 ppm
 - Planning documents restructured with uniform numbers: the specification by topic in nine chapters (requirements `A-<chapter><nn>`, decisions `E-<chapter><nn>`, the former work-plan decisions and the WEB-HMI concept included), measurements `M-<tier><nn>`, open tasks with area IDs `FW-`, `DOK-`, `REL-`, `MES-`, `USR-nn`; the `device_check.py` profiles are now `M-203` and `M-452`
 
 ### 2.1.0

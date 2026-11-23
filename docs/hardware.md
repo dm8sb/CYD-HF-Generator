@@ -31,7 +31,7 @@ What you need to build the CYD HF Generator and how to connect the SI5351 module
 | Low-pass filter per output | optional | Required before a square-wave output goes anywhere near an antenna (see [Safety](#safety)). |
 | Low-noise 3.3 V LDO with ferrite bead and capacitors | optional | Separate supply for the SI5351 module (see [Hints](#hints-for-a-clean-signal)). |
 | Metal enclosure or shielding | optional | Keeps the display and ESP32 noise away from the outputs. |
-| 25 MHz TCXO | optional | Only if the warm-up drift turns out to matter; this depends on a pending measurement (MESSPLAN M-313). |
+| 25 MHz TCXO | optional | Only if the warm-up drift turns out to matter; a recommendation follows after the measurements (MESSPLAN M-313, M-411). |
 
 ## Board variants
 
@@ -101,13 +101,13 @@ CN1 IO27 ---- SCL   (or SDA)
 
 ## Hints for a clean signal
 
-These hints are general practice for SI5351 builds; their effect on this device is still being measured (MESSPLAN M-310, M-418, M-313).
+These hints are general practice for SI5351 builds; their effect on this device is still being measured (MESSPLAN M-310, M-418, M-313). The manual summarizes them in [section 13](../USER_MANUAL_EN.md#assembly-and-supply).
 
 - **Own supply for the module:** a low-noise 3.3 V LDO for the SI5351, fed through a ferrite bead, with 100 nF and 10 µF close to the module, keeps the ESP32, WiFi and display noise out of the outputs.
 - **Short ground:** a short, wide ground connection between board and module; coax shields to the module ground right at the output.
 - **Short I2C cable:** keep the CN1 cable short and away from the output lines.
-- **Shielding:** a metal enclosure or a shield over the module reduces coupling from the display, the backlight PWM and the WiFi radio.
-- **TCXO:** an optional 25 MHz TCXO instead of the crystal, only if the warm-up drift matters for your use (decision after measurement M-313). The frequency correction (CONFIG `Corr.`) compensates the static crystal error.
+- **Shielding:** a metal enclosure or a shield over the module reduces coupling from the display, the backlight PWM and the WiFi radio; run the outputs in coax, not loose wires.
+- **TCXO:** an optional 25 MHz TCXO instead of the crystal, only if the warm-up drift matters for your use; a recommendation follows after the measurements (MESSPLAN M-313, M-411). The frequency correction (CONFIG `Corr.`) compensates the static crystal error.
 
 ## Case
 

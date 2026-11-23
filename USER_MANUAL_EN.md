@@ -631,6 +631,7 @@ The PLL stays fixed at one of two values (900 or 887.5 MHz); only the MultiSynth
 - **Tuning:** A new divider is taken over without restarting the PLL; the output keeps running. Only when the current PLL frequency cannot hit a frequency accurately enough does it switch to the other value and restart: the output drops out briefly once. The firmware keeps the current PLL as long as it is accurate to 0.25 Hz; switches are therefore rare.
 - **Spurs:** The divider is almost always fractional. Even 10 MHz (900 MHz / 90) becomes fractional as soon as a frequency correction is set. Spurs can therefore occur at any frequency and move while tuning.
 - **Above 100 MHz:** If neither of the two fixed PLL frequencies hits to within 0.25 Hz, the firmware takes an even divider (8, 6 or 4) with a fractional PLL as in `Low noise`, if that is more accurate. From 112.5 MHz on this is always the case; then every step changes the PLL and the output drops out briefly at every step.
+- **VCO with correction:** The fixed 900 MHz PLL is 36 times the crystal and follows its actual frequency. With a correction of +50 ppm the VCO therefore runs at 900.045 MHz, 45 kHz above the 900 MHz limit of the datasheet. This is uncritical and accepted deliberately.
 - **Suited for:** general use, tuning through without interruption (e.g. as a VFO, sweeping by hand), calibration.
 
 #### Low noise
@@ -1240,6 +1241,16 @@ SI5351 address = 0x60
 
 Display and touch use separate SPI buses. The complete pinout is given in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), section 1.3.
 
+### Assembly and Supply
+
+These hints are common practice for SI5351 builds; their effect on this device is still being measured (MESSPLAN M-310, M-418). Bill of materials, wiring and component values are on the hardware page [docs/hardware.md](docs/hardware.md).
+
+- **Own LDO with ferrite:** Supply the SI5351 from its own low-noise 3.3 V regulator, fed through a ferrite bead. This keeps noise from the ESP32, WiFi and display out of the outputs. The grounds of board and module stay connected.
+- **Short ground:** Connect board and module with a short, wide ground connection; connect the shields of the coax cables to the module ground right at the output.
+- **Shielding:** Shield the module and the output lines, for example with a metal enclosure or a shield over the module and with coax cables instead of loose wires. Keep the output lines away from the CN1 cable and the display.
+- **TCXO (optional):** A 25 MHz TCXO instead of the crystal is an option. Whether it is worth it depends on the warm-up drift and the short-term stability; a recommendation follows after the measurements (MESSPLAN M-313, M-411). The frequency correction compensates the fixed error of the crystal (`Corr.`, section 8).
+- **Flashing and reset:** The SI5351 keeps running with its last setting while the ESP32 is flashed or reset, until the restarted firmware sets it up; with its own supply also as long as the board is off. Disconnect sensitive circuits beforehand. The duration follows after the measurements (MESSPLAN M-119).
+
 ### Board Variants
 
 Two boards are sold under the name ESP32-2432S028R; they differ only in the display controller. The same firmware runs on both; it detects the controller at power-on:
@@ -1526,7 +1537,7 @@ One firmware serves both boards (CYD with ILI9341 and CYD2USB with ST7789); the 
    - **Update:** do not erase.
 5. Wait for the installation; the flasher shows the progress. The board then restarts.
 
-After every start, including after an update, all outputs are off (section 9).
+After every start, including after an update, all outputs are off (section 9). While flashing, the SI5351 keeps running with its last setting (section 13, "Assembly and Supply").
 
 ### First Installation or Update
 

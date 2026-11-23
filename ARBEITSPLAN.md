@@ -41,7 +41,7 @@ Einzige Planungsdatei: Arbeitsregeln, Stand, offene Befunde und offene Aufgaben.
 | 2.0.0 | LXI und VXI-11 (LX1, E-614 bis E-616); GitHub: Release-Workflow mit Herkunftsnachweis und Webflasher (G1, G2, G11, E-905), Tag-Ruleset (E-809), `SECURITY.md`, CodeQL, Dependabot, Größenbericht, Vorlagen, gerenderte Bilder, Gehäuse (G4–G9, G11–G13); Projekt-Audit mit Folgearbeiten AF1–AF10, AF29–AF31 (E-611, E-704, E-906 bis E-908); Version 2.0.0 mit neuer Historie (E-904) |
 | nach 2.0.0 | U27 einheitliche Bedienung: CONFIG in fünf Registern (E-311), eine Kopfzeile mit `◀` (E-312), kein `Saved`/`Saving...` am Gerät (E-313); API-Referenz `docs/REMOTE_API.md`; AF11–AF19, AF44–AF46, AF48, AF51a–AF53, AF55: WLAN ohne Energiesparen (E-512), Suche mit Backoff (E-513), ein Besitzer der Netzeinstellungen (E-514), `SAVE` höchstens alle 10 s (E-402), Login auch für Lesen (E-703), Push gebündelt; Handbuch §17 und §18 |
 | 2.1.0 | Audit-Priorität 3 (CI-Trigger, Warnungs-Gate, exakte Pins, reproduzierbare Stempel E-806, Release-Probelauf, Advisory-Prüfung; E-807), Priorität 4 (Vertragsvektoren, ASan/UBSan, neue Fuzz-Ziele, NVS-Grenzen, Messhelfer), Priorität 6 (Texteingabe als Logik, `Gui` und Webserver aufgeteilt, asynchrone REST-Antworten E-622); Priorität 5 entfällt (E-315); N11 Arduino 3.3.13 / IDF 5.5.6 über pioarduino (E-804); N14 CH2 = CH1 + Offset (E-213); N16 `Rotate` (E-314); am Gerät geprüft |
-| nach 2.1.0 (`dev`) | G9 Handbuch, Hardware-Seite und Remote-API als Pages-Seiten (E-903); Werkzeuge kennen CH2-Kopplung und Drehung; DK1 Doku konsolidiert; 10-Mio.-Fuzz-Lauf ohne Fund; Spezifikation, Messplan und Arbeitsplan neu aufgebaut und einheitlich nummeriert |
+| nach 2.1.0 (`dev`) | G9 Handbuch, Hardware-Seite und Remote-API als Pages-Seiten (E-903); Werkzeuge kennen CH2-Kopplung und Drehung; DK1 Doku konsolidiert; DOK-03 Hardware-Hinweise im Handbuch §13 (eigener LDO mit Ferrit, kurze Masse, Abschirmung, TCXO optional, SI5351 läuft beim Flashen weiter) und VCO-Hinweis bei `Fractional` mit +50 ppm (§8); 10-Mio.-Fuzz-Lauf ohne Fund; Spezifikation, Messplan und Arbeitsplan neu aufgebaut und einheitlich nummeriert |
 
 Host-Tests: 524 Fälle in `native-win` und 4 in `native-win-fault`.
 
@@ -72,7 +72,7 @@ Host-Tests: 524 Fälle in `native-win` und 4 in `native-win-fault`.
 - [M] **IQ-Abstimmen mit Aussetzer** (M-304, M-305, M-303, M-306): jede Frequenz- oder Korrekturänderung im IQ-Betrieb setzt die PLL zurück (1000 Schritte → 1000 Resets). → FW-02
 - [M] **180°/270° bei ungeraden Teilern** (M-308): die Invertierung ergibt nur bei exakt 50 % Tastverhältnis 180°; der IQ-Teiler `min(127, ⌊900 MHz / f⌋)` ist in 54 % der Fälle ungerade (14,2 MHz → 63, 99 MHz → 9). → FW-03
 - [ ] **Spannungseinbruch des Moduls ohne aktiven Ausgang unbemerkt:** `checkAlive()` erkennt einen SI5351-Neustart nur, solange ein Ausgang konfiguriert ist. → FW-07
-- [ ] **Hinweise fehlen im Handbuch:** SI5351 läuft beim Flashen und nach ESP32-Reset mit der letzten Einstellung weiter (M-119); Hardware-Hinweise (eigener LDO mit Ferrit, kurze Masse, Abschirmung, optional TCXO nach M-313); VCO bei `Fractional` und +50 ppm 900,045 MHz (unkritisch, A-214). → DOK-01, DOK-02, DOK-03
+- [M] **Hinweise im Handbuch ohne Messwert:** Dauer, die der SI5351 beim Flashen und nach ESP32-Reset mit der letzten Einstellung weiterläuft (M-119; Hinweis in §13 und §17 steht, die Dauer fehlt); Empfehlung zum TCXO (M-313, M-411; im Handbuch §13 und in `docs/hardware.md` als Option genannt). → DOK-01, DOK-02
 
 ### 2.2 Bedienung
 
@@ -140,20 +140,15 @@ Je Aufgabe: **Warum** (Anlass, Befund), **Was** (Umfang), **Prüfung** und Commi
 ### 3.2 Dokumentation (DOK)
 
 - [ ] **DOK-01 · Messwerte in die Handbücher** (nach MES-05 und MES-06)
-  - *Warum:* Befunde 2.1 „Hinweise fehlen“ und 2.4 „50 % Tastverhältnis“; Pegel und Mischerwerte in §17/§18 sind als „typisch, nicht gemessen“ markiert.
-  - *Was:* Pegeltabelle (M-312), Mischer-Kapitel §18 (M-312, M-419, M-420, M-413, M-308), Tastverhältnis (M-309, A-201 präzisieren bei > 2 % Abweichung), Aufwärmzeit (M-313), WLAN-Hinweis (M-317), „SI5351 läuft beim Flashen weiter“ (M-119); DE und EN.
+  - *Warum:* Befunde 2.1 „Hinweise ohne Messwert“ und 2.4 „50 % Tastverhältnis“; Pegel und Mischerwerte in §17/§18 sind als „typisch, nicht gemessen“ markiert.
+  - *Was:* Pegeltabelle (M-312), Mischer-Kapitel §18 (M-312, M-419, M-420, M-413, M-308), Tastverhältnis (M-309, A-201 präzisieren bei > 2 % Abweichung), Aufwärmzeit (M-313), WLAN-Hinweis (M-317), Dauer zu „SI5351 läuft beim Flashen weiter“ (M-119) in §13 „Aufbau und Versorgung“ ergänzen; DE und EN.
   - *Prüfung:* Werte gegen die Messprotokolle; Parität DE/EN; Docs-Site-Prüfung.
   - *Commit:* `DOK-01: Add measured values to the manuals`
 - [ ] **DOK-02 · TCXO-Option** (nach M-313, M-411)
   - *Warum:* `docs/hardware.md` nennt einen 25-MHz-TCXO als optional, abhängig von der Aufwärmdrift.
   - *Was:* TCXO empfehlen, wenn die Drift nach 15 min Aufwärmzeit > 0,5 ppm/h beträgt (MESSPLAN 6.1); sonst den Hinweis streichen.
-  - *Prüfung:* Werte gegen M-313; Handbuch DE/EN und `docs/hardware.md`.
+  - *Prüfung:* Werte gegen M-313; Handbuch DE/EN (§13 „Aufbau und Versorgung“) und `docs/hardware.md`.
   - *Commit:* `DOK-02: Recommend a TCXO for low drift`
-- [ ] **DOK-03 · Hardware-Hinweise in den Handbüchern**
-  - *Warum:* Befund 2.1 „Hinweise fehlen“.
-  - *Was:* eigener LDO mit Ferrit, kurze Masse, Abschirmung, optional TCXO (DOK-02); VCO-Hinweis bei `Fractional` und +50 ppm.
-  - *Prüfung:* Parität DE/EN; Docs-Site-Prüfung.
-  - *Commit:* `DOK-03: Add hardware hints to the manuals`
 
 ### 3.3 Release, GitHub und CI (REL)
 
