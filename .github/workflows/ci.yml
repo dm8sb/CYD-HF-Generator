@@ -70,16 +70,19 @@ jobs:
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: pio test -e native-asan
       # The probe must be caught: a deliberate overflow has to fail the sanitizer run.
+      # pio test does not show the program's stderr: ASan writes its report to asan-probe.<pid>.
       - name: Sanitizer probe
         env:
           PLATFORMIO_BUILD_FLAGS: -DSANITIZER_PROBE=1
+          ASAN_OPTIONS: log_path=/tmp/asan-probe
         run: |
           set +e
           pio test -e native-asan -f test_sanitizer > probe.log 2>&1
           status=$?
           set -e
-          tail -n 30 probe.log
-          if [ "$status" -eq 0 ] || ! grep -q "AddressSanitizer: heap-buffer-overflow" probe.log; then
+          tail -n 8 probe.log
+          cat /tmp/asan-probe.* 2>/dev/null | head -n 12
+          if [ "$status" -eq 0 ] || ! grep -qs "AddressSanitizer: heap-buffer-overflow" /tmp/asan-probe.*; then
             echo "::error::the deliberate overflow was not reported by native-asan"
             exit 1
           fi
