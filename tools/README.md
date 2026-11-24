@@ -11,6 +11,7 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | `device_check.py` | Automated SCPI check for the smoke test and the measurement plan (`MESSPLAN.md` 4.3, M-203, M-206 to M-216); `--profile M-203` (1000 × `*IDN?`, median < 50 ms) and `--profile M-452` (every query of the command tree followed by `SYST:ERR?`, valid and invalid parameters, `*RST`). Also checks CH2 coupled to CH1 (`SOUR2:COUP`, `SOUR2:FREQ:OFFS`: CH2 = CH1 + offset, −221 for a CH2 frequency while coupled, waiting below 8 kHz and above 160 MHz, `0` below 0 Hz, CH3 with master CH2, the last valid frequency after `OFF`; `WAIT` in `OUTP2:COND?` only with `--outputs`) and `SYST:DISP:ROT` (round trips and refusals, turned only for a moment and restored). A coupled CH2 is decoupled at the start to read its own frequency and coupled again at the end. |
 | `slowloris.py` | Slow-request load of MESSPLAN M-210 (AF39), only against your own device: N connections (default 30) send a header byte every 2 s and complete after 10 s; prints per connection accepted, refused, closed by the server (when) or answered. |
 | `touchstat.py` | Evaluation of the touch test logs (MESSPLAN M-126, M-425, M-316, M-427, AF39): `[HITMAP]` deviation per target and miss rate, `[TOUCH]` press time, pressure, double-tap gaps, dropouts, touches per widget; `--csv` writes the target table. |
+| `messung/` | Automated measurements of `MESSPLAN_SIGLENT.md` (MES-09): SDS1204X-E with the GPS reference on channel 4, SSA3032X Plus and the generator over SCPI; `measure.py run` (steps V-01 … L6.8), `check` (every instrument query once), `report` (protocol with figures in `messungen/`), `docplots` (`docs/data/meas-*.csv` → `docs/img/meas-*.png`); `--sim` runs everything on a simulated bench; `test_messung.py` tests the evaluation against synthetic signals. Needs numpy, matplotlib, PyVISA with pyvisa-py, pyserial. |
 | `counter_log.py` | Frequency counter logger of MESSPLAN M-313, M-411 (AF39): a SCPI query over TCP or USB (pyserial) in the rhythm of the gate time into `time;frequency;temperature` CSV. |
 | `lxi_example.py` | LXI / VXI-11 example (standard library): discovery by portmapper broadcast like `lxi discover`, `*IDN?` and commands over VXI-11, optionally through PyVISA (`TCPIP::<ip>::INSTR`). |
 | `fake_scpi_device.py` | Fake device (local TCP server, subset of the manual incl. `*RST`, CH2 coupling with offset and `WAIT`, `SYST:DISP:ROT`) to try the scripts without hardware; `--vxi11` adds a reduced VXI-11 server (portmapper and core channel 9009). |
@@ -37,6 +38,7 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 ```bash
 pip install pyserial                # USB
 pip install pyvisa pyvisa-py        # optional: PyVISA (LabVIEW, NI-MAX, MATLAB users know the resource strings)
+pip install numpy matplotlib        # tools/messung (with pyvisa, pyvisa-py, pyserial)
 ```
 
 TCP and REST need only the standard library.

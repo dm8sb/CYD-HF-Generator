@@ -1,6 +1,6 @@
 # Messplan Siglent – automatische Messungen im Netzwerk
 
-Stand: 2026-11-23 · Plan-Version 1.1 · Prüfling: Messboard (CYD2USB mit SI5351), Firmware ab 1.4.0 (SCPI über USB, TCP und VXI-11)
+Stand: 2026-11-24 · Plan-Version 1.2 · Prüfling: Messboard (CYD2USB mit SI5351), Firmware ab 1.4.0 (SCPI über USB, TCP und VXI-11)
 
 Dieser Plan beschreibt einen **festen Gesamtaufbau** aus Oszilloskop, Spektrumanalysator und einer GPS-geregelten 10-MHz-Referenz. Ein PC-Skript steuert über das LAN die Messgeräte und über SCPI den Prüfling. Die Messungen sind zu **Läufen** zusammengefasst, die ohne Umstecken nacheinander laufen; umgesteckt wird nur für wenige, benannte Varianten (Abschnitt 4). Am Ende erzeugt das Skript ein **vollständiges Messprotokoll mit Bildern** (Abschnitt 10).
 
@@ -379,14 +379,40 @@ Zeichen: **●** vollständig mit diesem Aufbau (automatisch) · **◐** teilwei
 
 ## 8. Software
 
-- Python 3 mit `pyvisa` und `pyvisa-py` (kein NI-VISA nötig), `numpy` für die Auswertung, `matplotlib` für die Bilder, `pyserial` für SCPI über USB und den Neustart per RTS.
-- Ressourcen: `TCPIP::<ip>::INSTR` (VXI-11) für SDS und SSA. Der Prüfling über USB (`pyserial`, 115200 Bd) oder über `TCPIP::<ip>::5025::SOCKET` bzw. VXI-11. Grundlage sind `tools/scpi_example.py` und `tools/lxi_example.py`.
-- Je Gerät ein Modul (Einstellen, Messwert lesen, Bildschirmfoto, Kurve als Daten), je Lauf ein Modul, eine gemeinsame Auswertung für 2.1 und 2.3, ein Protokollgenerator (10). Die Auswertung wird vorher gegen synthetische Daten getestet: Rechteck und Sinus mit bekannter Frequenz und Phase, 8-bit-Quantisierung, Rauschen.
-- Siglent-Befehle als Ausgangspunkt (im jeweiligen Programmierhandbuch prüfen):
-  - SDS: `SARA?` (Abtastrate), `WFSU`, `C1:WF? DAT2` (Rohdaten), `C1:VDIV?`, `C1:OFST?`, `TDIV`, `TRMD SINGLE`, `INR?` bzw. `SAST?` (Triggerstatus), `BWL C1,ON` (20 MHz), `SCDP` (Bildschirmfoto).
-  - SSA: `:FREQ:CENT`, `:FREQ:SPAN`, `:BWID`, `:CALC:MARK1:MAX`, `:CALC:MARK1:FCO:STAT ON` / `:CALC:MARK1:FCO:X?` (Zähler), `:CALC:MARK1:FUNC NOIS` (Rauschmarker), `:TRAC:DATA? 1` (Kurve), `:SENS:ROSC:SOUR?` (Referenz), `:HCOP:SDUM:DATA?` (Bildschirmfoto).
-  - SDG (nur V-04 b): `ROSC EXT`, `C1:BSWV`, `C1:OUTP`.
-- Prüfling: nur dokumentierte Befehle aus [docs/REMOTE_API.md](docs/REMOTE_API.md) 3.3. Nach jedem Schreibbefehl `SYST:ERR?`; `OUTP<n>:COND?` muss vor der Messung `ON` liefern; höchstens 20 Schreibbefehle pro Sekunde (Grenze der Firmware).
+Die Skripte liegen in [tools/messung/](tools/messung/) (Python 3.8+, Kommentare und Ausgaben englisch):
+
+| Datei | Inhalt |
+|---|---|
+| `measure.py` | Kommandozeile: `run`, `check`, `report`, `docplots`, `list` |
+| `steps.py` | V-01 … V-07 und L1.1 … L6.8 als Funktionen mit ID, Titel und Mess-IDs; Gruppen `V`, `L1` … `L6`, `all` (= V, L1 … L4, L6) |
+| `bench.py` | Messplatz G: Steckaufforderungen (Abschnitt 4), Messfunktionen 2.1 bis 2.5, Kalibrierwerte aus V-03 … V-06 |
+| `analysis.py` | Auswertung ohne Geräte: Flanken mit Hysterese und sinc-Verfeinerung, Frequenz als Verhältnis, Phase, Tastverhältnis, Aussetzer, Klammermessung, Allan-Abweichung, Spektrum |
+| `siglent.py` | SDS, SSA, SDG über SCPI; alle Siglent-Befehle an dieser einen Stelle |
+| `dut.py` | Prüfling nur mit den Befehlen aus [docs/REMOTE_API.md](docs/REMOTE_API.md) 3.3; nach jedem Schreibbefehl `SYST:ERR?`, höchstens ≈ 17 Schreibbefehle/s (Grenze der Firmware: 20/s) |
+| `links.py` | Verbindungen `visa:`, `tcp:`, `usb:`, `sim:` |
+| `store.py` | Ablage 10.1, Bewertung nach MESSPLAN.md 3.6 |
+| `report.py` | Diagramme und Protokoll (Abschnitt 10), Handbuchbilder (11) |
+| `sim.py` | simulierter Messplatz mit denselben SCPI-Texten (Trockenlauf, Tests) |
+| `test_messung.py` | Tests der Auswertung gegen synthetische Signale und ein Trockenlauf bis zum Protokoll |
+
+```text
+pip install numpy matplotlib pyvisa pyvisa-py pyserial
+
+python tools/messung/test_messung.py                         # Tests (≈ 2 min)
+python tools/messung/measure.py run all L5 --sim --quick     # Trockenlauf ohne Geräte
+python tools/messung/measure.py check --dut usb:COM13 --sds visa:TCPIP::<ip>::INSTR --ssa visa:TCPIP::<ip>::INSTR
+python tools/messung/measure.py run V L1 L2 L3 L4 L6 --dut usb:COM13 --sds ... --ssa ... --board B
+python tools/messung/measure.py run L5 ...                   # am nächsten Morgen
+python tools/messung/measure.py report messungen/<Kampagne>  # nach Handeinträgen erneut erzeugen
+```
+
+Festlegungen:
+
+- **Erst `check`, dann V-01:** `check` sendet jede Abfrage der Siglent-Geräte einmal und listet, was nicht antwortet. Die Befehle folgen den Programmierhandbüchern der Serien SDS1000X-E, SSA3000X Plus und SDG2000X; die mit `VERIFY` markierten (Dropout-Trigger, `SAST?`, Detektornamen, Markerzähler, Rauschmarker, Bildschirmfoto des SSA) sind die wahrscheinlichsten Abweichungen und werden beim ersten Lauf am Gerät bestätigt oder in `siglent.py` korrigiert.
+- **Aufnahmelänge:** 14M Punkte (14 ms bei 1 GSa/s) für L1.1 … L1.3 und L5; der Sweep L1.4 nimmt 1,4M, weil die Übertragung von 14M über das LAN mehrere Sekunden dauert. Unter 50 kHz läuft die Aufnahme mit 100 MSa/s, damit die 10-MHz-Referenz nicht unterabgetastet wird.
+- **Flankenzeit mit sinc-Verfeinerung:** Lineare Interpolation zwischen zwei Abtastwerten hat einen Fehler, der davon abhängt, wo die Flanke zwischen den Abtastwerten liegt. Bei 10 MHz und 1 GSa/s liegt jede Flanke an derselben Stelle, der Fehler mittelt sich nicht heraus: 30 ps Versatz wurden in den Tests als 50 ps gemessen. Die Auswertung verfeinert deshalb jede Flanke mit Lanczos-Interpolation (das Signal ist mit 200 MHz Bandbreite bei 1 GSa/s nahezu bandbegrenzt); der Restfehler liegt bei ≤ 3 ps. Verfeinert werden höchstens 20 000 gleichmäßig verteilte Flanken je Aufnahme, nummeriert aus allen Flanken.
+- **Abbruch:** Ein fehlgeschlagener Schritt wird mit ○ und der Fehlermeldung protokolliert, die Ausgänge gehen aus, der Lauf geht mit dem nächsten Schritt weiter. Strg+C schaltet die Ausgänge ab und beendet den Lauf; das Protokoll entsteht trotzdem.
+- **Simulation:** `--sim` ersetzt Prüfling und Messgeräte durch ein Modell (Quarzfehler +9,7 ppm, Zeitbasis des SDS +18 ppm, 30 ps Versatz CLK2, 49,6 % Tastverhältnis). Seine Werte belegen nur, dass jeder Codepfad läuft; das Protokoll eines Trockenlaufs trägt im Kopf „Simulation: ja“.
 
 ---
 
@@ -482,7 +508,7 @@ Die Läufe liefern auch die Zahlen und Bilder, die im Handbuch bisher als „typ
 
 1. **Ins Handbuch kommen nur bewertete Werte.** Ein Wert geht erst hinein, wenn der Lauf ohne ✘ durchgelaufen ist und V-03 bis V-06 die Unsicherheit belegen. Jeder Wert nennt Bedingungen (Drive, Last, Frequenz, Board) und Unsicherheit.
 2. **Diagramme statt Bildschirmfotos.** Die Bildschirmfotos bleiben im Protokoll. Für das Handbuch werden ausgewählte Diagramme aus dem Protokoll übernommen, sprachneutral beschriftet (Formelzeichen und Einheiten wie `f / MHz`, `dBc`, `t / ms`), damit DE und EN dieselbe Datei verwenden. Herstellernamen der Messgeräte stehen nur im Protokoll.
-3. **Reproduzierbar:** Die Daten eines Handbuchbilds kommen nach `docs/data/meas-<thema>.csv` (mit Kopfzeilen: Datum, Firmware, Board, Bedingungen, Verweis auf das Protokoll). `tools/plot_measurements.py` (neu) zeichnet daraus `docs/img/meas-<thema>.png`, ohne Messgeräte, und wird als Ziel `meas` in `tools/render_images.py` eingebunden.
+3. **Reproduzierbar:** Die Daten eines Handbuchbilds kommen nach `docs/data/meas-<thema>.csv` (eine Datei aus `messungen/<Kampagne>/data/`, mit Kopfzeilen: Datum, Firmware, Board, Bedingungen, Verweis auf das Protokoll). `python tools/messung/measure.py docplots` zeichnet daraus `docs/img/meas-<thema>.png`, ohne Messgeräte, mit derselben Gestaltung wie das Protokoll.
 
 ### 11.1 Werte
 
@@ -521,7 +547,7 @@ Die Läufe liefern auch die Zahlen und Bilder, die im Handbuch bisher als „typ
 | `meas-reset.png` | EN und CLK1 beim Neustart | L6.5 | 13 Flashen und Reset |
 | `meas-455k-harmonics.png` | Spektrum 0 … 5 MHz bei 455 kHz | L4.11 | 1 / 5 |
 
-Werte und Bilder kommen in DE und EN im selben Commit ins Handbuch (Aufgabe DOK-01). Der Vermerk „typisch, nicht gemessen“ entfällt nur für die tatsächlich gemessenen Zeilen. Die Bilder fallen unter `REUSE.toml` (`docs/**`); `THIRD_PARTY_NOTICES.md` bekommt matplotlib, sobald `tools/plot_measurements.py` eingecheckt ist.
+Werte und Bilder kommen in DE und EN im selben Commit ins Handbuch (Aufgabe DOK-01). Der Vermerk „typisch, nicht gemessen“ entfällt nur für die tatsächlich gemessenen Zeilen. Die Bilder fallen unter `REUSE.toml` (`docs/**`).
 
 ---
 
