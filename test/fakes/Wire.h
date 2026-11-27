@@ -45,6 +45,8 @@ public:
     uint8_t initReads = 0;
     // A clone that ignores writes to register 1 (its sticky bits stay set).
     bool keepSticky = false;
+    // The module on the bench: every PLL soft reset sets SYS_INIT_STKY without a restart.
+    bool pllResetSetsSticky = false;
     unsigned readTransfers = 0;     // register reads (one per repeated-start transaction)
     std::vector<RegWrite> writes;
     unsigned pllResets[2] = {0, 0}; // PLL A, PLL B
@@ -73,6 +75,7 @@ public:
         foreign = false;
         foreignValue = 0x00;
         keepSticky = false;
+        pllResetSetsSticky = false;
         clearLog();
     }
     void clearLog() {
@@ -119,6 +122,7 @@ public:
         if (reg == 177) {
             if (value & 0x20) ++pllResets[0];
             if (value & 0x80) ++pllResets[1];
+            if (pllResetSetsSticky) regs[1] |= 0x80;
             return; // self-clearing
         }
         if (reg == 0) return; // read-only status

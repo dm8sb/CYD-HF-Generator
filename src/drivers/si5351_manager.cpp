@@ -430,7 +430,18 @@ bool SI5351Manager::writeOutput_(uint8_t clk, uint8_t ctrl, const uint8_t* ms, u
 }
 
 bool SI5351Manager::resetPll_(Pll pll) {
-    return writeReg_(REG_PLL_RESET, pll == Pll::A ? RESET_PLLA : RESET_PLLB);
+    if (!writeReg_(REG_PLL_RESET, pll == Pll::A ? RESET_PLLA : RESET_PLLB)) return false;
+    // Measured on the module: a PLL soft reset sets SYS_INIT_STKY although the chip did not
+    // restart, so checkAlive() would report a restart 2 s after every configuration. The
+    // sticky bits are cleared after the reset (until the chip has settled, a write 0 does not
+    // take); a real restart sets them again later.
+    uint8_t st[2] = {0, 0};
+    for (uint8_t i = 0; i < 20; ++i) {
+        if (!writeReg_(REG_STICKY, 0x00) || !readRegs_(REG_STATUS, st, 2)) return false;
+        if (!((st[0] | st[1]) & STATUS_SYS_INIT)) break;
+        delay(1);
+    }
+    return true;
 }
 
 bool SI5351Manager::finish_(bool ok) {

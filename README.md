@@ -65,6 +65,7 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 - Log warning `[ERROR][MEM] Heap low` with the free heap and the largest block when the free heap drops below 40 KB, checked once per second; repeated only after recovering above 48 KB (A-726)
 - MAIN status bar: the WiFi state moves to the left edge, gray and struck through with WiFi Off; a tap opens the WIFI page, with WiFi Off the CONFIG tab `Net` (FW-09)
 - SI5351 supervision detects a restart of the module by the sticky `SYS_INIT` bit also with all outputs off and sets it up again; the CONFIG info card shows the PLL lock (`PLL locked: A ok  B ok`, `LOL` in orange) (FW-07, E-214)
+- Fix: the module sets `SYS_INIT_STKY` at every PLL reset; the driver clears it after the reset, so the supervision no longer reports `Connection lost` every 2 s (FW-10, E-214)
 
 ### 2.1.0
 

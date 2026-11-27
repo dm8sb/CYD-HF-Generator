@@ -392,7 +392,8 @@ static void test_power_dip_without_output_reinitializes() {
     TEST_ASSERT_EQUAL_UINT16(before + 1, d.app.connectionCount());
     TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[1]);  // sticky bits cleared again
     TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[24]); // off state Low written again
-    TEST_ASSERT_EQUAL_UINT(1, chip.writesTo(1));
+    // begin() and the two PLL resets of the restore each clear the sticky bits.
+    TEST_ASSERT_EQUAL_UINT(3, chip.writesTo(1));
     // Quiet afterwards: no further reconnect.
     d.run(3 * HW_CHECK_INTERVAL_MS);
     TEST_ASSERT_EQUAL_UINT(1, errorCount);

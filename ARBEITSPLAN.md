@@ -125,10 +125,11 @@ Je Aufgabe: **Warum** (Anlass, Befund), **Was** (Umfang), **Prüfung** und Commi
   - *Was:* Backlight-PWM ≥ 20 kHz oder 100 % ohne PWM, Ruhemodus der I2C-Überwachung; „Neuzeichnen nur bei Änderung“ (AF12) und der Backoff der SI5351-Suche (AF53, PERF-11) sind erledigt.
   - *Prüfung:* M-310 wiederholen; Host-Test der Überwachungstakte.
   - *Commit:* `FW-06: Reduce platform spurs`
-- [ ] **FW-07 · Gerätetest Sticky-Bit und „PLL locked“** (Umsetzung erledigt; offen nur der Gerätetest mit SI5351, Hardware derzeit nicht verfügbar)
+- [ ] **FW-07 · Gerätetest Sticky-Bit und „PLL locked“** (Umsetzung erledigt; offen nur der Gerätetest mit getrennt schaltbarer Modulversorgung)
   - *Warum:* Befund 2.1 „Spannungseinbruch ohne aktiven Ausgang“.
   - *Erledigt:* Commit `FW-07: Detect SI5351 power loss by the sticky bit` – `begin()` löscht Register 1, die Überwachung liest Register 0/1 alle 2 s in einer Übertragung mit; `SYS_INIT`/`SYS_INIT_STKY` gesetzt → Wiederverbinden und neu einrichten, auch ohne Ausgang; Zeile `PLL locked: A ok  B ok` auf der Info-Karte (A-226, E-214); Host-Tests im Registermodell.
   - *Offen (Gerätetest):* alle Ausgänge aus, die Versorgung des Moduls kurz unterbrechen (wie M-106) → Meldung `Connection lost`, Log `[ERROR][SI5351] Device restarted (SYS_INIT)`, danach verbunden; Off state `High` bleibt nach dem Einbruch wirksam (Register 24 neu geschrieben). Info-Karte: `PLL locked: A ok  B ok`, ohne Modul `PLL locked: -`; Layout der 9 Zeilen ohne Abschneiden auf beiden Boards.
+  - *Stand (2026-11-27, CYD2USB mit SI5351):* der erste Gerätetest zeigte `Connection lost` alle 2 s; Ursache: der Chip setzt `SYS_INIT_STKY` bei jedem PLL-Reset, behoben mit FW-10 (E-214), danach ruhig. Info-Karte und Abziehen erkennen den Verlust (`Device lost or reset`), aber Ab- und Anstecken des Moduls setzt das ganze Board zurück (USB-Port verschwindet kurz): für den eigentlichen Test braucht das Modul eine eigene, schaltbare Versorgung (Schalter in VCC, Puffer-Elko am ESP32).
   - *Abschluss:* Ergebnis im Messprotokoll, Haken hier und in Befund 2.1.
 
 ### 3.2 Dokumentation (DOK)

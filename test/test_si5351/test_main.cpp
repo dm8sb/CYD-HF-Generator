@@ -244,6 +244,16 @@ static void test_check_alive_detects_restart_without_output_by_sticky_bit() {
     TEST_ASSERT_TRUE(si.checkAlive());
 }
 
+// Measured on the module: a PLL soft reset sets SYS_INIT_STKY; no restart must be reported.
+static void test_pll_reset_sticky_bit_is_no_restart() {
+    chip.pllResetSetsSticky = true;
+    TEST_ASSERT_TRUE(si.setupStandalone(0, Pll::A, 10000000, 8));
+    TEST_ASSERT_TRUE(si.setupStandalone(1, Pll::B, 7100000, 8));
+    TEST_ASSERT_TRUE(si.checkAlive());
+    TEST_ASSERT_TRUE(si.ready());
+    TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[1] & 0x80);
+}
+
 static void test_check_alive_detects_restart_by_sys_init() {
     TEST_ASSERT_TRUE(si.checkAlive());
     chip.initReads = 1; // still calibrating, sticky bit not (yet) seen
@@ -566,7 +576,9 @@ static void test_iq_setup_disables_outputs_and_realigns() {
     TEST_ASSERT_TRUE(chip.writesTo(3) >= 1);
     TEST_ASSERT_EQUAL_HEX8(0xFF, chip.regs[3]);
     TEST_ASSERT_EQUAL_UINT(1, chip.pllResets[0]);
-    TEST_ASSERT_EQUAL_UINT8(177, chip.writes.back().reg);
+    // The reset is the last write of the setup but the sticky clear after it (register 1).
+    TEST_ASSERT_EQUAL_UINT8(1, chip.writes.back().reg);
+    TEST_ASSERT_EQUAL_UINT8(177, chip.writes[chip.writes.size() - 2].reg);
 }
 
 static void test_iq_drive_or_inversion_change_keeps_alignment() {
@@ -1220,6 +1232,7 @@ int main() {
     RUN_TEST(test_register_access_on_closed_bus_does_not_touch_wire);
     RUN_TEST(test_check_alive_detects_power_cycle);
     RUN_TEST(test_check_alive_detects_restart_without_output_by_sticky_bit);
+    RUN_TEST(test_pll_reset_sticky_bit_is_no_restart);
     RUN_TEST(test_check_alive_detects_restart_by_sys_init);
     RUN_TEST(test_check_alive_adds_one_read_and_no_write);
     RUN_TEST(test_check_alive_reports_pll_lock);
