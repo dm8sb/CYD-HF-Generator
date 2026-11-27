@@ -56,7 +56,9 @@ Rendered on the PC from the firmware's GUI code and the web UI with sample value
 
 ## Changes
 
-### Next release
+### 2.2.0
+
+Start screen with running square waves, WiFi state at the left of the status bar with a tap into the WiFi settings, SI5351 restart detection by the sticky bit (with the fix for modules that set it at every PLL reset), heap warning, documentation as web pages next to the flasher.
 
 - Manual (DE, EN), hardware page and remote API as web pages on GitHub Pages next to the web flasher, rendered from the Markdown at the release tag and deployed with it; the flasher page links them (E-903)
 - Host tools: `device_check.py` and the fake device cover CH2 coupling and screen rotation; CI runs `device_check --outputs` against the fake

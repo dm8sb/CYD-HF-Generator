@@ -280,7 +280,7 @@ Only when a web password is set at the device:
  "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"rotation":0,"remoteOutputs":"allowed"},
  "wifi":{"mode":"client","connected":true,"ssid":"Lab","rssi":-60,"ip":"192.168.1.50","name":"cyd-hf-1a2b",
          "ap":{"active":false,"ssid":"CYD-HF-1A2B","open":false,"stations":0},"confirmWithin":0},
- "device":{"version":"2.1.0","passwordSet":false}}
+ "device":{"version":"2.2.0","passwordSet":false}}
 ```
 
 | Field | Values |

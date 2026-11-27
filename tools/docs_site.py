@@ -5,7 +5,7 @@
 """Documentation pages of the GitHub Pages site (ARBEITSPLAN G9, E-903): the user manual (DE, EN),
 the hardware page and the remote API rendered from the Markdown at the release tag.
 
-  python tools/docs_site.py build --out site --version 2.1.0 --ref v2.1.0
+  python tools/docs_site.py build --out site --version 2.2.0 --ref v2.2.0
   python tools/docs_site.py check site [--without-flasher]
 
 tools/flasher_site.py assemble calls build() and check calls check(), so the release workflow (and

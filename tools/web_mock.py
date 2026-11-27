@@ -41,7 +41,7 @@ import hostport
 
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "www")
 # Firmware version of the mock (device.version; the footer links its tag like the firmware, E-907).
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 STATIC = {"/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8")}
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
@@ -609,7 +609,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'xsi:schemaLocation="http://www.lxistandard.org/InstrumentIdentification/1.0 '
                 'http://www.lxistandard.org/InstrumentIdentification/1.0/LXIIdentification.xsd">\n'
                 '<Manufacturer>DM8SB</Manufacturer>\n<Model>CYD HF Generator</Model>\n'
-                '<SerialNumber>0123456789AB</SerialNumber>\n<FirmwareRevision>2.1.0</FirmwareRevision>\n'
+                '<SerialNumber>0123456789AB</SerialNumber>\n<FirmwareRevision>2.2.0</FirmwareRevision>\n'
                 '<ManufacturerDescription>3-channel SI5351 HF square-wave generator</ManufacturerDescription>\n'
                 '<HomepageURL>%s</HomepageURL>\n<DriverURL>%s</DriverURL>\n'
                 '<UserDescription>%s</UserDescription>\n'

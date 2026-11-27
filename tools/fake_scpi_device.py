@@ -135,7 +135,7 @@ class Device:
     # -- one command -------------------------------------------------------
     # Constant answers (a set form is accepted silently, as before).
     FIXED = {
-        "*IDN": "CYD,HF-Generator,AA:BB:CC:DD:EE:FF,2.1.0",
+        "*IDN": "CYD,HF-Generator,AA:BB:CC:DD:EE:FF,2.2.0",
         "*ESR": "0", "*STB": "0", "*TST": "0",
         "SYST:VERS": "1999.0",
         "SYST:SI5351": "CONN",

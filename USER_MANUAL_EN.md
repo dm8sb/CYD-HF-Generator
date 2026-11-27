@@ -1,8 +1,8 @@
 # User Manual – CYD HF Generator
 
-Firmware version: 2.1.0
+Firmware version: 2.2.0
 
-This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 2.1.0); the German manual is the reference for the firmware's behavior.
+This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 2.2.0); the German manual is the reference for the firmware's behavior.
 
 ## Contents
 
@@ -858,7 +858,7 @@ For mounting in a case with the USB and SMA sockets on the other side: `Rotate` 
 At the end of the page, a card shows information for troubleshooting without a serial monitor, for example:
 
 ```text
-Firmware 2.1.0 | main 1a2b3c4
+Firmware 2.2.0 | main 1a2b3c4
 Build 2026-11-05 14:00 UTC
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
@@ -1150,7 +1150,7 @@ Important messages:
 
 | Message | Meaning |
 |---|---|
-| `[BOOT] CYD HF Generator 2.1.0 (main 1a2b3c4, 2026-11-10 11:00 UTC)` | Startup: version, branch, commit and build time as on the info card |
+| `[BOOT] CYD HF Generator 2.2.0 (main 1a2b3c4, 2026-11-10 11:00 UTC)` | Startup: version, branch, commit and build time as on the info card |
 | `[I2C] Line held low; releasing bus` | An I2C line was LOW at startup and was released |
 | `[SETTINGS] Loaded from NVS` | Settings loaded |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Once after updating from 1.3.0/1.3.1: the choice of the former boot gesture was deleted (section 13) |
@@ -1476,7 +1476,7 @@ WiFi runs without power save and at full transmit power: the device answers in t
 - At most 3 browsers at a time; a fourth sees `Too many clients (max. 3)`. A tab in the background (covered or minimized) frees its place after 60 s and connects again as soon as it is shown. A connection that does not answer the device's checks (every 15 s) is closed after 30 s; one that floods the device with checks of its own (WebSocket ping) at once.
 - CONFIG shows the screen orientation of the device as row `Screen` with `0°` and `180°`; a click turns the device screen at once (section 8).
 - Only at the device: defaults and factory reset, touch calibration, screen lock, new access point password, web password (WIFI → `Device`, row `Web pw.`).
-- The footer at the end of the page shows `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` and `licenses` open the repository and `THIRD_PARTY_NOTICES.md` on GitHub as of the release tag of the firmware (e.g. `v2.1.0`) in a new tab (this needs internet access in the browser, section 1, "Licenses").
+- The footer at the end of the page shows `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` and `licenses` open the repository and `THIRD_PARTY_NOTICES.md` on GitHub as of the release tag of the firmware (e.g. `v2.2.0`) in a new tab (this needs internet access in the browser, section 1, "Licenses").
 
 ### Web Password
 
@@ -1608,7 +1608,7 @@ gh attestation verify <file> --repo dm8sb/CYD-HF-Generator
 Without a browser, esptool installs the same parts. Install esptool 5 (`pip install esptool`), download the four flash parts of the release into one folder and run there (example for 2.0.0; the release notes contain the command for every version):
 
 ```bash
-esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.1.0-esp32-2432S028R-bootloader.bin 0x8000 cyd-hf-generator-2.1.0-esp32-2432S028R-partitions.bin 0xE000 cyd-hf-generator-2.1.0-esp32-2432S028R-boot_app0.bin 0x10000 cyd-hf-generator-2.1.0-esp32-2432S028R-firmware.bin
+esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.2.0-esp32-2432S028R-bootloader.bin 0x8000 cyd-hf-generator-2.2.0-esp32-2432S028R-partitions.bin 0xE000 cyd-hf-generator-2.2.0-esp32-2432S028R-boot_app0.bin 0x10000 cyd-hf-generator-2.2.0-esp32-2432S028R-firmware.bin
 ```
 
 - The command does not erase the settings memory; touch calibration, correction and WiFi stay (like the update in the web flasher).
