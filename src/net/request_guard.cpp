@@ -210,7 +210,7 @@ RequestGuard::HostKind RequestGuard::classifyHost_(const char* s, size_t n) cons
     for (size_t i = 0; i < n; ++i) {
         if (!printable(s[i]) || s[i] == ' ' || s[i] == '\t') return HostKind::Invalid;
     }
-    if (n == 0 || s[0] == '[') return HostKind::Invalid; // IPv6 is off (W-S4)
+    if (n == 0 || s[0] == '[') return HostKind::Invalid; // IPv6 is off (A-704)
     size_t h = 0;
     if (!splitPort(s, n, &h) || h == 0) return HostKind::Invalid;
     uint32_t ip = 0;
@@ -358,7 +358,7 @@ GuardDecision RequestGuard::check(const GuardRequest& r, uint64_t nowMs) {
     const bool get = strcmp(r.method, "GET") == 0 || strcmp(r.method, "HEAD") == 0;
     const bool post = strcmp(r.method, "POST") == 0;
 
-    // W-S4: Host allowlist (DNS rebinding); captive portal only for page requests over the AP.
+    // A-704: Host allowlist (DNS rebinding); captive portal only for page requests over the AP.
     const char* hs = "";
     size_t hn = 0;
     if (r.host) trim(r.host, &hs, &hn);
@@ -372,12 +372,12 @@ GuardDecision RequestGuard::check(const GuardRequest& r, uint64_t nowMs) {
         return refuse(Verdict::MisdirectedRequest, "Host not allowed");
     }
 
-    // W-S5: no CORS preflight, no other methods; POST only for the API.
+    // A-705: no CORS preflight, no other methods; POST only for the API.
     if (strcmp(r.method, "OPTIONS") == 0) return refuse(Verdict::MethodNotAllowed, "OPTIONS not allowed");
     if (!get && !post) return refuse(Verdict::MethodNotAllowed, "Method not allowed");
     if (post && !api) return refuse(Verdict::MethodNotAllowed, "Method not allowed");
 
-    // W-S10: body framing and size.
+    // A-710: body framing and size.
     if (r.transferEncoding) return refuse(Verdict::UnsupportedMediaType, "Transfer-Encoding not allowed");
     if (r.contentLength) {
         uint64_t len = 0;
@@ -385,7 +385,7 @@ GuardDecision RequestGuard::check(const GuardRequest& r, uint64_t nowMs) {
         if (len > MAX_BODY) return refuse(Verdict::PayloadTooLarge, "Body too large");
     }
 
-    // W-S13: broken Cookie / Authorization headers are refused.
+    // A-713: broken Cookie / Authorization headers are refused.
     uint8_t id[16] {};
     const int cookie = r.cookie ? parseCookie_(r.cookie, id) : 0;
     if (cookie < 0) return refuse(Verdict::BadRequest, "Bad Cookie header");
@@ -393,13 +393,13 @@ GuardDecision RequestGuard::check(const GuardRequest& r, uint64_t nowMs) {
         return refuse(Verdict::BadRequest, "Bad Authorization header");
     }
 
-    // W-S6: a WebSocket upgrade only as GET /ws.
+    // A-706: a WebSocket upgrade only as GET /ws.
     const bool upgrade = r.upgrade != nullptr;
     if (upgrade && !(ws && get && ieqValue(r.upgrade, "websocket"))) return refuse(Verdict::BadRequest, "Bad upgrade");
     if (ws && !upgrade) return refuse(Verdict::BadRequest, "WebSocket upgrade expected");
 
     if (api || ws) {
-        // W-S5, W-S6: only the own pages (or scripts without Origin).
+        // A-705, A-706: only the own pages (or scripts without Origin).
         if (r.origin && !originAllowed_(r.origin)) return refuse(Verdict::Forbidden, "Foreign origin");
         if (ieqValue(r.secFetchSite, "cross-site")) return refuse(Verdict::Forbidden, "Cross-site request");
         if (strcmp(r.path, "/api/token") == 0 && r.secFetchSite && !ieqValue(r.secFetchSite, "same-origin") &&

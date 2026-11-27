@@ -1,10 +1,12 @@
 # Messplan – CYD HF Generator
 
-Stand: 2026-11-04 · Plan-Version 3.0 (nach Priorität geordnet) · Prüflinge: Firmware 1.3.2 ff. und Release-Kandidat 1.4.0 (WEB-HMI)
+Stand: 2026-11-23 · Plan-Version 4.0 (einheitliche Mess-IDs) · Prüflinge: Firmware 1.3.2 ff. und Release-Kandidat 1.4.0 (WEB-HMI)
 
-Dieses Dokument beschreibt die Messungen und Bedientests am Gerät mit Einzelschritten, Messgeräten, Sollwerten und Bewertung. Es ist nach Priorität in Stufen geordnet: zuerst die notwendigen manuellen Messungen (Stufe 1), dann die Messungen für offene Entscheidungen (Stufe 2), zuletzt alles Optionale (Stufe 3). Die Nummern A1 … Q5 und L-S1 … L-S13 sind gegenüber Plan-Version 2.0 unverändert, damit Verweise gültig bleiben; „(alt n)“ nennt die Nummer im Plan vom 2026-10-26. Messungen, die nicht mehr nötig sind, stehen mit Grund in Abschnitt 8.
+Dieses Dokument beschreibt die Messungen und Bedientests am Gerät mit Einzelschritten, Messgeräten, Sollwerten und Bewertung. Es ist nach Priorität in Stufen geordnet: zuerst die notwendigen manuellen Messungen (Stufe 1), dann die Messungen für offene Entscheidungen (Stufe 2), zuletzt alles Optionale (Stufe 3). Messungen, die nicht mehr nötig sind, stehen mit Grund in Abschnitt 8.
 
-Quellen der Sollwerte: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md) (A-n Anforderungen, E-n Entscheidungen), [USER_MANUAL_DE.md](USER_MANUAL_DE.md), [ARBEITSPLAN.md](ARBEITSPLAN.md) (Befunde C, S, U, P, T aus dem Audit; WEB-HMI-Konzept mit W-E, W-S, V-n; Schritte S-n und Folgearbeiten N-n; erledigte Schritte stehen nur noch in der Git-Historie). Bei einem Widerspruch zwischen diesem Plan und dem Handbuch der geprüften Firmware gilt das Handbuch; der Plan wird dann nachgezogen.
+**Mess-IDs:** `M-<Stufe><nn>`, die Hunderterstelle folgt der Stufe: **M-0nn** Vorbereitung (4.1), **M-1nn** Stufe 1 (Pflicht), **M-2nn** Stufe 1W (Pflicht ab WEB-HMI), **M-3nn** Stufe 2 (Entscheidungen), **M-4nn** Stufe 3 (optional), **M-5nn** entfallen oder erledigt (Abschnitt 8; die Nummern bleiben reserviert, damit Verweise auflösbar bleiben). Die Nummern sind stabil und werden nicht neu vergeben. Befunde aus Messungen heißen **MB-n** (3.6), Eintrittskriterien EK-n (4.2), Aufgaben der Bedientests T1 … T7 und W1 … W3, Personen P1 … P8 (Anhang C).
+
+Quellen der Sollwerte: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md) (Anforderungen A-nnn, Entscheidungen E-nnn, nach Kapiteln nummeriert; das frühere WEB-HMI-Konzept steht dort als Entscheidungen E-5nn/E-6nn und Sicherheitsanforderungen A-7nn), [USER_MANUAL_DE.md](USER_MANUAL_DE.md), [ARBEITSPLAN.md](ARBEITSPLAN.md) (offene Befunde und Aufgabenliste mit Bereichs-IDs FW-nn, DOC-nn, REL-nn, MES-nn, USR-nn; Audit-IDs C, S, U, P, T und Schrittnamen wie S35 oder AF39 sind historische Namen aus der Git-Historie). Bei einem Widerspruch zwischen diesem Plan und dem Handbuch der geprüften Firmware gilt das Handbuch; der Plan wird dann nachgezogen.
 
 ## Inhalt
 
@@ -37,10 +39,10 @@ Quellen der Sollwerte: [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md) (A-n
 |---|---|---|---|---|
 | **1 Pflicht** | Verbindung, Frequenz und Kalibrierung, Abstimmen ohne Aussetzer, IQ-Phasen, Pegel im Zustand OFF, Speichern, Display-Erkennung, Touch | **sobald Zähler und Oszilloskop verfügbar sind** (auf 1.3.2 bzw. 1.3.3, vor der Migration; dieser Lauf ist die Referenz R0), danach vor jeder Weitergabe und jedem Release, dann nur die geänderten Blöcke (5.10) | 25 + 4 bedingte | ≈ 7 h (1 Arbeitstag) |
 | **1W Pflicht ab WEB-HMI** | WLAN-Grundfunktion, SCPI, Web-Sicherheit, 24-h-Lauf | vor 1.4.0 und jedem Release mit WEB-HMI | 16 | ≈ 8 h + 24 h unbeaufsichtigt |
-| **2 Entscheidung** | Messungen, deren Ergebnis eine offene Entscheidung trägt | vor dem Folgeschritt (N1 bis N8, S33, S39, S63); am besten im selben Zeitraum wie der erste Stufe-1-Lauf | 16 + 3 ab WEB-HMI | ≈ 6 h + 1,5 h ab WEB-HMI |
+| **2 Entscheidung** | Messungen, deren Ergebnis eine offene Entscheidung trägt | vor dem Folgeschritt (FW-01 bis FW-06, DOK-01, DOK-02, S33, S39); am besten im selben Zeitraum wie der erste Stufe-1-Lauf | 16 + 3 ab WEB-HMI | ≈ 6 h + 1,5 h ab WEB-HMI |
 | **3 Optional** | Charakterisierung, Ausbildungsversuche, Bedientests mit Personen, seltene Fehlerfälle, WEB-HMI-Komfort | nach Bedarf, kein Freigabekriterium | 56 | ≈ 25,5 h + Personen |
 | Entfallen | Host-Test, Doppelung, Funktion entfernt | – | 25 | – |
-| Erledigt | I0 bis I2 (2026-10-28) | – | 3 | – |
+| Erledigt | M-526 bis M-528 (2026-10-28) | – | 3 | – |
 
 Der **Smoke-Test** (4.3, ≈ 30 min) bleibt die kurze Prüfung nach jeder Entwicklungsphase.
 
@@ -62,17 +64,17 @@ Der **Smoke-Test** (4.3, ≈ 30 min) bleibt die kurze Prüfung nach jeder Entwic
 | R1 | Release-Kandidat **1.4.0** (sauberer Commit, kein `+` hinter dem Commit auf der Info-Karte) | Stufe 1 und 1W, Vergleich mit R0 |
 | S | Zwischenstand je Entwicklungsphase | nur Smoke-Test (4.3) |
 
-**Boards** (nach Spezifikation 2.1; beide laufen mit derselben Firmware):
+**Boards** (nach Spezifikation 1.2; beide laufen mit derselben Firmware):
 
 | Code | Board | Erkennung | Controller |
 |---|---|---|---|
 | Board A | Original-CYD | nur Micro-USB | ILI9341 |
 | Board B | CYD2USB | zusätzlich USB-C | ST7789 |
 
-Stand 2026-11-05 (Smoke-Tests 1.3.1 bis 1.3.3): **COM7** = Original-CYD (ILI9341) **ohne** SI5351, **COM13** = CYD2USB (ST7789) **mit** SI5351. V1 bestätigt die Zuordnung vor jedem Lauf. Folgen:
+Stand 2026-11-05 (Smoke-Tests 1.3.1 bis 1.3.3): **COM7** = Original-CYD (ILI9341) **ohne** SI5351, **COM13** = CYD2USB (ST7789) **mit** SI5351. M-001 bestätigt die Zuordnung vor jedem Lauf. Folgen:
 
-- Alle HF-Messungen laufen auf dem Board mit Modul („**Messboard**“, derzeit das CYD2USB). Das Modul bestimmt die HF-Werte, das Board nur Störungen (F6, F9).
-- Display, Touch und Boot ohne Modul brauchen kein Modul: I3, B6, B7, B8 laufen auf beiden Boards ohne Umstecken, A1 auf dem Board ohne Modul. Umstecken ist nur noch für die optionale Wiederholung von F6 am zweiten Board nötig.
+- Alle HF-Messungen laufen auf dem Board mit Modul („**Messboard**“, derzeit das CYD2USB). Das Modul bestimmt die HF-Werte, das Board nur Störungen (M-310, M-418).
+- Display, Touch und Boot ohne Modul brauchen kein Modul: M-122, M-123, M-125, M-126 laufen auf beiden Boards ohne Umstecken, M-103 auf dem Board ohne Modul. Umstecken ist nur noch für die optionale Wiederholung von M-310 am zweiten Board nötig.
 
 ---
 
@@ -84,17 +86,17 @@ Spalte „Vorhanden“ vor Beginn ausfüllen (Modell, Seriennummer, Kalibrierdat
 
 | Code | Gerät | Mindestanforderung | Wofür (Stufe) | Vorhanden | Ohne das Gerät |
 |---|---|---|---|---|---|
-| **ZÄHLER** | Frequenzzähler | Eingang ≥ 200 MHz, 50 Ω, Auflösung ≤ 0,1 Hz bei 100 MHz in 1 s Torzeit, Eingang für externe 10-MHz-Referenz | 1: C1 bis C3, K7, D2 · 2: C7, D5 · 3: C8, H | Ja | C nur mit OSZI-Frequenzmessung (≈ 1 ppm), C2 und C3 dann ○ |
-| **REF** | 10-MHz-Referenz | GPS-gestützt oder Rubidium; für relative Prüfungen genügt ≤ 0,1 ppm (3.3); Verteiler für ZÄHLER und SPEKTRUM | 1: C · 2: C7, F | Ja, GPS-TCXO 10 MHz | absolute Genauigkeit unbekannt; C3 gilt nur relativ |
-| **OSZI** | Oszilloskop | ≥ 2 Kanäle, ≥ 500 MHz, ≥ 2 GS/s, Persistenz, Single-Trigger, **Timeout-/Dropout-Trigger**, Δt-Messung mit Mittelung, 50-Ω-Eingang | 1: A4, A10, D1, D2, E1, E2, K1, K2 · 2: D3, D5, E3 bis E5, E9, K6 · 3: A11, E8, K4 | Ja, R&S RTO 2 GHz | Stufe 1 nicht möglich |
-| **SPEKTRUM** | Spektrumanalysator | bis ≥ 1 GHz, RBW ≤ 10 Hz, Rauschmarker (dBc/Hz), 50 Ω, Dauerpegel ≥ +20 dBm, Referenzeingang | 2: F2, F3, F6, F7, K5, L13, L15 · 3: F1, F4, F5, F8, F9, G, H4, K3, K4 | Ja, Siglent 3,2 GHz | Stufe 2 nur teilweise (SDR für Nebenlinien, kein Phasenrauschen) |
-| **LOGIK** | Logikanalysator | ≥ 8 Kanäle, ≥ 24 MS/s, I2C-Dekoder, 3,3 V | 2: J6 (optional) · 3: J11 bis J15 | Ja, Saleae | Debug-Log statt Busmitschnitt |
-| **DMM** | Multimeter | DC-Spannung, Eingang 10 MΩ | 1: K1, K2 | Ja, Agilent 34401A | mit OSZI (1 MΩ) möglich |
-| **STROM** | USB-Leistungsmesser | 5 V, Auflösung ≤ 1 mA, Mittelwert ≥ 10 s | 3: Q2 | nein | Q2 entfällt |
-| **LUX** | Luxmeter | 10 … 1000 lx | 3: B14, K12 | nein | Beleuchtung nur beschreiben |
-| **SONDE** | Nahfeldsonde (H-Feld, ≈ 1 cm) | 1 MHz … 1 GHz | 3: F9 | Ja | F9 entfällt |
-| **THERMO** | Thermometer | Raumtemperatur, Auflösung 0,1 K | 2: C7 · 3: E8 | Ja | Temperatur nur schätzen |
-| **VIDEO** | Smartphone mit Slow-Motion und Stoppuhr | ≥ 120 Bilder/s | 1: I3 (optional) · 3: B14, B16, Q3 | eventuell | Zeiten nur mit Stoppuhr |
+| **ZÄHLER** | Frequenzzähler | Eingang ≥ 200 MHz, 50 Ω, Auflösung ≤ 0,1 Hz bei 100 MHz in 1 s Torzeit, Eingang für externe 10-MHz-Referenz | 1: M-107 bis M-109, M-110, M-114 · 2: M-313, M-305 · 3: M-411, M-421 | Ja | M-107 bis M-109 nur mit OSZI-Frequenzmessung (≈ 1 ppm), M-108 und M-109 dann ○ |
+| **REF** | 10-MHz-Referenz | GPS-gestützt oder Rubidium; für relative Prüfungen genügt ≤ 0,1 ppm (3.3); Verteiler für ZÄHLER und SPEKTRUM | 1: M-107 bis M-109 · 2: M-313, M-302, M-310, M-311, M-312 | Ja, GPS-TCXO 10 MHz | absolute Genauigkeit unbekannt; M-109 gilt nur relativ |
+| **OSZI** | Oszilloskop | ≥ 2 Kanäle, ≥ 500 MHz, ≥ 2 GS/s, Persistenz, Single-Trigger, **Timeout-/Dropout-Trigger**, Δt-Messung mit Mittelung, 50-Ω-Eingang | 1: M-106, M-119, M-113, M-114, M-115, M-116, M-117, M-118 · 2: M-304, M-305, M-307 bis M-309, M-306, M-303 · 3: M-402, M-412, M-423 | Ja, R&S RTO 2 GHz | Stufe 1 nicht möglich |
+| **SPEKTRUM** | Spektrumanalysator | bis ≥ 1 GHz, RBW ≤ 10 Hz, Rauschmarker (dBc/Hz), 50 Ω, Dauerpegel ≥ +20 dBm, Referenzeingang | 2: M-312, M-302, M-310, M-311, M-301, M-317, M-318 · 3: M-414, M-415, M-416, M-417, M-418, M-419, M-420, M-421, M-422, M-423 | Ja, Siglent 3,2 GHz | Stufe 2 nur teilweise (SDR für Nebenlinien, kein Phasenrauschen) |
+| **LOGIK** | Logikanalysator | ≥ 8 Kanäle, ≥ 24 MS/s, I2C-Dekoder, 3,3 V | 2: M-314 (optional) · 3: M-406 bis M-410 | Ja, Saleae | Debug-Log statt Busmitschnitt |
+| **DMM** | Multimeter | DC-Spannung, Eingang 10 MΩ | 1: M-117, M-118 | Ja, Agilent 34401A | mit OSZI (1 MΩ) möglich |
+| **STROM** | USB-Leistungsmesser | 5 V, Auflösung ≤ 1 mA, Mittelwert ≥ 10 s | 3: M-437 | nein | M-437 entfällt |
+| **LUX** | Luxmeter | 10 … 1000 lx | 3: M-428, M-436 | nein | Beleuchtung nur beschreiben |
+| **SONDE** | Nahfeldsonde (H-Feld, ≈ 1 cm) | 1 MHz … 1 GHz | 3: M-418 | Ja | M-418 entfällt |
+| **THERMO** | Thermometer | Raumtemperatur, Auflösung 0,1 K | 2: M-313 · 3: M-412 | Ja | Temperatur nur schätzen |
+| **VIDEO** | Smartphone mit Slow-Motion und Stoppuhr | ≥ 120 Bilder/s | 1: M-122 (optional) · 3: M-428, M-430, M-438 | eventuell | Zeiten nur mit Stoppuhr |
 
 ### 2.2 Zubehör
 
@@ -103,18 +105,18 @@ Spalte „Vorhanden“ vor Beginn ausfüllen (Modell, Seriennummer, Kalibrierdat
 | 50-Ω-Durchgangsabschlüsse (BNC oder SMA) | 3 | Abschluss an jedem gemessenen Ausgang |
 | Dämpfungsglieder 10 / 20 / 30 dB, 50 Ω | je 1–2 | 20 dB immer vor SPEKTRUM |
 | DC-Sperre | 1 | vor SPEKTRUM und ZÄHLER, wenn der Eingang DC-gekoppelt ist |
-| Leistungsteiler 2-fach 50 Ω oder BNC-T | 1 | Eigenversatz der Phasenmessung (V4) |
+| Leistungsteiler 2-fach 50 Ω oder BNC-T | 1 | Eigenversatz der Phasenmessung (M-004) |
 | Koaxkabel **gleicher Länge** (Unterschied < 1 mm ≙ < 5 ps) | 2 + 2 | zwei für die Phase, zwei Reserve |
 | Adapter vom Modulausgang auf BNC | nach Modul | |
-| Dupont-Kabel, Mini-Klemmen für CN1 (SDA, SCL, 3,3 V, GND) | je 4 | A2 bis A4, J |
-| Widerstände 10 kΩ und ≤ 100 Ω | je 2 | K1, K2 (Last gegen 3,3 V / GND), J6 |
-| USB-Kabel Micro-USB und USB-C, USB-Netzteil 5 V/1 A, Powerbank | je 1 | F6 d |
-| Diodenringmischer (z. B. SBL-1, ADE-1), LO +7 dBm | 1 | G1, G2 (Stufe 3) |
-| Soundkarte (Line-In) oder SDR mit FFT-Software | 1 | D5, G2 |
-| QSD-Mischer (FST3253) oder zwei Mischer mit 90°-NF-Netzwerk | optional | E10 |
-| I2C-Modul auf Adresse 0x60 (z. B. MCP4725 mit passender Adressbeschaltung) | optional | J15 |
-| SI5351-Klon (MS5351M) | optional | J7 |
-| Eingabestift (Kunststoff, Spitze ≈ 1 mm; der Touch ist resistiv) | 1 | B19 |
+| Dupont-Kabel, Mini-Klemmen für CN1 (SDA, SCL, 3,3 V, GND) | je 4 | M-104 bis M-106, I2C-Messungen (M-101, M-102, M-403, M-314, M-315, M-404, M-405, M-406 bis M-410) |
+| Widerstände 10 kΩ und ≤ 100 Ω | je 2 | M-117, M-118 (Last gegen 3,3 V / GND), M-314 |
+| USB-Kabel Micro-USB und USB-C, USB-Netzteil 5 V/1 A, Powerbank | je 1 | M-310 d |
+| Diodenringmischer (z. B. SBL-1, ADE-1), LO +7 dBm | 1 | M-419, M-420 (Stufe 3) |
+| Soundkarte (Line-In) oder SDR mit FFT-Software | 1 | M-305, M-420 |
+| QSD-Mischer (FST3253) oder zwei Mischer mit 90°-NF-Netzwerk | optional | M-413 |
+| I2C-Modul auf Adresse 0x60 (z. B. MCP4725 mit passender Adressbeschaltung) | optional | M-410 |
+| SI5351-Klon (MS5351M) | optional | M-315 |
+| Eingabestift (Kunststoff, Spitze ≈ 1 mm; der Touch ist resistiv) | 1 | M-433 |
 | Isolierunterlage, ESD-Armband | 1 | 3.1 |
 
 ### 2.3 Rechner und Software
@@ -123,18 +125,18 @@ Spalte „Vorhanden“ vor Beginn ausfüllen (Modell, Seriennummer, Kalibrierdat
 |---|---|
 | PC mit PlatformIO | `~/.platformio/penv/Scripts/pio.exe` (6.2.0); `pio` steht nicht mehr im PATH (S02) |
 | Python 3 mit `pyserial`, `pyvisa`, `pyvisa-py` | Skripte in Anhang D |
-| `curl` (unter Windows `curl.exe`), `ncat`/`nc`, `esptool` (aus der PlatformIO-Umgebung) | 1W, L, L-S |
+| `curl` (unter Windows `curl.exe`), `ncat`/`nc`, `esptool` (aus der PlatformIO-Umgebung) | Stufe 1W und WEB-HMI-Messungen der Stufen 2 und 3 |
 | Serieller Monitor 115 200 Baud | `pio device monitor -b 115200 --port COMx` |
-| Browser (Chrome, Firefox) auf PC, Smartphones Android **und** iOS | L1, L3, L5, L8, L16 bis L21 |
-| WLAN-Router mit WPA2 (Test-WLAN, 2,4 GHz), zweiter Router oder AP | L1, L2 |
-| Gerät für Test-SSIDs (zweiter ESP32 oder Linux mit `hostapd`) | L-S4, nur im eigenen Labor mit eigenen Geräten |
-| Wireshark (optional) | L-S6, L-S13 |
-| FFT-Software für die Soundkarte (Audacity, SpectrumLab) | G2 |
+| Browser (Chrome, Firefox) auf PC, Smartphones Android **und** iOS | M-201, M-202, M-441, M-443, M-446 bis M-451 |
+| WLAN-Router mit WPA2 (Test-WLAN, 2,4 GHz), zweiter Router oder AP | M-201, M-439 |
+| Gerät für Test-SSIDs (zweiter ESP32 oder Linux mit `hostapd`) | M-209, nur im eigenen Labor mit eigenen Geräten |
+| Wireshark (optional) | M-211, M-456 |
+| FFT-Software für die Soundkarte (Audacity, SpectrumLab) | M-420 |
 | Messprotokoll (Anhang A) und Kamera für Aufbau-Fotos | alle |
 
 ### 2.4 Personen für Bedientests (nur Stufe 3)
 
-5 Lernende (ohne Vorkenntnis des Geräts) und 2–3 Lehrende; je 30 min für B16, kurze Einzelsitzungen (10 min) für B9, B14, B18, B19; Einverständnis für die Aufzeichnung der Touch-Daten und Notizen (keine Namen im Protokoll, nur Personen-Codes P1 … P8). Stufe 1 und 2 braucht nur einen Bediener.
+5 Lernende (ohne Vorkenntnis des Geräts) und 2–3 Lehrende; je 30 min für M-430, kurze Einzelsitzungen (10 min) für M-425, M-428, M-432, M-433; Einverständnis für die Aufzeichnung der Touch-Daten und Notizen (keine Namen im Protokoll, nur Personen-Codes P1 … P8). Stufe 1 und 2 braucht nur einen Bediener.
 
 ---
 
@@ -142,13 +144,13 @@ Spalte „Vorhanden“ vor Beginn ausfüllen (Modell, Seriennummer, Kalibrierdat
 
 ### 3.1 Sicherheit und Geräteschutz
 
-- **Nie ein ausgeschaltetes Gerät mit `Off state` = `High` an SPEKTRUM oder ZÄHLER mit DC-Kopplung**: Der Ausgang führt dann 3,3 V Gleichspannung (K1). Pegelmessungen im Zustand OFF nur mit OSZI (DC, 1 MΩ oder 50 Ω) oder DMM, nie mit SPEKTRUM.
-- **Immer erst 20 dB Dämpfung und DC-Sperre vor SPEKTRUM.** Die Grundwelle an 50 Ω kann bei 8 mA grob 0 … +10 dBm erreichen (genau misst F2).
+- **Nie ein ausgeschaltetes Gerät mit `Off state` = `High` an SPEKTRUM oder ZÄHLER mit DC-Kopplung**: Der Ausgang führt dann 3,3 V Gleichspannung (M-117). Pegelmessungen im Zustand OFF nur mit OSZI (DC, 1 MΩ oder 50 Ω) oder DMM, nie mit SPEKTRUM.
+- **Immer erst 20 dB Dämpfung und DC-Sperre vor SPEKTRUM.** Die Grundwelle an 50 Ω kann bei 8 mA grob 0 … +10 dBm erreichen (genau misst M-312).
 - Pegel und Frequenz am Gerät einstellen, **bevor** der Ausgang eingeschaltet wird; neue Aufbauten nur bei ausgeschalteten Ausgängen verbinden.
-- SI5351-Modul, Kabel und Mischer nicht unter Spannung umstecken, außer in A2 bis A4, J5, J12, J13 (dort ist es der Test).
+- SI5351-Modul, Kabel und Mischer nicht unter Spannung umstecken, außer in M-104 bis M-106, M-403, M-407, M-408 (dort ist es der Test).
 - ESD: Armband, Isolierunterlage; die Boards nicht auf Metall legen (Kurzschluss an der Rückseite).
 - Masseschleifen: OSZI, ZÄHLER und SPEKTRUM sind über Netzleiter geerdet; das Board wird über USB vom PC gespeist. Bei Brummen oder Offsets ein USB-Netzteil statt PC-USB verwenden und im Protokoll vermerken.
-- Netzwerktests (L-S) nur im eigenen, abgetrennten Laborsegment und nur mit eigenen Geräten; Störtests (Slowloris, Beacon-Fluten) nie in einem produktiven WLAN.
+- Netzwerk-Sicherheitstests (M-206 bis M-216, M-455, M-456) nur im eigenen, abgetrennten Laborsegment und nur mit eigenen Geräten; Störtests (Slowloris, Beacon-Fluten) nie in einem produktiven WLAN.
 
 ### 3.2 Standardbedingungen
 
@@ -159,9 +161,9 @@ Wenn bei einer Messung nichts anderes steht:
 | Ausgangslast | 50 Ω abgeschlossen; am SPEKTRUM über DC-Sperre und 20 dB |
 | Drive | 8 mA |
 | Tuning, Spread, Off state | `Fractional`, `Off`, `Low` (Werkseinstellung) |
-| Korrektur | nach C2 kalibriert und danach unverändert |
-| WLAN | aus (außer bei 1W, L, L-S, L13, L15, Q2) |
-| Aufwärmzeit | 15 min mit eingeschaltetem CH1 (10 MHz) vor C, E, F |
+| Korrektur | nach M-108 kalibriert und danach unverändert |
+| WLAN | aus (außer bei Stufe 1W, den WEB-HMI-Messungen der Stufe 3, M-317, M-318, M-437) |
+| Aufwärmzeit | 15 min mit eingeschaltetem CH1 (10 MHz) vor den Frequenz-, Phasen- und Spektrummessungen |
 | Umgebung | 20 … 25 °C, keine Zugluft, Temperatur im Protokoll |
 | Spannungsversorgung | PC-USB; abweichend nur nach Vermerk |
 | Firmware-Build | Release (`LOG_DEBUG 0`); Testbuilds nur, wo gefordert (4.2) |
@@ -169,30 +171,30 @@ Wenn bei einer Messung nichts anderes steht:
 
 ### 3.3 Frequenzen messen: Klammermessung
 
-Der Quarz driftet innerhalb von Minuten um bis zu einige 0,1 ppm (≙ 10 Hz bei 100 MHz). Die Synthese kann deshalb nur **relativ** zu einer Messung bei 10 MHz bewertet werden; die absolute Referenzgenauigkeit ist dafür unkritisch, solange C2 und alle weiteren Messungen mit demselben ZÄHLER und derselben REF laufen.
+Der Quarz driftet innerhalb von Minuten um bis zu einige 0,1 ppm (≙ 10 Hz bei 100 MHz). Die Synthese kann deshalb nur **relativ** zu einer Messung bei 10 MHz bewertet werden; die absolute Referenzgenauigkeit ist dafür unkritisch, solange M-108 und alle weiteren Messungen mit demselben ZÄHLER und derselben REF laufen.
 
 1. 10 MHz an CH1 einstellen, 10 Werte mit 1 s Torzeit mitteln: **f10a**.
 2. Messfrequenz **f_soll** einstellen, 10 Werte mitteln: **f_mess**.
 3. 10 MHz erneut einstellen, 10 Werte mitteln: **f10b**.
 4. Abweichung: **δ = f_mess − f_soll · (f10a + f10b) / (2 · 10 MHz)** in Hz.
 
-Ausgang, Kabel und Zähler bleiben dabei unverändert. Die Messunsicherheit u ist die Auflösung des Zählers (V3) plus die Streuung der 10 Mittelwerte.
+Ausgang, Kabel und Zähler bleiben dabei unverändert. Die Messunsicherheit u ist die Auflösung des Zählers (M-003) plus die Streuung der 10 Mittelwerte.
 
 ### 3.4 Phase am Oszilloskop messen
 
 Beide Ausgänge über **gleich lange** Kabel an zwei OSZI-Kanäle mit 50 Ω (Aufbau 3). Trigger auf Kanal 1. Zeitversatz **Δt** zwischen den steigenden Flanken an 50 % der Amplitude, ≥ 256 Mittelungen.
 
 - **Phase: φ = Δt · f · 360°**, bei negativem Δt eine Periode addieren.
-- **Eigenversatz φ₀** aus V4 abziehen.
-- Umrechnung: 1° entspricht bei 4,73 MHz ≈ 587 ps, 10 MHz ≈ 278 ps, 30 MHz ≈ 93 ps, 99 MHz ≈ 28 ps. Bei hohen Frequenzen setzt die Zeitauflösung des OSZI die Grenze (V4 bestimmt u).
-- 1° Phasenfehler entspricht einer Seitenbandunterdrückung von ≈ 41 dB, 2° ≈ 35 dB (E10).
+- **Eigenversatz φ₀** aus M-004 abziehen.
+- Umrechnung: 1° entspricht bei 4,73 MHz ≈ 587 ps, 10 MHz ≈ 278 ps, 30 MHz ≈ 93 ps, 99 MHz ≈ 28 ps. Bei hohen Frequenzen setzt die Zeitauflösung des OSZI die Grenze (M-004 bestimmt u).
+- 1° Phasenfehler entspricht einer Seitenbandunterdrückung von ≈ 41 dB, 2° ≈ 35 dB (M-413).
 
 ### 3.5 Spektren messen (Stufe 2 und 3)
 
 - Aufbau 2 mit 20 dB und DC-Sperre; REF an den Referenzeingang des SPEKTRUM.
 - Referenzpegel so, dass der Träger im oberen Drittel liegt; Detektor „Sample“ oder „RMS“, Mittelung ≥ 10; Einstellungen ins Protokoll (Span, RBW, VBW, Mittelung, Referenzpegel).
 - **Nebenlinien** in dBc zum Träger; Abstand in Hz notieren.
-- **Phasenrauschen** mit dem Rauschmarker, auf 1 Hz normiert. Eigenrauschen aus V4 daneben eintragen; liegt der Messwert < 6 dB darüber, gilt er als obere Schranke (○).
+- **Phasenrauschen** mit dem Rauschmarker, auf 1 Hz normiert. Eigenrauschen aus M-004 daneben eintragen; liegt der Messwert < 6 dB darüber, gilt er als obere Schranke (○).
 - Ein Screenshot je Messung, Dateiname `<Nr>_<Lauf>_<Board>.png`.
 
 ### 3.6 Bewertung
@@ -205,7 +207,7 @@ Beide Ausgänge über **gleich lange** Kabel an zwei OSZI-Kanäle mit 50 Ω (Auf
 | i | nur zu dokumentieren (Information für eine Entscheidung) |
 | – | nicht anwendbar (Firmware-Stand, Gerät fehlt) |
 
-Jedes ✘ und jedes unerwartete Verhalten wird mit der Vorlage aus Anhang E als **Befund M-n** erfasst (Test-Nr., Lauf, Board, Messwert, Foto, Vermutung) und mit Priorität in [ARBEITSPLAN.md](ARBEITSPLAN.md) eingetragen. Bei ○ wird, wenn möglich, mit besserem Aufbau wiederholt.
+Jedes ✘ und jedes unerwartete Verhalten wird mit der Vorlage aus Anhang E als **Messbefund MB-n** erfasst (Mess-ID, Lauf, Board, Messwert, Foto, Vermutung) und mit Priorität und einer Aufgabe in [ARBEITSPLAN.md](ARBEITSPLAN.md) eingetragen. Bei ○ wird, wenn möglich, mit besserem Aufbau wiederholt.
 
 ### 3.7 Aufbauten
 
@@ -242,7 +244,7 @@ Aufbau 7 – Netz
 
 ### 4.1 Vorbereitung
 
-#### V1 · Boards, Ports und Modul zuordnen
+#### M-001 · Boards, Ports und Modul zuordnen
 
 `Geräte` PC · `Dauer` 10 min
 
@@ -258,7 +260,7 @@ Aufbau 7 – Netz
 | COM7 | | | | | |
 | COM13 | | | | | |
 
-#### V2 · Prüfling sichern
+#### M-002 · Prüfling sichern
 
 `Geräte` PC · `Dauer` 10 min
 
@@ -268,7 +270,7 @@ Aufbau 7 – Netz
 
 **Ergebnis:** Version ______ · Commit ______ · SHA-256 ______
 
-#### V3 · Messgeräte prüfen und aufwärmen
+#### M-003 · Messgeräte prüfen und aufwärmen
 
 `Geräte` alle für die Stufe · `Dauer` 15 min aktiv (Aufwärmzeit läuft parallel)
 
@@ -279,11 +281,11 @@ Aufbau 7 – Netz
 
 **Ergebnis:** u_ZÄHLER = ______ Hz · Kalibrierdaten: ______
 
-#### V4 · Eigenmessung des Aufbaus (Unsicherheiten)
+#### M-004 · Eigenmessung des Aufbaus (Unsicherheiten)
 
 `Geräte` OSZI (Teil a, Stufe 1), SPEKTRUM (Teil b, Stufe 2) · `Aufbau` 3 und 2 · `Dauer` a 20 min, b 30 min
 
-**Teil a (vor E1, E2):**
+**Teil a (vor M-115, M-116):**
 
 1. CH1 auf 10 MHz über Teiler/T-Stück auf beide OSZI-Kanäle; Δt mit ≥ 256 Mittelungen messen, Kabel tauschen, erneut messen. Mittelwert der Beträge = Eigenversatz Δt₀ (ps), Differenz/2 = Unsicherheit der Kabel.
 2. Dasselbe bei 99 MHz (Frequenzabhängigkeit der Kanäle).
@@ -293,11 +295,11 @@ Aufbau 7 – Netz
 
 4. Eigenrauschen SPEKTRUM: Eingang mit 50 Ω abschließen, Span 200 kHz, RBW 100 Hz, Rauschmarker bei 100 Hz, 1 kHz, 10 kHz, 100 kHz Ablage (Mitte 10 MHz).
 5. Dämpfung der 20-dB-Glieder und der DC-Sperre bestimmen.
-6. Eigenverzerrung bei −10 dBm am Eingang prüfen (sonst misst F1/F2 die Analysator-Harmonischen).
+6. Eigenverzerrung bei −10 dBm am Eingang prüfen (sonst misst M-414/M-312 die Analysator-Harmonischen).
 
 **Ergebnis:** Δt₀ = ___ ps (10 / 99 MHz: ___ / ___) · u_t = ___ ps · u_φ bei 10 / 99 MHz = ___° / ___° · Eigenrauschen (dBc/Hz bei 100 Hz / 1 k / 10 k / 100 k) = ___ / ___ / ___ / ___
 
-#### V5 · Protokoll anlegen
+#### M-005 · Protokoll anlegen
 
 1. Protokoll `messungen/<Datum>_<Board>_<Firmware>.md` aus Anhang A anlegen; nur die Abschnitte der gemessenen Stufe übernehmen.
 2. Ordner `messungen/<Datum>/` für Screenshots, Logs, Fotos; Dateinamen `<Nr>_<Lauf>_<Board>.<ext>`.
@@ -309,9 +311,9 @@ Aufbau 7 – Netz
 |---|---|---|---|---|
 | EK-1 | Host-Tests grün in `native-win` und `native` | `pio test -e native-win`, CI | alle | ☐ |
 | EK-2 | Build ohne Warnungen mit `-Wall -Wextra` in `src/` | `pio run` | alle | ☐ |
-| EK-3 | Gates der Phase erfüllt (Review, Doku DE + EN, Spezifikation, README) | [ARBEITSPLAN.md](ARBEITSPLAN.md) | alle | ☐ |
-| EK-4 | Fuzzing ≥ 10 Mio. Ausführungen ohne Fund (W-S25) | CI-Protokoll | 1W | ☐ |
-| EK-5 | Abhängigkeiten exakt gepinnt, Advisory-Check je Release (W-S24) | `platformio.ini`, Notiz | 1W | ☐ |
+| EK-3 | Gate des Arbeitsplans erfüllt (Regel 0.2: Review, Doku DE + EN, Spezifikation, README) | [ARBEITSPLAN.md](ARBEITSPLAN.md) | alle | ☐ |
+| EK-4 | Fuzzing ≥ 10 Mio. Ausführungen ohne Fund (A-725) | CI-Protokoll | 1W | ☐ |
+| EK-5 | Abhängigkeiten exakt gepinnt, Advisory-Check je Release (A-724) | `platformio.ini`, Notiz | 1W | ☐ |
 | EK-6 | Prüfling committet, Info-Karte ohne `+` | CONFIG | alle | ☐ |
 | EK-7 | Smoke-Test (4.3) auf beiden Boards bestanden | Protokoll | alle | ☐ |
 | EK-8 | benötigte Testbuilds vorhanden (Tabelle unten) | `messungen/firmware/` | alle | ☐ |
@@ -321,28 +323,28 @@ Aufbau 7 – Netz
 
 | Build | Flag | Für | Stand |
 |---|---|---|---|
-| Debug | `-DLOG_DEBUG=1` | J6, J7 (Stufe 2) · J9, J14, Q1 | vorhanden |
-| IQ-Fehler | env `esp32-2432S028R-faultiq` (`-DTEST_FAULT_IQ=1`) | A8, A11 (Stufe 3) | vorhanden (AF39) |
-| Touch-Log | env `esp32-2432S028R-touchlog` (`-DTEST_TOUCH_LOG=1`): je Berührung `[TOUCH] x=… y=… to …,… z=… t=…ms gap=…ms drop=n/…ms target=…` | B12 (Stufe 2) · B9 | vorhanden (S28) |
-| Trefferkarte | env `esp32-2432S028R-hitmap` (`-DTEST_HIT_MAP=1`, mit Touch-Log): 20 Zielkreuze, roter Punkt am Treffer, `[HITMAP] target n (x,y) hit (x,y) dx dy`; Verlassen durch Neustart | **B8 (Stufe 1)** | vorhanden (S28) |
-| PLL ohne Reset | Testbuild „PLL-Änderung ohne Reset“ (N2) | D5 (Stufe 2) | zu erstellen |
-| Assert/WDT | `-DTEST_LVGL_ASSERT=1`, `-DTEST_LOOP_HANG=1` | Q4, Q5 (bedingt) | vorhanden (S09) |
+| Debug | `-DLOG_DEBUG=1` | M-314, M-315 (Stufe 2) · M-405, M-409, M-319 | vorhanden |
+| IQ-Fehler | env `esp32-2432S028R-faultiq` (`-DTEST_FAULT_IQ=1`) | M-401, M-402 (Stufe 3) | vorhanden (AF39) |
+| Touch-Log | env `esp32-2432S028R-touchlog` (`-DTEST_TOUCH_LOG=1`): je Berührung `[TOUCH] x=… y=… to …,… z=… t=…ms gap=…ms drop=n/…ms target=…` | M-316 (Stufe 2) · M-425 | vorhanden (S28) |
+| Trefferkarte | env `esp32-2432S028R-hitmap` (`-DTEST_HIT_MAP=1`, mit Touch-Log): 20 Zielkreuze, roter Punkt am Treffer, `[HITMAP] target n (x,y) hit (x,y) dx dy`; Verlassen durch Neustart | **M-126 (Stufe 1)** | vorhanden (S28) |
+| PLL ohne Reset | Testbuild „PLL-Änderung ohne Reset“ (FW-02) | M-305 (Stufe 2) | zu erstellen |
+| Assert/WDT | `-DTEST_LVGL_ASSERT=1`, `-DTEST_LOOP_HANG=1` | M-128, M-129 (bedingt) | vorhanden (S09) |
 
 ### 4.3 Smoke-Test (je Entwicklungsphase, beide Boards)
 
-`Dauer` ≈ 30 min · nach jeder Phase des Arbeitsplans; das Ergebnis steht im Release-Schritt des [ARBEITSPLAN.md](ARBEITSPLAN.md).
+`Dauer` ≈ 30 min · nach jedem größeren Block des Arbeitsplans ([ARBEITSPLAN.md](ARBEITSPLAN.md), Regel 0.8); das Ergebnis steht im Release-Commit.
 
 | Schritt | Prüfung | Erwartung |
 |---|---|---|
 | 1 | Beide Boards flashen, booten, Info-Karte | Version und Commit stimmen; Display `detected`; Touch kalibriert; Hauptseite ohne Rauschen |
-| 2 | A1, A2 kurz: Board ohne Modul booten; am Messboard SDA ab- und wieder anstecken | je genau ein Dialog; Verbindung ≤ 2,5 s nach dem Anstecken |
-| 3 | A5 kurz: eine Frequenz und eine CONFIG-Option ändern, `Saved` abwarten, Stecker ziehen | Werte erhalten, alle Ausgänge aus |
-| 4 | B6 kurz: MAIN, CH1 bis CH3, CONFIG (gescrollt, Dropdowns geöffnet, K8), NUMPAD | nichts abgeschnitten oder überlappt; Dropdowns vollständig |
+| 2 | M-103, M-104 kurz: Board ohne Modul booten; am Messboard SDA ab- und wieder anstecken | je genau ein Dialog; Verbindung ≤ 2,5 s nach dem Anstecken |
+| 3 | M-120 kurz: eine Frequenz und eine CONFIG-Option ändern, `Saved` abwarten, Stecker ziehen | Werte erhalten, alle Ausgänge aus |
+| 4 | M-123 kurz: MAIN, CH1 bis CH3, CONFIG (gescrollt, Dropdowns geöffnet, M-124), NUMPAD | nichts abgeschnitten oder überlappt; Dropdowns vollständig |
 | 5 | CH1 = 10 MHz an ZÄHLER oder OSZI, ein und aus | 10 MHz ± 100 Hz (unkalibriert); aus = kein Signal |
 | 6 | CH3 IQ 90° an OSZI | zwei Signale mit 25 ns Versatz |
-| 7 (ab WEB-HMI) | L1 (Client), `*IDN?` über TCP 5025 und USB, Webseite öffnet | siehe 5.11 |
+| 7 (ab WEB-HMI) | M-201 (Client), `*IDN?` über TCP 5025 und USB, Webseite öffnet | siehe 5.11 |
 
-Bei 1.3.1 bis 1.3.3 und beim Core-3-Stand (S41b, 2026-11-06) blieben die Schritte 5 und 6 offen (kein Messgerät verfügbar); der erste Stufe-1-Lauf schließt sie (C3, E1).
+Bei 1.3.1 bis 1.3.3 und beim Core-3-Stand (S41b, 2026-11-06) blieben die Schritte 5 und 6 offen (kein Messgerät verfügbar); der erste Stufe-1-Lauf schließt sie (M-109, M-115).
 
 ---
 
@@ -354,119 +356,129 @@ Die notwendigen manuellen Messungen. Sie decken ab, was kein Host-Test zeigen ka
 
 | Block | Messungen | Board | Geräte | Dauer |
 |---|---|---|---|---|
-| 0 Vorbereitung | V1, V2, V3, V4 a, V5; Aufwärmzeit 15 min (CH1 10 MHz) parallel | beide | alle | 45 min |
-| V Verbindung | J1, J2, A1, A2 (mit J3), A3, A4 | Messboard; A1 am Board ohne Modul | ZÄHLER oder OSZI | 45 min |
-| F Frequenz | C1, C2, C3 mit K7 (ab S35 zusätzlich H1, H2) | Messboard | ZÄHLER, REF | 55 min |
-| T Abstimmen | D1, D2 (mit C5) | Messboard | OSZI, ZÄHLER | 30 min |
-| IQ Phase | E1, E2 | Messboard | OSZI | 40 min |
-| P Pegel | K1 (mit A9), K2, A10 | Messboard | OSZI, DMM | 45 min |
-| S Speichern | A5 mit K9 | Messboard | – | 15 min |
-| D Display und Touch | I3 (mit A6), B6 (mit B3, K8), B7, B8; I7 läuft über den ganzen Tag mit | beide | PC, VIDEO optional | 90 min |
-| bedingt | H1, H2 (ab S35); Q4, Q5 (nach der Migration, S41) | Messboard | ZÄHLER, OSZI | 15 + 30 min |
+| 0 Vorbereitung | M-001, M-002, M-003, M-004 a, M-005; Aufwärmzeit 15 min (CH1 10 MHz) parallel | beide | alle | 45 min |
+| V Verbindung | M-101, M-102, M-103, M-104 (mit M-519), M-105, M-106 | Messboard; M-103 am Board ohne Modul | ZÄHLER oder OSZI | 45 min |
+| F Frequenz | M-107, M-108, M-109 mit M-110 (ab S35 zusätzlich M-111, M-112) | Messboard | ZÄHLER, REF | 55 min |
+| T Abstimmen | M-113, M-114 (mit M-509) | Messboard | OSZI, ZÄHLER | 30 min |
+| IQ Phase | M-115, M-116 | Messboard | OSZI | 40 min |
+| P Pegel | M-117 (mit M-503), M-118, M-119 | Messboard | OSZI, DMM | 45 min |
+| S Speichern | M-120 mit M-121 | Messboard | – | 15 min |
+| D Display und Touch | M-122 (mit M-501), M-123 (mit M-505, M-124), M-125, M-126; M-127 läuft über den ganzen Tag mit | beide | PC, VIDEO optional | 90 min |
+| bedingt | M-111, M-112 (ab S35); M-128, M-129 (nach der Migration, S41) | Messboard | ZÄHLER, OSZI | 15 + 30 min |
 | | **Summe** | | | **≈ 6 h + Protokoll ≈ 7 h** |
 
-Die Reihenfolge ist fest: V zuerst (ohne Verbindung sind alle späteren Werte unsicher), C2 vor allen HF-Messungen (die Korrektur bleibt danach unverändert), S erst nach den HF-Blöcken (A5 verstellt Drive und Tuning).
+Die Reihenfolge ist fest: V zuerst (ohne Verbindung sind alle späteren Werte unsicher), M-108 vor allen HF-Messungen (die Korrektur bleibt danach unverändert), S erst nach den HF-Blöcken (M-120 verstellt Drive und Tuning).
 
 ### 5.2 Block V · Verbindung
 
-#### J1 · Kabel gerade
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-101 | Kabel gerade | ZÄHLER oder OSZI | verbunden, Log `[APP] SI5351 at 0x60, SDA=22 SCL=27`, kein Dialog; 10 MHz am Ausgang. | 5 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-102 | Kabel vertauscht | ZÄHLER oder OSZI | verbunden, Log `SDA=27 SCL=22 (swapped)`, Info-Karte mit `(swapped)`; 10 MHz am Ausgang. Danach wieder gerade stecken. | 5 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-103 | Booten ohne SI5351 | – | genau **ein** Dialog „SI5351 not found …“ mit dem Hinweis auf SDA/SCL in beliebiger Reihenfolge; `OK` schließt ihn, er kommt nicht wieder; MAIN und Header zeigen `NO HW` bei allen Kanälen, die Kanalseiten `SI5351 not found`; Info-Karte `SI5351 not found`; die Änderung wird gespeichert (`[SETTINGS] Saved to NVS`); keine wiederholten Fehlerzeilen im Log. | 5 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-104 | Modul nachträglich anschließen (enthält M-519) | Stoppuhr oder VIDEO, ZÄHLER oder OSZI | `NO HW` verschwindet nach **≤ 2,5 s**; der offene SI5351-Dialog schließt sich selbst; Log `[APP] SI5351 at 0x60, SDA=22 SCL=27` bzw. `SDA=27 SCL=22 (swapped)`; CH1 liefert 10 MHz. | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-105 | Verbindung im Betrieb unterbrechen | ZÄHLER oder OSZI | Dialog „Connection lost. Check the cable; SDA/SCL may be in either order …“, MAIN `NO HW`; das Modul bleibt versorgt, der Ausgang läuft weiter (Handbuch §11); nach dem Anstecken `[APP] Restoring outputs`, CH1 wieder `ON` mit derselben Frequenz (Zähler), der Dialog schließt sich selbst. | 10 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-106 | Versorgungsausfall des Moduls | OSZI; Aufbau 3 | wie M-105; beide Ausgänge aus dem Rücksetzzustand des Chips wiederhergestellt, CH3 wieder 270° (± 1° + u_φ). | 10 min | ☐ ✔ ☐ ✘ ☐ ○ |
 
-`Geräte` ZÄHLER oder OSZI · `Board` Messboard · `Bezug` A-41 · `Dauer` 5 min
+#### M-101 · Kabel gerade
+
+`Board` Messboard · `Bezug` A-221
 
 1. SDA an GPIO22, SCL an GPIO27 (CN1), booten; Log und Info-Karte lesen; CH1 = 10 MHz einschalten.
 
-**Soll:** verbunden, Log `[APP] SI5351 at 0x60, SDA=22 SCL=27`, kein Dialog; 10 MHz am Ausgang.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### J2 · Kabel vertauscht
+#### M-102 · Kabel vertauscht
 
-`Geräte` ZÄHLER oder OSZI · `Board` Messboard · `Bezug` A-41, E-17 · `Dauer` 5 min
+`Board` Messboard · `Bezug` A-221, E-212
 
 1. SDA und SCL vertauschen, booten; Log und Info-Karte lesen; CH1 = 10 MHz.
 
-**Soll:** verbunden, Log `SDA=27 SCL=22 (swapped)`, Info-Karte mit `(swapped)`; 10 MHz am Ausgang. Danach wieder gerade stecken.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### A1 · Booten ohne SI5351 (alt 1)
+#### M-103 · Booten ohne SI5351
 
-`Board` ohne Modul · `Bezug` A-34, A-36, E-17 · `Dauer` 5 min
+`Board` ohne Modul · `Bezug` A-225, A-227, E-212
 
 1. Board ohne Modul an CN1 anschließen, Serial Monitor starten, EN drücken.
 2. Dialoge zählen, Text lesen, `OK` tippen.
 3. MAIN, CH1- und CH3-Seite, Info-Karte ansehen.
 4. CH1 auf 7,100 000 MHz ändern und 10 s warten.
 
-**Soll:** genau **ein** Dialog „SI5351 not found …“ mit dem Hinweis auf SDA/SCL in beliebiger Reihenfolge; `OK` schließt ihn, er kommt nicht wieder; MAIN und Header zeigen `NO HW` bei allen Kanälen, die Kanalseiten `SI5351 not found`; Info-Karte `SI5351 not found`; die Änderung wird gespeichert (`[SETTINGS] Saved to NVS`); keine wiederholten Fehlerzeilen im Log.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### A2 · Modul nachträglich anschließen (alt 1a, enthält J3)
+#### M-104 · Modul nachträglich anschließen (enthält M-519)
 
-`Geräte` Stoppuhr oder VIDEO, ZÄHLER oder OSZI · `Board` Messboard · `Bezug` A-35, A-41 · `Dauer` 15 min
+`Board` Messboard · `Bezug` A-226, A-221
 
 1. Messboard mit abgezogenem SDA booten, den Dialog **nicht** schließen.
 2. SDA anstecken; Zeit vom Kontakt bis zum Verschwinden von `NO HW` messen (3×).
 3. Dialogzustand prüfen; CH1 = 10 MHz einschalten.
-4. (J3) Ohne SDA/SCL neu booten, dann **vertauscht** anstecken; Zeit einmal messen. Danach wieder gerade stecken.
+4. (M-519) Ohne SDA/SCL neu booten, dann **vertauscht** anstecken; Zeit einmal messen. Danach wieder gerade stecken.
 
-**Soll:** `NO HW` verschwindet nach **≤ 2,5 s**; der offene SI5351-Dialog schließt sich selbst; Log `[APP] SI5351 at 0x60, SDA=22 SCL=27` bzw. `SDA=27 SCL=22 (swapped)`; CH1 liefert 10 MHz.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Zeiten gerade / vertauscht):
+**Messwert (Zeiten gerade / vertauscht):**
 
-#### A3 · Verbindung im Betrieb unterbrechen (alt 1b)
+#### M-105 · Verbindung im Betrieb unterbrechen
 
-`Geräte` ZÄHLER oder OSZI · `Board` Messboard · `Bezug` A-35, E-17 · `Dauer` 10 min
+`Board` Messboard · `Bezug` A-226, E-212
 
 1. CH1 = 10 MHz einschalten, Ausgang an ZÄHLER.
 2. SDA ≈ 5 s abziehen, wieder anstecken.
 3. Dialog, Status und Zählerwert beobachten; Log mitlesen.
 
-**Soll:** Dialog „Connection lost. Check the cable; SDA/SCL may be in either order …“, MAIN `NO HW`; das Modul bleibt versorgt, der Ausgang läuft weiter (Handbuch §11); nach dem Anstecken `[APP] Restoring outputs`, CH1 wieder `ON` mit derselben Frequenz (Zähler), der Dialog schließt sich selbst.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### A4 · Versorgungsausfall des Moduls (alt 1c)
+#### M-106 · Versorgungsausfall des Moduls
 
-`Geräte` OSZI · `Aufbau` 3 · `Board` Messboard · `Bezug` A-35, A-18 · `Dauer` 10 min
+`Board` Messboard · `Bezug` A-226, A-219
 
 1. CH1 = 10 MHz an, CH3 an (Master CH1, 270°); beide Ausgänge an OSZI.
 2. 3,3 V am Modul ≈ 2 s trennen, wieder anschließen.
-3. Verhalten wie A3 beobachten; danach die Phase messen (3.4).
+3. Verhalten wie M-105 beobachten; danach die Phase messen (3.4).
 
-**Soll:** wie A3; beide Ausgänge aus dem Rücksetzzustand des Chips wiederhergestellt, CH3 wieder 270° (± 1° + u_φ).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Phase nachher):
+**Messwert (Phase nachher):**
 
 ### 5.3 Block F · Frequenz und Kalibrierung
 
 Messboard, Aufbau 1, ZÄHLER mit REF, Standardbedingungen, 15 min Aufwärmzeit. Auswertung mit der Klammermessung (3.3).
 
-#### C1 · Korrektur 0, Quarzfehler bestimmen (alt 3)
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-107 | Korrektur 0, Quarzfehler bestimmen | ZÄHLER, REF | zu dokumentieren: f_mess − 10 MHz (Hz) = Quarzfehler; `Out` zeigt die Rundung der Register (bei 10 MHz ±0,0 Hz). | 10 min | i |
+| M-108 | Kalibrieren | ZÄHLER, REF | danach < 1 Hz Abweichung bei 10 MHz (Auflösung 0,01 ppm ≙ 0,1 Hz); Wert im Bereich ±50 ppm; das Vorzeichen stimmt (positive Korrektur senkt die Frequenz, Handbuch §8). | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-109 | Genauigkeit über den Bereich (Klammermessung) | ZÄHLER, REF | \|δ\| ≤ Grenze; die Zwischenpunkte (3,5 / 14,2 / 50 MHz aus Plan 2.0) deckt der Host-Test ab. | 30 min (+ 15 min mit M-111, M-112) | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-110 | `Integer`: tatsächliche Frequenz | ZÄHLER, REF | Zähler = angezeigte tatsächliche Frequenz (`Out 7.102 273 MHz`, +2272,7 Hz) ± u; MAIN zeigt `~7.100 000 MHz`. | in M-109 (5 min) | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-111 | Untergrenze und kHz-Anzeige (bedingt ab S35) | ZÄHLER | Frequenz ≤ 0,5 Hz + u; Anzeige in kHz bzw. MHz laut Handbuch. | in M-109 (5 min) | ☐ ✔ ☐ ✘ ☐ ○ ☐ – |
+| M-112 | Oberes Ende und 112,5 MHz (bedingt ab S34/S35) | ZÄHLER | Abweichung ≤ 1,5 / 2 / 3 Hz + u (Grenzen aus S34). | in M-109 (10 min) | ☐ ✔ ☐ ✘ ☐ ○ ☐ – |
 
-`Geräte` ZÄHLER, REF · `Bezug` A-11 · `Dauer` 10 min
+#### M-107 · Korrektur 0, Quarzfehler bestimmen
+
+`Bezug` A-212
 
 1. CONFIG: `Corr.` auf 0.00 ppm.
 2. CH1 = 10 MHz einschalten, 10 Werte mit 1 s Torzeit mitteln.
 3. Auf der CH1-Seite die Zeile `Out` ablesen.
 
-**Soll:** zu dokumentieren: f_mess − 10 MHz (Hz) = Quarzfehler; `Out` zeigt die Rundung der Register (bei 10 MHz ±0,0 Hz).
-**Ergebnis:** i · Messwert (Hz, ppm):
+**Messwert (Hz, ppm):**
 
-#### C2 · Kalibrieren (alt 4)
+#### M-108 · Kalibrieren
 
-`Geräte` ZÄHLER, REF · `Bezug` A-11, U-11 · `Dauer` 15 min
+`Bezug` A-212, U-11
 
-1. Korrektur in ppm = Abweichung aus C1 (Hz) ÷ 10 (Handbuch §8) mit der Schritttaste (`1`, `0.1`, `0.01`) und `−`/`+` einstellen; **Anzahl der Tipps und Zeit notieren** (Bedienaufwand U-11, Grundlage für S32).
+1. Korrektur in ppm = Abweichung aus M-107 (Hz) ÷ 10 (Handbuch §8) mit der Schritttaste (`1`, `0.1`, `0.01`) und `−`/`+` einstellen; **Anzahl der Tipps und Zeit notieren** (Bedienaufwand U-11, Grundlage für S32).
 2. 10 MHz erneut messen, nachstellen bis |Abweichung| < 0,2 Hz.
 3. Korrektur nicht mehr ändern; Wert ins Protokoll (Anhang A).
 
-**Soll:** danach < 1 Hz Abweichung bei 10 MHz (Auflösung 0,01 ppm ≙ 0,1 Hz); Wert im Bereich ±50 ppm; das Vorzeichen stimmt (positive Korrektur senkt die Frequenz, Handbuch §8).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Corr. in ppm, Tipps, Zeit):
+**Messwert (Corr. in ppm, Tipps, Zeit):**
 
-#### C3 · Genauigkeit über den Bereich (Klammermessung)
+#### M-109 · Genauigkeit über den Bereich (Klammermessung)
 
-`Geräte` ZÄHLER, REF · `Bezug` A-12 (≤ 0,5 Hz in `Fractional`; Host-Test ≤ 0,375 Hz), A-14 · `Dauer` 30 min (+ 15 min mit H1, H2)
+`Bezug` A-213 (≤ 0,5 Hz in `Fractional`; Host-Test ≤ 0,375 Hz), A-215
 
-1. Standardbedingungen, Korrektur nach C2.
+1. Standardbedingungen, Korrektur nach M-108.
 2. Je Zeile die Klammermessung (3.3); Frequenz über das NUMPAD, 10 s Einschwingzeit; δ eintragen.
-3. Zeile K7: `Tuning` = `Integer`, f_soll = die tatsächliche Frequenz laut `Out`; danach zurück auf `Fractional`.
-4. Ab Firmware mit S35 zusätzlich die Zeilen H1 und H2.
+3. Zeile M-110: `Tuning` = `Integer`, f_soll = die tatsächliche Frequenz laut `Out`; danach zurück auf `Fractional`.
+4. Ab Firmware mit S35 zusätzlich die Zeilen M-111 und M-112.
 
 | f_soll | f10a (Hz) | f_mess (Hz) | f10b (Hz) | δ (Hz) | Grenze | ✔/✘/○ |
 |---|---|---|---|---|---|---|
@@ -474,73 +486,77 @@ Messboard, Aufbau 1, ZÄHLER mit REF, Standardbedingungen, 15 min Aufwärmzeit. 
 | 7,100 000 MHz | | | | | 0,5 Hz + u | |
 | 28,400 000 MHz | | | | | 0,5 Hz + u | |
 | 99,999 999 MHz | | | | | 0,5 Hz + u | |
-| K7: 7,1 MHz `Integer` → 7,102 273 MHz laut `Out` | | | | | Anzeige ± u | |
-| H1 (ab S35): 8 kHz / 455 kHz | | | | | 0,5 Hz + u | |
-| H2 (ab S35): 112,499 996 / 112,500 004 / 160 MHz | | | | | 1,5 / 2 / 3 Hz + u | |
+| M-110: 7,1 MHz `Integer` → 7,102 273 MHz laut `Out` | | | | | Anzeige ± u | |
+| M-111 (ab S35): 8 kHz / 455 kHz | | | | | 0,5 Hz + u | |
+| M-112 (ab S35): 112,499 996 / 112,500 004 / 160 MHz | | | | | 1,5 / 2 / 3 Hz + u | |
 
-**Soll:** \|δ\| ≤ Grenze; die Zwischenpunkte (3,5 / 14,2 / 50 MHz aus Plan 2.0) deckt der Host-Test ab.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○
+**Messwert:** in der Tabelle oben
 
-#### K7 · `Integer`: tatsächliche Frequenz
+#### M-110 · `Integer`: tatsächliche Frequenz
 
-`Geräte` ZÄHLER, REF · `Bezug` A-6, A-14, E-19 · `Dauer` in C3 (5 min)
+`Bezug` A-206, A-215, E-206
 
-1. Zeile K7 der Tabelle in C3; zusätzlich MAIN ansehen.
+1. Zeile M-110 der Tabelle in M-109; zusätzlich MAIN ansehen.
 
-**Soll:** Zähler = angezeigte tatsächliche Frequenz (`Out 7.102 273 MHz`, +2272,7 Hz) ± u; MAIN zeigt `~7.100 000 MHz`.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### H1 · Untergrenze und kHz-Anzeige (alt 20, bedingt ab S35)
+#### M-111 · Untergrenze und kHz-Anzeige (bedingt ab S35)
 
-`Geräte` ZÄHLER · `Bezug` E-16 · `Dauer` in C3 (5 min)
+`Bezug` E-203
 
-1. Zeile H1 der Tabelle in C3 (8 kHz, 455 kHz); Anzeige bei 999,999 kHz und 1 MHz ablesen.
+1. Zeile M-111 der Tabelle in M-109 (8 kHz, 455 kHz); Anzeige bei 999,999 kHz und 1 MHz ablesen.
 
-**Soll:** Frequenz ≤ 0,5 Hz + u; Anzeige in kHz bzw. MHz laut Handbuch.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ ☐ – · Messwert:
+**Messwert:**
 
-#### H2 · Oberes Ende und 112,5 MHz (alt 21, bedingt ab S34/S35)
+#### M-112 · Oberes Ende und 112,5 MHz (bedingt ab S34/S35)
 
-`Geräte` ZÄHLER · `Bezug` E-16, S34 · `Dauer` in C3 (10 min)
+`Bezug` E-203, S34
 
-1. Zeile H2 der Tabelle in C3; bei 160 MHz zusätzlich prüfen, dass ein Ausgangssignal vorhanden ist (Pegel geringer).
+1. Zeile M-112 der Tabelle in M-109; bei 160 MHz zusätzlich prüfen, dass ein Ausgangssignal vorhanden ist (Pegel geringer).
 
-**Soll:** Abweichung ≤ 1,5 / 2 / 3 Hz + u (Grenzen aus S34).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ ☐ – · Messwert:
+**Messwert:**
 
 ### 5.4 Block T · Abstimmen ohne Aussetzer
 
 OSZI Kanal 1 an CLK0 (CH1). **Aussetzer erkennen:** Trigger „Timeout“ (Dropout) mit Schwelle ≈ 3 Perioden, Single-Modus; jeder Trigger = ein Aussetzer, Dauer mit den Cursorn messen. Ohne Timeout-Trigger: Persistenz und Triggerverlust beobachten, Ergebnis „○“.
 
-#### D1 · Kanal 1 bleibt beim Abstimmen von CH2 ungestört (alt 6)
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-113 | Kanal 1 bleibt beim Abstimmen von CH2 ungestört | OSZI | **0** Aussetzer an CH1 (A-210: kein Reset der anderen PLL). | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-114 | Dauerabstimmen im `Fractional`-Modus (enthält M-509) | OSZI, ZÄHLER | keine Aussetzer beim Abstimmen; zulässig ist nur ein Aussetzer bei einem PLL-Wechsel 900 ↔ 887,5 MHz (A-206), der dokumentiert wird (Frequenz, Dauer). M-509: Frequenz sinkt um ≈ 10 Hz (± 0,5 Hz), **kein** Aussetzer. | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
 
-`Geräte` OSZI · `Bezug` A-10 · `Dauer` 15 min
+#### M-113 · Kanal 1 bleibt beim Abstimmen von CH2 ungestört
+
+`Bezug` A-210
 
 1. CH1 = 10 MHz an, CH2 = 7,100 000 MHz an. OSZI: Timeout-Trigger auf CLK0.
 2. CH2 über `+`/`−` mit 1 MHz, 1 kHz, 1 Hz verstellen; per NUMPAD mindestens 20 Sprünge zwischen 1 und 99 MHz.
 3. Auslösungen zählen.
 
-**Soll:** **0** Aussetzer an CH1 (A-10: kein Reset der anderen PLL).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Aussetzer von 20):
+**Messwert (Aussetzer von 20):**
 
-#### D2 · Dauerabstimmen im `Fractional`-Modus (alt 18, enthält C5)
+#### M-114 · Dauerabstimmen im `Fractional`-Modus (enthält M-509)
 
-`Geräte` OSZI, ZÄHLER · `Bezug` A-6, A-10, A-11 · `Dauer` 15 min
+`Bezug` A-206, A-210, A-212
 
 1. CH1 = 10 MHz, Schritt 1 Hz, `+` 10 s halten; Timeout-Trigger auf CLK0.
 2. CH1 = 99 MHz, Schritt 1 MHz, bis 100 MHz.
-3. (C5) CH1 = 10 MHz; `Corr.` um +1,00 ppm ändern, Zähler und OSZI beobachten; danach zurück auf den Wert aus C2.
+3. (M-509) CH1 = 10 MHz; `Corr.` um +1,00 ppm ändern, Zähler und OSZI beobachten; danach zurück auf den Wert aus M-108.
 
-**Soll:** keine Aussetzer beim Abstimmen; zulässig ist nur ein Aussetzer bei einem PLL-Wechsel 900 ↔ 887,5 MHz (A-6), der dokumentiert wird (Frequenz, Dauer). C5: Frequenz sinkt um ≈ 10 Hz (± 0,5 Hz), **kein** Aussetzer.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Aussetzer, Δf bei +1 ppm):
+**Messwert (Aussetzer, Δf bei +1 ppm):**
 
 ### 5.5 Block IQ · Phasen
 
-Aufbau 3, Methode 3.4; φ₀ und u_φ aus V4 a. CH1 ist Master, Standardbedingungen, Korrektur nach C2. Phase jeweils **2 s nach** dem Umschalten messen. Die Werte aus E1 und E2 dienen zugleich als Daten für E3 und E4 (Stufe 2).
+Aufbau 3, Methode 3.4; φ₀ und u_φ aus M-004 a. CH1 ist Master, Standardbedingungen, Korrektur nach M-108. Phase jeweils **2 s nach** dem Umschalten messen. Die Werte aus M-115 und M-116 dienen zugleich als Daten für M-307 und M-308 (Stufe 2).
 
-#### E1 · Vier Phasen bei 10 MHz (alt 7)
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-115 | Vier Phasen bei 10 MHz | OSZI | 0°, 90°, 180°, 270° ± 1° (+ u_φ). | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-116 | Phasen an den Bereichsgrenzen (gekürzt) | OSZI | alle Phasen ±1° (+ u_φ). Bei 99 MHz entspricht 1° nur ≈ 28 ps: bei u_φ > 0,5° das Ergebnis „○“ und mit mehr Mittelung wiederholen. Die Punkte 5 und 30 MHz aus Plan 2.0 entfallen (Host-Test der Phasenregister, keine neue Grenze). | 25 min | ☐ ✔ ☐ ✘ ☐ ○ |
 
-`Geräte` OSZI · `Bezug` A-15, A-16 · `Dauer` 15 min
+#### M-115 · Vier Phasen bei 10 MHz
+
+`Bezug` A-216, A-217
 
 1. CH1 = 10 MHz an, CH3 an (Master CH1); Phase `0`, `90`, `180`, `270` nacheinander; je Phase Δt (≥ 256 Mittelungen) und φ.
 
@@ -551,14 +567,13 @@ Aufbau 3, Methode 3.4; φ₀ und u_φ aus V4 a. CH1 ist Master, Standardbedingun
 | 180° | | | | 1° + u_φ |
 | 270° | | | | 1° + u_φ |
 
-**Soll:** 0°, 90°, 180°, 270° ± 1° (+ u_φ).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○
+**Messwert:** in der Tabelle oben
 
-#### E2 · Phasen an den Bereichsgrenzen (alt 8, gekürzt)
+#### M-116 · Phasen an den Bereichsgrenzen (gekürzt)
 
-`Geräte` OSZI · `Bezug` A-15, A-16, E-7 · `Dauer` 25 min
+`Bezug` A-216, A-217, E-209
 
-1. Für f = 4,73 / 14,2 / 99 MHz je vier Phasen wie E1. Der IQ-Teiler ist min(127, ⌊900 MHz / f⌋): 127, 63, 9 (größter Teiler, zwei ungerade Teiler).
+1. Für f = 4,73 / 14,2 / 99 MHz je vier Phasen wie M-115. Der IQ-Teiler ist min(127, ⌊900 MHz / f⌋): 127, 63, 9 (größter Teiler, zwei ungerade Teiler).
 
 | f (MHz) | Teiler | 0° | 90° | 180° | 270° |
 |---|---|---|---|---|---|
@@ -566,18 +581,23 @@ Aufbau 3, Methode 3.4; φ₀ und u_φ aus V4 a. CH1 ist Master, Standardbedingun
 | 14,2 | 63 | | | | |
 | 99 | 9 | | | | |
 
-**Soll:** alle Phasen ±1° (+ u_φ). Bei 99 MHz entspricht 1° nur ≈ 28 ps: bei u_φ > 0,5° das Ergebnis „○“ und mit mehr Mittelung wiederholen. Die Punkte 5 und 30 MHz aus Plan 2.0 entfallen (Host-Test der Phasenregister, keine neue Grenze).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○
+**Messwert:** in der Tabelle oben
 
 ### 5.6 Block P · Pegel im Zustand OFF und beim Neustart
 
 Aufbau 6, **nie SPEKTRUM**.
 
-#### K1 · Pegel im Zustand OFF je `Off state` (enthält A9)
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-117 | Pegel im Zustand OFF je `Off state` (enthält M-503) | OSZI, DMM; Aufbau 6 | `Low` ≈ 0 V (< 0,1 V) an allen drei Ausgängen in jeder Last; `High` ≈ 3,3 V an 1 MΩ, an 50 Ω durch den Drive-Strom begrenzt (notieren); `High-Z` nimmt den Pegel der Last an. | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-118 | Pegel nach `CLKx_PDN` (entscheidet FW-05) | OSZI, DMM; Aufbau 6 | Pegel notieren. Ist der Pin mit `PDN` hochohmig, darf `High-Z` alle abgeschalteten Ausgänge mit `CLKx_PDN` abschalten (FW-05, E-208); zieht er auf Low, bleibt es bei der heutigen Lösung. Ergebnis in Handbuch DE/EN nachziehen (Hinweis „bis zur Hardwareprüfung M-118“). | 15 min | i |
+| M-119 | Ausgang beim Neustart | OSZI; Aufbau 6, Kanal 2 an EN des ESP32 | zu dokumentieren; erwartet: der Ausgang läuft bis zur Initialisierung weiter (beim Upload einige Sekunden) und endet **vor** der Hauptseite. Die Dauer kommt als Hinweis ins Handbuch (Schutz angeschlossener Schaltungen, DOK-01). | 10 min | i |
 
-`Geräte` OSZI, DMM · `Aufbau` 6 · `Board` Messboard · `Bezug` A-3, A-8, E-21 · `Dauer` 20 min
+#### M-117 · Pegel im Zustand OFF je `Off state` (enthält M-503)
 
-1. (A9) `Off state` = `Low` (Werkseinstellung): CH1, CH2 und CH3 je einmal ein- und wieder ausschalten; DC-Pegel an CLK0, CLK1 und CLK2 mit OSZI 1 MΩ, OSZI 50 Ω und DMM.
+`Board` Messboard · `Bezug` A-203, A-208, E-208
+
+1. (M-503) `Off state` = `Low` (Werkseinstellung): CH1, CH2 und CH3 je einmal ein- und wieder ausschalten; DC-Pegel an CLK0, CLK1 und CLK2 mit OSZI 1 MΩ, OSZI 50 Ω und DMM.
 2. `Off state` = `High` (seit 1.3.2 mit Bestätigung) und `High-Z`: CH1 ein- und ausschalten, Pegel an CLK0; bei `High-Z` zusätzlich mit 10 kΩ nach 3,3 V bzw. nach GND.
 3. Danach `Off state` wieder `Low`.
 
@@ -589,125 +609,133 @@ Aufbau 6, **nie SPEKTRUM**.
 | High | CLK0 | | | | – |
 | High-Z | CLK0 | | | | |
 
-**Soll:** `Low` ≈ 0 V (< 0,1 V) an allen drei Ausgängen in jeder Last; `High` ≈ 3,3 V an 1 MΩ, an 50 Ω durch den Drive-Strom begrenzt (notieren); `High-Z` nimmt den Pegel der Last an.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○
+**Messwert:** in der Tabelle oben
 
-#### K2 · Pegel nach `CLKx_PDN` (entscheidet N5)
+#### M-118 · Pegel nach `CLKx_PDN` (entscheidet FW-05)
 
-`Geräte` OSZI, DMM · `Aufbau` 6 · `Board` Messboard · `Bezug` E-21, N5 · `Dauer` 15 min
+`Board` Messboard · `Bezug` E-208, FW-05
 
-Seit 1.3.0 schaltet die Firmware CLK2 bei ausgeschaltetem CH3 nur mit `Off state` = `Low` über `CLK2_PDN` ab; bei `High` und `High-Z` bleibt der Ausgangstreiber versorgt (Handbuch, „bis zur Hardwareprüfung K2“).
+Seit 1.3.0 schaltet die Firmware CLK2 bei ausgeschaltetem CH3 nur mit `Off state` = `Low` über `CLK2_PDN` ab; bei `High` und `High-Z` bleibt der Ausgangstreiber versorgt (Handbuch, „bis zur Hardwareprüfung M-118“).
 
 1. `Off state` = `Low`, CH3 aus (CLK2 mit `CLK2_PDN`): Pegel an CLK2 mit OSZI 1 MΩ, 50 Ω und DMM.
 2. Mit 10 kΩ gegen 3,3 V und gegen GND: zieht der Pin auf Low oder ist er hochohmig?
 
-**Soll:** Pegel notieren. Ist der Pin mit `PDN` hochohmig, darf `High-Z` alle abgeschalteten Ausgänge mit `CLKx_PDN` abschalten (N5, E-21); zieht er auf Low, bleibt es bei der heutigen Lösung. Ergebnis in Handbuch DE/EN nachziehen (Hinweis „bis zur Hardwareprüfung K2“).
-**Ergebnis:** i · Messwert (CLK2 an 1 MΩ / 50 Ω / DMM / 10 kΩ gegen 3,3 V / 10 kΩ gegen GND):
+**Messwert (CLK2 an 1 MΩ / 50 Ω / DMM / 10 kΩ gegen 3,3 V / 10 kΩ gegen GND):**
 
-#### A10 · Ausgang beim Neustart (alt 18c)
+#### M-119 · Ausgang beim Neustart
 
-`Geräte` OSZI · `Aufbau` 6, Kanal 2 an EN des ESP32 · `Board` Messboard · `Bezug` A-34, S63 · `Dauer` 10 min
+`Board` Messboard · `Bezug` A-225, DOK-01
 
 1. CH1 = 10 MHz einschalten. OSZI: Kanal 1 an CLK0, Kanal 2 an EN; 100 ms/div, Trigger auf fallende Flanke von EN, Single.
 2. 5× Reset mit der EN-Taste, 1× Upload (`pio run -t upload`); Zeit vom Reset bis zum Ende des 10-MHz-Signals ablesen.
 
-**Soll:** zu dokumentieren; erwartet: der Ausgang läuft bis zur Initialisierung weiter (beim Upload einige Sekunden) und endet **vor** der Hauptseite. Die Dauer kommt als Hinweis ins Handbuch (Schutz angeschlossener Schaltungen, S63).
-**Ergebnis:** i · Messwert (EN: min / max in ms; Upload in s):
+**Messwert (EN: min / max in ms; Upload in s):**
 
 ### 5.7 Block S · Speichern
 
-#### A5 · Speichern und Neustart (alt 14, enthält K9)
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-120 | Speichern und Neustart (enthält M-121) | – | `Saved` nach ≈ 5 s; nach dem Neustart alle Werte erhalten, die Detailzeile auf MAIN und den Kanalseiten zeigt die Sondermodi (z. B. `SSC -0.5 % · 8 mA` bzw. `4 mA`); **alle Ausgänge OFF** (E-205). | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-121 | Optionen bleiben gespeichert | – | `Drive all` 4 mA, `Tuning` `Low noise`, `Spread CH1` `-0.5 %`, `Off state` `High-Z` erhalten, alle Ausgänge aus. | in M-120 | ☐ ✔ ☐ ✘ ☐ ○ |
 
-`Board` Messboard · `Bezug` A-4, A-20 bis A-23 · `Dauer` 15 min
+#### M-120 · Speichern und Neustart (enthält M-121)
 
-1. Einstellen: CH1 = 7,100 000 MHz, CH2 = 14,200 000 MHz, CH3 Master CH2, Phase 90°, Backlight 60 %; (K9) `Drive all` = 4 mA, `Tuning` = `Low noise`, `Spread CH1` = `-0.5 %`, `Off state` = `High-Z`; alle drei Kanäle einschalten.
+`Board` Messboard · `Bezug` A-204, A-401 bis A-403, A-405
+
+1. Einstellen: CH1 = 7,100 000 MHz, CH2 = 14,200 000 MHz, CH3 Master CH2, Phase 90°, Backlight 60 %; (M-121) `Drive all` = 4 mA, `Tuning` = `Low noise`, `Spread CH1` = `-0.5 %`, `Off state` = `High-Z`; alle drei Kanäle einschalten.
 2. Auf CONFIG die Titelzeile beobachten (`Saving…` → `Saved` nach 5 s); Log `[SETTINGS] Saved to NVS`.
 3. Stecker ziehen, wieder ein.
 4. Danach die Standardbedingungen wiederherstellen (8 mA, `Fractional`, Spread `Off`, `Low`).
 
-**Soll:** `Saved` nach ≈ 5 s; nach dem Neustart alle Werte erhalten, die Detailzeile auf MAIN und den Kanalseiten zeigt die Sondermodi (z. B. `SSC -0.5 % · 8 mA` bzw. `4 mA`); **alle Ausgänge OFF** (E-11).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### K9 · Optionen bleiben gespeichert
+#### M-121 · Optionen bleiben gespeichert
 
-`Board` Messboard · `Bezug` A-20 bis A-22 · `Dauer` in A5
+`Board` Messboard · `Bezug` A-401 bis A-403
 
-1. CONFIG-Optionen aus A5 Schritt 1 nach dem Neustart lesen.
+1. CONFIG-Optionen aus M-120 Schritt 1 nach dem Neustart lesen.
 
-**Soll:** `Drive all` 4 mA, `Tuning` `Low noise`, `Spread CH1` `-0.5 %`, `Off state` `High-Z` erhalten, alle Ausgänge aus.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
 ### 5.8 Block D · Display und Touch (beide Boards)
 
-#### I3 · Erkennung im Wiederholtest (enthält A6)
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-122 | Erkennung im Wiederholtest (enthält M-501) | VIDEO optional | 20/20 je Board richtig erkannt; nie weißes oder verrauschtes Bild; Hauptseite erscheint direkt. | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-123 | Sichtprüfung aller Seiten (enthält M-505) | Kamera | nichts abgeschnitten, nichts überlappt, kein Scrollbalken außer auf CONFIG; Header zeigt den Ist-Zustand wie MAIN; RGB-LED CH1 rot, CH2 grün, CH3 blau, auf MAIN, CONFIG und NUMPAD aus. NUMPAD: zweimal die Grenze laut Handbuch (heute `Allowed 1 - 100 MHz`) in Rot mit rotem Rahmen, die Eingabe bleibt stehen (U-9); dann 10.700 000 MHz. Den Zustand ERR zeigt nur M-401 (Stufe 3); seine Texte sind host-getestet. | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-124 | CONFIG-Dropdowns und Info-Karte | – | Listen vollständig sichtbar (öffnen nach oben, wenn unten kein Platz ist); Angaben der Info-Karte stimmen. | in M-123 (5 min) | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-125 | Randtasten treffen | – | 5/5 Treffer an jedem Ziel auf jedem Board. | 10 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-126 | Trefferkarte nach dem Touch-Abgleich (U-5, U-26) | PC (Log) | im Mittel ≤ 4 px, höchstens 8 px (Prüfgrenze des Abgleichs) je Bereich; alle Ecken erreichbar (auch x = 319). Größere Abweichungen sind ein Befund zum Abgleich (U-26); ob ein Stift empfohlen wird, entscheidet M-126 mit dem optionalen M-433. | 40 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-127 | Langzeit-Anzeige auf dem CYD2USB | – | keine Pixelfehler (SPI-Modus 0 mit 40 MHz). | 0 min (läuft über den ganzen Stufe-1-Tag mit) | ☐ ✔ ☐ ✘ ☐ ○ |
 
-`Geräte` VIDEO optional · `Board` beide · `Bezug` A-33, A-44, E-18 · `Dauer` 20 min
+#### M-122 · Erkennung im Wiederholtest (enthält M-501)
+
+`Board` beide · `Bezug` A-302, A-301, E-301
 
 1. Je Board 10× Kaltstart (USB-Stecker ziehen und stecken) und 10× EN-Taste.
 2. Je Start: Log `[DISPLAY] … (detected)` und Bild kontrollieren.
-3. (A6) Bei den Kaltstarts auf das Einschalten achten (3 davon mit Slow-Motion aufnehmen): Beleuchtung bleibt aus, bis das erste Bild gezeichnet ist.
+3. (M-501) Bei den Kaltstarts auf das Einschalten achten (3 davon mit Slow-Motion aufnehmen): Beleuchtung bleibt aus, bis das erste Bild gezeichnet ist.
 
-**Soll:** 20/20 je Board richtig erkannt; nie weißes oder verrauschtes Bild; Hauptseite erscheint direkt.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Fehlerkennungen / Fehlstarts je Board):
+**Messwert (Fehlerkennungen / Fehlstarts je Board):**
 
-#### B6 · Sichtprüfung aller Seiten (alt 15, enthält B3)
+#### M-123 · Sichtprüfung aller Seiten (enthält M-505)
 
-`Geräte` Kamera · `Board` beide · `Bezug` A-2, A-24, A-25, A-27 · `Dauer` 20 min
+`Board` beide · `Bezug` A-202, A-304, A-305, A-307
 
 1. Je Board fotografieren: MAIN mit Statusleiste, Header, CH1, CH2, CH3 in den Zuständen ON, OFF, WAIT (Master auf 4,72 MHz) und NO HW (Board ohne Modul), CONFIG oben und unten gescrollt (Reihenfolge Drive, Off state, Tuning, Spread, Corr., Backlight, Touch), Dialog, Touch-Abgleich (CONFIG `Touch`, danach abbrechen bzw. zu Ende führen).
-2. (B3) NUMPAD: „500“ `MHz` und „0.5“ `MHz` eingeben, dann `C`, „10.7“ `MHz`.
+2. (M-505) NUMPAD: „500“ `MHz` und „0.5“ `MHz` eingeben, dann `C`, „10.7“ `MHz`.
 3. Auf abgeschnittene Texte, Überlappungen und Scrollbalken prüfen (nur CONFIG hat eine senkrechte Leiste).
 4. RGB-LED je Seite ablesen.
 
-**Soll:** nichts abgeschnitten, nichts überlappt, kein Scrollbalken außer auf CONFIG; Header zeigt den Ist-Zustand wie MAIN; RGB-LED CH1 rot, CH2 grün, CH3 blau, auf MAIN, CONFIG und NUMPAD aus. NUMPAD: zweimal die Grenze laut Handbuch (heute `Allowed 1 - 100 MHz`) in Rot mit rotem Rahmen, die Eingabe bleibt stehen (U-9); dann 10.700 000 MHz. Den Zustand ERR zeigt nur A8 (Stufe 3); seine Texte sind host-getestet.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert / Fotos:
+**Messwert / Fotos:**
 
-#### K8 · CONFIG-Dropdowns und Info-Karte
+#### M-124 · CONFIG-Dropdowns und Info-Karte
 
-`Board` beide · `Bezug` A-31, E-24 · `Dauer` in B6 (5 min)
+`Board` beide · `Bezug` A-314, E-805
 
 1. Alle Dropdowns öffnen, auch ganz unten gescrollt.
 2. Info-Karte: Firmware, Branch, Commit, Build-Zeit mit `git log -1 --format="%h %cd"` vergleichen; Display-Controller, I2C-Pins.
 
-**Soll:** Listen vollständig sichtbar (öffnen nach oben, wenn unten kein Platz ist); Angaben der Info-Karte stimmen.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### B7 · Randtasten treffen
+#### M-125 · Randtasten treffen
 
-`Board` beide · `Bezug` A-32, E-1, U-5 · `Dauer` 10 min
+`Board` beide · `Bezug` A-319, E-303, U-5
 
 1. Nach dem Touch-Abgleich je Ziel 5× mit dem Finger: Schritt-Chips `1M` (links) und `1` (rechts), `MAIN`, `CONFIG` in der Statusleiste, Dialog-`OK`, Schalter auf den Karten, unterste CONFIG-Zeile.
 2. Fehltipps (keine Reaktion, falsches Ziel) zählen.
 
-**Soll:** 5/5 Treffer an jedem Ziel auf jedem Board.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Fehltipps je Ziel):
+**Messwert (Fehltipps je Ziel):**
 
-#### B8 · Trefferkarte nach dem Touch-Abgleich (U-5, U-26)
+#### M-126 · Trefferkarte nach dem Touch-Abgleich (U-5, U-26)
 
-`Geräte` PC (Log) · `Board` beide · `Bezug` A-26, A-32, E-1 · `Dauer` 40 min · Build: Trefferkarte
+`Board` beide · `Bezug` A-306, A-319, E-303 · Build: Trefferkarte
 
 1. Trefferkarte flashen (der gespeicherte Abgleich bleibt im NVS); 20 Zielkreuze, darunter die vier Ecken (0 px) und Positionen 4 px vom Rand.
 2. Ein Bediener tippt jedes Kreuz 3× mit dem Finger; `[HITMAP]`-Zeilen mitschreiben.
 3. Auswertung je Board: mittlere und maximale Abweichung (px) je Bereich (Ecken, Rand, Mitte).
 4. Danach den Release-Build zurückflashen.
 
-**Soll:** im Mittel ≤ 4 px, höchstens 8 px (Prüfgrenze des Abgleichs) je Bereich; alle Ecken erreichbar (auch x = 319). Größere Abweichungen sind ein Befund zum Abgleich (U-26); ob ein Stift empfohlen wird, entscheidet B8 mit dem optionalen B19.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (mittel/max je Bereich und Board): Vorlauf 2026-11-04 (ein Bediener, Finger, Firmware e3d0349 mit fester Kalibrierung): Original-CYD dx −11 … −19 px in der Mitte, −4 … −12 px am Rand, dy 0 … +6 px; rechts nur x ≈ 305–308 erreichbar, die rechte Ecke (319) nicht. CYD2USB (55 Tipps): dx bei x = 80 −14 … −19 px, bei 160 −10 … −15, bei 240 −5 … −8, am rechten Rand −1 … −7; dy −7 … +3 (ein Ausreißer +11). Beide Boards linear (Versatz und Steigung in x, Original-CYD ≈ 1,03, CYD2USB ≈ 1,06) → U-26 (Touch-Abgleich, S28a). Abgleich mit S28a am 2026-11-04: CYD2USB x 161…3778, y 245…3830, Prüfkreuz −2/+2 px; Original-CYD x 166…3716, y 280…3885, −2/+1 px (statt fest 300…3800). Trefferkarte mit Abgleich wiederholen (dieser Test).
+**Messwert (mittel/max je Bereich und Board):** Vorlauf 2026-11-04 (ein Bediener, Finger, Firmware e3d0349 mit fester Kalibrierung): Original-CYD dx −11 … −19 px in der Mitte, −4 … −12 px am Rand, dy 0 … +6 px; rechts nur x ≈ 305–308 erreichbar, die rechte Ecke (319) nicht. CYD2USB (55 Tipps): dx bei x = 80 −14 … −19 px, bei 160 −10 … −15, bei 240 −5 … −8, am rechten Rand −1 … −7; dy −7 … +3 (ein Ausreißer +11). Beide Boards linear (Versatz und Steigung in x, Original-CYD ≈ 1,03, CYD2USB ≈ 1,06) → U-26 (Touch-Abgleich, S28a). Abgleich mit S28a am 2026-11-04: CYD2USB x 161…3778, y 245…3830, Prüfkreuz −2/+2 px; Original-CYD x 166…3716, y 280…3885, −2/+1 px (statt fest 300…3800). Trefferkarte mit Abgleich wiederholen (dieser Test).
 
-#### I7 · Langzeit-Anzeige auf dem CYD2USB
+#### M-127 · Langzeit-Anzeige auf dem CYD2USB
 
-`Board` CYD2USB (= Messboard) · `Bezug` E-18 · `Dauer` 0 min (läuft über den ganzen Stufe-1-Tag mit)
+`Board` CYD2USB (= Messboard) · `Bezug` E-301
 
 1. Während aller Blöcke von Stufe 1 (≈ 5 h Bedienung mit Seitenwechseln, NUMPAD, `+` halten, CONFIG scrollen) auf Pixelfehler achten.
 
-**Soll:** keine Pixelfehler (SPI-Modus 0 mit 40 MHz).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
 ### 5.9 Bedingte Messungen
 
-#### Q4 · Assert-Handler (C-3, S-23)
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-128 | Assert-Handler (C-3, S-23) | OSZI, PC (Log) | Logzeile mit Ursache, Neustart innerhalb 5 s (kein dauerhaftes Einfrieren); nach dem Neustart alle Ausgänge aus (bis dahin läuft CLK0 weiter wie in M-119). | 15 min | ✔ 2026-11-04 (< 1 s, ohne Modul) · nach S41: ☒ ✔ ☐ ✘ ☐ ○ |
+| M-129 | Loop-Watchdog (S-23, A-723) | OSZI, PC (Log) | Watchdog-Reset 5 s nach dem Blockieren; Ausgänge nach dem Neustart aus; Dauer des Weiterlaufens im Hängezustand dokumentieren. | 15 min | ✔ 2026-11-04 (5 s, ohne Modul) · nach S41: ☒ ✔ ☐ ✘ ☐ ○ |
 
-`Geräte` OSZI, PC (Log) · `Board` Messboard · `Bezug` C-3, W-S9 · `Dauer` 15 min · Build: `TEST_LVGL_ASSERT`
+#### M-128 · Assert-Handler (C-3, S-23)
+
+`Board` Messboard · `Bezug` C-3, A-709 · Build: `TEST_LVGL_ASSERT`
 
 **Erledigt 2026-11-04** (S09, COM7 = Original-CYD ohne Modul): Assert → Neustart nach < 1 s (`SW_CPU_RESET`). **Wiederholen** nur nach Änderungen am Assert-Handler oder an der Plattform, also einmal nach der Migration auf Core 3.x (S41), dann auf dem Messboard:
 
@@ -715,22 +743,20 @@ Seit 1.3.0 schaltet die Firmware CLK2 bei ausgeschaltetem CH3 nur mit `Off state
 2. Der Testbuild füllt 20 s nach dem Boot den LVGL-Speicher und löst einen Malloc-Assert aus.
 3. Log und Zeit bis zum Neustart; Zustand der Ausgänge danach.
 
-**Soll:** Logzeile mit Ursache, Neustart innerhalb 5 s (kein dauerhaftes Einfrieren); nach dem Neustart alle Ausgänge aus (bis dahin läuft CLK0 weiter wie in A10).
-**Ergebnis:** ✔ 2026-11-04 (< 1 s, ohne Modul) · nach S41: ☒ ✔ ☐ ✘ ☐ ○ · Messwert: 2026-11-05, Core 3.3.12 vor der Abnahme (S41a), COM13 mit Modul, nur Log: Assert → `[ERROR][FATAL] LVGL assert; restarting`, `SW_CPU_RESET` nach < 0,1 s, danach `[SI5351] Init OK; all outputs off`; CLK0 am OSZI noch offen
+**Messwert:** 2026-11-05, Core 3.3.12 vor der Abnahme (S41a), COM13 mit Modul, nur Log: Assert → `[ERROR][FATAL] LVGL assert; restarting`, `SW_CPU_RESET` nach < 0,1 s, danach `[SI5351] Init OK; all outputs off`; CLK0 am OSZI noch offen
 
-#### Q5 · Loop-Watchdog (S-23, W-S23)
+#### M-129 · Loop-Watchdog (S-23, A-723)
 
-`Geräte` OSZI, PC (Log) · `Board` Messboard · `Bezug` W-S23 · `Dauer` 15 min · Build: `TEST_LOOP_HANG`
+`Board` Messboard · `Bezug` A-723 · Build: `TEST_LOOP_HANG`
 
-**Erledigt 2026-11-04** (S09, COM7 ohne Modul): blockiertes `loop()` → Task-Watchdog nach 5 s. **Wiederholen** wie Q4 nach S41 (Core 3.x hat eine neue Watchdog-API):
+**Erledigt 2026-11-04** (S09, COM7 ohne Modul): blockiertes `loop()` → Task-Watchdog nach 5 s. **Wiederholen** wie M-128 nach S41 (Core 3.x hat eine neue Watchdog-API):
 
 1. CH1 = 10 MHz an (innerhalb von 20 s nach dem Boot); der Testbuild blockiert danach `loop()`.
 2. Zeit bis zum Watchdog-Reset (Log: Reset-Grund), Ausgang an CLK0 währenddessen.
 
-**Soll:** Watchdog-Reset 5 s nach dem Blockieren; Ausgänge nach dem Neustart aus; Dauer des Weiterlaufens im Hängezustand dokumentieren.
-**Ergebnis:** ✔ 2026-11-04 (5 s, ohne Modul) · nach S41: ☒ ✔ ☐ ✘ ☐ ○ · Messwert: 2026-11-05, Core 3.3.12 vor der Abnahme (S41a), COM13 mit Modul, nur Log: `task_wdt` meldet `loopTask` nach 5,0 s, `SW_CPU_RESET`, danach `all outputs off`; CLK0 im Hängezustand am OSZI noch offen
+**Messwert:** 2026-11-05, Core 3.3.12 vor der Abnahme (S41a), COM13 mit Modul, nur Log: `task_wdt` meldet `loopTask` nach 5,0 s, `SW_CPU_RESET`, danach `all outputs off`; CLK0 im Hängezustand am OSZI noch offen
 
-H1 und H2 stehen in Block F (C3).
+M-111 und M-112 stehen in Block F (bei M-109).
 
 ### 5.10 Wiederholung je Release
 
@@ -740,41 +766,51 @@ Stufe 1 läuft einmal vollständig (R0). Vor einer Weitergabe oder einem Release
 |---|---|
 | `drivers/si5351_manager.*`, `drivers/si5351_plan.*` | F, T, IQ, P |
 | `core/app_controller.*` | V, T, IQ, P, S |
-| `hal/i2c_bus.*` | V (mit J6 aus Stufe 2) |
+| `hal/i2c_bus.*` | V (mit M-314 aus Stufe 2) |
 | `services/settings.*`, `storage.*` | S |
 | `drivers/display_*`, Touch, `gui/` | D |
-| **Plattform** (Core, Bibliotheken, Compiler, z. B. Migration S41) | alle Blöcke, Q4, Q5, J6 |
+| **Plattform** (Core, Bibliotheken, Compiler, z. B. Migration S41) | alle Blöcke, M-128, M-129, M-314 |
 | nur Doku | keiner (nur Smoke-Test) |
 
-**Auswahl nach der Migration (S41):** alle Blöcke, außer in F nur die Zeilen 7,1 und 99,999 999 MHz von C3 und in D nur I3 und B7; dazu Q4, Q5 und J6 (≈ 4 h).
+**Auswahl nach der Migration (S41):** alle Blöcke, außer in F nur die Zeilen 7,1 und 99,999 999 MHz von M-109 und in D nur M-122 und M-125; dazu M-128, M-129 und M-314 (≈ 4 h).
 
 ### 5.11 Stufe 1W – Pflicht ab WEB-HMI (vor 1.4.0)
 
-Nur im Release-Kandidaten mit WEB-HMI ([ARBEITSPLAN.md](ARBEITSPLAN.md), Phase 6). Aufbau 7, Test-WLAN WPA2, 2,4 GHz, eigenes Segment. Die Bezeichnungen der Bedienelemente stammen aus dem WEB-HMI-Konzept im Arbeitsplan; maßgeblich ist das Handbuch der geprüften Firmware. Gerätename, IP und Token aus der Info-Karte; `<IP>` = Geräteadresse, `<TOKEN>` = Token. Vor jedem Sicherheitstest den Zustand notieren (Kanal aus). Was die Host-Suites (`test_http_guard`, `test_scpi`, `test_line_framer`, `test_sanitize`, `test_rest_json`, `test_net_settings`, `test_command`) abdecken, prüft 1W nur stichprobenartig am Gerät.
+Nur im Release-Kandidaten mit WEB-HMI (seit 1.4.0-rc1). Aufbau 7, Test-WLAN WPA2, 2,4 GHz, eigenes Segment. Die Bezeichnungen der Bedienelemente stammen aus dem früheren WEB-HMI-Konzept (heute Spezifikation Kapitel 5 bis 7); maßgeblich ist das Handbuch der geprüften Firmware. Gerätename, IP und Token aus der Info-Karte; `<IP>` = Geräteadresse, `<TOKEN>` = Token. Vor jedem Sicherheitstest den Zustand notieren (Kanal aus). Was die Host-Suites (`test_http_guard`, `test_scpi`, `test_line_framer`, `test_sanitize`, `test_rest_json`, `test_net_settings`, `test_command`) abdecken, prüft 1W nur stichprobenartig am Gerät.
 
 | Messung | Inhalt | Dauer |
 |---|---|---|
-| L1, L3, L12 | WLAN-Modi, AP mit QR, Betrieb ohne SI5351 | 1 h 45 min |
-| L6 | SCPI über USB und TCP | 45 min |
-| L14 | 24-h-Dauertest (unbeaufsichtigt) | 30 min aktiv |
-| L-S1, L-S9, L-S10, L-S11 | ein Skriptlauf (`tools/web_check.py` und `tools/contract_check.py`, Anhang D) | 60 min |
-| L-S2, L-S3 | fremde Webseite, SCPI-Port aus dem Browser | 65 min |
-| L-S6, L-S7, L-S8 | kein Routing, keine Klartext-Passwörter, `Remote outputs` | 65 min |
-| L-S4, L-S5 | fremde SSIDs, Last (Tabelle unten) | 90 min |
+| M-201, M-202, M-204 | WLAN-Modi, AP mit QR, Betrieb ohne SI5351 | 1 h 45 min |
+| M-203 | SCPI über USB und TCP | 45 min |
+| M-205 | 24-h-Dauertest (unbeaufsichtigt) | 30 min aktiv |
+| M-206, M-214, M-215, M-216 | ein Skriptlauf (`tools/web_check.py` und `tools/contract_check.py`, Anhang D) | 60 min |
+| M-207, M-208 | fremde Webseite, SCPI-Port aus dem Browser | 65 min |
+| M-211, M-212, M-213 | kein Routing, keine Klartext-Passwörter, `Remote outputs` | 65 min |
+| M-209, M-210 | fremde SSIDs, Last (Tabelle unten) | 90 min |
 | | **Summe** | **≈ 8 h + 24 h** |
 
-#### L-S4, L-S5 · Fremde SSIDs und Last
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-201 | WLAN-Modi und Rückfall-AP | Router, Smartphone | wie beschrieben; Verbindung ≤ 15 s; Rückfall-AP nach 60 s (± 5 s). | 45 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-202 | AP mit Zufallspasswort und QR, offener AP | Smartphones Android und iOS | QR funktioniert auf beiden Systemen; offener AP nur nach Bestätigung, mit Warnung, Zeit- und Stationslimit. | 45 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-203 | SCPI über USB und TCP | PC (Skripte Anhang D) | kein Neustart beim Öffnen; 1000/1000 gültige Antworten `CYD,HF-Generator,<MAC>,1.4.0`; keine Logzeilen im Datenstrom; Median < 50 ms. | 45 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-204 | Ohne SI5351 | – | Web und SCPI funktionieren; Kanäle zeigen `NO HW` bzw. `NOHW`; Einstellungen werden gespeichert; keine wiederholten Fehler. | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-205 | 24-h-Dauertest | PC (Skript) | kein Neustart; minimaler Heap sinkt nicht stetig und bleibt ≥ 40 KB, größter Block ≥ 16 KB (A-726); Stack-Reserve ≥ 1 KB; keine Logzeile `Heap low`. | 24 h (30 min aktiv) | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-206 | curl-Matrix (A-701, A-704, A-705, A-710) | – | wie angegeben; Zustand bleibt unverändert. | im Skriptlauf `web_check.py` / `contract_check.py` | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-207 | Fremde Webseite (A-705, A-706) | PC, Browser | Zustand unverändert; WebSocket-Upgrade abgelehnt; `evil.example` → 421. | 45 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-208 | SCPI-Port aus dem Browser (A-717, A-718) | – | CH1 bleibt in allen Fällen aus. | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-209 | Fremde SSIDs | Aufbau 7; Test-AP | keine Skriptausführung; SSIDs bereinigt; höchstens 15 Einträge; kein Neustart | 45 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-210 | Lasten | Aufbau 7; PC (`tools/slowloris.py`) | Touch reagiert < 200 ms; Heap erholt sich auf ≥ 95 %; kein Neustart | 45 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-211 | Kein Routing zwischen AP und STA (A-703) | Smartphone, Laptop | kein Gateway per DHCP; AP aus ≤ 1 s nach der STA-IP (E-511: das IDF leitet weiter, solange beide eine Adresse haben); optional: kein Host im Heimnetz erreichbar. | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-212 | Keine Klartext-Passwörter im Flash (A-714) | PC (`esptool`) | Web-Passwort nur als Hash; die WLAN-Passphrase liegt nach E-510 bewusst im Klartext in `hfnet` und erscheint sonst nirgends (nicht in `nvs.net80211`, nicht im Log); nach Werksreset weder `hfnet` noch `nvs.net80211` noch Coredump mit Inhalt. | 30 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-213 | `Remote outputs: local only` (A-721) | – | Einschalten aus der Ferne abgelehnt (−221 bzw. 403); Ausschalten erlaubt; Touch schaltet weiter; Option nur am Touch änderbar. | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-214 | Antwort-Header (A-707) | – | CSP genau `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`; `nosniff`; `no-referrer`; `/api/*` mit `Cache-Control: no-store`; keine `Access-Control-*`. | im Skriptlauf `web_check.py` / `contract_check.py` | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-215 | Grenzen und Rate-Limits (A-710, A-711) | – | wie in A-710 und A-711. | im Skriptlauf `web_check.py` / `contract_check.py` | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-216 | Web-Passwort und Sitzung (A-713) | – | wie A-713; das Passwort erscheint nie in einer Ausgabe. | im Skriptlauf `web_check.py` / `contract_check.py` | ☐ ✔ ☐ ✘ ☐ ○ |
 
-Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am Gerät prüfen; nur im eigenen Labor.
+#### M-201 · WLAN-Modi und Rückfall-AP
 
-| Nr | Prüfung | Bezug | Soll | Dauer |
-|---|---|---|---|---|
-| L-S4 | Fremde SSIDs (W-S8, W-S9): Test-AP mit `<svg onload=alert(1)>`, `a"b\c`, `x\ny`, `\xF0A`, `\xC3`, 32 Byte und 200 Beacons; Scan am Gerät und im Web (nur im eigenen Labor, kleine Sendeleistung) | `test_sanitize` | keine Skriptausführung; SSIDs bereinigt; höchstens 15 Einträge; kein Neustart | 45 min |
-| L-S5 | Lasten (W-S10): Slowloris mit 30 Sockets (`tools/slowloris.py`), WebSocket-Flut, Multipart und Chunked; Touch bedienen; Heap vor, während, nach 2 min | – | Touch reagiert < 200 ms; Heap erholt sich auf ≥ 95 %; kein Neustart | 45 min |
-
-#### L1 · WLAN-Modi und Rückfall-AP
-
-`Geräte` Router, Smartphone · `Bezug` W-E (WEB-HMI-Konzept) · `Dauer` 45 min
+`Bezug` E-501 bis E-507 (Spezifikation Kapitel 5)
 
 1. CONFIG `WiFi` = `Off`: Smartphone sucht Netze; SCPI und Web nicht erreichbar.
 2. `Client`: Test-WLAN auswählen, Passwort eingeben; Rückmeldungen (`Connecting…`, `Connected <IP>`) und Zeit bis zur Verbindung (3×).
@@ -782,55 +818,50 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 4. `Access point`: AP erscheint am Smartphone.
 5. Falsches Passwort und unbekanntes Netz: Rückmeldungen `Wrong password`, `Network not found`.
 
-**Soll:** wie beschrieben; Verbindung ≤ 15 s; Rückfall-AP nach 60 s (± 5 s).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Zeiten):
+**Messwert (Zeiten):**
 
-#### L3 · AP mit Zufallspasswort und QR, offener AP
+#### M-202 · AP mit Zufallspasswort und QR, offener AP
 
-`Geräte` Smartphones Android und iOS · `Bezug` W-E3, W-S1, W-S2 · `Dauer` 45 min
+`Bezug` E-503, A-701, A-702
 
 1. `Access point`: SSID und Passwort auf dem Display; QR-Code „Join“ mit beiden Smartphones scannen und beitreten.
 2. `Regenerate`: neues Passwort; die alte Verbindung wird getrennt.
 3. `Open (not recommended)`: Bestätigung am Touch erforderlich; Statusleiste `AP open` in Warnfarbe; höchstens 2 Stationen (dritte abgelehnt); ohne Station nach 15 min aus.
 
-**Soll:** QR funktioniert auf beiden Systemen; offener AP nur nach Bestätigung, mit Warnung, Zeit- und Stationslimit.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L6 · SCPI über USB und TCP
+#### M-203 · SCPI über USB und TCP
 
-`Geräte` PC (Skripte Anhang D) · `Bezug` W-S22, C-16 · `Dauer` 45 min
+`Bezug` A-722, C-16
 
-1. USB: Port ohne DTR/RTS-Wechsel öffnen (`scpi_usb.py` oder `tools/device_check.py --usb <PORT> --profile L6`); das Board darf nicht neu starten. 1000× `*IDN?`.
-2. TCP: `TCPIP0::<IP>::5025::SOCKET`; 1000× `*IDN?` (`scpi_tcp.py` oder `tools/device_check.py --tcp <IP> --profile L6`), Median und 99-%-Perzentil der Antwortzeit.
+1. USB: Port ohne DTR/RTS-Wechsel öffnen (`scpi_usb.py` oder `tools/device_check.py --usb <PORT> --profile M-203`); das Board darf nicht neu starten. 1000× `*IDN?`.
+2. TCP: `TCPIP0::<IP>::5025::SOCKET`; 1000× `*IDN?` (`scpi_tcp.py` oder `tools/device_check.py --tcp <IP> --profile M-203`), Median und 99-%-Perzentil der Antwortzeit.
 3. Während der USB-Sitzung auf Logzeilen im Datenstrom achten; `SYSTem:LOG?` liefert die Logzeilen.
 
-**Soll:** kein Neustart beim Öffnen; 1000/1000 gültige Antworten `CYD,HF-Generator,<MAC>,1.4.0`; keine Logzeilen im Datenstrom; Median < 50 ms.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L12 · Ohne SI5351
+#### M-204 · Ohne SI5351
 
-`Board` ohne Modul · `Dauer` 15 min
+`Board` ohne Modul
 
 1. Booten ohne Modul; Web öffnen, SCPI verbinden.
 2. `OUTPut1:STATus?`, `SYSTem:SI5351?`, Einstellungen ändern; Web-Zustand ansehen.
 
-**Soll:** Web und SCPI funktionieren; Kanäle zeigen `NO HW` bzw. `NOHW`; Einstellungen werden gespeichert; keine wiederholten Fehler.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L14 · 24-h-Dauertest
+#### M-205 · 24-h-Dauertest
 
-`Geräte` PC (Skript) · `Bezug` W-S23, Heap-Grenzen des WEB-HMI-Konzepts · `Dauer` 24 h (30 min aktiv)
+`Bezug` A-723, Heap-Grenzen (A-710 Schutzgrenze, A-726 Betriebsgrenze)
 
 1. Drei Browser (Live-Updates) und ein SCPI-Skript mit 10 Befehlen/s (Frequenz ändern innerhalb 8–12 MHz, Abfragen) laufen 24 h.
 2. `SYSTem:HEAP?` jede Minute protokollieren (freier und minimaler Heap, größter Block, LVGL-Heap, Stack-Reserve).
 3. Nach 24 h: Neustart-Zähler (Log), Heap-Verlauf, Fehlerzähler.
 
-**Soll:** kein Neustart; minimaler Heap sinkt nicht stetig; Stack-Reserve ≥ 1 KB; keine Warnung „Heap < 40 KB“.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Heap min Start / nach 24 h):
+**Messwert (Heap min Start / nach 24 h):**
 
-#### L-S1 · curl-Matrix (W-S1, W-S4, W-S5, W-S10)
+#### M-206 · curl-Matrix (A-701, A-704, A-705, A-710)
 
-`Bezug` W-S1, W-S4, W-S5, W-S10 · `Dauer` im Skriptlauf `web_check.py` / `contract_check.py`
+`Bezug` A-701, A-704, A-705, A-710
 
 1. `curl -i -H "Host: evil.example" http://<IP>/api/state` → **421**.
 2. `curl -i -X POST -H "Content-Type: text/plain" -H "X-CYD-Token: <TOKEN>" --data '{"enabled":true}' http://<IP>/api/channel/1` → **415**.
@@ -841,103 +872,98 @@ Pflicht, weil sie die Befunde S-7 (XSS über SSIDs, hoch) und S-13 (DoS/Heap) am
 7. `curl -i -X OPTIONS http://<IP>/api/channel/1` → abgelehnt; keine `Access-Control-Allow-*`-Header.
 8. Nach jedem Schritt: Zustand der Kanäle unverändert.
 
-**Soll:** wie angegeben; Zustand bleibt unverändert.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L-S2 · Fremde Webseite (W-S5, W-S6)
-
-`Geräte` PC, Browser · `Dauer` 45 min
+#### M-207 · Fremde Webseite (A-705, A-706)
 
 1. Testseite mit `python -m http.server 8000` (andere Herkunft); darauf `fetch('http://<IP>/api/channel/1', {method:'POST', mode:'no-cors', body:'{"enabled":true}'})`, ein `<form enctype="text/plain" method="POST">` mit JSON im Feldnamen und `new WebSocket('ws://<IP>/ws')`.
 2. Seite öffnen; Zustand des Geräts prüfen.
 3. **DNS-Rebinding:** in der `hosts`-Datei `evil.example` auf `<IP>`; `http://evil.example/` öffnen.
 
-**Soll:** Zustand unverändert; WebSocket-Upgrade abgelehnt; `evil.example` → 421.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L-S3 · SCPI-Port aus dem Browser (W-S17, W-S18)
-
-`Dauer` 20 min
+#### M-208 · SCPI-Port aus dem Browser (A-717, A-718)
 
 1. `curl -X POST --data-binary $'OUTP1 ON\n' http://<IP>:5025/` → Verbindung wird geschlossen, CH1 bleibt aus.
 2. `python -c "import sys; sys.stdout.write('A'*20000 + 'OUTP1 ON\n')" | ncat <IP> 5025` (eine überlange Zeile, **kein** Zeilenumbruch vor `OUTP1 ON`) → CH1 bleibt aus; `SYSTem:ERRor?` danach −363.
 3. Zeile mit HTTP-Header-Muster (`Host: x`) → Verbindung wird geschlossen.
 
-**Soll:** CH1 bleibt in allen Fällen aus.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L-S6 · Kein Routing zwischen AP und STA (W-S3)
+#### M-209 · Fremde SSIDs
 
-`Geräte` Smartphone, Laptop · `Dauer` 15 min
+`Bezug` `test_sanitize`
+
+Pflicht, weil sie den Befund S-7 (XSS über SSIDs, hoch) am Gerät prüft; nur im eigenen Labor.
+
+1. Fremde SSIDs (A-708, A-709): Test-AP mit `<svg onload=alert(1)>`, `a"b\c`, `x\ny`, `\xF0A`, `\xC3`, 32 Byte und 200 Beacons; Scan am Gerät und im Web (nur im eigenen Labor, kleine Sendeleistung)
+
+**Messwert:**
+
+#### M-210 · Lasten
+
+Pflicht, weil sie den Befund S-13 (DoS/Heap) am Gerät prüft; nur im eigenen Labor.
+
+1. Lasten (A-710): Slowloris mit 30 Sockets (`tools/slowloris.py`), WebSocket-Flut, Multipart und Chunked; Touch bedienen; Heap vor, während, nach 2 min
+
+**Messwert:**
+
+#### M-211 · Kein Routing zwischen AP und STA (A-703)
 
 1. AP-Modus: Smartphone verbinden, Gateway/DNS in den Netzwerkdetails ablesen (DHCP ohne Gateway-Option).
-2. Mit Verbindung zum Router: der AP schaltet ab (L1); Zeit von der STA-IP (Log) bis zum Verschwinden des AP am Smartphone messen. Vorab S52b (2026-11-06, Log): AP 0,1 s nach `Connected` aus.
+2. Mit Verbindung zum Router: der AP schaltet ab (M-201); Zeit von der STA-IP (Log) bis zum Verschwinden des AP am Smartphone messen. Vorab S52b (2026-11-06, Log): AP 0,1 s nach `Connected` aus.
 3. Optional (Stufe 3): Laptop am Rückfall-AP mit statischer Route `route add <Heimnetz> mask <Maske> 192.168.4.1`, Zugriff auf einen Host im Heimnetz versuchen.
 
-**Soll:** kein Gateway per DHCP; AP aus ≤ 1 s nach der STA-IP (D14: das IDF leitet weiter, solange beide eine Adresse haben); optional: kein Host im Heimnetz erreichbar.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L-S7 · Keine Klartext-Passwörter im Flash (W-S14)
-
-`Geräte` PC (`esptool`) · `Dauer` 30 min
+#### M-212 · Keine Klartext-Passwörter im Flash (A-714)
 
 1. Eindeutige Test-Passwörter setzen (WLAN `Testpass-7f3a91`, Web-Passwort `Webpass-2c8d55`).
 2. NVS-Partition lesen (Offset und Größe aus der Partitionstabelle): `esptool --port COMx read_flash <offset> <size> nvs.bin`; zusätzlich `read_flash 0 0x400000 full.bin`.
 3. `strings nvs.bin full.bin | findstr /i "Testpass Webpass"`.
 4. Werksreset auslösen; Dump wiederholen.
 
-**Soll:** Web-Passwort nur als Hash; die WLAN-Passphrase liegt nach D15 (E-30) bewusst im Klartext in `hfnet` und erscheint sonst nirgends (nicht in `nvs.net80211`, nicht im Log); nach Werksreset weder `hfnet` noch `nvs.net80211` noch Coredump mit Inhalt.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L-S8 · `Remote outputs: local only` (W-S21)
+#### M-213 · `Remote outputs: local only` (A-721)
 
-`Bezug` W-E25, W-S21 · `Dauer` 20 min
+`Bezug` E-610, A-721
 
 1. CONFIG `Remote outputs` = `local only`.
 2. Per SCPI `OUTP1 ON`, per REST `{"enabled":true}` und über die Weboberfläche einschalten.
 3. `OUTP1 OFF` und Einschalten am Touch.
 4. Statusleiste `REMOTE <Quelle>`; Option per SCPI/Web nicht änderbar.
 
-**Soll:** Einschalten aus der Ferne abgelehnt (−221 bzw. 403); Ausschalten erlaubt; Touch schaltet weiter; Option nur am Touch änderbar.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L-S9 · Antwort-Header (W-S7)
-
-`Dauer` im Skriptlauf `web_check.py` / `contract_check.py`
+#### M-214 · Antwort-Header (A-707)
 
 1. `curl -i` auf `/`, `/api/state` und eine JS/CSS-Datei; Header lesen.
 
-**Soll:** CSP genau `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`; `nosniff`; `no-referrer`; `/api/*` mit `Cache-Control: no-store`; keine `Access-Control-*`.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L-S10 · Grenzen und Rate-Limits (W-S10, W-S11)
-
-`Dauer` im Skriptlauf `web_check.py` / `contract_check.py`
+#### M-215 · Grenzen und Rate-Limits (A-710, A-711)
 
 1. URL mit 300 B; Header mit 3 KB; Body 1 KB + 1 B → 413; Multipart und Chunked → 415; Anfrage mit 12 s Pause → Timeout.
 2. Fünfte HTTP-Verbindung und vierter WebSocket gleichzeitig.
 3. 50 Schreibbefehle in 1 s → 429 ab dem 21.; `GET /api/wifi/scan` zweimal in 10 s (zweite Antwort aus dem Zwischenspeicher).
 4. 5 falsche Logins → Sperre 30 s, dann verdoppelt.
 
-**Soll:** wie in W-S10 und W-S11.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### L-S11 · Web-Passwort und Sitzung (W-S13)
-
-`Dauer` im Skriptlauf `web_check.py` / `contract_check.py`
+#### M-216 · Web-Passwort und Sitzung (A-713)
 
 1. Passwort mit 7 Zeichen → abgelehnt; mit 8 Zeichen → angenommen.
 2. Login: `Set-Cookie` lesen (HttpOnly, SameSite=Strict, Ablauf 12 h); kaputte `Authorization`- und `Cookie`-Header senden.
 3. Antworten und Log auf das Passwort prüfen.
 
-**Soll:** wie W-S13; das Passwort erscheint nie in einer Ausgabe.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
 ---
 
 ## 6. Stufe 2 – Entscheidungsmessungen
 
-Jede Messung dieser Stufe trägt eine offene Entscheidung oder einen Handbuchwert. Sie läuft vor dem Folgeschritt im [ARBEITSPLAN.md](ARBEITSPLAN.md), am besten im selben Zeitraum wie der erste Stufe-1-Lauf (dann sind die Werte zugleich Referenz für L15 und den Vergleich nach der Migration). Vorher V4 b.
+Jede Messung dieser Stufe trägt eine offene Entscheidung oder einen Handbuchwert. Sie läuft vor der Folgeaufgabe im [ARBEITSPLAN.md](ARBEITSPLAN.md), am besten im selben Zeitraum wie der erste Stufe-1-Lauf (dann sind die Werte zugleich Referenz für M-318 und den Vergleich nach der Migration). Vorher M-004 b.
 
 ### 6.1 Entscheidungen und Messungen
 
@@ -945,40 +971,46 @@ Die Schwellen sind **Vorschläge**; sie werden vor der Messung bestätigt oder g
 
 | Entscheidung | Messungen | Vorgeschlagenes Kriterium | Folgeschritt |
 |---|---|---|---|
-| Standard-Tuning `Fractional` oder `Low noise` (E-19) | K5, F3, K6 (K7 in Stufe 1) | `Low noise` wird Standard, wenn die Nebenlinien innerhalb ±10 kHz um den Träger im Mittel ≥ 10 dB niedriger sind, die Abweichung ≤ 1,5 Hz bleibt (A-12) und die Aussetzer beim Abstimmen (K6) selten und kurz sind | N1 |
-| IQ-Abstimmen ohne Aussetzer | D3, D5, E9 | umsetzen, wenn die PLL-Änderung ohne Reset die Phase hält (D5, E9) und der Aussetzer in D3 > 1 ms stört | N2 |
-| Ungerade IQ-Teiler bei 180°/270° | E4 (Auswertung von E1, E2) | umsetzen, wenn der Phasenfehler bei ungeradem Teiler um > 1° größer ist als bei geradem | N3 |
-| Phasen-Feinabgleich | E3 (Auswertung von E1, E2), E9 | umsetzen, wenn der Phasenfehler systematisch > 1° ist | N4 |
-| `High-Z` über `CLKx_PDN`, MultiSynth abgeschalteter Kanäle abschalten (E-21) | K2 (Stufe 1), F7 | `PDN` für alle abgeschalteten Ausgänge, wenn der Pin dabei hochohmig ist (K2); MultiSynth abschalten, wenn ein abgeschalteter Kanal in F7 als Linie > −70 dBc sichtbar ist | N5 |
-| Abhilfen für Störquellen | F6 (F9 optional) | Backlight-PWM, I2C-Takt oder Neuzeichnen ändern, wenn ein Störer > −60 dBc im Frequenzbereich der Anwendung liegt | N6 |
-| TCXO-Option | C7 | empfehlen, wenn die Drift nach 15 min Aufwärmzeit > 0,5 ppm/h beträgt | N7 |
-| Aussage „50 % Tastverhältnis“ (A-1) | E5 | Handbuch und A-1 präzisieren, wenn die Abweichung > 2 % beträgt | S63 |
-| Pegeltabelle und LO-Hinweise im Handbuch | F2 (G1 optional) | Tabelle übernehmen | S63, N8 |
-| Aufwärmzeit im Handbuch | C7 | Zeit bis Drift < 0,1 ppm/10 min | S63 |
-| Leitung auf GND: Rückgabecode der IDF (E-17) | J6 | liefert die IDF nicht 5: `Blocked` und `NotFound` zusammenlegen; nach der Migration wiederholen | S39, S41 |
-| Klon-Module (MS5351M) akzeptieren (E-17) | J7 | Prüfregeln lockern, wenn ein echtes Modul abgelehnt wird | E-17 |
-| Druckaussetzer überbrücken, Wiederholung (U-20) | B12 | Überbrückungszeit aus der Verteilung der Aussetzer (heute bis 30 ms überbrückt, geplant 60–80 ms) | S33 |
-| Stift am Laborplatz (U-5) | B8 (Stufe 1), B19 optional | Stift empfehlen, wenn der Finger am Rand > 8 px abweicht | Handbuch |
-| WLAN während Messungen aus (ab WEB-HMI) | L13, L15 | Hinweis, wenn durch WLAN Nebenlinien > −60 dBc sichtbar sind | S58 |
-| Heap-Grenzen (W-S10, ab WEB-HMI) | Q1, L14 | Grenzwerte anpassen, wenn der minimale Heap im Dauertest sinkt | S57 |
+| Standard-Tuning `Fractional` oder `Low noise` (E-206) | M-301, M-302, M-303 (M-110 in Stufe 1) | `Low noise` wird Standard, wenn die Nebenlinien innerhalb ±10 kHz um den Träger im Mittel ≥ 10 dB niedriger sind, die Abweichung ≤ 1,5 Hz bleibt (A-213) und die Aussetzer beim Abstimmen (M-303) selten und kurz sind | FW-01 |
+| IQ-Abstimmen ohne Aussetzer | M-304, M-305, M-306 | umsetzen, wenn die PLL-Änderung ohne Reset die Phase hält (M-305, M-306) und der Aussetzer in M-304 > 1 ms stört | FW-02 |
+| Ungerade IQ-Teiler bei 180°/270° | M-308 (Auswertung von M-115, M-116) | umsetzen, wenn der Phasenfehler bei ungeradem Teiler um > 1° größer ist als bei geradem | FW-03 |
+| Phasen-Feinabgleich | M-307 (Auswertung von M-115, M-116), M-306 | umsetzen, wenn der Phasenfehler systematisch > 1° ist | FW-04 |
+| `High-Z` über `CLKx_PDN`, MultiSynth abgeschalteter Kanäle abschalten (E-208) | M-118 (Stufe 1), M-311 | `PDN` für alle abgeschalteten Ausgänge, wenn der Pin dabei hochohmig ist (M-118); MultiSynth abschalten, wenn ein abgeschalteter Kanal in M-311 als Linie > −70 dBc sichtbar ist | FW-05 |
+| Abhilfen für Störquellen | M-310 (M-418 optional) | Backlight-PWM, I2C-Takt oder Neuzeichnen ändern, wenn ein Störer > −60 dBc im Frequenzbereich der Anwendung liegt | FW-06 |
+| TCXO-Option | M-313 | empfehlen, wenn die Drift nach 15 min Aufwärmzeit > 0,5 ppm/h beträgt | DOK-02 |
+| Aussage „50 % Tastverhältnis“ (A-201) | M-309 | Handbuch und A-201 präzisieren, wenn die Abweichung > 2 % beträgt | DOK-01 |
+| Pegeltabelle und LO-Hinweise im Handbuch | M-312 (M-419 optional) | Tabelle übernehmen | DOK-01 |
+| Aufwärmzeit im Handbuch | M-313 | Zeit bis Drift < 0,1 ppm/10 min | DOK-01 |
+| Leitung auf GND: Rückgabecode der IDF (E-212) | M-314 | liefert die IDF nicht 5: `Blocked` und `NotFound` zusammenlegen; nach der Migration wiederholen | S39, S41 |
+| Klon-Module (MS5351M) akzeptieren (E-212) | M-315 | Prüfregeln lockern, wenn ein echtes Modul abgelehnt wird | E-212 |
+| Druckaussetzer überbrücken, Wiederholung (U-20) | M-316 | Überbrückungszeit aus der Verteilung der Aussetzer (heute bis 30 ms überbrückt, geplant 60–80 ms) | S33 |
+| Stift am Laborplatz (U-5) | M-126 (Stufe 1), M-433 optional | Stift empfehlen, wenn der Finger am Rand > 8 px abweicht | Handbuch |
+| WLAN während Messungen aus (ab WEB-HMI) | M-317, M-318 | Hinweis, wenn durch WLAN Nebenlinien > −60 dBc sichtbar sind | S58 |
+| Heap-Grenzen (A-710, A-726, ab WEB-HMI) | M-319, M-205 | Betriebsgrenze 40 KB / 16 KB eingehalten; sonst Speicherbedarf senken (z. B. Stack von `async_tcp`), nicht die Grenze | MES-04 |
 
 ### 6.2 Ablauf
 
 | Block | Messungen | Geräte | Dauer |
 |---|---|---|---|
-| 0 | V4 b; C7 am Morgen nach ≥ 2 h Ruhe starten (läuft 60 min unbeaufsichtigt) | SPEKTRUM, ZÄHLER | 30 min |
-| Tuning | K5, F3, K6 | SPEKTRUM, OSZI | 1 h 30 min |
-| IQ | D3, D5, E9, E5; Auswertung E3, E4 | OSZI, ZÄHLER | 1 h 30 min |
-| Störungen | F6, F7, F2 | SPEKTRUM | 1 h 25 min |
-| Bus und Touch | J6, J7, B12 | PC (Log), LOGIK optional | 45 min |
-| ab WEB-HMI | L13, L15, Q1 | SPEKTRUM, PC | 1 h 25 min |
+| 0 | M-004 b; M-313 am Morgen nach ≥ 2 h Ruhe starten (läuft 60 min unbeaufsichtigt) | SPEKTRUM, ZÄHLER | 30 min |
+| Tuning | M-301, M-302, M-303 | SPEKTRUM, OSZI | 1 h 30 min |
+| IQ | M-304, M-305, M-306, M-309; Auswertung M-307, M-308 | OSZI, ZÄHLER | 1 h 30 min |
+| Störungen | M-310, M-311, M-312 | SPEKTRUM | 1 h 25 min |
+| Bus und Touch | M-314, M-315, M-316 | PC (Log), LOGIK optional | 45 min |
+| ab WEB-HMI | M-317, M-318, M-319 | SPEKTRUM, PC | 1 h 25 min |
 | | **Summe** | | **≈ 6 h + 1,5 h** |
 
 ### 6.3 Tuning-Modi
 
-#### K5 · Tuning-Modi im Vergleich
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-301 | Tuning-Modi im Vergleich | SPEKTRUM; Aufbau 2 | zu dokumentieren; Grundlage für den Standardmodus (6.1). Die Zeile `Fractional` ersetzt M-302 b. | 45 min | i |
+| M-302 | Nebenlinien um den Träger | SPEKTRUM; Aufbau 2 | zu dokumentieren. | 20 min | i |
+| M-303 | Abstimmen in `Low noise` | OSZI | kein Aussetzer, solange der Teiler bleibt (Teiler 90 deckt 6,67 … 10 MHz ab); ein Aussetzer beim Übergang über 10,000 MHz (Teilerwechsel 90 → 88); dokumentieren. | 25 min | ☐ ✔ ☐ ✘ ☐ ○ |
 
-`Geräte` SPEKTRUM · `Aufbau` 2 · `Board` Messboard · `Bezug` E-19, N1 · `Dauer` 45 min
+#### M-301 · Tuning-Modi im Vergleich
+
+`Board` Messboard · `Bezug` E-206, FW-01
 
 1. CH1 = 7,1 MHz; Span 200 kHz, RBW 100 Hz, Mittelung 10; nacheinander `Fractional`, `Low noise`, `Integer` (bei `Integer` auf die Frequenz laut `Out` zentrieren, 7,102 273 MHz).
 2. Größte Nebenlinien in dBc und Abstand; Phasenrauschen bei 1 kHz Ablage.
@@ -989,15 +1021,14 @@ Die Schwellen sind **Vorschläge**; sie werden vor der Messung bestätigt oder g
 | Low noise | | | |
 | Integer | | | |
 
-**Soll:** zu dokumentieren; Grundlage für den Standardmodus (6.1). Die Zeile `Fractional` ersetzt F3 b.
-**Ergebnis:** i
+**Messwert:** in der Tabelle oben
 
-#### F3 · Nebenlinien um den Träger
+#### M-302 · Nebenlinien um den Träger
 
-`Geräte` SPEKTRUM · `Aufbau` 2 · `Bezug` E-19, N1 · `Dauer` 20 min
+`Bezug` E-206, FW-01
 
-1. Einstellungen wie K5, `Fractional`, Korrektur 0.
-2. a) 10,000 000 MHz (ganzzahliger Teiler); c) 7,100 000 MHz mit CH3 an (IQ: ganzzahliger Teiler, fraktionale PLL). Fall b (7,1 MHz fraktional) ist die Zeile `Fractional` in K5.
+1. Einstellungen wie M-301, `Fractional`, Korrektur 0.
+2. a) 10,000 000 MHz (ganzzahliger Teiler); c) 7,100 000 MHz mit CH3 an (IQ: ganzzahliger Teiler, fraktionale PLL). Fall b (7,1 MHz fraktional) ist die Zeile `Fractional` in M-301.
 3. Größte Nebenlinien innerhalb ±100 kHz in dBc und Abstand.
 
 | Zustand | Nebenlinien (dBc @ Abstand) | Eigenrauschen-Reserve (dB) |
@@ -1005,88 +1036,96 @@ Die Schwellen sind **Vorschläge**; sie werden vor der Messung bestätigt oder g
 | a) 10 MHz ganzzahlig | | |
 | c) 7,1 MHz + CH3 | | |
 
-**Soll:** zu dokumentieren.
-**Ergebnis:** i
+**Messwert:** in der Tabelle oben
 
-#### K6 · Abstimmen in `Low noise`
+#### M-303 · Abstimmen in `Low noise`
 
-`Geräte` OSZI · `Bezug` A-6, E-19, N1 · `Dauer` 25 min
+`Bezug` A-206, E-206, FW-01
 
 1. `Tuning` = `Low noise`; OSZI mit Timeout-Trigger auf CLK0.
 2. CH1 von 9,990 bis 10,010 MHz in 1-kHz-Schritten (je `+` einmal); außerdem 7,0 bis 7,2 MHz.
 3. Aussetzer zählen, Frequenz notieren.
 
-**Soll:** kein Aussetzer, solange der Teiler bleibt (Teiler 90 deckt 6,67 … 10 MHz ab); ein Aussetzer beim Übergang über 10,000 MHz (Teilerwechsel 90 → 88); dokumentieren.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Aussetzer, Dauer):
+**Messwert (Aussetzer, Dauer):**
 
 ### 6.4 IQ-Abstimmen und Phase
 
-#### D3 · IQ: Master abstimmen (Realignment)
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-304 | IQ: Master abstimmen (Realignment) | OSZI; Aufbau 3 | Aussetzer beider Ausgänge bei **jedem** Schritt (erwartet, auch bei einer Korrekturänderung); Dauer notieren. | 15 min | i |
+| M-305 | PLL-Änderung ohne Reset (nur Testbuild) | OSZI, ZÄHLER, Soundkarte oder SDR | zu dokumentieren; die IQ-Phase ist nach der Änderung unverändert (±1°); die Einschwingzeit ist so kurz, dass sie bei Versuchen nicht stört. | 30 min | i |
+| M-306 | Wiederholgenauigkeit nach Realignment | OSZI; Aufbau 3 | nach jedem Realignment wieder 90° (Mittelwert ± 1° + u_φ), Streuung < 0,5°. | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-307 | Ausgangs-Skew bei Phase 0° (Auswertung) | OSZI | konstanter Versatz (± u_t); Phasenfehler ≤ 1° bis 99 MHz, sonst Skew-Kompensation (FW-04). | 10 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-308 | 180° bei ungeradem Teiler (Auswertung) | – | Phasenfehler bei ungeradem Teiler höchstens 1° größer als bei geradem; sonst FW-03. | 5 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-309 | Tastverhältnis | OSZI | zu dokumentieren; die Doku verspricht 50 %. Abweichung > 2 % → Handbuch und A-201 präzisieren. | 15 min | i |
 
-`Geräte` OSZI · `Aufbau` 3 · `Bezug` A-17, N2 · `Dauer` 15 min
+#### M-304 · IQ: Master abstimmen (Realignment)
+
+`Bezug` A-218, FW-02
 
 1. CH1 = 10 MHz an, CH3 an (Master CH1, 90°). OSZI: beide Kanäle, Timeout-Trigger auf CLK0, Single.
 2. Schrittweite 1 kHz, `+` einmal tippen; Aussetzer beider Ausgänge messen (Dauer). 10 Wiederholungen.
 
-**Soll:** Aussetzer beider Ausgänge bei **jedem** Schritt (erwartet, auch bei einer Korrekturänderung); Dauer notieren.
-**Ergebnis:** i · Messwert (Dauer min / max in µs):
+**Messwert (Dauer min / max in µs):**
 
-#### D5 · PLL-Änderung ohne Reset (nur Testbuild)
+#### M-305 · PLL-Änderung ohne Reset (nur Testbuild)
 
-`Geräte` OSZI, ZÄHLER, Soundkarte oder SDR · `Bezug` N2, E-19 · `Dauer` 30 min · Build: PLL ohne Reset (zu erstellen)
+`Bezug` FW-02, E-206 · Build: PLL ohne Reset (zu erstellen)
 
 1. Testbuild flashen; Tuning `Low noise`.
 2. CH1 springt von 10,000 000 auf 10,001 000 MHz (NUMPAD und Schritttaste); SDR-Wasserfall oder ZÄHLER mit 1 ms Torzeit.
 3. Einschwingzeit und Überschwingen (Hz, ms) notieren; im IQ-Betrieb (CH3 90°) danach die Phase messen (Aufbau 3).
 4. Ab S35: auch ein Schritt über 112,5 MHz (dort setzt heute jeder Schritt die PLL zurück).
 
-**Soll:** zu dokumentieren; die IQ-Phase ist nach der Änderung unverändert (±1°); die Einschwingzeit ist so kurz, dass sie bei Versuchen nicht stört.
-**Ergebnis:** i · Messwert:
+**Messwert:**
 
-#### E9 · Wiederholgenauigkeit nach Realignment
+#### M-306 · Wiederholgenauigkeit nach Realignment
 
-`Geräte` OSZI · `Aufbau` 3 · `Bezug` A-17, N2, N4 · `Dauer` 15 min
+`Bezug` A-218, FW-02, FW-04
 
 1. CH1 = 10 MHz, CH3 90°. Master 10× um 1 kHz verstellen (`+`, `−` abwechselnd).
 2. Nach jedem Schritt (2 s Wartezeit) φ messen; Mittelwert und Standardabweichung.
 
-**Soll:** nach jedem Realignment wieder 90° (Mittelwert ± 1° + u_φ), Streuung < 0,5°.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Mittel, σ):
+**Messwert (Mittel, σ):**
 
-#### E3 · Ausgangs-Skew bei Phase 0° (Auswertung)
+#### M-307 · Ausgangs-Skew bei Phase 0° (Auswertung)
 
-`Geräte` OSZI · `Bezug` A-15, N4 · `Dauer` 10 min
+`Bezug` A-216, FW-04
 
-1. Δt bei 0° aus E1 (10 MHz) und E2 (4,73 / 14,2 / 99 MHz) übernehmen; optional 30 und 50 MHz bei 0° nachmessen.
-2. Prüfen, ob Δt unabhängig von f ist (konstanter Skew) und φ = Δt · f · 360° die Abweichungen in E1 und E2 erklärt.
+1. Δt bei 0° aus M-115 (10 MHz) und M-116 (4,73 / 14,2 / 99 MHz) übernehmen; optional 30 und 50 MHz bei 0° nachmessen.
+2. Prüfen, ob Δt unabhängig von f ist (konstanter Skew) und φ = Δt · f · 360° die Abweichungen in M-115 und M-116 erklärt.
 
-**Soll:** konstanter Versatz (± u_t); Phasenfehler ≤ 1° bis 99 MHz, sonst Skew-Kompensation (N4).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Δt je Frequenz):
+**Messwert (Δt je Frequenz):**
 
-#### E4 · 180° bei ungeradem Teiler (Auswertung)
+#### M-308 · 180° bei ungeradem Teiler (Auswertung)
 
-`Bezug` A-16, N3 · `Dauer` 5 min
+`Bezug` A-217, FW-03
 
-1. Phasenfehler bei 180° und 270° aus E2 (14,2 MHz, Teiler 63; 99 MHz, Teiler 9) gegen E1 (10 MHz, Teiler 90) vergleichen.
+1. Phasenfehler bei 180° und 270° aus M-116 (14,2 MHz, Teiler 63; 99 MHz, Teiler 9) gegen M-115 (10 MHz, Teiler 90) vergleichen.
 
-**Soll:** Phasenfehler bei ungeradem Teiler höchstens 1° größer als bei geradem; sonst N3.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### E5 · Tastverhältnis
+#### M-309 · Tastverhältnis
 
-`Geräte` OSZI · `Bezug` A-1, S63 · `Dauer` 15 min
+`Bezug` A-201, DOK-01
 
 1. Tastverhältnis = positive Impulsbreite / Periode, Schwelle 50 %, ≥ 100 Perioden gemittelt.
 2. CLK0 bei 7,1 MHz (fraktional) und 10 MHz (ganzzahlig), CLK2 bei 14,2 MHz (IQ, Teiler 63) und 99 MHz (Teiler 9).
 
-**Soll:** zu dokumentieren; die Doku verspricht 50 %. Abweichung > 2 % → Handbuch und A-1 präzisieren.
-**Ergebnis:** i · Messwert (% je Punkt):
+**Messwert (% je Punkt):**
 
 ### 6.5 Störungen und Pegel
 
-#### F6 · Störungen durch die Plattform
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-310 | Störungen durch die Plattform | SPEKTRUM | zu dokumentieren; Entscheidung über Abhilfen (6.1). | 45 min | i |
+| M-311 | Übersprechen CH1 ↔ CH2 | SPEKTRUM | zu dokumentieren (Übersprechen mit CH2 aus bzw. an). | 20 min | i |
+| M-312 | Ausgangspegel an 50 Ω (gekürzt) | SPEKTRUM | zu dokumentieren (Pegeltabelle fürs Handbuch; LO-Pegel für Mischer). | 20 min | i |
+| M-313 | Aufwärmdrift | ZÄHLER, REF, THERMO | zu dokumentieren; Aufwärmzeit fürs Handbuch (Zeit bis Drift < 0,1 ppm/10 min); TCXO-Entscheidung (6.1). M-411 lässt sich aus derselben Aufzeichnung auswerten. | 60 min (15 min aktiv; Start nach ≥ 2 h Ruhe) | i |
 
-`Geräte` SPEKTRUM · `Board` Messboard (zweites Board optional, Stufe 3) · `Bezug` E-23, N6 · `Dauer` 45 min
+#### M-310 · Störungen durch die Plattform
+
+`Board` Messboard (zweites Board optional, Stufe 3) · `Bezug` E-310, FW-06
 
 1. CH1 = 10 MHz; Span 20 kHz, RBW 10 Hz, Max-Hold 60 s; WLAN aus.
 2. **a) Backlight:** 100 / 50 / 10 %; Seitenlinien bei ±5 kHz (PWM) und Vielfachen.
@@ -1103,22 +1142,20 @@ Die Schwellen sind **Vorschläge**; sie werden vor der Messung bestätigt oder g
 | 2-s-Takt | | |
 | PC / Netzteil / Powerbank | | |
 
-**Soll:** zu dokumentieren; Entscheidung über Abhilfen (6.1).
-**Ergebnis:** i
+**Messwert:** in der Tabelle oben
 
-#### F7 · Übersprechen CH1 ↔ CH2
+#### M-311 · Übersprechen CH1 ↔ CH2
 
-`Geräte` SPEKTRUM · `Bezug` N5 · `Dauer` 20 min
+`Bezug` FW-05
 
 1. CH1 = 10 MHz an; CH2 = 10,1 MHz zuerst aus (MultiSynth läuft weiter), dann an.
 2. Spektrum an CLK0: Linie bei 10,1 MHz in dBc.
 
-**Soll:** zu dokumentieren (Übersprechen mit CH2 aus bzw. an).
-**Ergebnis:** i · Messwert:
+**Messwert:**
 
-#### F2 · Ausgangspegel an 50 Ω (gekürzt)
+#### M-312 · Ausgangspegel an 50 Ω (gekürzt)
 
-`Geräte` SPEKTRUM · `Bezug` S63, N8 · `Dauer` 20 min
+`Bezug` DOK-01
 
 1. CH1 an; Pegel der Grundwelle an 50 Ω (mit Dämpfungskorrektur): bei 10 MHz für Drive 2 / 4 / 6 / 8 mA, bei 1 / 30 / 100 MHz für 8 mA. Die volle Tabelle (alle Frequenzen × alle Drives) ist optional.
 
@@ -1129,79 +1166,82 @@ Die Schwellen sind **Vorschläge**; sie werden vor der Messung bestätigt oder g
 | 30 | – | – | – | |
 | 100 | – | – | – | |
 
-**Soll:** zu dokumentieren (Pegeltabelle fürs Handbuch; LO-Pegel für Mischer).
-**Ergebnis:** i
+**Messwert:** in der Tabelle oben
 
-#### C7 · Aufwärmdrift
+#### M-313 · Aufwärmdrift
 
-`Geräte` ZÄHLER, REF, THERMO · `Bezug` N7, S63 · `Dauer` 60 min (15 min aktiv; Start nach ≥ 2 h Ruhe)
+`Bezug` DOK-02, DOK-01
 
 1. Board und Modul mindestens 2 h stromlos, Raumtemperatur notieren.
-2. Einschalten, CH1 = 10 MHz (Korrektur nach C2), Torzeit 10 s, Aufzeichnung als `.csv` (`counter_log.py`, Anhang D).
+2. Einschalten, CH1 = 10 MHz (Korrektur nach M-108), Torzeit 10 s, Aufzeichnung als `.csv` (`counter_log.py`, Anhang D).
 3. 60 min laufen lassen; Raumtemperatur alle 15 min.
 4. Drift in ppm über der Zeit auftragen.
 
-**Soll:** zu dokumentieren; Aufwärmzeit fürs Handbuch (Zeit bis Drift < 0,1 ppm/10 min); TCXO-Entscheidung (6.1). C8 lässt sich aus derselben Aufzeichnung auswerten.
-**Ergebnis:** i · Messwert (Drift 0–15 min / 15–60 min in ppm):
+**Messwert (Drift 0–15 min / 15–60 min in ppm):**
 
 ### 6.6 Bus und Touch
 
-#### J6 · Leitung dauerhaft auf GND
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-314 | Leitung dauerhaft auf GND | PC (Log), LOGIK optional; Aufbau 5 | Code 5; Dialog „I2C line stays low …“; die GUI stockt < 100 ms; nach Entfernen verbunden. Liefert die IDF nicht 5: `Blocked` und `NotFound` zusammenlegen (E-212). Nach der Migration (S41) wiederholen; der Fake-Test aus S39 bildet die Annahme ab. | 15 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-315 | Registerdump und Klonwarnung | PC (Log) | Werte notieren; das Modul wird angenommen; Log ohne „Unexpected reg183“ (sonst Klonwarnung und Info-Karte `(clone?)`). | 10 min (+ 10 min je Klon) | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-316 | CONFIG wischen, Druckaussetzer (U-20, E-311) | – | 0 ungewollte Auslösungen; Verteilung der Aussetzer dokumentiert (Grundlage für die Überbrückungszeit in S33); keine Aussetzer > 70 ms bei normalem Druck (Überbrückung seit S33 70 ms). | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
 
-`Geräte` PC (Log), LOGIK optional · `Aufbau` 5 · `Board` Messboard · `Bezug` A-43, E-17, S39 · `Dauer` 15 min · Build: Debug
+#### M-314 · Leitung dauerhaft auf GND
+
+`Board` Messboard · `Bezug` A-223, E-212, S39 · Build: Debug
 
 1. SDA über ≤ 100 Ω nach GND legen, dann SCL.
 2. Rückgabecode im Debug-Log lesen; GUI-Bedienung prüfen (Tipps, Frame-Zeit).
 3. Fehler entfernen.
 
-**Soll:** Code 5; Dialog „I2C line stays low …“; die GUI stockt < 100 ms; nach Entfernen verbunden. Liefert die IDF nicht 5: `Blocked` und `NotFound` zusammenlegen (E-17). Nach der Migration (S41) wiederholen; der Fake-Test aus S39 bildet die Annahme ab.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Code vor / nach Migration):
+**Messwert (Code vor / nach Migration):**
 
-#### J7 · Registerdump und Klonwarnung
+#### M-315 · Registerdump und Klonwarnung
 
-`Geräte` PC (Log) · `Board` Messboard · `Bezug` A-42, E-17 · `Dauer` 10 min (+ 10 min je Klon) · Build: Debug
+`Board` Messboard · `Bezug` A-222, E-212 · Build: Debug
 
 1. Register 0, 3, 183 nach dem Einschalten aus dem Log lesen (eigenes Modul; wenn vorhanden auch MS5351M).
 
-**Soll:** Werte notieren; das Modul wird angenommen; Log ohne „Unexpected reg183“ (sonst Klonwarnung und Info-Karte `(clone?)`).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
-#### B12 · CONFIG wischen, Druckaussetzer (U-20, E-22)
+#### M-316 · CONFIG wischen, Druckaussetzer (U-20, E-311)
 
-`Board` beide · `Bezug` E-22, S33 · `Dauer` 20 min · Build: Touch-Log
+`Board` beide · `Bezug` E-311, S33 · Build: Touch-Log
 
 1. CONFIG: auf freier Fläche, auf Tasten (`Corr. +` mit Wiederholung) und auf Dropdowns wischen, je leicht und fest, je 10×.
 2. Während der Einrast-Animation einmal tippen.
 3. `+` auf der CH1-Seite 5 s halten (leicht und fest); Druckaussetzer (`gap`, `drop`) im Touch-Log zählen und ihre Dauer notieren.
 
-**Soll:** 0 ungewollte Auslösungen; Verteilung der Aussetzer dokumentiert (Grundlage für die Überbrückungszeit in S33); keine Aussetzer > 70 ms bei normalem Druck (Überbrückung seit S33 70 ms).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert (Auslösungen, Aussetzer min / max / Anzahl):
+**Messwert (Auslösungen, Aussetzer min / max / Anzahl):**
 
 ### 6.7 Ab WEB-HMI
 
-#### L13 · WLAN-Störungen im Spektrum
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-317 | WLAN-Störungen im Spektrum | SPEKTRUM; Aufbau 2 | zu dokumentieren; bei Linien > −60 dBc im nutzbaren Bereich Hinweis im Handbuch. | 45 min | i |
+| M-318 | WLAN aus entspricht 1.3.x | SPEKTRUM | Spektrum wie R0 (Linienpegel ± 3 dB, keine neuen Linien). | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
+| M-319 | Flash, RAM und Heap gegen die Basis | PC | Abweichung > 10 % begründen; minimaler Heap ≥ 40 KB, größter Block ≥ 16 KB (Betriebsgrenze A-726; die Schutzgrenze des Servers von 24 KB / 8 KB steht in A-710). Die R0-Vorwerte stammen vom Original-CYD ohne Modul mit dem Stand von S05/S06; beim ersten Stufe-1-Lauf durch Werte von 1.3.x ersetzen, wenn sie abweichen. | 20 min | ☐ ✔ ☐ ✘ ☐ ○ |
 
-`Geräte` SPEKTRUM · `Aufbau` 2 · `Bezug` WLAN-Vorabmessung (S49), F3 · `Dauer` 45 min
+#### M-317 · WLAN-Störungen im Spektrum
+
+`Bezug` WLAN-Vorabmessung (MES-03), M-302
 
 1. CH1 = 10 MHz an; Span 200 kHz, RBW 100 Hz, zusätzlich Span 2 kHz, RBW 10 Hz (Beacons im Abstand ≈ 102,4 ms können Seitenlinien im Abstand ≈ 10 Hz erzeugen).
 2. WLAN `Off`; `Client` im Leerlauf; `Client` mit Datenverkehr (Ping-Flut, drei Browser mit Live-Updates, SCPI-Skript 10 Befehle/s); `Access point` mit einer Station.
 3. Neue Nebenlinien (Abstand, dBc) gegenüber `Off` notieren.
 
-**Soll:** zu dokumentieren; bei Linien > −60 dBc im nutzbaren Bereich Hinweis im Handbuch.
-**Ergebnis:** i · Messwert:
+**Messwert:**
 
-#### L15 · WLAN aus entspricht 1.3.x
+#### M-318 · WLAN aus entspricht 1.3.x
 
-`Geräte` SPEKTRUM · `Dauer` 20 min
+1. WLAN `Off`; M-302 a und M-310 a wiederholen; mit den R0-Werten vergleichen.
 
-1. WLAN `Off`; F3 a und F6 a wiederholen; mit den R0-Werten vergleichen.
+**Messwert:**
 
-**Soll:** Spektrum wie R0 (Linienpegel ± 3 dB, keine neuen Linien).
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+#### M-319 · Flash, RAM und Heap gegen die Basis
 
-#### Q1 · Flash, RAM und Heap gegen die Basis
-
-`Geräte` PC · `Bezug` Build-Gate, Heap-Grenzen des WEB-HMI-Konzepts · `Dauer` 20 min · Build: Release und Debug
+`Bezug` Build-Gate, Heap-Grenzen (A-710, A-726) · Build: Release und Debug
 
 1. `pio run`: Flash und RAM (Bytes, %) aus der Build-Ausgabe.
 2. Debug-Build: freier Heap, minimaler Heap, größter Block, LVGL-Heap nach dem Boot und nach 5 min Bedienung.
@@ -1215,8 +1255,7 @@ Die Schwellen sind **Vorschläge**; sie werden vor der Messung bestätigt oder g
 | größter Block | 110 580 | | |
 | LVGL-Heap frei / max. belegt | 38 484 von 49 152 / 4 789 | | |
 
-**Soll:** Abweichung > 10 % begründen; minimaler Heap ≥ 40 KB, größter Block ≥ 16 KB (WEB-HMI-Konzept). Die R0-Vorwerte stammen vom Original-CYD ohne Modul mit dem Stand von S05/S06; beim ersten Stufe-1-Lauf durch Werte von 1.3.x ersetzen, wenn sie abweichen.
-**Ergebnis:** ☐ ✔ ☐ ✘ ☐ ○ · Messwert:
+**Messwert:**
 
 ---
 
@@ -1226,89 +1265,89 @@ Diese Messungen sind **kein Freigabekriterium**. Sie laufen bei Anlass (Befund, 
 
 ### 7.1 Robustheit und Fehlerfälle
 
-| Nr | Prüfung | Geräte, Build | Soll | Dauer |
-|---|---|---|---|---|
-| A8 | IQ-Fehlerzustand (alt 18b): CH1 10 MHz an, CH3 an (Master CH1), 270°; Status auf MAIN, Header, CH3-Seite; Dialoge zählen; dann 90° | OSZI, Build IQ-Fehler | CH3 `ERR` (Infozeile `IQ setup failed, retrying`), **ein** Dialog mit Kanal und Abhilfe, CH1 läuft ungestört; bei 90° nach ≤ 2 s `ON`, Log `[APP] Output error cleared` (host-getestet: `test_fault_iq`) | 10 min |
-| A11 | CLK2 im IQ-Fehlerzustand (C-1), im selben Flash wie A8: `Off state` `High`, `Low`, `High-Z` je 1 min bei `ERR` beobachten | OSZI (DC, 1 MΩ), Build IQ-Fehler | CLK2 schwingt **nicht**, nur der Ruhepegel (High ≈ 3,3 V, Low 0 V, High-Z undefiniert); Register host-getestet | 15 min |
-| J5 | Wackelkontakt: CH1 an, 30 s SDA-Kabel wackeln lassen; Log und Zähler | ZÄHLER | Frequenz nach Beruhigung richtig; eine Logzeile je Zustandswechsel | 10 min |
-| J8 | Modul ohne (bzw. mit abgetrennten) Pull-ups; booten, 10 min CH1 an | LOGIK | Erkennung bei 100 kHz; Betrieb mit 400 kHz stabil **oder** Log „I2C fails at 400 kHz; staying at 100 kHz“ und Betrieb mit 100 kHz stabil (host-getestet) | 20 min |
-| J9 | Dauer ohne Modul: Board ohne Modul, Debug-Build, 10 min; Heap alle 30 s; kann nebenbei während Stufe 1 laufen | Build Debug | Heap konstant (ein `Wire.end()`/`begin()` pro 2 s), keine wiederholten Logzeilen | 15 min |
-| J11 | Vertauschte Adern, Aktivität am Chip: LOGIK direkt am Modul, Kabel vertauscht, booten | LOGIK, Aufbau 5 | nur START/STOP und Fragmente, keine Schreibzugriffe auf Register 16 bis 183 (host-getestet) | 15 min |
-| J12 | 3,3 V offen: Modul nur mit GND und SDA/SCL booten; danach 3,3 V anschließen | LOGIK, DMM | „not found“, „line stays low“ oder „not an SI5351“, **kein Teilschreiben**; nach Anschluss von 3,3 V verbunden | 10 min |
-| J13 | GND offen, sonst wie J12 | LOGIK, DMM | wie J12 | 10 min |
-| J14 | Reset während I2C-Zugriff: Debug-Build mit Dauerlesen, 20× EN | LOGIK, Build Debug | nach jedem Boot verbunden (`[I2C] Line held low; releasing bus` erlaubt; host-getestet) | 20 min |
-| J15 | Fremdgerät auf 0x60 an CN1, booten | LOGIK, I2C-Modul 0x60 | Dialog „The device at I2C address 0x60 is not an SI5351“; höchstens ein Schreibzugriff (Register 3); keine weiteren Dialoge (host-getestet) | 15 min |
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-401 | IQ-Fehlerzustand: CH1 10 MHz an, CH3 an (Master CH1), 270°; Status auf MAIN, Header, CH3-Seite; Dialoge zählen; dann 90° | OSZI, Build IQ-Fehler | CH3 `ERR` (Infozeile `IQ setup failed, retrying`), **ein** Dialog mit Kanal und Abhilfe, CH1 läuft ungestört; bei 90° nach ≤ 2 s `ON`, Log `[APP] Output error cleared` (host-getestet: `test_fault_iq`) | 10 min | ☐ |
+| M-402 | CLK2 im IQ-Fehlerzustand (C-1), im selben Flash wie M-401: `Off state` `High`, `Low`, `High-Z` je 1 min bei `ERR` beobachten | OSZI (DC, 1 MΩ), Build IQ-Fehler | CLK2 schwingt **nicht**, nur der Ruhepegel (High ≈ 3,3 V, Low 0 V, High-Z undefiniert); Register host-getestet | 15 min | ☐ |
+| M-403 | Wackelkontakt: CH1 an, 30 s SDA-Kabel wackeln lassen; Log und Zähler | ZÄHLER | Frequenz nach Beruhigung richtig; eine Logzeile je Zustandswechsel | 10 min | ☐ |
+| M-404 | Modul ohne (bzw. mit abgetrennten) Pull-ups; booten, 10 min CH1 an | LOGIK | Erkennung bei 100 kHz; Betrieb mit 400 kHz stabil **oder** Log „I2C fails at 400 kHz; staying at 100 kHz“ und Betrieb mit 100 kHz stabil (host-getestet) | 20 min | ☐ |
+| M-405 | Dauer ohne Modul: Board ohne Modul, Debug-Build, 10 min; Heap alle 30 s; kann nebenbei während Stufe 1 laufen | Build Debug | Heap konstant (ein `Wire.end()`/`begin()` pro 2 s), keine wiederholten Logzeilen | 15 min | ☐ |
+| M-406 | Vertauschte Adern, Aktivität am Chip: LOGIK direkt am Modul, Kabel vertauscht, booten | LOGIK, Aufbau 5 | nur START/STOP und Fragmente, keine Schreibzugriffe auf Register 16 bis 183 (host-getestet) | 15 min | ☐ |
+| M-407 | 3,3 V offen: Modul nur mit GND und SDA/SCL booten; danach 3,3 V anschließen | LOGIK, DMM | „not found“, „line stays low“ oder „not an SI5351“, **kein Teilschreiben**; nach Anschluss von 3,3 V verbunden | 10 min | ☐ |
+| M-408 | GND offen, sonst wie M-407 | LOGIK, DMM | wie M-407 | 10 min | ☐ |
+| M-409 | Reset während I2C-Zugriff: Debug-Build mit Dauerlesen, 20× EN | LOGIK, Build Debug | nach jedem Boot verbunden (`[I2C] Line held low; releasing bus` erlaubt; host-getestet) | 20 min | ☐ |
+| M-410 | Fremdgerät auf 0x60 an CN1, booten | LOGIK, I2C-Modul 0x60 | Dialog „The device at I2C address 0x60 is not an SI5351“; höchstens ein Schreibzugriff (Register 3); keine weiteren Dialoge (host-getestet) | 15 min | ☐ |
 
 ### 7.2 HF-Charakterisierung und Ausbildung
 
-| Nr | Prüfung | Geräte | Soll | Dauer |
-|---|---|---|---|---|
-| C8 | Kurzzeitstabilität: nach der Aufwärmzeit CH1 10 MHz, Torzeit 1 s, 100 Werte (oder aus C7); Standardabweichung und Allan-Abweichung für τ = 1 s | ZÄHLER, REF | zu dokumentieren | 15 min |
-| E8 | Phasendrift: CH1 10 MHz, CH3 90°, 30 min alle 5 min φ, Raumtemperatur | OSZI, THERMO | Drift < 0,5° in 30 min | 35 min |
-| E10 | Ausbildungsaufbau: IQ an QSD (FST3253) oder zwei Mischer; Testsignal ±1 kHz um den LO; Seitenbandunterdrückung | SPEKTRUM, QSD | passt zu E1 bis E3 (1° ≈ 41 dB, 2° ≈ 35 dB) | 45 min |
-| F1 | Oberwellen: CH1 10 MHz, Drive 2 / 4 / 6 / 8 mA; Grundwelle (dBm) und 2. bis 5. Harmonische (dBc), Span 0 … 60 MHz, RBW 1 kHz | SPEKTRUM | zu dokumentieren; Rechteck mit 50 %: 3. ≈ −9,5 dBc, 5. ≈ −14 dBc, 2. und 4. sehr klein (sonst E5 prüfen) | 30 min |
-| F4 | Wechsel ganzzahlig → fraktional: wie F3 a mit Korrektur 0 und +0,01 ppm | SPEKTRUM | Nebenlinien erscheinen; dokumentieren | 15 min |
-| F5 | Phasenrauschen: CH1 10 und 14,2 MHz, Rauschmarker bei 100 Hz, 1 kHz, 10 kHz, 100 kHz; Eigenrauschen aus V4 b daneben | SPEKTRUM, REF | zu dokumentieren; < 6 dB über Eigenrauschen = obere Schranke (○) | 45 min |
-| F8 | Spektrum CLK2 gegen CLK0 (alt 10): CH3 IQ bei 4,73 und 10 MHz | SPEKTRUM | an CLK2 keine zusätzlichen Nebenlinien | 20 min |
-| F9 | Nahfeld: Ausgänge aus, WLAN aus; Sonde ≈ 1 cm über Display, ESP32-Modul, Ausgangsleitungen, Span 1–500 MHz; danach mit CH1 10 MHz (Mischprodukte?) | SPEKTRUM, SONDE | zu dokumentieren (40-MHz-Quarz, SPI 40 MHz, 25-MHz-Quarz des SI5351); ergänzt N6 und N10 | 45 min |
-| F6 (Board 2) | F6 am zweiten Board (Modul umstecken) | SPEKTRUM | wie F6 am Messboard | 45 min |
-| G1 | Diodenringmischer: `Off state` `Low`; LO = CH1 10 MHz auf +7 dBm (nach F2), RF = CH2 10,455 MHz über 30 dB; ZF bei 455 kHz und 20,455 MHz; Konversionsverlust, LO-Durchschlag | SPEKTRUM, MISCHER, Aufbau 4 | ZF bei 455 kHz und 20,455 MHz, Konversionsverlust ≈ 6–7 dB; LO-Durchschlag dokumentieren (N8) | 45 min |
-| G2 | Schwebung an der Soundkarte: CH1 10,000 MHz und CH2 10,001 MHz an den Mischer, ZF an Line-In, FFT ≥ 96 kHz | MISCHER, Soundkarte | sauberer 1-kHz-Ton; Seitenlinien und Rauschsockel dokumentieren (N8) | 30 min |
-| H4 | Oberwellen bei 455 kHz (ab S35): Spektrum 0 … 5 MHz | SPEKTRUM | zu dokumentieren; Tiefpass-Hinweis im Handbuch | 10 min |
-| K3 | Spread −0,5 % bei 10 MHz: Span 100 kHz um 9,975 MHz, RBW 1 kHz, Max-Hold; CH2 7,1 MHz am Zähler; Modulationsrate (Zero-Span an der Bandkante oder SDR-FM); `Out`-Zeile | SPEKTRUM, ZÄHLER | Band 9,95 … 10,00 MHz; Modulation ≈ 31,5 kHz; CH2 unverändert (±0,5 Hz + u); `Out 9.975 000 MHz mean, SSC -0.5 %` (Register host-getestet) | 30 min |
-| K4 | Spread mit IQ: `+/-0.5 %`, CH3 90°; Δt mit Spread aus und ein; Spektren beider Ausgänge | OSZI, SPEKTRUM | Phase bleibt (≤ 1° + u_φ); beide Ausgänge gleich breit | 30 min |
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-411 | Kurzzeitstabilität: nach der Aufwärmzeit CH1 10 MHz, Torzeit 1 s, 100 Werte (oder aus M-313); Standardabweichung und Allan-Abweichung für τ = 1 s | ZÄHLER, REF | zu dokumentieren | 15 min | ☐ |
+| M-412 | Phasendrift: CH1 10 MHz, CH3 90°, 30 min alle 5 min φ, Raumtemperatur | OSZI, THERMO | Drift < 0,5° in 30 min | 35 min | ☐ |
+| M-413 | Ausbildungsaufbau: IQ an QSD (FST3253) oder zwei Mischer; Testsignal ±1 kHz um den LO; Seitenbandunterdrückung | SPEKTRUM, QSD | passt zu M-115, M-116, M-307 (1° ≈ 41 dB, 2° ≈ 35 dB) | 45 min | ☐ |
+| M-414 | Oberwellen: CH1 10 MHz, Drive 2 / 4 / 6 / 8 mA; Grundwelle (dBm) und 2. bis 5. Harmonische (dBc), Span 0 … 60 MHz, RBW 1 kHz | SPEKTRUM | zu dokumentieren; Rechteck mit 50 %: 3. ≈ −9,5 dBc, 5. ≈ −14 dBc, 2. und 4. sehr klein (sonst M-309 prüfen) | 30 min | ☐ |
+| M-415 | Wechsel ganzzahlig → fraktional: wie M-302 a mit Korrektur 0 und +0,01 ppm | SPEKTRUM | Nebenlinien erscheinen; dokumentieren | 15 min | ☐ |
+| M-416 | Phasenrauschen: CH1 10 und 14,2 MHz, Rauschmarker bei 100 Hz, 1 kHz, 10 kHz, 100 kHz; Eigenrauschen aus M-004 b daneben | SPEKTRUM, REF | zu dokumentieren; < 6 dB über Eigenrauschen = obere Schranke (○) | 45 min | ☐ |
+| M-417 | Spektrum CLK2 gegen CLK0: CH3 IQ bei 4,73 und 10 MHz | SPEKTRUM | an CLK2 keine zusätzlichen Nebenlinien | 20 min | ☐ |
+| M-418 | Nahfeld: Ausgänge aus, WLAN aus; Sonde ≈ 1 cm über Display, ESP32-Modul, Ausgangsleitungen, Span 1–500 MHz; danach mit CH1 10 MHz (Mischprodukte?) | SPEKTRUM, SONDE | zu dokumentieren (40-MHz-Quarz, SPI 40 MHz, 25-MHz-Quarz des SI5351); ergänzt FW-06 und die Hinweise im Handbuch §13 | 45 min | ☐ |
+| M-310 (Board 2) | M-310 am zweiten Board (Modul umstecken) | SPEKTRUM | wie M-310 am Messboard | 45 min | ☐ |
+| M-419 | Diodenringmischer: `Off state` `Low`; LO = CH1 10 MHz auf +7 dBm (nach M-312), RF = CH2 10,455 MHz über 30 dB; ZF bei 455 kHz und 20,455 MHz; Konversionsverlust, LO-Durchschlag | SPEKTRUM, MISCHER, Aufbau 4 | ZF bei 455 kHz und 20,455 MHz, Konversionsverlust ≈ 6–7 dB; LO-Durchschlag dokumentieren (DOK-01) | 45 min | ☐ |
+| M-420 | Schwebung an der Soundkarte: CH1 10,000 MHz und CH2 10,001 MHz an den Mischer, ZF an Line-In, FFT ≥ 96 kHz | MISCHER, Soundkarte | sauberer 1-kHz-Ton; Seitenlinien und Rauschsockel dokumentieren (DOK-01) | 30 min | ☐ |
+| M-421 | Oberwellen bei 455 kHz (ab S35): Spektrum 0 … 5 MHz | SPEKTRUM | zu dokumentieren; Tiefpass-Hinweis im Handbuch | 10 min | ☐ |
+| M-422 | Spread −0,5 % bei 10 MHz: Span 100 kHz um 9,975 MHz, RBW 1 kHz, Max-Hold; CH2 7,1 MHz am Zähler; Modulationsrate (Zero-Span an der Bandkante oder SDR-FM); `Out`-Zeile | SPEKTRUM, ZÄHLER | Band 9,95 … 10,00 MHz; Modulation ≈ 31,5 kHz; CH2 unverändert (±0,5 Hz + u); `Out 9.975 000 MHz mean, SSC -0.5 %` (Register host-getestet) | 30 min | ☐ |
+| M-423 | Spread mit IQ: `+/-0.5 %`, CH3 90°; Δt mit Spread aus und ein; Spektren beider Ausgänge | OSZI, SPEKTRUM | Phase bleibt (≤ 1° + u_φ); beide Ausgänge gleich breit | 30 min | ☐ |
 
 ### 7.3 Bedienung
 
 Für die Tests mit Personen gelten die Bedingungen aus 2.4; Auswertung des Touch-Logs mit `touchstat.py` (Anhang D).
 
-| Nr | Prüfung | Personen, Build | Soll | Dauer |
-|---|---|---|---|---|
-| B4 | Numpad schließen mit Finger-Nachhalten (alt 13a): „5“ `kHz` bestätigen und Finger 0,5 s liegen lassen; dann „100“ `Hz` | Bediener | Kanalseite erscheint; das Numpad öffnet **nicht** erneut; Schrittweite unverändert | 5 min |
-| B9 | Trefferquote echter Ziele (U-4, U-6): P1 bis P5 je 20 Tipps auf Dialog-`OK`, `MAIN`, Phase `90`/`180`, Chips `1`/`1M`, `Corr. −`/`+`, CONFIG-Listeneintrag, Numpad `◀`/`C` | 5 Personen, Touch-Log | ≤ 2 % Fehltipps; **0** Nachbartreffer bei Phase und Schaltern | 45 min |
-| B10 | Karte öffnen ohne Schalten (U-3): CH1 OFF, 20× Karte über Frequenz bzw. `MHz` öffnen | P1, P2 | 0 ungewollte Schaltvorgänge | 15 min |
-| B13 | Halten über 5 s (U-20, enthält B2): Step 1 Hz, `+` 5 s halten (leicht und fest); Schritte zählen, erster Schritt und Takt aus der Frequenzänderung bzw. Video | Bediener, Touch-Log | heute erster Schritt nach ≈ 0,4 s, dann alle ≈ 0,1 s, ≈ 47 Schritte, kein Flackern, keine Unterbrechung; nach S33 die dort festgelegten Werte | 10 min |
-| B14 | Lesbarkeit aus der Entfernung (U-8): ≈ 500 lx; MAIN mit 10 Zustandskombinationen; 0,4 / 0,7 / 1,0 / 1,5 m, 0° / 30° / 45°, Backlight 30 / 80 / 100 % | P1 bis P5, LUX, VIDEO | ≥ 95 % bei 1,0 m für ON/OFF und Frequenz; Grenzentfernung je Element dokumentieren | 60 min |
-| B15 | Farbsehschwäche (U-7, U-19): Testperson mit Rot-Grün-Schwäche oder Fotos aus B6 mit Simulationsfilter | 1 Person oder Fotos | alle Zustände auch ohne Farbe unterscheidbar (Kontraste host-getestet: `test_contrast`) | 10 min |
-| B16 | Aufgabentest (Anhang C): T1 bis T7 erst ohne, dann mit Handbuch; laut denken; SUS und Verständnisfragen | 5 Lernende + Lehrende, VIDEO | Erfolg ohne Handbuch ≥ 80 % (T1 bis T3), SUS ≥ 70; Verständnisfragen ≥ 80 % richtig | 5 × 30 min |
-| B17 | Berührung beim Einschalten (U-10, enthält I5): 20× einschalten mit Daumen auf dem Display (0,5 bis 3 s, einmal > 3 s), einmal 1 s berühren und halten, bis die Hauptseite erscheint | Bediener, VIDEO | 20/20 richtiges Bild; kein Tipp landet in der GUI (seit 1.3.2 keine Boot-Geste, E-26) | 15 min |
-| B18 | Fehlerdialoge mit Testperson: A1 und A3 ausführen; Person liest vor und erklärt die Abhilfe | 1–2 Personen | Meldung verstanden; `OK` im ersten Versuch (U-21) | 20 min |
-| B19 | Eingabestift (U-5): B8 und B9 mit dem Stift (P1 bis P3) | 3 Personen, Trefferkarte | zu dokumentieren; Entscheidung „Stift am Laborplatz“ (6.1) | 30 min |
-| B20 | Spannungsausfall bemerken (U-22): CH1 an, Stecker unangekündigt ziehen; Zeit bis zum Bemerken; nach dem Anstecken: weiß die Person, dass sie einschalten muss? Änderung < 5 s vor dem Ziehen | 1–2 Personen | Ausfall innerhalb 30 s bemerkt; Verlust < 5 s alter Änderungen steht im Handbuch (Autosave host-getestet) | 20 min |
-| K10 | CONFIG scrollen (U-24): Einrasten, Scrollposition nach MAIN → CONFIG; eine Person, die CONFIG nicht kennt, sucht `Off state` ohne Hinweis | 1 Person, VIDEO | rastet an Zeilenkanten ein; Wischen löst nichts aus (B12); Scrollposition erhalten; Person erkennt ohne Hinweis, dass die Seite scrollt | 20 min |
-| K12 | Backlight (ersetzt B1): `−` bis 10 %, `+` bis 100 %; Halten wiederholt nicht; Lesbarkeit bei 10 % (≈ 500 lx); Wert nach Neustart | Bediener, LUX optional | Stufen 10 … 100 % (host-getestet); bei 10 % noch lesbar; Halten wiederholt nicht; Wert bleibt | 15 min |
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-424 | Numpad schließen mit Finger-Nachhalten: „5“ `kHz` bestätigen und Finger 0,5 s liegen lassen; dann „100“ `Hz` | Bediener | Kanalseite erscheint; das Numpad öffnet **nicht** erneut; Schrittweite unverändert | 5 min | ☐ |
+| M-425 | Trefferquote echter Ziele (U-4, U-6): P1 bis P5 je 20 Tipps auf Dialog-`OK`, `MAIN`, Phase `90`/`180`, Chips `1`/`1M`, `Corr. −`/`+`, CONFIG-Listeneintrag, Numpad `◀`/`C` | 5 Personen, Touch-Log | ≤ 2 % Fehltipps; **0** Nachbartreffer bei Phase und Schaltern | 45 min | ☐ |
+| M-426 | Karte öffnen ohne Schalten (U-3): CH1 OFF, 20× Karte über Frequenz bzw. `MHz` öffnen | P1, P2 | 0 ungewollte Schaltvorgänge | 15 min | ☐ |
+| M-427 | Halten über 5 s (U-20, enthält M-504): Step 1 Hz, `+` 5 s halten (leicht und fest); Schritte zählen, erster Schritt und Takt aus der Frequenzänderung bzw. Video | Bediener, Touch-Log | heute erster Schritt nach ≈ 0,4 s, dann alle ≈ 0,1 s, ≈ 47 Schritte, kein Flackern, keine Unterbrechung; nach S33 die dort festgelegten Werte | 10 min | ☐ |
+| M-428 | Lesbarkeit aus der Entfernung (U-8): ≈ 500 lx; MAIN mit 10 Zustandskombinationen; 0,4 / 0,7 / 1,0 / 1,5 m, 0° / 30° / 45°, Backlight 30 / 80 / 100 % | P1 bis P5, LUX, VIDEO | ≥ 95 % bei 1,0 m für ON/OFF und Frequenz; Grenzentfernung je Element dokumentieren | 60 min | ☐ |
+| M-429 | Farbsehschwäche (U-7, U-19): Testperson mit Rot-Grün-Schwäche oder Fotos aus M-123 mit Simulationsfilter | 1 Person oder Fotos | alle Zustände auch ohne Farbe unterscheidbar (Kontraste host-getestet: `test_contrast`) | 10 min | ☐ |
+| M-430 | Aufgabentest (Anhang C): T1 bis T7 erst ohne, dann mit Handbuch; laut denken; SUS und Verständnisfragen | 5 Lernende + Lehrende, VIDEO | Erfolg ohne Handbuch ≥ 80 % (T1 bis T3), SUS ≥ 70; Verständnisfragen ≥ 80 % richtig | 5 × 30 min | ☐ |
+| M-431 | Berührung beim Einschalten (U-10, enthält M-516): 20× einschalten mit Daumen auf dem Display (0,5 bis 3 s, einmal > 3 s), einmal 1 s berühren und halten, bis die Hauptseite erscheint | Bediener, VIDEO | 20/20 richtiges Bild; kein Tipp landet in der GUI (seit 1.3.2 keine Boot-Geste, E-302) | 15 min | ☐ |
+| M-432 | Fehlerdialoge mit Testperson: M-103 und M-105 ausführen; Person liest vor und erklärt die Abhilfe | 1–2 Personen | Meldung verstanden; `OK` im ersten Versuch (U-21) | 20 min | ☐ |
+| M-433 | Eingabestift (U-5): M-126 und M-425 mit dem Stift (P1 bis P3) | 3 Personen, Trefferkarte | zu dokumentieren; Entscheidung „Stift am Laborplatz“ (6.1) | 30 min | ☐ |
+| M-434 | Spannungsausfall bemerken (U-22): CH1 an, Stecker unangekündigt ziehen; Zeit bis zum Bemerken; nach dem Anstecken: weiß die Person, dass sie einschalten muss? Änderung < 5 s vor dem Ziehen | 1–2 Personen | Ausfall innerhalb 30 s bemerkt; Verlust < 5 s alter Änderungen steht im Handbuch (Autosave host-getestet) | 20 min | ☐ |
+| M-435 | CONFIG scrollen (U-24): Einrasten, Scrollposition nach MAIN → CONFIG; eine Person, die CONFIG nicht kennt, sucht `Off state` ohne Hinweis | 1 Person, VIDEO | rastet an Zeilenkanten ein; Wischen löst nichts aus (M-316); Scrollposition erhalten; Person erkennt ohne Hinweis, dass die Seite scrollt | 20 min | ☐ |
+| M-436 | Backlight (ersetzt die frühere Messung B1): `−` bis 10 %, `+` bis 100 %; Halten wiederholt nicht; Lesbarkeit bei 10 % (≈ 500 lx); Wert nach Neustart | Bediener, LUX optional | Stufen 10 … 100 % (host-getestet); bei 10 % noch lesbar; Halten wiederholt nicht; Wert bleibt | 15 min | ☐ |
 
 ### 7.4 Qualität
 
-| Nr | Prüfung | Geräte | Soll | Dauer |
-|---|---|---|---|---|
-| Q2 | Stromaufnahme, Mittel über 10 s: (a) Boot, Ausgänge aus, Backlight 100 %; (b) Backlight 10 %; (c) CH1 bis CH3 an (10 MHz, 8 mA, 50 Ω); (d) WLAN `Client` im Leerlauf; (e) `Access point` ohne Station; (f) 3 Web-Clients; (g) Spitzenwerte | STROM | zu dokumentieren; Hinweis für Netzteil oder Powerbank | 30 min |
-| Q3 | Bootzeit: Zeit bis zum ersten Bild, zur Hauptseite und zum Verbinden des Moduls, aus den Videos von I3 | VIDEO | zu dokumentieren; R1 höchstens 1 s länger als R0 | 10 min |
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-437 | Stromaufnahme, Mittel über 10 s: (a) Boot, Ausgänge aus, Backlight 100 %; (b) Backlight 10 %; (c) CH1 bis CH3 an (10 MHz, 8 mA, 50 Ω); (d) WLAN `Client` im Leerlauf; (e) `Access point` ohne Station; (f) 3 Web-Clients; (g) Spitzenwerte | STROM | zu dokumentieren; Hinweis für Netzteil oder Powerbank | 30 min | ☐ |
+| M-438 | Bootzeit: Zeit bis zum ersten Bild, zur Hauptseite und zum Verbinden des Moduls, aus den Videos von M-122 | VIDEO | zu dokumentieren; R1 höchstens 1 s länger als R0 | 10 min | ☐ |
 
 ### 7.5 WEB-HMI (optional, erst wenn die WEB-HMI existiert)
 
 Was hier steht, ist großteils durch die Host-Suites der WEB-HMI abgedeckt oder Komfort. Aufbau 7; nur im eigenen Labornetz.
 
-| Nr | Prüfung | Bezug | Soll | Dauer |
-|---|---|---|---|---|
-| L2 | Zwei WLANs speichern (A stärker); A ab, dann A ein und B ab; RSSI und gewähltes Netz | WiFiMulti | das stärkere Netz gewinnt; bei Misserfolg Wechsel | 30 min |
-| L4 | Statische IP: gültige Werte; ungültige (IP = Gateway, Broadcast, Netzadresse, außerhalb des Subnetzes) | W-S12, `test_net_settings` | gültige übernommen, ungültige mit Klartextmeldung abgelehnt | 20 min |
-| L5 | mDNS und Captive-DNS: `ping <name>.local` und `http://<name>.local` auf Windows, Android, iOS; im AP-Modus öffnet sich die Einrichtungsseite; im Client-Modus `nslookup example.com <Geräte-IP>` ohne Antwort | W-E6, W-S4 | Name löst auf; Captive-DNS nur im AP-Modus | 45 min |
-| L7 | Zweite SCPI-Verbindung (`nc <IP> 5025`) wird abgelehnt (Info-Karte `connected` / `rejected <IP>`); Leerlauf-Trennung nach 10 min; `Reconnect all` | W-S20 | wie angegeben | 30 min |
-| L8 | Web auf drei Clients: Änderungen live; Feld mit Fokus wird nicht überschrieben; vierter Client „Too many clients (max. 3)“; Netz trennen → Seite grau | – | wie angegeben | 30 min |
-| L9 | Tastaturbedienung im Browser: `↑`/`↓`, `←`/`→`, `Bild↑`/`Bild↓`, Mausrad, `1`/`2`/`3`, `F`/`Enter`/`Esc`, `O`, `?`; `Space` | WEB-HMI-Konzept | Belegung wie im Konzept; `Space` schaltet nichts | 20 min |
-| L10 | Zweistufige Netzänderung: ohne Bestätigung Rückfall nach 120 s; mit Bestätigung übernommen; ohne Web-Passwort zusätzlich Touch-Bestätigung | W-E9, W-S12 | Rückfall nach 120 s (± 5 s) | 20 min |
-| L16 | Einrichtung durch Novizen: W1 bis W3 (Anhang C), mit und ohne QR-Hilfe; war „mobile Daten aus“ nötig? | 5 Personen | ≥ 80 % Erfolg ohne Hilfe, ≤ 5 min je Aufgabe | 5 × 15 min |
-| L17 | 16-stelliges Passwort mit der Bildschirmtastatur (Finger und Stift) | 5 Personen | Abbruchquote < 10 %, mittlere Zeit < 3 min (Vorschlag) | 5 × 10 min |
-| L18 | Fremde Änderungen bemerken (Hervorhebung, `REMOTE <Quelle>`) | 1 Person | ≥ 90 % bemerkt | 20 min |
-| L19 | T1 bis T3 (Anhang C) im Browser nur mit der Tastatur | 1 Person | ≤ 1 Fehlbedienung je Aufgabe | 30 min |
-| L20 | `Identify` (bzw. `SYSTem:IDENtify`) mit ≥ 3 Geräten im Raum | W-E28 | richtiges Gerät in ≥ 95 % | 20 min |
-| L21 | Großansicht am Beamer aus 5 m | – | Frequenzen und Zustände lesbar | 15 min |
-| L22 | SCPI-Befehlsbaum vollständig: `tools/device_check.py --profile L22` mit gültigen und ungültigen Parametern, `SYSTem:ERRor?` nach jedem Befehl, Stichproben am ZÄHLER | W-S17, W-S19, `test_scpi` | alle Erwartungen erfüllt; keine Abstürze; Frequenzen nur als Ganzzahlen | 60 min |
-| L23 | REST: `GET /api/state` gegen die Anzeige; alle Schlüssel in `POST /api/config` und `/api/channel/<n>`; unbekannte Schlüssel und falsche Typen (`{"drive":"4"}`, `{"drive":4.5}`) | `test_rest_json` | Zustand stimmt; Fehler 400 mit `{"error":"-2xx,…"}` | 30 min |
-| L24 | `*RST` und Speichern: `*RST` → Ausgänge aus, Standardwerte; stromlos → alte Werte zurück; `*RST` + `SYSTem:SAVE` + Neustart → Standardwerte | W-E19, C-17, `test_command` | `*RST` speichert nicht; nach `SYSTem:SAVE` gelten die Standardwerte | 15 min |
-| L-S12 | Gerätename, mDNS, IPv6 (W-S4, W-S16): ungültige Namen und SSIDs abgelehnt; TXT-Einträge ohne Version und Commit; `Host: <name>.local` und `<IP>` akzeptiert, anderer Host 421; `curl -6` ohne Verbindung | `dns-sd` / `avahi-browse` | wie W-S16 und W-S4 | 20 min |
-| L-S13 | WPA2 und PMF (W-S15): Router-Log bzw. Wireshark; RSN-Element der AP-Beacons; Router nur mit WPA/TKIP | Wireshark optional | WPA2 mindestens; PMF capable; WPA/TKIP abgelehnt | 30 min |
+| ID | Was | Aufbau / Geräte | Bestanden, wenn | Dauer | Ergebnis |
+|---|---|---|---|---|---|
+| M-439 | Zwei WLANs speichern (A stärker); A ab, dann A ein und B ab; RSSI und gewähltes Netz · Bezug: WiFiMulti | Aufbau 7 | das stärkere Netz gewinnt; bei Misserfolg Wechsel | 30 min | ☐ |
+| M-440 | Statische IP: gültige Werte; ungültige (IP = Gateway, Broadcast, Netzadresse, außerhalb des Subnetzes) · Bezug: A-712, `test_net_settings` | Aufbau 7 | gültige übernommen, ungültige mit Klartextmeldung abgelehnt | 20 min | ☐ |
+| M-441 | mDNS und Captive-DNS: `ping <name>.local` und `http://<name>.local` auf Windows, Android, iOS; im AP-Modus öffnet sich die Einrichtungsseite; im Client-Modus `nslookup example.com <Geräte-IP>` ohne Antwort · Bezug: E-506, A-704 | Aufbau 7 | Name löst auf; Captive-DNS nur im AP-Modus | 45 min | ☐ |
+| M-442 | Zweite SCPI-Verbindung (`nc <IP> 5025`) wird abgelehnt (Info-Karte `connected` / `rejected <IP>`); Leerlauf-Trennung nach 10 min; `Reconnect all` · Bezug: A-720 | Aufbau 7 | wie angegeben | 30 min | ☐ |
+| M-443 | Web auf drei Clients: Änderungen live; Feld mit Fokus wird nicht überschrieben; vierter Client „Too many clients (max. 3)“; Netz trennen → Seite grau | Aufbau 7 | wie angegeben | 30 min | ☐ |
+| M-444 | Tastaturbedienung im Browser: `↑`/`↓`, `←`/`→`, `Bild↑`/`Bild↓`, Mausrad, `1`/`2`/`3`, `F`/`Enter`/`Esc`, `O`, `?`; `Space` · Bezug: `data/www/README.md` | Aufbau 7 | Belegung wie in `data/www/README.md`; `Space` schaltet nichts | 20 min | ☐ |
+| M-445 | Zweistufige Netzänderung: ohne Bestätigung Rückfall nach 120 s; mit Bestätigung übernommen; ohne Web-Passwort zusätzlich Touch-Bestätigung · Bezug: E-618, A-712 | Aufbau 7 | Rückfall nach 120 s (± 5 s) | 20 min | ☐ |
+| M-446 | Einrichtung durch Novizen: W1 bis W3 (Anhang C), mit und ohne QR-Hilfe; war „mobile Daten aus“ nötig? | Aufbau 7; 5 Personen | ≥ 80 % Erfolg ohne Hilfe, ≤ 5 min je Aufgabe | 5 × 15 min | ☐ |
+| M-447 | 16-stelliges Passwort mit der Bildschirmtastatur (Finger und Stift) | Aufbau 7; 5 Personen | Abbruchquote < 10 %, mittlere Zeit < 3 min (Vorschlag) | 5 × 10 min | ☐ |
+| M-448 | Fremde Änderungen bemerken (Hervorhebung, `REMOTE <Quelle>`) | Aufbau 7; 1 Person | ≥ 90 % bemerkt | 20 min | ☐ |
+| M-449 | T1 bis T3 (Anhang C) im Browser nur mit der Tastatur | Aufbau 7; 1 Person | ≤ 1 Fehlbedienung je Aufgabe | 30 min | ☐ |
+| M-450 | `Identify` (bzw. `SYSTem:IDENtify`) mit ≥ 3 Geräten im Raum · Bezug: E-613 | Aufbau 7 | richtiges Gerät in ≥ 95 % | 20 min | ☐ |
+| M-451 | Großansicht am Beamer aus 5 m | Aufbau 7 | Frequenzen und Zustände lesbar | 15 min | ☐ |
+| M-452 | SCPI-Befehlsbaum vollständig: `tools/device_check.py --profile M-452` mit gültigen und ungültigen Parametern, `SYSTem:ERRor?` nach jedem Befehl, Stichproben am ZÄHLER · Bezug: A-717, A-719, `test_scpi` | Aufbau 7 | alle Erwartungen erfüllt; keine Abstürze; Frequenzen nur als Ganzzahlen | 60 min | ☐ |
+| M-453 | REST: `GET /api/state` gegen die Anzeige; alle Schlüssel in `POST /api/config` und `/api/channel/<n>`; unbekannte Schlüssel und falsche Typen (`{"drive":"4"}`, `{"drive":4.5}`) · Bezug: `test_rest_json` | Aufbau 7 | Zustand stimmt; Fehler 400 mit `{"error":"-2xx,…"}` | 30 min | ☐ |
+| M-454 | `*RST` und Speichern: `*RST` → Ausgänge aus, Standardwerte; stromlos → alte Werte zurück; `*RST` + `SYSTem:SAVE` + Neustart → Standardwerte · Bezug: E-608, C-17, `test_command` | Aufbau 7 | `*RST` speichert nicht; nach `SYSTem:SAVE` gelten die Standardwerte | 15 min | ☐ |
+| M-455 | Gerätename, mDNS, IPv6 (A-704, A-716): ungültige Namen und SSIDs abgelehnt; TXT-Einträge ohne Version und Commit; `Host: <name>.local` und `<IP>` akzeptiert, anderer Host 421; `curl -6` ohne Verbindung | Aufbau 7; `dns-sd` / `avahi-browse` | wie A-716 und A-704 | 20 min | ☐ |
+| M-456 | WPA2 und PMF (A-715): Router-Log bzw. Wireshark; RSN-Element der AP-Beacons; Router nur mit WPA/TKIP | Aufbau 7; Wireshark optional | WPA2 mindestens; PMF capable; WPA/TKIP abgelehnt | 30 min | ☐ |
 
 ---
 
@@ -1318,45 +1357,45 @@ Was hier steht, ist großteils durch die Host-Suites der WEB-HMI abgedeckt oder 
 
 Die Nummern bleiben reserviert, damit Verweise auflösbar bleiben.
 
-| Nr | Titel | Grund |
+| ID | Titel | Grund |
 |---|---|---|
-| A6 | Start ohne Rauschen | in I3 aufgegangen (Kaltstarts mit Blick auf Beleuchtung und erstes Bild) |
-| A7 | Flashen beider Boards | jeder Smoke-Test flasht beide Boards mit derselben Firmware; CI baut die Umgebungen; die Erkennung prüft I3 |
-| A9 | Pegel im Zustand OFF, Werkseinstellung | in K1 aufgegangen (K1 misst `Low` jetzt an CLK0 bis CLK2) |
-| B2 | Wiederholung beim Halten | in B13 aufgegangen (B13 misst ersten Schritt und Takt mit) |
-| B3 | Numpad: ungültige und gültige Eingaben | Logik host-getestet (`test_input_logic`: Grenzen, Fehlertexte); Anzeige in B6 Schritt 2 |
-| B5 | Ziffer antippen | host-getestet (`charIndexAt`, Tap-Ziel, `stepMarkup`); Treffsicherheit zeigt B8 |
-| B11 | Trefferquote Ziffer-Antippen | entschieden in S26 (Ziffer-Antippen ist Komfortfunktion); Zuordnung host-getestet, Touch-Genauigkeit in B8 |
-| C4 | Korrektur +50 ppm bei kleinen Frequenzen | Korrekturrechnung und VCO-Grenzen host-getestet (S14, C-7); am Gerät nichts Neues gegenüber C2, C3 |
-| C5 | Korrektur um 1 ppm ändern | in D2 Schritt 3 aufgegangen; kein PLL-Reset host-getestet (`test_correction_change_does_not_reset_pll`) |
-| C6 | Hz-Schritte bei hoher Frequenz | 1-Hz-Raster bis 100 MHz host-getestet (`test_standalone_accuracy_*`); C3 misst 99,999 999 MHz |
-| D4 | IQ: Korrektur ändern | derselbe Realignment-Mechanismus wie D3 (host-getestet); D3 reicht für N2 |
-| E6 | CH3 wartet unter 4,730 MHz | host-getestet (`test_ch3_below_iq_range_waits_and_resumes`); WAIT-Anzeige in B6 |
-| E7 | Korrektur −1 ppm bei 100 MHz mit IQ | host-getestet (`test_iq_vco_stays_in_range_at_iq_limits`, VCO-Grenzen mit Korrektur seit S14) |
-| H3 | CH3 über 100 MHz | Testfall `FreqTooHigh` mit Master > 100 MHz kommt mit S35 als Host-Test |
-| I4 | Gespeicherte Wahl der alten Boot-Geste wird gelöscht | host-getestet (`test_stored_display_choice_is_removed_once`); beide Boards zeigen seit 1.3.2 `detected` (Smoke-Test S30); 1.3.1 dafür nachzuflashen lohnt nicht |
-| I5 | Lange Berührung beim Einschalten | in B17 aufgegangen |
-| I6 | Kurze Berührung beim Einschalten | Boot-Geste entfernt (S27, E-26); es gibt nichts mehr umzuschalten |
-| I8 | A, B und F6 mit der Einheitsfirmware | Doppelung: die board-abhängigen Prüfungen (I3, B6, B7, B8, optional F6) laufen ohnehin auf beiden Boards |
-| J3 | Anstecken nach dem Boot (gerade und vertauscht) | in A2 aufgegangen; host-getestet (`test_hot_plug_straight_then_swapped`) |
-| J4 | Im Betrieb abziehen und vertauscht wieder anstecken | host-getestet (`test_rewiring_while_running_restores_iq`); am Gerät decken A3 (Abziehen), A4 (IQ nach Chip-Neustart) und J2 (vertauscht) das Verhalten ab |
-| J10 | CN1-Belegung auf dem CYD2USB | durch Betrieb belegt: das CYD2USB verbindet sich über CN1 (Smoke-Tests 1.3.1 und 1.3.2); J1 und J2 laufen auf ihm |
-| K11 | `Integer` sperrt Spread | host-getestet (`test_integer_mode_turns_spread_off`); gesperrte Zeile in B6 sichtbar |
-| K13 | „~“ nach dem Neustart (C-2) | host-getestet (Bootreihenfolge S08, `test_actual_frequency_known_only_after_stored_settings`) |
-| K14 | Unnötige Flash-Schreibvorgänge (C-5) | host-getestet (`test_unchanged_settings_do_not_write_flash`, S11) |
-| L11 | Speicherfristen je Quelle | wird mit S45 host-getestet (`test_command`: Fristen 5 s / 30 s, ON/OFF speichert nicht), analog K14 |
+| M-501 | Start ohne Rauschen | in M-122 aufgegangen (Kaltstarts mit Blick auf Beleuchtung und erstes Bild) |
+| M-502 | Flashen beider Boards | jeder Smoke-Test flasht beide Boards mit derselben Firmware; CI baut die Umgebungen; die Erkennung prüft M-122 |
+| M-503 | Pegel im Zustand OFF, Werkseinstellung | in M-117 aufgegangen (M-117 misst `Low` jetzt an CLK0 bis CLK2) |
+| M-504 | Wiederholung beim Halten | in M-427 aufgegangen (M-427 misst ersten Schritt und Takt mit) |
+| M-505 | Numpad: ungültige und gültige Eingaben | Logik host-getestet (`test_input_logic`: Grenzen, Fehlertexte); Anzeige in M-123 Schritt 2 |
+| M-506 | Ziffer antippen | host-getestet (`charIndexAt`, Tap-Ziel, `stepMarkup`); Treffsicherheit zeigt M-126 |
+| M-507 | Trefferquote Ziffer-Antippen | entschieden in S26 (Ziffer-Antippen ist Komfortfunktion); Zuordnung host-getestet, Touch-Genauigkeit in M-126 |
+| M-508 | Korrektur +50 ppm bei kleinen Frequenzen | Korrekturrechnung und VCO-Grenzen host-getestet (S14, C-7); am Gerät nichts Neues gegenüber M-108, M-109 |
+| M-509 | Korrektur um 1 ppm ändern | in M-114 Schritt 3 aufgegangen; kein PLL-Reset host-getestet (`test_correction_change_does_not_reset_pll`) |
+| M-510 | Hz-Schritte bei hoher Frequenz | 1-Hz-Raster bis 100 MHz host-getestet (`test_standalone_accuracy_*`); M-109 misst 99,999 999 MHz |
+| M-511 | IQ: Korrektur ändern | derselbe Realignment-Mechanismus wie M-304 (host-getestet); M-304 reicht für FW-02 |
+| M-512 | CH3 wartet unter 4,730 MHz | host-getestet (`test_ch3_below_iq_range_waits_and_resumes`); WAIT-Anzeige in M-123 |
+| M-513 | Korrektur −1 ppm bei 100 MHz mit IQ | host-getestet (`test_iq_vco_stays_in_range_at_iq_limits`, VCO-Grenzen mit Korrektur seit S14) |
+| M-514 | CH3 über 100 MHz | Testfall `FreqTooHigh` mit Master > 100 MHz kommt mit S35 als Host-Test |
+| M-515 | Gespeicherte Wahl der alten Boot-Geste wird gelöscht | host-getestet (`test_stored_display_choice_is_removed_once`); beide Boards zeigen seit 1.3.2 `detected` (Smoke-Test S30); 1.3.1 dafür nachzuflashen lohnt nicht |
+| M-516 | Lange Berührung beim Einschalten | in M-431 aufgegangen |
+| M-517 | Kurze Berührung beim Einschalten | Boot-Geste entfernt (S27, E-302); es gibt nichts mehr umzuschalten |
+| M-518 | Messungen der früheren Gruppen A und B und M-310 mit der Einheitsfirmware | Doppelung: die board-abhängigen Prüfungen (M-122, M-123, M-125, M-126, optional M-310) laufen ohnehin auf beiden Boards |
+| M-519 | Anstecken nach dem Boot (gerade und vertauscht) | in M-104 aufgegangen; host-getestet (`test_hot_plug_straight_then_swapped`) |
+| M-520 | Im Betrieb abziehen und vertauscht wieder anstecken | host-getestet (`test_rewiring_while_running_restores_iq`); am Gerät decken M-105 (Abziehen), M-106 (IQ nach Chip-Neustart) und M-102 (vertauscht) das Verhalten ab |
+| M-521 | CN1-Belegung auf dem CYD2USB | durch Betrieb belegt: das CYD2USB verbindet sich über CN1 (Smoke-Tests 1.3.1 und 1.3.2); M-101 und M-102 laufen auf ihm |
+| M-522 | `Integer` sperrt Spread | host-getestet (`test_integer_mode_turns_spread_off`); gesperrte Zeile in M-123 sichtbar |
+| M-523 | „~“ nach dem Neustart (C-2) | host-getestet (Bootreihenfolge S08, `test_actual_frequency_known_only_after_stored_settings`) |
+| M-524 | Unnötige Flash-Schreibvorgänge (C-5) | host-getestet (`test_unchanged_settings_do_not_write_flash`, S11) |
+| M-525 | Speicherfristen je Quelle | wird mit S45 host-getestet (`test_command`: Fristen 5 s / 30 s, ON/OFF speichert nicht), analog M-524 |
 
 ### 8.2 Erledigt
 
-I0 bis I2 sind am 2026-10-28 gelaufen (Messwerte in Spezifikation E-18). Nach dem Flashen der Einheitsfirmware: 5/5 EN-Resets je Board richtig erkannt (Original-CYD: ILI9341, ID 000000; CYD2USB: ST7789, ID 8181B3). Die Ports waren damals vertauscht (COM13 Original-CYD, COM7 CYD2USB); seit 2026-11-04 gilt die Zuordnung aus 1.4.
+M-526 bis M-528 sind am 2026-10-28 gelaufen (Messwerte in Spezifikation E-301). Nach dem Flashen der Einheitsfirmware: 5/5 EN-Resets je Board richtig erkannt (Original-CYD: ILI9341, ID 000000; CYD2USB: ST7789, ID 8181B3). Die Ports waren damals vertauscht (COM13 Original-CYD, COM7 CYD2USB); seit 2026-11-04 gilt die Zuordnung aus 1.4.
 
-| Nr | Test | Ergebnis |
+| ID | Test | Ergebnis |
 |---|---|---|
-| I0 | Diagnose-Sketch: MADCTL-Rücklesen, RDDID, Pull an GPIO12, SPI-Modus 0/3, Schreiben mit 40 MHz | ✔ erledigt 2026-10-28, siehe Spezifikation E-18 |
-| I1 | Original-CYD einschalten: Log „ILI9341 (detected)“, Bild, Farben, Ausrichtung, Touch | ✔ 2026-10-28: Bild OK, Touch (Dialog „OK“) OK; Ecken siehe B8 |
-| I2 | CYD2USB einschalten: Log „ST7789 (detected)“, Bild, Farben, Ausrichtung, Touch | ✔ 2026-10-28: Bild OK, Touch (Dialog „OK“) OK; Ecken siehe B8 |
+| M-526 | Diagnose-Sketch: MADCTL-Rücklesen, RDDID, Pull an GPIO12, SPI-Modus 0/3, Schreiben mit 40 MHz | ✔ erledigt 2026-10-28, siehe Spezifikation E-301 |
+| M-527 | Original-CYD einschalten: Log „ILI9341 (detected)“, Bild, Farben, Ausrichtung, Touch | ✔ 2026-10-28: Bild OK, Touch (Dialog „OK“) OK; Ecken siehe M-126 |
+| M-528 | CYD2USB einschalten: Log „ST7789 (detected)“, Bild, Farben, Ausrichtung, Touch | ✔ 2026-10-28: Bild OK, Touch (Dialog „OK“) OK; Ecken siehe M-126 |
 
-Q4 und Q5 sind ebenfalls am Gerät geprüft (2026-11-04, S09); sie stehen als bedingte Messungen in Stufe 1 (5.9), weil sie nach der Migration einmal wiederholt werden.
+M-128 und M-129 sind ebenfalls am Gerät geprüft (2026-11-04, S09); sie stehen als bedingte Messungen in Stufe 1 (5.9), weil sie nach der Migration einmal wiederholt werden.
 
 ---
 
@@ -1366,9 +1405,9 @@ Q4 und Q5 sind ebenfalls am Gerät geprüft (2026-11-04, S09); sie stehen als be
 
 | Stufe | Messungen | ✔ | ✘ | ○ | i | – | Befunde |
 |---|---|---|---|---|---|---|---|
-| 1 | J1, J2, A1 bis A5, A10, C1 bis C3, K7, D1, D2, E1, E2, K1, K2, K8, K9, I3, I7, B6 bis B8; bedingt H1, H2, Q4, Q5 | | | | | | |
-| 1W | L1, L3, L6, L12, L14, L-S1 bis L-S11 | | | | | | |
-| 2 | K5, F3, K6, D3, D5, E9, E3, E4, E5, F6, F7, F2, C7, J6, J7, B12; L13, L15, Q1 | | | | | | |
+| 1 | M-101 bis M-110, M-113 bis M-127; bedingt M-111, M-112, M-128, M-129 | | | | | | |
+| 1W | M-201 bis M-216 | | | | | | |
+| 2 | M-301 bis M-316; ab WEB-HMI M-317 bis M-319 | | | | | | |
 | 3 | nach Lauf | | | | | | |
 
 ### 9.2 Vergleich R0 gegen R1 (vor und nach der Migration)
@@ -1377,34 +1416,34 @@ Gleiches Messboard, gleiche Geräte; die Drift des Quarzes über die Klammermess
 
 | Größe | Messung | Zulässige Abweichung R1 gegen R0 |
 |---|---|---|
-| Frequenzgenauigkeit | C1, C3 | ≤ 0,5 Hz (Klammermessung) |
-| IQ-Phasen | E1, E2 | ≤ 1° (+ u_φ) |
-| Aussetzer beim Abstimmen | D1, D2 (K6, D3 falls gemessen) | keine zusätzlichen |
-| Pegel im Zustand OFF | K1, K2 | ± 0,1 V |
-| Erkennung und Verbindung | I3, J1, J2, A2 | 100 % wie R0 |
-| Touch | B7, B8 | gleich oder besser |
-| Nebenlinien, Störungen (falls Stufe 2 auf R0 lief) | F3, K5, F6 | ± 3 dB; keine neuen Linien über −70 dBc |
-| Boot und Heap | Q1, Q3 | ± 10 % (Q1), ≤ +1 s (Q3) |
+| Frequenzgenauigkeit | M-107, M-109 | ≤ 0,5 Hz (Klammermessung) |
+| IQ-Phasen | M-115, M-116 | ≤ 1° (+ u_φ) |
+| Aussetzer beim Abstimmen | M-113, M-114 (M-303, M-304 falls gemessen) | keine zusätzlichen |
+| Pegel im Zustand OFF | M-117, M-118 | ± 0,1 V |
+| Erkennung und Verbindung | M-122, M-101, M-102, M-104 | 100 % wie R0 |
+| Touch | M-125, M-126 | gleich oder besser |
+| Nebenlinien, Störungen (falls Stufe 2 auf R0 lief) | M-302, M-301, M-310 | ± 3 dB; keine neuen Linien über −70 dBc |
+| Boot und Heap | M-319, M-438 | ± 10 % (M-319), ≤ +1 s (M-438) |
 
 ### 9.3 Entscheidungsblatt
 
-Die Tabelle aus 6.1 wird mit den Messwerten ausgefüllt; jede Entscheidung kommt als E-n in die Spezifikation und als bestätigter oder gestrichener Folgeschritt in den [ARBEITSPLAN.md](ARBEITSPLAN.md):
+Die Tabelle aus 6.1 wird mit den Messwerten ausgefüllt; jede Entscheidung kommt als E-nnn in die Spezifikation und als bestätigter oder gestrichener Folgeschritt in den [ARBEITSPLAN.md](ARBEITSPLAN.md):
 
-| Entscheidung | Messwerte | Ergebnis | Folgeschritt / E-n |
+| Entscheidung | Messwerte | Ergebnis | Folgeschritt / E-nnn |
 |---|---|---|---|
-| Standard-Tuning | | | N1 |
-| IQ ohne Reset | | | N2 |
-| ungerade IQ-Teiler | | | N3 |
-| Phasen-Feinabgleich | | | N4 |
-| `High-Z` über PDN, MultiSynth aus | | | N5 |
-| Störquellen-Abhilfen | | | N6 |
-| TCXO | | | N7 |
-| Tastverhältnis, Pegeltabelle, Aufwärmzeit, Neustart-Hinweis | | | S63, N8 |
-| IDF-Rückgabecode, Klon-Module | | | S39, E-17 |
+| Standard-Tuning | | | FW-01 |
+| IQ ohne Reset | | | FW-02 |
+| ungerade IQ-Teiler | | | FW-03 |
+| Phasen-Feinabgleich | | | FW-04 |
+| `High-Z` über PDN, MultiSynth aus | | | FW-05 |
+| Störquellen-Abhilfen | | | FW-06 |
+| TCXO | | | DOK-02 |
+| Tastverhältnis, Pegeltabelle, Aufwärmzeit, Neustart-Hinweis | | | DOK-01 |
+| IDF-Rückgabecode, Klon-Module | | | S39, E-212 |
 | Druckaussetzer | | | S33 |
 | Stift am Laborplatz | | | Handbuch |
 | WLAN bei Messungen | | | S58 |
-| Heap-Grenzen | | | S57 |
+| Heap-Grenzen | | | MES-04 |
 
 ### 9.4 Freigabekriterien
 
@@ -1416,12 +1455,12 @@ Die Tabelle aus 6.1 wird mit den Messwerten ausgefüllt; jede Entscheidung kommt
 
 **Release 1.4.0:**
 
-1. Stufe 1 auf R1 vollständig mit ✔ (C3, E1, E2 mit ✔ oder begründetem ○), dazu Q4 und Q5 nach der Migration,
-2. Stufe 1W mit ✔; ein ✘ bei L-S stoppt die Freigabe; L14 ohne Neustart und mit stabilem Heap,
+1. Stufe 1 auf R1 vollständig mit ✔ (M-109, M-115, M-116 mit ✔ oder begründetem ○), dazu M-128 und M-129 nach der Migration,
+2. Stufe 1W mit ✔; ein ✘ bei M-206 bis M-216 stoppt die Freigabe; M-205 ohne Neustart und mit stabilem Heap,
 3. Vergleich R0/R1 (9.2) innerhalb der Grenzen,
 4. Stufe-2-Entscheidungen getroffen oder bewusst vertagt (Eintrag im Arbeitsplan),
 5. alle Befunde priorisiert im [ARBEITSPLAN.md](ARBEITSPLAN.md), keine offenen P0/P1,
-6. Handbuch DE und EN passen zu den Messwerten (K2-Hinweis, Pegeltabelle, Tastverhältnis, Aufwärmzeit, Neustart-Hinweis, WLAN-Hinweis, soweit gemessen).
+6. Handbuch DE und EN passen zu den Messwerten (Hinweis zu M-118, Pegeltabelle, Tastverhältnis, Aufwärmzeit, Neustart-Hinweis, WLAN-Hinweis, soweit gemessen).
 
 Stufe 3 ist kein Freigabekriterium.
 
@@ -1444,7 +1483,7 @@ Nach Korrekturen nur die betroffenen Messungen bzw. Blöcke (5.10) wiederholen, 
 | Touch-Abgleich (Werte von der Info-Karte bzw. aus dem Log) | |
 | Raumtemperatur / Luftfeuchte (Anfang, Ende) | |
 | Versorgung (PC-USB, Netzteil, Powerbank) | |
-| Korrektur nach C2 (ppm) | |
+| Korrektur nach M-108 (ppm) | |
 | Abweichungen vom Plan | |
 
 | Gerät | Modell | Seriennr. | Kalibrierdatum | Firmware/Einstellung |
@@ -1461,80 +1500,81 @@ Nach Korrekturen nur die betroffenen Messungen bzw. Blöcke (5.10) wiederholen, 
 
 ## Anhang B · Rückverfolgbarkeit
 
-### B.1 Anforderungen (A-n) und Entscheidungen
+### B.1 Anforderungen (A-nnn) und Entscheidungen (E-nnn)
 
 „Host“ heißt: durch Host-Tests abgedeckt, am Gerät nicht gemessen (Nummern in Klammern = entfallene Messungen).
 
-| Anforderung | Gerät: Stufe 1 | Stufe 2 / 3 | Host |
+| Anforderung / Entscheidung | Gerät: Stufe 1 | Stufe 2 / 3 | Host |
 |---|---|---|---|
-| A-1 | C3, H1 | E5 (2), F1 (3) | Genauigkeit (C6) |
-| A-2 | B6 | – | `test_input_logic` (B3) |
-| A-3 | K1 | – | – |
-| A-4 | A5 | B20 (3) | Autosave |
-| A-5 | – | F2 (2), F1 (3) | – |
-| A-6 | D2, K7 | D5, K5, K6 (2) | Teilerplanung |
-| A-7 | – | K3, K4 (3) | Spread (K11) |
-| A-8, A-9 | K1, K2 | A11 (3) | Off state |
-| A-10 | D1, D2 | – | kein PLL-Reset |
-| A-11 | C1, C2, D2 | – | Korrektur (C4, C5) |
-| A-12, A-13 | C3, K7 | – | Genauigkeit (C4, C6) |
-| A-14 | K7 | – | (K11, K13) |
-| A-15 bis A-17 | E1, E2 | D3, E3, E4, E9 (2), E8 (3) | Phasenregister, Realignment (D4, E7) |
-| A-18 | A4 | – | (E6, H3) |
-| A-19 | – | A8, A11 (3) | `test_fault_iq` |
-| A-20 bis A-22 | A5, K9 | – | Speichern (K14) |
-| A-23 | – | – | Host |
-| A-24, A-25 | B6, K8 | K10 (3) | – |
-| A-26 | B8 | B9, B14 (3) | – |
-| A-27 | B6 | – | – |
-| A-28, A-29 | B6 | B10 (3) | – |
-| A-30 | – | B12 (2), B4, B13 (3) | `test_input_logic` (B2, B5, B11) |
-| A-31 | K8, K9 | K12 (3) | – |
-| A-32 | B7, B8 | K10 (3) | `test_touch_cal`, `test_touch_filter` |
-| A-33 | I3 | – | (A6) |
-| A-34 bis A-38 | A1 bis A4, A10 | A8, B18 (3) | Wiederverbinden |
-| A-39 | A5 (Logzeilen) | – | (K14) |
-| A-40 | – | J-Gruppe (3) | Host |
-| A-41 bis A-43 | J1, J2, A2 | J6, J7 (2), J5, J8, J11 bis J15 (3) | Adern, Fremdgerät, Leitung low (J3, J4) |
-| A-44 | I3 | B17 (3) | `test_display_detect` (I4 bis I6) |
-| A-45 bis A-49 | K8 | – | Build, CI (A7) |
-| E-17 | J1, J2 | J6, J7 (2) | Identitätsprüfung |
-| E-18 | I3, I7 (I0 bis I2 erledigt) | – | `test_display_detect` (I8) |
-| E-19, E-20 | K7 | K5, K6, F3 (2), K3, K4, F4, F5 (3) | Teilerplanung, Spread |
-| E-21 | K1, K2 | A11 (3) | Off state |
-| E-22 | – | B12 (2), K10 (3) | – |
-| E-23 | – | F6 (2), K12 (3) | Backlight-Stufen |
-| E-24 | K8 | – | – |
+| A-201 | M-109, M-111 | M-309 (2), M-414 (3) | Genauigkeit (M-510) |
+| A-202 | M-123 | – | `test_input_logic` (M-505) |
+| A-203 | M-117 | – | – |
+| A-204 | M-120 | M-434 (3) | Autosave |
+| A-205 | – | M-312 (2), M-414 (3) | – |
+| A-206 | M-114, M-110 | M-305, M-301, M-303 (2) | Teilerplanung |
+| A-207 | – | M-422, M-423 (3) | Spread (M-522) |
+| A-208, A-209 | M-117, M-118 | M-402 (3) | Off state |
+| A-210 | M-113, M-114 | – | kein PLL-Reset |
+| A-212 | M-107, M-108, M-114 | – | Korrektur (M-508, M-509) |
+| A-213, A-214 | M-109, M-110 | – | Genauigkeit (M-508, M-510) |
+| A-215 | M-110 | – | (M-522, M-523) |
+| A-216 bis A-218 | M-115, M-116 | M-304, M-307, M-308, M-306 (2), M-412 (3) | Phasenregister, Realignment (M-511, M-513) |
+| A-219 | M-106 | – | (M-512, M-514) |
+| A-220 | – | M-401, M-402 (3) | `test_fault_iq` |
+| A-221 bis A-223 | M-101, M-102, M-104 | M-314, M-315 (2), M-403, M-404, M-406 bis M-410 (3) | Adern, Fremdgerät, Leitung low (M-519, M-520) |
+| A-224 | – | M-403, M-404, M-406 bis M-410 (3) | Host |
+| A-225 bis A-228, A-315 | M-103 bis M-106, M-119 | M-401, M-432 (3) | Wiederverbinden |
+| A-301 | M-122 | M-431 (3) | `test_display_detect` (M-515 bis M-517) |
+| A-302 | M-122 | – | (M-501) |
+| A-304, A-305 | M-123, M-124 | M-435 (3) | – |
+| A-306 | M-126 | M-425, M-428 (3) | – |
+| A-307 | M-123 | – | – |
+| A-308, A-309 | M-123 | M-426 (3) | – |
+| A-314 | M-124, M-121 | M-436 (3) | – |
+| A-316 | – | M-316 (2), M-424, M-427 (3) | `test_input_logic` (M-504, M-506, M-507) |
+| A-319 | M-125, M-126 | M-435 (3) | `test_touch_cal`, `test_touch_filter` |
+| A-401 bis A-403 | M-120, M-121 | – | Speichern (M-524) |
+| A-405 | – | – | Host |
+| A-406 | M-120 (Logzeilen) | – | (M-524) |
+| A-801 bis A-804, A-806 | M-124 | – | Build, CI (M-502) |
+| E-206, E-207 | M-110 | M-301, M-303, M-302 (2), M-422, M-423, M-415, M-416 (3) | Teilerplanung, Spread |
+| E-208 | M-117, M-118 | M-402 (3) | Off state |
+| E-212 | M-101, M-102 | M-314, M-315 (2) | Identitätsprüfung |
+| E-301 | M-122, M-127 (M-526 bis M-528 erledigt) | – | `test_display_detect` (M-518) |
+| E-310 | – | M-310 (2), M-436 (3) | Backlight-Stufen |
+| E-311 | – | M-316 (2), M-435 (3) | – |
+| E-805 | M-124 | – | – |
 
 ### B.2 Sicherheitsanforderungen der WEB-HMI
 
 | Anforderung | Messung (Stufe) |
 |---|---|
-| W-S1, W-S2 | L3, L-S1 (1W) |
-| W-S3 | L-S6 (1W) |
-| W-S4 | L-S1, L-S2 (1W), L-S12 (3) |
-| W-S5, W-S6 | L-S1, L-S2, L-S10 (1W) |
-| W-S7 | L-S9 (1W) |
-| W-S8, W-S9 | Q4 (1), L-S4 (1W) |
-| W-S10, W-S11 | L-S10 (1W), L-S5 (1W) |
-| W-S12 | L4, L10 (3), `test_net_settings` |
-| W-S13 | L-S11 (1W) |
-| W-S14 | L-S7 (1W) |
-| W-S15 | L-S13 (3) |
-| W-S16 | L-S12 (3) |
-| W-S17, W-S18 | L-S3 (1W), L22 (3) |
-| W-S19 | L22, L23 (3) |
-| W-S20 | L7 (3) |
-| W-S21 | L-S8 (1W) |
-| W-S22 | L6 (1W) |
-| W-S23 | L14 (1W), Q5 (1) |
-| W-S24, W-S25 | Eintrittskriterien EK-4, EK-5 |
+| A-701, A-702 | M-202, M-206 (1W) |
+| A-703 | M-211 (1W) |
+| A-704 | M-206, M-207 (1W), M-455 (3) |
+| A-705, A-706 | M-206, M-207, M-215 (1W) |
+| A-707 | M-214 (1W) |
+| A-708, A-709 | M-128 (1), M-209 (1W) |
+| A-710, A-711 | M-215 (1W), M-210 (1W) |
+| A-712 | M-440, M-445 (3), `test_net_settings` |
+| A-713 | M-216 (1W) |
+| A-714 | M-212 (1W) |
+| A-715 | M-456 (3) |
+| A-716 | M-455 (3) |
+| A-717, A-718 | M-208 (1W), M-452 (3) |
+| A-719 | M-452, M-453 (3) |
+| A-720 | M-442 (3) |
+| A-721 | M-213 (1W) |
+| A-722 | M-203 (1W) |
+| A-723 | M-205 (1W), M-129 (1) |
+| A-726 | M-205 (1W), M-319 (2) |
+| A-724, A-725 | Eintrittskriterien EK-4, EK-5 |
 
 ---
 
 ## Anhang C · Aufgaben und SUS-Fragebogen (Stufe 3)
 
-### C.1 Aufgaben für B16 (Reihenfolge fest, erst ohne, dann mit Handbuch)
+### C.1 Aufgaben für M-430 (Reihenfolge fest, erst ohne, dann mit Handbuch)
 
 | Nr | Aufgabe | Erfolg, wenn … |
 |---|---|---|
@@ -1548,7 +1588,7 @@ Nach Korrekturen nur die betroffenen Messungen bzw. Blöcke (5.10) wiederholen, 
 
 Verständnisfragen: „Was bedeutet `WAIT` bei CH3? `NO HW`? Die Zeile `Out`? Was macht `Corr.`? Was ist `Off state`? Was ändert `Tuning`?“
 
-WEB-HMI (L16): **W1** „Buche das Gerät in das Test-WLAN ein.“ · **W2** „Verbinde dein Smartphone mit dem Gerät (Access point) und öffne die Weboberfläche.“ · **W3** „Ändere im Browser die Frequenz von CH1 auf 10 MHz und schalte ihn ein.“
+WEB-HMI (M-446): **W1** „Buche das Gerät in das Test-WLAN ein.“ · **W2** „Verbinde dein Smartphone mit dem Gerät (Access point) und öffne die Weboberfläche.“ · **W3** „Ändere im Browser die Frequenz von CH1 auf 10 MHz und schalte ihn ein.“
 
 Je Aufgabe protokollieren: Erfolg (ja / nein / mit Hilfe), Zeit (s), Tipps (Touch-Log), Fehlgriffe, Zitate.
 
@@ -1576,7 +1616,7 @@ Antwort je Aussage: 1 (stimme gar nicht zu) bis 5 (stimme voll zu).
 Die beiden Skizzen unten sind Beispiele für eigene Skripte (Ordner `messungen/skripte/`); die Helfer der Liste liegen in `tools/` (AF39, `tools/README.md`) und sind gegen `tools/web_mock.py` und `tools/fake_scpi_device.py` geprüft, nicht am Gerät.
 
 ```python
-# scpi_tcp.py – 1000x *IDN? über TCP (L6)
+# scpi_tcp.py – 1000x *IDN? über TCP (M-203)
 import time, pyvisa
 rm = pyvisa.ResourceManager("@py")
 inst = rm.open_resource("TCPIP0::<IP>::5025::SOCKET")
@@ -1589,18 +1629,18 @@ t.sort(); print("median %.1f ms, p99 %.1f ms" % (t[500] * 1e3, t[990] * 1e3))
 ```
 
 ```python
-# scpi_usb.py – serielle Verbindung ohne Reset-Impuls (L6); vor Gebrauch am Board prüfen
+# scpi_usb.py – serielle Verbindung ohne Reset-Impuls (M-203); vor Gebrauch am Board prüfen
 import serial
 s = serial.Serial(); s.port = "COM7"; s.baudrate = 115200; s.timeout = 1
 s.dtr = False; s.rts = False; s.open()
 s.write(b"*IDN?\n"); print(s.readline())
 ```
 
-- `tools/counter_log.py` (C7, C8): liest den ZÄHLER per SCPI über TCP oder USB im Takt der Torzeit und schreibt `time;frequency;temperature` in eine CSV (Abfrage mit `--query` einstellbar, Temperatur mit `--temp-query`).
-- `tools/touchstat.py` (B8, B9, B12, B13): wertet `[HITMAP]`- und `[TOUCH]`-Zeilen aus: Abweichung je Zielkreuz, Fehltippquote (`--tolerance`), Druckdauer, kurze Pausen (Doppeltipp), Aussetzer, Berührungen je Widget.
-- L-S1, L-S9, L-S10, L-S11: `tools/web_check.py <IP>` (Header, Guard-Antworten, Grenzen, Rate-Limit, Sitzung; mit Passwort `--password`) und `tools/contract_check.py <IP>` (gemeinsame Vertragsvektoren, ohne Web-Passwort); die curl-Zeilen der Tests bleiben für die Fälle, die beide nicht abdecken (CORS-Header, Kanalzustand nach jedem Fall).
-- L22 und L6: `tools/device_check.py --profile L22` (jede Abfrage des Befehlsbaums mit `SYST:ERR?` danach, gültige und ungültige Parameter mit Soll-Fehlercode, `*RST`) und `--profile L6` (1000× `*IDN?`, Median < 50 ms).
-- `tools/slowloris.py` (L-S5): 30 offene Anfragen, ein Header-Byte alle 2 s, Abschluss nach 10 s; je Verbindung angenommen, abgewiesen, vom Gerät geschlossen (wann) oder beantwortet (nur im eigenen Labor).
+- `tools/counter_log.py` (M-313, M-411): liest den ZÄHLER per SCPI über TCP oder USB im Takt der Torzeit und schreibt `time;frequency;temperature` in eine CSV (Abfrage mit `--query` einstellbar, Temperatur mit `--temp-query`).
+- `tools/touchstat.py` (M-126, M-425, M-316, M-427): wertet `[HITMAP]`- und `[TOUCH]`-Zeilen aus: Abweichung je Zielkreuz, Fehltippquote (`--tolerance`), Druckdauer, kurze Pausen (Doppeltipp), Aussetzer, Berührungen je Widget.
+- M-206, M-214, M-215, M-216: `tools/web_check.py <IP>` (Header, Guard-Antworten, Grenzen, Rate-Limit, Sitzung; mit Passwort `--password`) und `tools/contract_check.py <IP>` (gemeinsame Vertragsvektoren, ohne Web-Passwort); die curl-Zeilen der Tests bleiben für die Fälle, die beide nicht abdecken (CORS-Header, Kanalzustand nach jedem Fall).
+- M-452 und M-203: `tools/device_check.py --profile M-452` (jede Abfrage des Befehlsbaums mit `SYST:ERR?` danach, gültige und ungültige Parameter mit Soll-Fehlercode, `*RST`) und `--profile M-203` (1000× `*IDN?`, Median < 50 ms).
+- `tools/slowloris.py` (M-210): 30 offene Anfragen, ein Header-Byte alle 2 s, Abschluss nach 10 s; je Verbindung angenommen, abgewiesen, vom Gerät geschlossen (wann) oder beantwortet (nur im eigenen Labor).
 
 ---
 
@@ -1608,13 +1648,13 @@ s.write(b"*IDN?\n"); print(s.readline())
 
 | Feld | Inhalt |
 |---|---|
-| Befund-Nr. | M-n |
-| Test, Lauf, Board | z. B. E2, R1, Board B |
+| Befund-Nr. | MB-n |
+| Mess-ID, Lauf, Board | z. B. M-116, R1, Board B |
 | Beobachtung / Messwert | |
 | Soll | |
 | Aufbau, Einstellungen, Foto/Screenshot | |
 | Reproduzierbar? (n von m) | |
 | Vermutete Ursache | |
 | Priorität (P0 Sicherheit/Blocker, P1 Fehler, P2 Verbesserung, P3 Hinweis) | |
-| Verweis (Arbeitsplan: Befund C/S/U, Schritt S-n/N-n; Spezifikation A/E) | |
+| Verweis (Arbeitsplan: Befund und Aufgabe FW-/DOC-/REL-/MES-/USR-nn; Spezifikation A-nnn/E-nnn) | |
 | Status, Datum Wiederholungstest | |

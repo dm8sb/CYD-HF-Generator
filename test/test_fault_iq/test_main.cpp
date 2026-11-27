@@ -129,7 +129,7 @@ static void test_master_on_after_error_keeps_clk2_off() {
     assertMasterRuns();
 }
 
-// E-12: one dialog, silent retries every 2 s, recovery after a working phase.
+// E-211: one dialog, silent retries every 2 s, recovery after a working phase.
 static void test_error_retries_quietly_and_clears() {
     Device d;
     startFaultyIQ(d);

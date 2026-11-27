@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// VXI-11 and its portmapper (A-78, E-37): XDR and RPC headers, record marking over TCP,
+// VXI-11 and its portmapper (A-615, E-614): XDR and RPC headers, record marking over TCP,
 // portmapper over UDP/TCP, the core channel against the real controller and the SI5351
 // register model. Calls are built and replies decoded here byte by byte, independently of the
 // encoder in remote/onc_rpc.cpp.
@@ -825,7 +825,7 @@ static void test_core_write_end_and_framing() {
     // LF and END together end the line once.
     TEST_ASSERT_EQUAL_STRING("1\n", d.query("*OPC?\n").c_str());
     TEST_ASSERT_EQUAL_STRING("0,\"No error\"\n", d.query("SYST:ERR?\r\n").c_str());
-    // Framing limits of SCPI over TCP (W-S17): an overlong line is -363.
+    // Framing limits of SCPI over TCP (A-717): an overlong line is -363.
     d.write(std::string(300, 'A') + "\n");
     TEST_ASSERT_EQUAL_STRING("-363,\"Input buffer overrun\"\n", d.query("SYST:ERR?\n").c_str());
     d.write(std::string("*IDN?\x01\n", 7));

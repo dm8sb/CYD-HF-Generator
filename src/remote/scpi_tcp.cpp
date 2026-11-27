@@ -68,7 +68,7 @@ void ScpiTcpLink::receive(const char* data, size_t len, uint32_t nowMs) {
         if (e == LineFramer::Event::None) continue;
         lastLineMs_ = nowMs;
         if (e == LineFramer::Event::Line) {
-            // W-S18: neither this line nor anything after it is executed.
+            // A-718: neither this line nor anything after it is executed.
             if (looksLikeHttp(framer_.line(), framer_.length())) {
                 close_(Close::Http);
                 return;

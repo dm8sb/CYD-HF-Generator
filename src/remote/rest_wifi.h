@@ -9,7 +9,7 @@
 #include <net/scan_list.h>
 #include "rest_json.h"
 
-// REST mapping of the WiFi settings (S55, ARBEITSPLAN 3.6, W-E9, W-S1, W-S12): POST /api/wifi
+// REST mapping of the WiFi settings (S55, PROJECT_SPECIFICATION.md 6.4, E-618, A-701, A-712): POST /api/wifi
 // into a Change (types and sizes, in the async_tcp task), the Change onto the current settings
 // (values, with the rules of NetConfig, in loop()), GET /api/wifi and the scan answer. Keys are
 // write-only: no answer ever holds a WiFi key, the AP password or the web password. Pure and
@@ -25,7 +25,7 @@
 //   "staticIp": {"enabled":bool,"ip","mask","gateway","dns":"a.b.c.d" or "" (dns)}; missing
 //       fields keep their value; checked with NetConfig::checkStaticIp when enabled
 //   "ap": {"open":bool,"password":"8..63 printable"}
-// "mode":"off" is final and must be the only key (D23): any other key -108.
+// "mode":"off" is final and must be the only key (E-515): any other key -108.
 // Errors: wrong JSON type -104, unknown key -108, nothing given -109, more than two entries
 // -222, values outside the lists or rules (slot, SSID length, password, name, address text,
 // mask) -224, static IP not plausible (same as gateway, outside the subnet, network or
@@ -61,9 +61,9 @@ struct Change {
 
 RestJson::Reply parseChange(const char* body, size_t len, Change* out);
 // The change on top of cur (next = cur first); all-or-nothing: on an error next is cur. A final
-// result (mode Off) with any other field is refused with -108 (D23).
+// result (mode Off) with any other field is refused with -108 (E-515).
 RestJson::Reply merge(const Change& c, const NetSettings& cur, NetSettings* next);
-// Mode Off over the web is final (ARBEITSPLAN 3.6 point 2): no new connection to confirm over.
+// Mode Off over the web is final (A-618): no new connection to confirm over.
 inline bool isFinal(const NetSettings& next) { return next.mode == WifiMode::Off; }
 // POST /api/wifi/confirm: the body is {}.
 RestJson::Reply parseConfirm(const char* body, size_t len);

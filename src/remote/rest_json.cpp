@@ -42,7 +42,7 @@ public:
     }
     // Members of a top-level object as written (ArduinoJson merges duplicates).
     size_t topKeys() const { return topKeys_; }
-    // Some key at any depth names a password or key (W-S1), seen on the raw text: also under
+    // Some key at any depth names a password or key (A-701), seen on the raw text: also under
     // duplicate keys, which ArduinoJson drops, and with escapes ("\u0070ass").
     bool secretKey() const { return secret_; }
 
@@ -223,7 +223,7 @@ bool keyIs(JsonString key, const char* name) {
     return key.size() == n && memcmp(key.c_str(), name, n) == 0; // a NUL inside never matches
 }
 
-// A JSON integer in the full type (W-S19): 4.5, 4.0, 1e3, "4", true, null are no integers.
+// A JSON integer in the full type (A-719): 4.5, 4.0, 1e3, "4", true, null are no integers.
 Reply integer(JsonVariantConst v, int64_t* out) {
     if (v.is<bool>()) return bad(DATA_TYPE_ERROR);
     if (v.is<int64_t>()) {
@@ -284,7 +284,7 @@ const Field CHANNEL_FIELDS[] = {
     {"frequencyText", Kind::FrequencyText, CommandType::SetFrequency},
     {"enabled", Kind::Bool, CommandType::SetEnabled},
 };
-// CH2 (E-52): the offset before the coupling (no jump to CH1 + old offset), the coupling before
+// CH2 (E-213): the offset before the coupling (no jump to CH1 + old offset), the coupling before
 // the frequency (decouple, then set it).
 const Field CH2_FIELDS[] = {
     {"offset", Kind::Integer, CommandType::Ch2Offset},
@@ -306,7 +306,7 @@ const Field CONFIG_FIELDS[] = {
     {"correction", Kind::Integer, CommandType::Correction},
     {"step", Kind::Integer, CommandType::Step},
     {"backlight", Kind::Integer, CommandType::Backlight},
-    {"rotation", Kind::Integer, CommandType::Rotation}, // E-53
+    {"rotation", Kind::Integer, CommandType::Rotation}, // E-314
     {"remoteOutputs", Kind::DeviceOnly, CommandType::SaveNow}, // never a command
 };
 
@@ -467,7 +467,7 @@ void actualText(double hz, char* out, size_t outSize) {
     snprintf(out, outSize, "%.1f", hz);
 }
 
-// Foreign text (SSID, names) through Sanitize (W-S9); the source is a char[33] or NUL-terminated.
+// Foreign text (SSID, names) through Sanitize (A-709); the source is a char[33] or NUL-terminated.
 void clean(const char* in, size_t maxIn, char* out, size_t outSize) {
     size_t n = 0;
     while (in && n < maxIn && in[n]) ++n;
@@ -685,7 +685,7 @@ size_t buildState(const Snapshot& s, const DeviceInfo& d, uint32_t nowMs, char* 
         w.key("modes");
         addModes(w, sys, n == 1 ? sys.spread : Spread::Off);
         if (n == 2) {
-            // Coupled to CH1 (E-52): frequency above is then CH1 + offset (0 below 0).
+            // Coupled to CH1 (E-213): frequency above is then CH1 + offset (0 below 0).
             w.key("coupled");
             w.boolean(s.state.ch2c.coupled);
             w.key("offset");

@@ -34,13 +34,13 @@ namespace {
 constexpr const char* CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
                             "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 constexpr const char* JSON = "application/json";
-// REST writes and WiFi jobs (AF54, E-50): async_tcp waits at most FAST_REPLY_MS, woken by loop()
+// REST writes and WiFi jobs (AF54, E-622): async_tcp waits at most FAST_REPLY_MS, woken by loop()
 // instead of polling; a slower loop() answers from the connection's poll callback.
 constexpr uint32_t FAST_REPLY_MS = 20;
 constexpr uint32_t JOB_WAIT_MS = 100;        // a job taken by loop() finishes within this
 constexpr uint32_t LOGIN_TIMEOUT_MS = 5000;  // a password check that never ends answers 503
 constexpr uint32_t CLEANUP_MS = 1000;
-constexpr uint32_t STACK_LOG_MS = 60000; // debug log of the task stack reserves (W-S23)
+constexpr uint32_t STACK_LOG_MS = 60000; // debug log of the task stack reserves (A-723)
 constexpr uint16_t WS_TOO_BIG = 1009;
 constexpr uint16_t WS_POLICY = 1008;
 constexpr uint16_t WS_GOING_AWAY = 1001;
@@ -69,7 +69,7 @@ void wipe(void* p, size_t n) {
     for (size_t i = 0; i < n; ++i) b[i] = 0;
 }
 
-// Security headers of every answer (W-S7); /api/* and the page (per-boot token) are not stored.
+// Security headers of every answer (A-707); /api/* and the page (per-boot token) are not stored.
 enum class Cache : uint8_t { NoStore, Revalidate };
 void secure(AsyncWebServerResponse* r, Cache cache) {
     r->addHeader("Content-Security-Policy", CSP);
@@ -141,9 +141,9 @@ ScanSession::Radio radioOf(WifiManager::ScanState s) {
 // ---------------------------------------------------------------------------
 // The server in four parts by task (AF50, CQ-6). Each part names the task its code runs in;
 // Shared is the only data more than one task touches, and only under `mutex`.
-//   ConnectionGate  async_tcp: accept, connection slots, pre-filter (W-S10)
+//   ConnectionGate  async_tcp: accept, connection slots, pre-filter (A-710)
 //   LoginService    async_tcp (submit, answer from the poll callback) and its own task
-//                   web_login (PBKDF2, W-S23)
+//                   web_login (PBKDF2, A-723)
 //   Pusher          loop(): WebSocket push, keep-alive, cleanup
 //   Replies         async_tcp: REST writes and WiFi jobs that loop() did not finish within
 //                   FAST_REPLY_MS, answered from the connection's poll callback (AF54)
@@ -152,7 +152,7 @@ ScanSession::Radio radioOf(WifiManager::ScanState s) {
 
 struct WebHmiServer::Impl {
     // ESPAsyncWebServer with an own accept: connection limit, heap check and the pre-filter
-    // (W-S10) before the library parses anything.
+    // (A-710) before the library parses anything.
     class Server : public AsyncWebServer {
     public:
         Server(Impl* impl) : AsyncWebServer(PORT) {
@@ -205,7 +205,7 @@ struct WebHmiServer::Impl {
         char wifiJson[RestWifi::SETTINGS_SIZE] {};
         char record[WebPassword::RECORD_SIZE] {};
         bool passwordSet = false;
-        // LXI identification (A-78): the station's address data; the serial is set once at boot.
+        // LXI identification (A-615): the station's address data; the serial is set once at boot.
         struct LxiNet {
             uint32_t staIp, staMask, staGateway, apIp;
             bool dhcp;
@@ -230,7 +230,7 @@ struct WebHmiServer::Impl {
             const uint32_t now = millis();
             int slot = -1;
             uint32_t g = 0;
-            // W-S10: < 24 KB free -> 503; AF19: also without a block for the request.
+            // A-710: < 24 KB free -> 503; AF19: also without a block for the request.
             const bool heapOk = HeapLimits::acceptOk(ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
             if (heapOk) {
                 Lock l(s.mutex);
@@ -289,7 +289,7 @@ struct WebHmiServer::Impl {
             }
         }
 
-        // Raw bytes before the library parses them (HttpPreFilter, W-S10).
+        // Raw bytes before the library parses them (HttpPreFilter, A-710).
         void packet(AsyncClient* c, pbuf* pb) {
             HttpPreFilter::Verdict v = HttpPreFilter::Verdict::TooMuchData;
             {
@@ -317,7 +317,7 @@ struct WebHmiServer::Impl {
         }
     };
 
-    // ------------------------------------------------------------------ LoginService (W-S11, W-S13, W-S23)
+    // ------------------------------------------------------------------ LoginService (A-711, A-713, A-723)
     // async_tcp: start() submits the check and pauses the request, poll() (the connection's poll
     // callback, every ~0.5 s) answers it, connectionClosed() drops it. Task web_login: worker()
     // runs the PBKDF2 check. The queue is under `mutex`; the paused request is async_tcp only.
@@ -875,7 +875,7 @@ struct WebHmiServer::Impl {
         }
 
         // POST /api/* (the guard checked type, token, origin and session).
-        // W-S1 for every body, whatever the endpoint (login: SEC-3, WiFi settings): no
+        // A-701 for every body, whatever the endpoint (login: SEC-3, WiFi settings): no
         // passwords over an open access point.
         {
             GuardDecision sec;
@@ -965,7 +965,7 @@ struct WebHmiServer::Impl {
         return RestJson::buildState(s, d, millis(), out, outSize);
     }
 
-    // GET /lxi/identification (A-78): the addresses of the interface the request came in on.
+    // GET /lxi/identification (A-615): the addresses of the interface the request came in on.
     void lxiIdentification(AsyncWebServerRequest* req, uint32_t localIp) {
         LxiIdent::Info i;
         char name[33];
@@ -975,7 +975,7 @@ struct WebHmiServer::Impl {
             i.serial = shared.serial;
             if (localIp != 0 && localIp == shared.lxiNet.apIp) {
                 i.ip = shared.lxiNet.apIp;
-                i.mask = 0xFFFFFF00; // 192.168.4.1/24, no router (W-S3)
+                i.mask = 0xFFFFFF00; // 192.168.4.1/24, no router (A-703)
                 i.gateway = 0;
                 i.dhcp = false;
             } else {
@@ -988,7 +988,7 @@ struct WebHmiServer::Impl {
         i.name = name;
         i.version = APP_VERSION;
         i.scpiPort = SCPI_TCP_PORT;
-        // On the heap: the async_tcp stack keeps its reserve (W-S23).
+        // On the heap: the async_tcp stack keeps its reserve (A-723).
         char* buf = (char*)malloc(LxiIdent::DOCUMENT_SIZE);
         if (!buf) return sendRefusal(req, 503, "Low memory");
         const size_t n = LxiIdent::build(i, buf, LxiIdent::DOCUMENT_SIZE);
@@ -1119,7 +1119,7 @@ struct WebHmiServer::Impl {
         sendJson(req, 202, buf);
     }
 
-    // W-S1 was checked for every POST body before (handle()).
+    // A-701 was checked for every POST body before (handle()).
     void wifiChange(AsyncWebServerRequest* req, const char* bodyText, size_t bodyLen) {
         RestWifi::Change* c = new (std::nothrow) RestWifi::Change;
         if (!c) return sendRefusal(req, 503, "Low memory");
@@ -1187,7 +1187,7 @@ struct WebHmiServer::Impl {
                 break;
             }
             case WS_EVT_DATA: {
-                // Push only (W-S6): frames are ignored, a frame above 512 B closes.
+                // Push only (A-706): frames are ignored, a frame above 512 B closes.
                 const AwsFrameInfo* info = static_cast<const AwsFrameInfo*>(arg);
                 if (info && !WsClients::frameAllowed(info->len)) c->close(WS_TOO_BIG);
                 break;
@@ -1320,8 +1320,8 @@ struct WebHmiServer::Impl {
         cfg.deviceName = ns.deviceName;
         cfg.token = token;
         cfg.passwordSet = d.passwordSet;
-        // D25 (AF18): with a web password the state, the token and the WebSocket need a session as
-        // well; /lxi/identification stays open (D33, not under /api/).
+        // E-703 (AF18): with a web password the state, the token and the WebSocket need a session as
+        // well; /lxi/identification stays open (E-614, not under /api/).
         cfg.loginForReads = d.passwordSet;
 
         const bool settingsChanged = !settingsKnown || memcmp(&lastSettings, &ns, sizeof(ns)) != 0;
@@ -1351,7 +1351,7 @@ struct WebHmiServer::Impl {
         if (settingsChanged) {
             if (strcmp(sh.record, ns.webPassword) != 0) {
                 // Password set, changed or removed: every session ends, and the open WebSockets
-                // close so that they come back under the new rule (D25).
+                // close so that they come back under the new rule (E-703).
                 sh.guard.endAllSessions();
                 if (settingsKnown) closeWs = true;
             }

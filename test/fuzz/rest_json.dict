@@ -1,5 +1,5 @@
 # libFuzzer dictionary for the rest_json target (-dict=test/fuzz/rest_json.dict): JSON syntax,
-# the keys and enum values of ARBEITSPLAN 3.6 and numbers at the limits of W-S19.
+# the keys and enum values of PROJECT_SPECIFICATION.md 6.4 and numbers at the limits of A-719.
 
 lbrace="{"
 rbrace="}"

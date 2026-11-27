@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include "net_settings.h"
 
-// What the radio should do (W-E1, W-S2, W-S3, D14). Pure: the WiFi manager feeds in the
+// What the radio should do (E-501, A-702, A-703, E-511). Pure: the WiFi manager feeds in the
 // observed state and applies the result; host-tested.
 namespace WifiPolicy {
 
@@ -15,10 +15,10 @@ static constexpr uint32_t OPEN_AP_IDLE_OFF_MS = 15 * 60000; // open AP without s
 
 struct Inputs {
     WifiMode mode;
-    bool staHasIp;             // the client has an address (W-S3: the AP must go)
+    bool staHasIp;             // the client has an address (A-703: the AP must go)
     uint32_t msWithoutIp;      // in Client mode since start or since the address was lost
     bool apOpen;               // settings: AP without password
-    bool openFallbackConfirmed; // the touch confirmed an open fallback AP (W-S2)
+    bool openFallbackConfirmed; // the touch confirmed an open fallback AP (A-702)
     bool openApTimedOut;       // an open AP had no station for OPEN_AP_IDLE_OFF_MS
 };
 
@@ -67,13 +67,13 @@ bool pollDue(uint32_t nowMs, uint32_t lastMs, bool polled);
 // security of that entry.
 uint8_t mergeSeen(const char* const stored[2], const char* seen, int seenRssi, int rssi[2]);
 
-// An open AP without station since idleSinceMs reached OPEN_AP_IDLE_OFF_MS (W-S2).
+// An open AP without station since idleSinceMs reached OPEN_AP_IDLE_OFF_MS (A-702).
 bool openApIdleExpired(uint32_t nowMs, uint32_t idleSinceMs);
 
 // Timing of the client while it has no address (AF13, TEST-9): background scans, connection
 // attempts with their timeout and the slot that failed last. Pure state; WifiManager starts the
 // scans and attempts and reports what happened. All times wrap-safe (millis()).
-// Backoff (AF14, D32, PERF-5): no background scan without a stored network; the interval starts
+// Backoff (AF14, E-513, PERF-5): no background scan without a stored network; the interval starts
 // at SCAN_INTERVAL_MS and doubles after every scan without a stored network up to
 // SCAN_BACKOFF_MAX_MS; a seen network or a connection starts again at SCAN_INTERVAL_MS. With
 // stations at the fallback AP at least SCAN_WITH_STATIONS_MS (the AP leaves its channel for

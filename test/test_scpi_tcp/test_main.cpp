@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// SCPI over TCP 5025 (W-E13, W-S18, W-S20): ScpiTcpLink with a fake socket against the real
+// SCPI over TCP 5025 (E-603, A-718, A-720): ScpiTcpLink with a fake socket against the real
 // controller and the SI5351 register model: query/answer, one connection, HTTP lines close
 // without execution, idle timeout, framing errors, allowed/not allowed, partial reads and writes.
 
@@ -203,7 +203,7 @@ static void test_second_client_refused() {
     TEST_ASSERT_EQUAL_HEX32(IP_B, d.link.clientIp());
 }
 
-// W-S18: a browser (or a cross-site request) sends HTTP; nothing of it is executed.
+// A-718: a browser (or a cross-site request) sends HTTP; nothing of it is executed.
 static void test_http_request_line_closes_without_execution() {
     Device d;
     d.connect();

@@ -522,7 +522,7 @@ scpi_result_t stepQ(scpi_t* c) {
     return SCPI_RES_OK;
 }
 
-// --- CH2 coupled to CH1 (E-52) -----------------------------------------------
+// --- CH2 coupled to CH1 (E-213) -----------------------------------------------
 
 const NumberSpec OFFSET_SPEC {0, HZ_UNITS, -(int64_t)CH2_OFFSET_MAX_HZ, (int64_t)CH2_OFFSET_MAX_HZ, 0};
 const scpi_choice_def_t COUPLE_CHOICES[] = {{"OFF", 0}, {"CH1", 1}, SCPI_CHOICE_LIST_END};
@@ -574,7 +574,7 @@ scpi_result_t backlightQ(scpi_t* c) {
     return SCPI_RES_OK;
 }
 
-// Screen rotation in degrees (E-53): 0 or 180; other values are refused by the controller (-224).
+// Screen rotation in degrees (E-314): 0 or 180; other values are refused by the controller (-224).
 const NumberSpec ROTATION_SPEC {0, DEG_UNITS, 0, 180, 0};
 
 scpi_result_t rotation(scpi_t* c) {
@@ -616,7 +616,7 @@ scpi_result_t heapQ(scpi_t* c) {
 scpi_result_t identify(scpi_t* c) { return submit(c, CommandType::Identify, 0, 0); }
 scpi_result_t save(scpi_t* c) { return submit(c, CommandType::SaveNow, 0, 0); }
 
-// The oldest buffered log line as a string, "" when none is left (W-E27). The buffer belongs to
+// The oldest buffered log line as a string, "" when none is left (E-612). The buffer belongs to
 // the USB session: over TCP and VXI-11 always "", the lines stay for USB (SEC-6).
 scpi_result_t logQ(scpi_t* c) {
     char line[Logger::LINE_LEN + 2];
@@ -638,7 +638,7 @@ scpi_result_t tstQ(scpi_t* c) {
     return SCPI_RES_OK;
 }
 
-// Patterns: short form upper case, [] optional, # numeric suffix (ARBEITSPLAN 3.5).
+// Patterns: short form upper case, [] optional, # numeric suffix (A-607).
 const scpi_command_t COMMANDS[] = {
     {"*CLS", SCPI_CoreCls, 0},
     {"*ESE", SCPI_CoreEse, 0},
@@ -716,7 +716,7 @@ int errorCb(scpi_t*, int_fast16_t) { return 0; }
 scpi_result_t controlCb(scpi_t*, scpi_ctrl_name_t, scpi_reg_val_t) { return SCPI_RES_OK; }
 scpi_result_t flushCb(scpi_t*) { return SCPI_RES_OK; }
 
-// *RST (W-E19): outputs off, defaults in RAM, nothing saved.
+// *RST (E-608): outputs off, defaults in RAM, nothing saved.
 scpi_result_t resetCb(scpi_t* c) { return submit(c, CommandType::ResetRemote, 0, 0); }
 
 } // namespace

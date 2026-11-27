@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Fuzz target prefilter: HttpPreFilter (net/web_limits.*), the byte filter in front of the
-// HTTP parser (S55, W-S10), as the web server feeds it from the async_tcp task: the raw bytes of
+// HTTP parser (S55, A-710), as the web server feeds it from the async_tcp task: the raw bytes of
 // one connection in chunks of any size with a clock that only moves forward (and may wrap).
 // Input: bytes 0-3 start of the clock (ms, big endian, so the deadline is crossed across the
 // 32-bit wrap too), byte 4 seed of the chunk sizes, byte 5 bits 0-1 the time step per chunk

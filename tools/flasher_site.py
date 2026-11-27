@@ -2,9 +2,11 @@
 # SPDX-FileCopyrightText: 2026 DM8SB
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Web flasher site (ARBEITSPLAN G1/G2, G11): collect the flash parts and notices, assemble and check the site.
+"""Web flasher site (ARBEITSPLAN G1/G2, G9, G11): collect the flash parts and notices, assemble and check the site.
 
-Python 3 standard library only. Used by .github/workflows/release.yml and locally:
+Python 3 standard library only, except assemble, which renders the documentation pages with
+markdown-it-py (tools/docs_site.py, tools/requirements-ci.txt). Used by
+.github/workflows/release.yml and locally:
 
   pio project metadata -e esp32-2432S028R --json-output > meta.json
   python tools/flasher_site.py collect --metadata meta.json --env esp32-2432S028R --out parts
@@ -25,7 +27,7 @@ AsyncTCP, ESPAsyncWebServer, the LGPL texts and a README with the upstream tag a
 commit). A missing file fails, so a dependency change cannot drop a notice unnoticed; so does a
 LICENSES/TFT_eSPI-license.txt that differs from the pinned package.
 
-vendor: ESP Web Tools is served by the flasher site itself (no CDN at runtime, E-36). Downloads
+vendor: ESP Web Tools is served by the flasher site itself (no CDN at runtime, E-905). Downloads
 the modules pinned in flasher/esp-web-tools.json (SHA-384) and the license files and flasher stub
 sources listed under "notices" there (SHA-256); a file that differs from its pin fails. Files
 already in --out with the right hash are not downloaded again.
@@ -35,7 +37,9 @@ offsets sector-aligned, ascending and non-overlapping (erase granularity 4 KiB),
 the bootloader area, the partition table sector or an app/otadata partition of the flashed
 partition table (so an update never erases NVS), checksums, page template fully filled, the
 self-hosted ESP Web Tools modules and notices against their pins, a CSP that allows scripts only
-from the site itself, no resource from another origin, and every local link present.
+from the site itself, no resource from another origin, and every local link present; the
+documentation pages of tools/docs_site.py (G9, E-903: manual DE/EN, hardware, remote API) present,
+linked from the flasher page, and their links, anchors and images complete.
 """
 import argparse
 import base64
@@ -52,6 +56,8 @@ import subprocess
 import sys
 import tarfile
 import urllib.request
+
+import docs_site
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(ROOT, "flasher")
@@ -173,7 +179,7 @@ def cmd_collect(args):
     images = [(int(i["offset"], 0), i["path"]) for i in extra.get("flash_images", [])]
     # The application goes to the first app partition of the built table (factory, else ota_0).
     # pioarduino sets application_offset only while building, not for `pio project metadata`
-    # (E-51); where the metadata has it, it must agree with the table.
+    # (E-804); where the metadata has it, it must agree with the table.
     tables = [p for _, p in images if os.path.basename(p) == "partitions.bin"]
     if len(tables) != 1:
         fail("metadata names no single partitions.bin")
@@ -423,17 +429,22 @@ def cmd_vendor(args):
 # assemble
 
 
+def _source_ref(version, commit):
+    """The tag (2.0.0 -> v2.0.0) or, for a manual build 2.0.0-dev.<commit>, the commit."""
+    return commit if "-dev." in version else "v" + version
+
+
 def _source_links(repo, version, commit):
-    """Source and release links of the page (AF30, E-39): a tag build (version 2.0.0 or
+    """Source and release links of the page (AF30, E-907): a tag build (version 2.0.0 or
     2.0.0-rc1, as the release workflow derives it from the tag v2.0.0 / v2.0.0-rc1) links its
     tag and release; a manual build (2.0.0-dev.<commit>) has no release and links the commit."""
     if not re.match(r"^[0-9a-f]{7,40}$", commit):
         fail("commit %r: 7 to 40 hex digits expected" % commit)
     base = "https://github.com/" + repo
+    ref = _source_ref(version, commit)
     if "-dev." in version:
-        ref, release_url, release_name = commit, base + "/releases", "releases (none for this test build)"
+        release_url, release_name = base + "/releases", "releases (none for this test build)"
     else:
-        ref = "v" + version
         release_url, release_name = base + "/releases/tag/" + ref, "release " + ref
     return {"SOURCE_URL": html.escape(base + "/tree/" + ref), "SOURCE_REF": html.escape(ref),
             "RELEASE_URL": html.escape(release_url), "RELEASE_NAME": html.escape(release_name)}
@@ -497,6 +508,8 @@ def cmd_assemble(args):
     page = re.sub(r"\{\{([A-Z_]+)\}\}", lambda m: fields[m.group(1)], page)
     write_text(os.path.join(args.out, "index.html"), page)
     shutil.copyfile(os.path.join(TEMPLATE_DIR, "style.css"), os.path.join(args.out, "style.css"))
+    # G9: manual, hardware page and remote API from the Markdown of this commit (the tag).
+    docs_site.build(args.out, args.version, args.repo, _source_ref(args.version, args.commit))
     print("site assembled in %s (version %s, %d parts, ESP Web Tools %s self-hosted)"
           % (args.out, args.version, len(rows), lock["version"]))
 
@@ -739,7 +752,11 @@ def _check_links(page, lock, ewt_rel, path_in_site):
         path_in_site(rel)
         if 'href="%s"' % rel not in page:
             fail("index.html: no link to %s" % rel)
-    # Source links point to the tag or commit of this build, not to a moving branch (E-39).
+    # G9: the documentation pages are linked from the flasher page.
+    for _, rel, _ in docs_site.PAGES:
+        if 'href="%s"' % rel not in page:
+            fail("index.html: no link to %s" % rel)
+    # Source links point to the tag or commit of this build, not to a moving branch (E-907).
     if not re.search(r'href="https://github\.com/[^"/]+/[^"/]+/tree/(v[0-9A-Za-z.+-]+|[0-9a-f]{7,40})"', page):
         fail("index.html: no source link to a tag or commit")
 
@@ -770,6 +787,7 @@ def check_site(site, partitions_csv=None):
         _check_partitions_csv(table, partitions_csv)
     _check_sums(loaded, path_in_site)
     _check_page(path_in_site)
+    docs_site.check(site)
     print("site %s OK: version %s, %d parts" % (site, manifest["version"], len(loaded)))
 
 
@@ -841,7 +859,7 @@ def main():
     args = ap.parse_args()
     try:
         args.func(args)
-    except CheckError as e:
+    except (CheckError, docs_site.CheckError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 1
     return 0

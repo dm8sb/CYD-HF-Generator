@@ -10,7 +10,7 @@ make (token, content type, origin, body size, unknown keys, types, ranges, rate 
 UI meets the same answers as on the device.
 
     python tools/web_mock.py                     # http://127.0.0.1:8080/
-    python tools/web_mock.py --password secret1  # login required for everything but the page (D25)
+    python tools/web_mock.py --password secret1  # login required for everything but the page (E-703)
     python tools/web_mock.py --local-only        # Remote outputs: local only (switch-on, off state High -> 403)
     python tools/web_mock.py --open-ap           # client sits on the open AP (passwords -> 403)
     python tools/web_mock.py --hw NFO --no-ws --demo --confirm-timeout 20
@@ -40,8 +40,8 @@ import device_constants as dc
 import hostport
 
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "www")
-# Firmware version of the mock (device.version; the footer links its tag like the firmware, E-39).
-VERSION = "2.1.0"
+# Firmware version of the mock (device.version; the footer links its tag like the firmware, E-907).
+VERSION = "2.2.0"
 STATIC = {"/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8")}
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
@@ -269,7 +269,7 @@ class Model:
             hi = min(hi, math.floor(IQ_MAX / (1 + up)))
         return lo, hi
 
-    # CH2 coupled to CH1 (E-52): CH1 + offset, waits outside FREQ_MIN..FREQ_MAX.
+    # CH2 coupled to CH1 (E-213): CH1 + offset, waits outside FREQ_MIN..FREQ_MAX.
     def target(self):
         return self.ch[0]["frequency"] + self.ch[1]["offset"]
 
@@ -411,7 +411,7 @@ class Model:
                        "rotation": int}, need_one=True)
         enums = {"drive": dc.DRIVES, "tuning": ("fractional", "lownoise", "integer"),
                  "spread": ("off", "down05", "down15", "center05"), "offState": ("low", "high", "hiz"), "step": STEPS,
-                 "rotation": (0, 180)}  # degrees (E-53)
+                 "rotation": (0, 180)}  # degrees (E-314)
         for k, allowed in enums.items():
             if k in b and b[k] not in allowed:
                 raise ApiError(400, E_ILLEGAL)
@@ -421,7 +421,7 @@ class Model:
             raise ApiError(400, E_RANGE)
         if "backlight" in b:
             b = dict(b, backlight=(b["backlight"] + 5) // 10 * 10)  # rounded like the device (55 -> 60)
-        # D22: off state High (DC on the switched-off outputs) only with remote outputs allowed.
+        # E-611: off state High (DC on the switched-off outputs) only with remote outputs allowed.
         if b.get("offState") == "high" and self.cfg["remoteOutputs"] == "local":
             raise ApiError(403, "-221,Remote outputs: local only")
         tuning = b.get("tuning", self.cfg["tuning"])
@@ -437,7 +437,7 @@ class Model:
     def post_wifi(self, b, open_ap_client):
         check_obj(b, {"mode": str, "networks": list, "delete": list, "name": str, "staticIp": dict, "ap": dict}, need_one=True)
         if b.get("mode") == "off" and len(b) > 1:
-            raise ApiError(400, "-108,Parameter not allowed")  # D23: final, only the mode
+            raise ApiError(400, "-108,Parameter not allowed")  # E-515: final, only the mode
         if self.pending:
             raise ApiError(400, "-221,A network change waits for confirmation")
         has_pw = any(isinstance(x, dict) and "password" in x for x in b.get("networks", [])) or "password" in b.get("ap", {})
@@ -452,7 +452,7 @@ class Model:
             if x.get("slot") not in (0, 1) or not 1 <= len(x.get("ssid", "").encode()) <= 32:
                 raise ApiError(400, E_ILLEGAL)
             pw = x.get("password")
-            # D31: a passphrase of 8..63 characters or a PMK of 64 hex digits.
+            # E-510: a passphrase of 8..63 characters or a PMK of 64 hex digits.
             if pw is not None and pw != "" and not 8 <= len(pw) <= 63 and not re.fullmatch(r"[0-9A-Fa-f]{64}", pw):
                 raise ApiError(400, E_ILLEGAL)
         for s in b.get("delete", []):
@@ -506,7 +506,7 @@ class Model:
                 n["ap"]["pw"] = ap["password"]
         self.changed()
         if n["mode"] == "off":
-            # Final, like the device (ARBEITSPLAN 3.6 point 2): no new connection to confirm over.
+            # Final, like the device (A-618): no new connection to confirm over.
             print("[mock] network change: WiFi off (final, nothing to confirm)")
             return 0
         self.pending = (time.monotonic() + self.args.confirm_timeout, prev)
@@ -609,7 +609,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'xsi:schemaLocation="http://www.lxistandard.org/InstrumentIdentification/1.0 '
                 'http://www.lxistandard.org/InstrumentIdentification/1.0/LXIIdentification.xsd">\n'
                 '<Manufacturer>DM8SB</Manufacturer>\n<Model>CYD HF Generator</Model>\n'
-                '<SerialNumber>0123456789AB</SerialNumber>\n<FirmwareRevision>2.1.0</FirmwareRevision>\n'
+                '<SerialNumber>0123456789AB</SerialNumber>\n<FirmwareRevision>2.2.0</FirmwareRevision>\n'
                 '<ManufacturerDescription>3-channel SI5351 HF square-wave generator</ManufacturerDescription>\n'
                 '<HomepageURL>%s</HomepageURL>\n<DriverURL>%s</DriverURL>\n'
                 '<UserDescription>%s</UserDescription>\n'
@@ -668,7 +668,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         m = self.model
         try:
             with m.lock:
-                # D25: with a web password the token and the state need a session as well.
+                # E-703: with a web password the token and the state need a session as well.
                 if url.path in ("/api/token", "/api/state") and not self.session_ok():
                     raise ApiError(401, "-200,Login required")
                 if url.path == "/api/token":
@@ -735,7 +735,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if isinstance(body, dict) and body.pop(DUPLICATE, False):
                 raise ApiError(400, "-102,Duplicate key")
             path = urllib.parse.urlsplit(self.path).path
-            # W-S1 for every body, as the device (login: SEC-3): no passwords over an open AP.
+            # A-701 for every body, as the device (login: SEC-3): no passwords over an open AP.
             if self.open_ap_client() and carries_secret(body):
                 raise ApiError(403, "-221,Passwords cannot be sent over the open access point")
             if path == "/api/login":
@@ -831,7 +831,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(400, {"error": "-200,WebSocket upgrade expected"})
         if q.get("t", [""])[0] != self.token or (origin and origin != self.own_origin()):
             return self.send(403, {"error": "-200,Forbidden"})
-        if not self.session_ok():  # D25
+        if not self.session_ok():  # E-703
             return self.send(401, {"error": "-200,Login required"})
         with m.lock:
             if m.ws_count >= MAX_WS:
@@ -893,7 +893,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 ln = struct.unpack(">H", self.ws_read(2))[0]
             elif ln == 127:
                 ln = struct.unpack(">Q", self.ws_read(8))[0]
-            if not b2 & 0x80 or ln > 512:  # client frames are masked; at most 512 B (W-S6)
+            if not b2 & 0x80 or ln > 512:  # client frames are masked; at most 512 B (A-706)
                 self.ws_send(0x8, struct.pack(">H", 1002 if not b2 & 0x80 else 1009))
                 return
             mask = self.ws_read(4)
@@ -929,7 +929,7 @@ def main():
     ap.add_argument("--host", default="127.0.0.1", help="bind address (0.0.0.0 for phones in the LAN)")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--password", default="", help="web password: login required for writes and WiFi settings")
-    ap.add_argument("--login-all", action="store_true", help="no effect: with --password the state, token and /ws always need the login (D25)")
+    ap.add_argument("--login-all", action="store_true", help="no effect: with --password the state, token and /ws always need the login (E-703)")
     ap.add_argument("--local-only", action="store_true", help="Remote outputs: local only (switch-on and off state High answer 403)")
     ap.add_argument("--open-ap", action="store_true", help="the client sits on the open AP: password fields answer 403")
     ap.add_argument("--hw", default="CONN", choices=("CONN", "NFO", "BLOC", "UNKN"), help="SI5351 link state")
@@ -940,7 +940,7 @@ def main():
     ap.add_argument("--verbose", action="store_true", help="log every request")
     args = ap.parse_args()
     if args.password and len(args.password) < 8:
-        ap.error("the web password needs at least 8 characters (W-S13)")
+        ap.error("the web password needs at least 8 characters (A-713)")
 
     Handler.model = Model(args)
     Handler.token = args.token or secrets.token_hex(16)

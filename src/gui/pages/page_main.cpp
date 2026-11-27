@@ -8,7 +8,7 @@
 
 using namespace Layout;
 
-// Three cards above the status bar (W-E26); the bar replaces the navigation buttons CH1-CH3,
+// Three cards above the status bar (A-503); the bar replaces the navigation buttons CH1-CH3,
 // the cards open the channel pages.
 static constexpr int CARD_H = 62;
 static constexpr int CARD_Y = 4;
@@ -29,11 +29,14 @@ static constexpr int DIVIDER_X = 231;
 // a "~" (Integer raster) has room before two-digit MHz values. The label starts after the name.
 static constexpr int FREQ_RIGHT = DIVIDER_X - 6;
 static constexpr int NAME_W = 42;
-// Status bar from the left, widths measured from the font data: save state 14 px ("Save
-// failed" 76 px, ends at 86), WiFi 12 px ("AP open" 52 px, ends at 144), LOCKED 14 px or
-// REMOTE <source> 12 px ("REMOTE WEB" 87 px + 4 px padding, ends at 241), CONFIG from 250
-// (66 px, text 57 px): at least 6 px between neighbors, 9 px before CONFIG.
-static constexpr int WIFI_X = 92;
+// Status bar from the left, widths measured from the font data: WiFi 12 px ("AP open" 52 px,
+// from 6 to 58; the whole area up to WIFI_W opens the WIFI page), save state 14 px ("Save
+// failed" 76 px, from 64 to 140), LOCKED 14 px or REMOTE <source> 12 px ("REMOTE WEB" 87 px +
+// 4 px padding, ends at 241), CONFIG from 250 (66 px, text 57 px): at least 6 px between
+// neighbors, 9 px before CONFIG.
+static constexpr int WIFI_TEXT_X = 6;
+static constexpr int WIFI_W = 60;
+static constexpr int SAVE_X = 64;
 static constexpr int STATE_X = 150;
 static constexpr int CONFIG_W = 66;
 static constexpr int CONFIG_X = SCREEN_WIDTH - 4 - CONFIG_W;
@@ -77,7 +80,7 @@ void Gui::createMain_() {
     }
 
     // Status bar like the header: save state, WiFi and REMOTE/LOCKED on the left, CONFIG at
-    // the right edge (W-E26).
+    // the right edge (A-503).
     lv_obj_t* bar = lv_obj_create(root_);
     lv_obj_set_pos(bar, 0, BAR_Y);
     lv_obj_set_size(bar, SCREEN_WIDTH, BAR_H);
@@ -89,16 +92,37 @@ void Gui::createMain_() {
     lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(bar, LV_OBJ_FLAG_CLICKABLE);
     w_.saveState = addLabel_(bar, "", &lv_font_montserrat_14, Colors::muted(), 0, 0);
-    lv_obj_align(w_.saveState, LV_ALIGN_LEFT_MID, MARGIN + 2, 0);
+    lv_obj_align(w_.saveState, LV_ALIGN_LEFT_MID, SAVE_X, 0);
     // Screen lock (U-13): filled label like the states, so it reads from a distance.
     w_.lockState = addLabel_(bar, "LOCKED", &lv_font_montserrat_14, Colors::textDark(), 0, 0);
     styleState_(w_.lockState);
     lv_obj_set_style_bg_color(w_.lockState, Colors::warn(), 0);
     lv_obj_set_style_bg_opa(w_.lockState, LV_OPA_COVER, 0);
     lv_obj_align(w_.lockState, LV_ALIGN_LEFT_MID, STATE_X, 0);
-    // WiFi: symbol (green connected, gray searching) or AP (warning color when open).
+    // WiFi at the left edge: symbol (green connected, gray searching) or AP (warning color when
+    // open). A tap on it opens the WIFI page, with WiFi Off the CONFIG tab Net (the WiFi row); the area sits
+    // flush at the left and bottom screen edge.
+    lv_obj_t* wifiHit = lv_obj_create(bar);
+    lv_obj_remove_style_all(wifiHit);
+    lv_obj_set_pos(wifiHit, 0, 0);
+    lv_obj_set_size(wifiHit, WIFI_W, BAR_H);
+    lv_obj_set_style_bg_color(wifiHit, Colors::outline(), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(wifiHit, LV_OPA_COVER, LV_STATE_PRESSED);
+    lv_obj_add_flag(wifiHit, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(wifiHit, LV_OBJ_FLAG_SCROLLABLE);
+    on_(wifiHit, LV_EVENT_CLICKED, Action::WifiSymbol, 0);
     w_.wifiState = addLabel_(bar, "", &lv_font_montserrat_12, Colors::muted(), 0, 0);
-    lv_obj_align(w_.wifiState, LV_ALIGN_LEFT_MID, WIFI_X, 0);
+    lv_obj_align(w_.wifiState, LV_ALIGN_LEFT_MID, WIFI_TEXT_X, 0);
+    lv_obj_clear_flag(w_.wifiState, LV_OBJ_FLAG_CLICKABLE);
+    // WiFi Off: the symbol in gray with a strike through it (the font has no crossed symbol).
+    static const lv_point_t strike[2] = {{0, 15}, {17, 0}};
+    w_.wifiOff = lv_line_create(bar);
+    lv_line_set_points(w_.wifiOff, strike, 2);
+    lv_obj_set_pos(w_.wifiOff, WIFI_TEXT_X - 1, (BAR_H - 15) / 2);
+    lv_obj_set_style_line_width(w_.wifiOff, 2, 0);
+    lv_obj_set_style_line_color(w_.wifiOff, Colors::muted(), 0);
+    lv_obj_clear_flag(w_.wifiOff, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(w_.wifiOff, LV_OBJ_FLAG_HIDDEN);
     // REMOTE <source> after a remote command; LOCKED takes its place while locked.
     w_.remoteState = addLabel_(bar, "", &lv_font_montserrat_12, Colors::textDark(), 0, 0);
     styleState_(w_.remoteState);
@@ -140,7 +164,7 @@ void Gui::refreshMain_() {
     for (uint8_t ch = 1; ch <= 2; ++ch) {
         const uint8_t i = ch - 1;
         const Channel& c = app.channel(ch);
-        // A coupled CH2 shows the frequency it is set to (CH1 + offset, E-52).
+        // A coupled CH2 shows the frequency it is set to (CH1 + offset, E-213).
         setCardFrequency(w_.cardFreq[i], app, ch, app.frequency(ch));
         showState_(w_.cardState[i], StatusText::channel(app.channelStatus(ch)));
         // Special modes first (they change the signal); a long line ends in "...".
@@ -254,9 +278,13 @@ void Gui::refreshStatusBar_() {
     // WiFi
     const char* text = "";
     lv_color_t color = Colors::muted();
+    bool off = false;
     if (services_.wifi) {
         const WifiManager::Status& w = services_.wifi->status();
-        if (w.apActive) {
+        if (w.mode == WifiMode::Off && !w.apActive) {
+            text = LV_SYMBOL_WIFI;
+            off = true;
+        } else if (w.apActive) {
             text = w.apOpen ? "AP open" : "AP";
             color = w.apOpen ? Colors::warn() : Colors::ok();
         } else if (w.mode == WifiMode::Client) {
@@ -266,6 +294,7 @@ void Gui::refreshStatusBar_() {
     }
     Ui::setText(w_.wifiState, text);
     Ui::setTextColor(w_.wifiState, color);
+    Ui::setHidden(w_.wifiOff, !off);
     // LOCKED, else REMOTE <source> for a while after a remote command.
     const bool locked = lock_.locked();
     Ui::setHidden(w_.lockState, !locked);

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// LineFramer (W-S17, S-11) and the HTTP detection for TCP 5025 (W-S18, S-6).
+// LineFramer (A-717, S-11) and the HTTP detection for TCP 5025 (A-718, S-6).
 
 #include <unity.h>
 #include <string.h>
@@ -113,7 +113,7 @@ static void test_http_detection() {
 }
 
 // Random bytes with a fixed seed: every line stays within the limits and holds only
-// printable ASCII or TAB (fuzzing proper follows in S57).
+// printable ASCII or TAB (fuzzing proper in S57a–c).
 static void test_random_input_keeps_the_invariants() {
     LineFramer f;
     uint32_t x = 12345;

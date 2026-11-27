@@ -11,13 +11,14 @@
 using Ratio = SI5351Manager::Ratio;
 
 // 1 = Low noise resets the PLL after every change, not only when the MultiSynth divider changes.
-// Fallback in case the PLL does not follow small changes cleanly (measurement D5 / K6).
+// Fallback in case the PLL does not follow small changes cleanly (measurement M-305 / M-303).
 #ifndef LOW_NOISE_RESET_EACH_STEP
 #define LOW_NOISE_RESET_EACH_STEP 0
 #endif
 
 // Register map (AN619).
-static constexpr uint8_t REG_STATUS = 0;
+static constexpr uint8_t REG_STATUS = 0;         // live status, read-only
+static constexpr uint8_t REG_STICKY = 1;         // sticky copies of register 0, write 0 to clear
 static constexpr uint8_t REG_OUTPUT_ENABLE = 3;   // 1 = output disabled
 static constexpr uint8_t REG_PLL_SOURCE = 15;
 static constexpr uint8_t REG_CLK0_CONTROL = 16;
@@ -31,7 +32,9 @@ static constexpr uint8_t REG_CLK0_PHASE = 165;
 static constexpr uint8_t REG_PLL_RESET = 177;
 static constexpr uint8_t REG_XTAL_LOAD = 183;
 
-static constexpr uint8_t STATUS_SYS_INIT = 0x80;
+static constexpr uint8_t STATUS_SYS_INIT = 0x80; // register 0; SYS_INIT_STKY in register 1
+static constexpr uint8_t STATUS_LOL_B = 0x40;    // register 0; LOL_B_STKY in register 1
+static constexpr uint8_t STATUS_LOL_A = 0x20;    // register 0; LOL_A_STKY in register 1
 static constexpr uint8_t CTRL_PDN = 0x80;
 static constexpr uint8_t CTRL_MS_INT = 0x40;
 static constexpr uint8_t CTRL_FB_INT = 0x40;      // in the CLK6 / CLK7 control registers
@@ -171,7 +174,14 @@ bool SI5351Manager::begin(int32_t correction) {
     // follows with the first PLL A setup.
     ok = ok && writeRegs_(REG_SSC_PARAMS, ssc_, sizeof(ssc_));
     ok = ok && writeReg_(REG_XTAL_LOAD, XTAL_LOAD_10PF);
+    // Clear the sticky bits (SYS_INIT_STKY from the power-up, LOL_x_STKY): a set SYS_INIT_STKY
+    // later means the chip restarted. A clone that keeps them set gets no restart detection.
+    uint8_t st[2] = {0, 0};
+    ok = ok && writeReg_(REG_STICKY, 0x00) && readRegs_(REG_STATUS, st, 2);
     if (!ok) return fail_(Error::Io);
+    status_ = st[0];
+    statusTrusted_ = !(st[0] & STATUS_SYS_INIT) && !(st[1] & STATUS_SYS_INIT);
+    if (!statusTrusted_) Logger::error("SI5351", "SYS_INIT sticky not cleared; restart detection off");
 
     ready_ = true;
     lastError_ = Error::None;
@@ -219,16 +229,31 @@ bool SI5351Manager::checkAlive() {
     if (!ready_) return false;
     uint8_t ctrl[3];
     uint8_t oe = 0;
-    bool ok = readRegs_(REG_OUTPUT_ENABLE, &oe, 1) && readRegs_(REG_CLK0_CONTROL, ctrl, 3);
+    uint8_t st[2] = {0, 0}; // registers 0 and 1 in one transfer
+    bool ok = readRegs_(REG_STATUS, st, 2) && readRegs_(REG_OUTPUT_ENABLE, &oe, 1) &&
+              readRegs_(REG_CLK0_CONTROL, ctrl, 3);
     if (ok) {
+        status_ = st[0];
         ok = oe == (uint8_t)~outputMask_;
         for (uint8_t i = 0; i < 3; ++i) ok &= ctrl[i] == out_[i].ctrl;
+        // A restart with all outputs off leaves the registers above at their reset values.
+        if (ok && statusTrusted_ && ((st[0] | st[1]) & STATUS_SYS_INIT)) {
+            Logger::error("SI5351", "Device restarted (SYS_INIT)");
+            ready_ = false;
+            return false;
+        }
     }
     if (!ok) {
         Logger::error("SI5351", "Device lost or reset");
         ready_ = false;
     }
     return ok;
+}
+
+SI5351Manager::PllLock SI5351Manager::pllLock(Pll pll) const {
+    if (!pll_[(uint8_t)pll].valid) return PllLock::Unused;
+    const uint8_t lol = pll == Pll::A ? STATUS_LOL_A : STATUS_LOL_B;
+    return (status_ & lol) ? PllLock::Unlocked : PllLock::Locked;
 }
 
 uint64_t SI5351Manager::xtalQuarterHz_() const {
@@ -322,7 +347,7 @@ bool SI5351Manager::powerDown(uint8_t clk) {
     if (!ready_ || clk > 2) return false;
     if (!enableOutput(clk, false)) return false;
     actualHz_[clk] = 0;
-    // Not measured yet (hardware test K2): the pin level of a powered-down driver. Assumed: CLKx_PDN
+    // Not measured yet (hardware test M-118): the pin level of a powered-down driver. Assumed: CLKx_PDN
     // pulls it low, so CLKx_PDN only with off state Low. With High and High-Z the driver stays
     // powered and register 24 sets the level; a powered-down output (control 0x80) becomes 0x00:
     // driver on, crystal as its source, 2 mA, no MultiSynth needed.
@@ -405,7 +430,18 @@ bool SI5351Manager::writeOutput_(uint8_t clk, uint8_t ctrl, const uint8_t* ms, u
 }
 
 bool SI5351Manager::resetPll_(Pll pll) {
-    return writeReg_(REG_PLL_RESET, pll == Pll::A ? RESET_PLLA : RESET_PLLB);
+    if (!writeReg_(REG_PLL_RESET, pll == Pll::A ? RESET_PLLA : RESET_PLLB)) return false;
+    // Measured on the module: a PLL soft reset sets SYS_INIT_STKY although the chip did not
+    // restart, so checkAlive() would report a restart 2 s after every configuration. The
+    // sticky bits are cleared after the reset (until the chip has settled, a write 0 does not
+    // take); a real restart sets them again later.
+    uint8_t st[2] = {0, 0};
+    for (uint8_t i = 0; i < 20; ++i) {
+        if (!writeReg_(REG_STICKY, 0x00) || !readRegs_(REG_STATUS, st, 2)) return false;
+        if (!((st[0] | st[1]) & STATUS_SYS_INIT)) break;
+        delay(1);
+    }
+    return true;
 }
 
 bool SI5351Manager::finish_(bool ok) {

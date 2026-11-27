@@ -36,7 +36,7 @@ static constexpr int CARD_INFO_Y = 32;
 static constexpr int CARD_MODES_Y = 50;
 }
 
-// Color scheme (PROJECT_SPECIFICATION.md A-27), values in palette.h.
+// Color scheme (PROJECT_SPECIFICATION.md A-307), values in palette.h.
 namespace Colors {
 inline lv_color_t ch1() { return lv_color_hex(Palette::CH1); }
 inline lv_color_t ch2() { return lv_color_hex(Palette::CH2); }

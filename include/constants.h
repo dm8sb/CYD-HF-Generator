@@ -9,13 +9,13 @@
 static constexpr uint16_t SCREEN_WIDTH = 320;
 static constexpr uint16_t SCREEN_HEIGHT = 240;
 
-// CH1/CH2 range (E-16): below 1 MHz the R divider, above 112.5 MHz an even integer MultiSynth.
+// CH1/CH2 range (E-203): below 1 MHz the R divider, above 112.5 MHz an even integer MultiSynth.
 // CH3 (IQ) stays within IQ_MIN_HZ..IQ_MAX_HZ (4.730-100 MHz).
 static constexpr uint64_t FREQ_MIN_HZ = 8000ULL;
 static constexpr uint64_t FREQ_MAX_HZ = 160000000ULL;
 static constexpr uint64_t DEFAULT_FREQ_CH1 = 10000000ULL;
 static constexpr uint64_t DEFAULT_FREQ_CH2 = 14000000ULL;
-// CH2 coupled to CH1 (E-52): offset range in Hz; CH2 = CH1 + offset must lie in the range above,
+// CH2 coupled to CH1 (E-213): offset range in Hz; CH2 = CH1 + offset must lie in the range above,
 // otherwise CH2 waits.
 static constexpr int32_t CH2_OFFSET_MAX_HZ = 160000000;
 
@@ -43,28 +43,28 @@ static constexpr uint8_t DEFAULT_DRIVE_MA = 4;
 static constexpr uint32_t SETTINGS_AUTOSAVE_MS = 5000;
 // After a failed save the change is kept and saved again after this delay (audit C-13).
 static constexpr uint32_t SETTINGS_RETRY_MS = 30000;
-// Changes from SCPI (USB, TCP, VXI-11) are saved after this much quiet (W-E17: scripts change
+// Changes from SCPI (USB, TCP, VXI-11) are saved after this much quiet (E-402: scripts change
 // often); touch and web changes after SETTINGS_AUTOSAVE_MS.
 static constexpr uint32_t SETTINGS_REMOTE_AUTOSAVE_MS = 30000;
-// Write commands per second and remote source (W-S11); more are refused (HTTP 429, SCPI -200 busy).
+// Write commands per second and remote source (A-711); more are refused (HTTP 429, SCPI -200 busy).
 static constexpr uint8_t REMOTE_WRITES_PER_S = 20;
-// SYSTem:IDENtify / web Identify (W-E28): backlight and RGB LED blink for this long.
+// SYSTem:IDENtify / web Identify (E-613): backlight and RGB LED blink for this long.
 static constexpr uint32_t IDENTIFY_MS = 5000;
 static constexpr uint32_t IDENTIFY_BLINK_MS = 250;
-// SCPI over USB: the session (log only into the ring buffer, W-E27) ends after this idle time;
-// SCPI over TCP closes the connection after it (W-E13).
+// SCPI over USB: the session (log only into the ring buffer, E-612) ends after this idle time;
+// SCPI over TCP closes the connection after it (E-603).
 static constexpr uint32_t SCPI_IDLE_TIMEOUT_MS = 600000;
-// SCPI over TCP (W-E12, W-S20): port; keepalive of the client socket (first probe after IDLE s
+// SCPI over TCP (E-601, A-720): port; keepalive of the client socket (first probe after IDLE s
 // without traffic, then every INTERVAL s, closed after COUNT unanswered probes).
 static constexpr uint16_t SCPI_TCP_PORT = 5025;
 static constexpr int SCPI_TCP_KEEPALIVE_IDLE_S = 60;
 static constexpr int SCPI_TCP_KEEPALIVE_INTERVAL_S = 10;
 static constexpr int SCPI_TCP_KEEPALIVE_COUNT = 3;
-// VXI-11 (A-78, E-37): fixed core channel port (the portmapper on UDP/TCP 111 points to it);
+// VXI-11 (A-615, E-614): fixed core channel port (the portmapper on UDP/TCP 111 points to it);
 // a portmapper TCP connection closes after this idle time (clients ask once and close).
 static constexpr uint16_t VXI11_CORE_PORT = 9009;
 static constexpr uint32_t PORTMAP_TCP_IDLE_MS = 10000;
-// MAIN status bar: REMOTE <source> stays this long after the last remote command (W-E14).
+// MAIN status bar: REMOTE <source> stays this long after the last remote command (E-604).
 static constexpr uint32_t REMOTE_INDICATOR_MS = 10000;
 // Serial TX buffer of the logger (AF53): lines are queued instead of waiting for the UART.
 static constexpr uint32_t SERIAL_TX_BUFFER_BYTES = 1024;
@@ -77,6 +77,11 @@ static constexpr uint32_t SI5351_SEARCH_FAST_PHASE_MS = 60000;
 static constexpr uint32_t SI5351_SEARCH_SLOW_INTERVAL_MS = 10000;
 // Heap / LVGL memory line in the debug log (LOG_DEBUG 1 only).
 static constexpr uint32_t MEM_LOG_INTERVAL_MS = 30000;
+// Heap warning (A-726, FW-08): checked once per second in every build; below HEAP_LOW_BYTES
+// one `Heap low` line, the next only after the heap recovered above HEAP_RECOVER_BYTES.
+static constexpr uint32_t HEAP_CHECK_INTERVAL_MS = 1000;
+static constexpr uint32_t HEAP_LOW_BYTES = 40u * 1024u;
+static constexpr uint32_t HEAP_RECOVER_BYTES = 48u * 1024u;
 // GUI and touch timing.
 static constexpr uint32_t GUI_UPDATE_INTERVAL_MS = 300;  // save state, connection, output errors
 // Pressure dropouts (and weak pressure) shorter than this keep a press (audit U-20: 60-80 ms;
@@ -95,7 +100,7 @@ static constexpr uint8_t TOUCH_RELEASE_QUIET_SAMPLES = 10;
 static constexpr uint32_t TOUCH_RELEASE_TIMEOUT_MS = 10000;
 // Screen lock (U-13): holding this long anywhere unlocks.
 static constexpr uint32_t UNLOCK_HOLD_MS = 2000;
-// Display controller detection: probes before the default (E-18).
+// Display controller detection: probes before the default (E-301).
 static constexpr uint8_t DISPLAY_PROBE_ATTEMPTS = 3;
 // Delay of the restart test hooks (TEST_LVGL_ASSERT, TEST_LOOP_HANG): time to switch outputs on.
 static constexpr uint32_t TEST_TRIGGER_MS = 20000;
@@ -124,3 +129,6 @@ inline uint8_t snapBacklight(int percent) {
     if (p > 100) p = 100;
     return (uint8_t)p;
 }
+
+// Start screen at boot (src/gui/splash.cpp); a tap ends it earlier.
+static constexpr uint32_t SPLASH_MS = 2500;

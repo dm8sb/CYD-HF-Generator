@@ -7,18 +7,19 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | `scpi_example.py` | Minimal SCPI example: connect, `*IDN?`, CH1 to 7.1 MHz, on, `FREQ:ACT?`, read the error queue, off. |
 | `rest_example.py` | Minimal REST example (urllib only): token from the index page, `GET /api/state`, `POST /api/channel/1`. |
 | `web_check.py` | Contract check of the web server (S55, S56) against the device or `web_mock.py`: page and headers, guard answers (token, origin, host, sizes), REST error codes, writes answered with the state, rate limit, WiFi settings without keys, scan semantics, WebSocket push and limits, login and logout. Never switches an output on or changes WiFi. |
-| `contract_check.py` | Shared contract vectors (AF34): sends every request of `test/contract/vectors.json` to the web server and compares status and SCPI code; the C++ host tests (`test_http_guard`, `test_rest_json`) read the same file, so a drift of mock, firmware or contract shows on both sides. CI runs it against `web_mock.py`, S61 against the device (no web password). |
-| `device_check.py` | Automated SCPI check for the smoke test and the measurement plan (`MESSPLAN.md` 4.3, L6, L-S); `--profile L6` (1000 × `*IDN?`, median < 50 ms) and `--profile L22` (every query of the command tree followed by `SYST:ERR?`, valid and invalid parameters, `*RST`). |
-| `slowloris.py` | Slow-request load of MESSPLAN L-S5 (AF39), only against your own device: N connections (default 30) send a header byte every 2 s and complete after 10 s; prints per connection accepted, refused, closed by the server (when) or answered. |
-| `touchstat.py` | Evaluation of the touch test logs (MESSPLAN B8, B9, B12, B13, AF39): `[HITMAP]` deviation per target and miss rate, `[TOUCH]` press time, pressure, double-tap gaps, dropouts, touches per widget; `--csv` writes the target table. |
-| `counter_log.py` | Frequency counter logger of MESSPLAN C7, C8 (AF39): a SCPI query over TCP or USB (pyserial) in the rhythm of the gate time into `time;frequency;temperature` CSV. |
+| `contract_check.py` | Shared contract vectors (AF34): sends every request of `test/contract/vectors.json` to the web server and compares status and SCPI code; the C++ host tests (`test_http_guard`, `test_rest_json`) read the same file, so a drift of mock, firmware or contract shows on both sides. CI runs it against `web_mock.py`, MES-07 against the device (no web password). |
+| `device_check.py` | Automated SCPI check for the smoke test and the measurement plan (`MESSPLAN.md` 4.3, M-203, M-206 to M-216); `--profile M-203` (1000 × `*IDN?`, median < 50 ms) and `--profile M-452` (every query of the command tree followed by `SYST:ERR?`, valid and invalid parameters, `*RST`). Also checks CH2 coupled to CH1 (`SOUR2:COUP`, `SOUR2:FREQ:OFFS`: CH2 = CH1 + offset, −221 for a CH2 frequency while coupled, waiting below 8 kHz and above 160 MHz, `0` below 0 Hz, CH3 with master CH2, the last valid frequency after `OFF`; `WAIT` in `OUTP2:COND?` only with `--outputs`) and `SYST:DISP:ROT` (round trips and refusals, turned only for a moment and restored). A coupled CH2 is decoupled at the start to read its own frequency and coupled again at the end. |
+| `slowloris.py` | Slow-request load of MESSPLAN M-210 (AF39), only against your own device: N connections (default 30) send a header byte every 2 s and complete after 10 s; prints per connection accepted, refused, closed by the server (when) or answered. |
+| `touchstat.py` | Evaluation of the touch test logs (MESSPLAN M-126, M-425, M-316, M-427, AF39): `[HITMAP]` deviation per target and miss rate, `[TOUCH]` press time, pressure, double-tap gaps, dropouts, touches per widget; `--csv` writes the target table. |
+| `counter_log.py` | Frequency counter logger of MESSPLAN M-313, M-411 (AF39): a SCPI query over TCP or USB (pyserial) in the rhythm of the gate time into `time;frequency;temperature` CSV. |
 | `lxi_example.py` | LXI / VXI-11 example (standard library): discovery by portmapper broadcast like `lxi discover`, `*IDN?` and commands over VXI-11, optionally through PyVISA (`TCPIP::<ip>::INSTR`). |
-| `fake_scpi_device.py` | Fake device (local TCP server, subset of the manual incl. `*RST`) to try the scripts without hardware; `--vxi11` adds a reduced VXI-11 server (portmapper and core channel 9009). |
+| `fake_scpi_device.py` | Fake device (local TCP server, subset of the manual incl. `*RST`, CH2 coupling with offset and `WAIT`, `SYST:DISP:ROT`) to try the scripts without hardware; `--vxi11` adds a reduced VXI-11 server (portmapper and core channel 9009). |
 | `size_report.py` | Flash/RAM of the firmware env from the ELF as `size.json` and a Markdown table with the difference to a baseline (CI job summary, G7). Local: `python tools/size_report.py measure -e esp32-2432S028R` after `pio run`; `--self-test` runs its tests. |
 | `hostport.py` | The one `host[:port]` parser of the tools (`web_check.py`, `device_check.py`, `scpi_example.py`, the Host check of `web_mock.py`): `[v6]:port` with brackets, a bad port is an error instead of a guess; `python tools/hostport.py` runs its self-test. |
 | `device_constants.py` | Frequency limits, step list, correction range and defaults read from `include/constants.h`, for `web_mock.py`, `fake_scpi_device.py` and `web_check.py` (no copies of firmware constants in the tools). |
 | `web_mock.py` | Mock of the web server (standard library): serves `data/www` with the REST API, WebSocket and request guard on a simulated device, to try the web UI and `web_check.py` without hardware (see below). |
 | `flasher_site.py` | Release helper: collects the flash parts and offsets from PlatformIO, the license notices and LGPL sources, downloads ESP Web Tools by hash and assembles and checks the web flasher site (used by `release.yml`; `--help` per subcommand). |
+| `docs_site.py` | Release helper (G9, E-903): renders the user manual (DE, EN), `docs/hardware.md` and `docs/REMOTE_API.md` into the Pages site with GitHub-style anchors (`build`, needs markdown-it-py from `requirements-ci.txt`) and checks pages, links, anchors, images and CSP (`check`, standard library); `flasher_site.py assemble`/`check` call it, CI runs it alone (`check --without-flasher`) |
 | `release_files.py` | Release helper (AF23): `name` turns the build artifact into the release assets (`cyd-hf-generator-<version>-…`, deterministic licenses archive, LGPL sources, `SHA256SUMS`), `notes` writes the release notes with offsets, esptool command and package list; a missing file or part fails. `release.yml` runs it for a tag and in the dry run of pull requests to `main`. |
 | `dep_check.py` | Pinned dependencies (AF22): `packages` compares `pio pkg list` and the build metadata with the exact pins in `platformio.ini` (platform and `platform_packages` by release URL with the SHA-256 digests GitHub publishes, recorded in `ASSET_SHA256`; toolchain and esptool as the platform names them; registry libraries) and with the versions in `THIRD_PARTY_NOTICES.md` (Arduino-ESP32, ESP-IDF tag and commit, GCC runtime, libraries); CI and `release.yml` run it, `--summary` writes the package table. `advisories` (AF26) checks the pinned versions (libraries, Arduino-ESP32 and ESP-IDF from the notices, ESP Web Tools and its npm packages) against the GitHub advisories of the upstream repositories and OSV; a finding fails (`advisories.yml` weekly with an issue, `release.yml` before every release). Advisories that do not apply go with their reason into `advisories_accepted.json`; `--override NAME=VERSION` tests with an old version (`--override ESPAsyncWebServer=3.11.0` finds two advisories); token from `GITHUB_TOKEN`/`GH_TOKEN`. |
 | `advisories_accepted.json` | Advisories of pinned dependencies that do not apply to this firmware, each with the reason (read by `dep_check.py advisories`). |
@@ -29,7 +30,7 @@ Python 3.8+ helpers for the CYD HF generator. Comments and help texts are in Eng
 | `screens/` | Host screen renderer (not a host tool): stand-ins for display, touch, WiFi, LED and build info, the sample state and `lv_conf_host.h`; built by `pio run -e screens-win`. |
 | `build_info.py` | PlatformIO build script (not a host tool). |
 | `sanitize_link.py` | PlatformIO build script of the env `native-asan` (not a host tool): links the ASan/UBSan runtime with the same `-fsanitize` flags as the compile (AF36). |
-| `embed_www.py` | PlatformIO build script: embeds `data/www` into the firmware (`app.js`, `style.css` gzip with ETag, `index.html` for the per-boot token) as `$BUILD_DIR/www/www_assets.h`; stops the build on `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval(` or `new Function` (W-S7, W-S8, AF34). |
+| `embed_www.py` | PlatformIO build script: embeds `data/www` into the firmware (`app.js`, `style.css` gzip with ETag, `index.html` for the per-boot token) as `$BUILD_DIR/www/www_assets.h`; stops the build on `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval(` or `new Function` (A-707, A-708, AF34). |
 
 ## Install
 
@@ -60,7 +61,7 @@ python tools/lxi_example.py --address 192.168.1.50 --command "FREQ?"
 python tools/lxi_example.py --address 192.168.1.50 --pyvisa     # TCPIP::<ip>::INSTR, needs pyvisa pyvisa-py
 
 python tools/device_check.py --usb COM5                          # settings only, outputs stay off
-python tools/device_check.py --tcp 192.168.1.50 --repeat 1000    # L6: 1000 x *IDN? timing
+python tools/device_check.py --tcp 192.168.1.50 --repeat 1000    # M-203: 1000 x *IDN? timing
 python tools/device_check.py --usb COM5 --outputs --json > report.json
 ```
 
@@ -82,8 +83,10 @@ python tools/fake_scpi_device.py --port 5025        # terminal 1
 python tools/device_check.py --tcp 127.0.0.1:5025   # terminal 2
 ```
 
-The fake does not implement `*RST`, so `--allow-rst` reports one FAIL against it; `OUTP:REM?` always answers
-`ALLOWED`, so the `-221` check is skipped. Everything else passes against it.
+`OUTP:REM?` of the fake always answers `ALLOWED`, so the `-221` check of `local only` is skipped; everything
+else passes against it, also with `--allow-rst`, `--outputs` and `--profile M-452`. The fake follows
+`src/remote/scpi.cpp` (error codes and texts, CH2 coupling with offset, `WAIT` and the last valid frequency,
+rotation, `*RST`); where they differ, the firmware is the reference.
 
 VXI-11 without the device (clients always ask the portmapper on port 111; on Linux binding it needs root):
 
@@ -96,7 +99,7 @@ python tools/lxi_example.py --address 127.0.0.1 --pyvisa
 ### Web interface without the device
 
 `web_mock.py` serves the web interface from `data/www/` with the REST API, the WebSocket and the
-request guard of ARBEITSPLAN 3.6 on a simulated device (standard library only):
+request guard of `PROJECT_SPECIFICATION.md` 6.4 on a simulated device (standard library only):
 
 ```bash
 python tools/web_mock.py --port 8080                 # then open http://127.0.0.1:8080/
@@ -108,9 +111,9 @@ python tools/web_check.py cyd-hf-1a2b.local --password    # ... against the devi
 
 The mock gives the firmware's answers (S55); where they differ, the firmware is the reference.
 
-Further flags: `--local-only`, `--open-ap`, `--hw`, `--no-ws`, `--confirm-timeout`, `--token` (`--login-all` has no effect any more: with `--password` the state, token and `/ws` always need the login, D25)
+Further flags: `--local-only`, `--open-ap`, `--hw`, `--no-ws`, `--confirm-timeout`, `--token` (`--login-all` has no effect any more: with `--password` the state, token and `/ws` always need the login, E-703)
 (`--help` explains them).
 
 ## CI
 
-The job `Tool checks` of `ci.yml` (AF34) runs `size_report.py --self-test` and `hostport.py`, starts `web_mock.py` on free ports (a port in use is an error: `allow_reuse_address` is off) without and with a password, runs `contract_check.py`, `web_check.py` and a short `slowloris.py` against them, and `device_check.py --tcp` (also `--profile L22`) and `counter_log.py` against `fake_scpi_device.py`.
+The job `Tool checks` of `ci.yml` (AF34) runs `size_report.py --self-test` and `hostport.py`, starts `web_mock.py` on free ports (a port in use is an error: `allow_reuse_address` is off) without and with a password, runs `contract_check.py`, `web_check.py` and a short `slowloris.py` against them, and `device_check.py --tcp` (also `--profile M-452` and `--outputs`) and `counter_log.py` against `fake_scpi_device.py`.

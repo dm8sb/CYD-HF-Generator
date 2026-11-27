@@ -43,6 +43,11 @@ public:
     int failAfter = -1;
     // Status reads that still report SYS_INIT after power-on.
     uint8_t initReads = 0;
+    // A clone that ignores writes to register 1 (its sticky bits stay set).
+    bool keepSticky = false;
+    // The module on the bench: every PLL soft reset sets SYS_INIT_STKY without a restart.
+    bool pllResetSetsSticky = false;
+    unsigned readTransfers = 0;     // register reads (one per repeated-start transaction)
     std::vector<RegWrite> writes;
     unsigned pllResets[2] = {0, 0}; // PLL A, PLL B
     unsigned failedTransfers = 0;   // attempted while failAfter == 0
@@ -52,6 +57,7 @@ public:
     // Power-on state: all clocks powered down and disabled, nothing configured.
     void powerOn() {
         memset(regs, 0, sizeof(regs));
+        regs[1] = 0x80; // SYS_INIT_STKY: the power-up calibration ran
         regs[3] = 0xFF;
         for (uint8_t i = 16; i <= 23; ++i) regs[i] = 0x80;
         regs[183] = 0xD2;
@@ -68,12 +74,20 @@ public:
         maxClockHz = 0;
         foreign = false;
         foreignValue = 0x00;
+        keepSticky = false;
+        pllResetSetsSticky = false;
         clearLog();
     }
     void clearLog() {
         writes.clear();
         pllResets[0] = pllResets[1] = 0;
         failedTransfers = 0;
+        readTransfers = 0;
+    }
+    // Live LOL_A / LOL_B in register 0; a loss of lock also sets the sticky bit in register 1.
+    void setLol(bool a, bool b) {
+        regs[0] = (uint8_t)((regs[0] & ~0x60) | (a ? 0x20 : 0) | (b ? 0x40 : 0));
+        regs[1] |= (uint8_t)((a ? 0x20 : 0) | (b ? 0x40 : 0));
     }
     unsigned writesTo(uint8_t reg) const {
         unsigned n = 0;
@@ -108,7 +122,14 @@ public:
         if (reg == 177) {
             if (value & 0x20) ++pllResets[0];
             if (value & 0x80) ++pllResets[1];
+            if (pllResetSetsSticky) regs[1] |= 0x80;
             return; // self-clearing
+        }
+        if (reg == 0) return; // read-only status
+        if (reg == 1) {
+            // Sticky bits: writing 0 clears a bit, writing 1 leaves it (AN619).
+            if (!keepSticky) regs[1] &= value;
+            return;
         }
         regs[reg] = value;
     }
@@ -217,6 +238,7 @@ public:
         if (address_(addr) != 0) return 0;
         if (pointer && txLen_ > 0 && !ghost_) pointer_ = tx_[0];
         Fake::Si5351Chip& chip = Fake::si5351();
+        if (!ghost_) ++chip.readTransfers;
         for (uint8_t i = 0; i < len && rxLen_ < sizeof(rx_); ++i) rx_[rxLen_++] = ghost_ ? 0xFF : chip.read(pointer_++);
         return (uint8_t)rxLen_;
     }

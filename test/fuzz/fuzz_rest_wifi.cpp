@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Fuzz target rest_wifi: RestWifi::parseChange, merge, wipe and buildSettings (remote/rest_wifi.*),
-// POST and GET /api/wifi (S55, W-E9, W-S1, W-S12, D23).
+// POST and GET /api/wifi (S55, E-618, A-701, A-712, E-515).
 // Input: byte 0 the current settings (bits 0-1 mode, bit 2 network in slot 0, bit 3 in slot 1,
 // bit 4 static IP on, bit 5 AP password set, bit 6 open AP), byte 1 bit 0 raw mode; the rest
 // either drives a generator of bodies (structured mode) or is the body itself (raw mode).
@@ -435,7 +435,7 @@ std::string body(Reader& in, Model& m) {
     }
     s += "}";
     if (!m.parseError && m.keys == 0) m.parseError = MISSING;
-    // D23: "off" is final and the only key.
+    // E-515: "off" is final and the only key.
     if (!m.parseError && m.hasMode && m.mode == WifiMode::Off && m.keys > 1) m.parseError = UNKNOWN;
     return s;
 }

@@ -8,10 +8,10 @@
 #include "onc_rpc.h"
 #include "vxi11.h"
 
-// VXI-11 on the device (A-78, E-37; not host-compiled, the logic is in onc_rpc.* and
+// VXI-11 on the device (A-615, E-614; not host-compiled, the logic is in onc_rpc.* and
 // vxi11.*): the portmapper on UDP and TCP 111 and the core channel on TCP VXI11_CORE_PORT.
 // Polled in loop() like ScpiTcpServer, on non-blocking lwIP sockets: per call at most a few
-// datagrams, reads and accepts, so a flood cannot starve the GUI. Created on the heap (E-31).
+// datagrams, reads and accepts, so a flood cannot starve the GUI. Created on the heap (E-305).
 class Vxi11Server {
 public:
     Vxi11Server(ScpiBackend& backend, const char* serial);

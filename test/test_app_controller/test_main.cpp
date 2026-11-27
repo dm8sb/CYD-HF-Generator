@@ -375,6 +375,54 @@ static void test_power_glitch_is_restored_in_the_same_cycle() {
     assertHz(0, DEFAULT_FREQ_CH1);
 }
 
+// FW-07 (finding 2.1): a power dip with no output on leaves the output registers as the driver
+// wrote them; the sticky SYS_INIT bit still leads to the reconnect and a new init.
+static void test_power_dip_without_output_reinitializes() {
+    Device d;
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    const uint16_t before = d.app.connectionCount();
+    chip.powerOn();
+    chip.initReads = 0;   // only SYS_INIT_STKY tells
+    chip.regs[24] = 0x15; // marks the register, so the new init shows by its write
+    chip.clearLog();
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_NOT_NULL(strstr(lastErrorText, "Connection lost"));
+    TEST_ASSERT_TRUE(d.app.hardwareReady());
+    TEST_ASSERT_EQUAL_UINT16(before + 1, d.app.connectionCount());
+    TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[1]);  // sticky bits cleared again
+    TEST_ASSERT_EQUAL_HEX8(0x00, chip.regs[24]); // off state Low written again
+    // begin() and the two PLL resets of the restore each clear the sticky bits.
+    TEST_ASSERT_EQUAL_UINT(3, chip.writesTo(1));
+    // Quiet afterwards: no further reconnect.
+    d.run(3 * HW_CHECK_INTERVAL_MS);
+    TEST_ASSERT_EQUAL_UINT(1, errorCount);
+    TEST_ASSERT_EQUAL_UINT16(before + 1, d.app.connectionCount());
+}
+
+// FW-07: the LOL bits of register 0 reach the controller (CONFIG info card) as a revision.
+static void test_pll_lock_is_shown_as_state() {
+    using Lock = SI5351Manager::PllLock;
+    Device d; // the stored channel settings set up both PLLs, outputs off
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(Lock::Locked, d.app.pllLock(SI5351Manager::Pll::A));
+    TEST_ASSERT_EQUAL(Lock::Locked, d.app.pllLock(SI5351Manager::Pll::B));
+    const uint32_t rev = d.app.revision();
+    chip.setLol(true, false);
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(Lock::Unlocked, d.app.pllLock(SI5351Manager::Pll::A));
+    TEST_ASSERT_TRUE(d.app.revision() != rev);
+    TEST_ASSERT_TRUE(d.app.hardwareReady()); // no reconnect for a loss of lock
+    TEST_ASSERT_EQUAL_UINT(0, errorCount);
+    const uint32_t rev2 = d.app.revision();
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL_UINT32(rev2, d.app.revision()); // unchanged: no redraw
+    chip.setLol(false, false);
+    d.run(HW_CHECK_INTERVAL_MS + 100);
+    TEST_ASSERT_EQUAL(Lock::Locked, d.app.pllLock(SI5351Manager::Pll::A));
+    TEST_ASSERT_TRUE(d.app.revision() != rev2);
+}
+
 // Audit T-3: millis() wraps after 49.7 days; supervision and autosave keep working.
 static void test_millis_wrap_keeps_supervision_and_autosave() {
     Fake::clockMs() = 0xFFFFFFFFUL - 3000;
@@ -517,7 +565,7 @@ static void test_config_options_default_and_persist() {
     TEST_ASSERT_EQUAL(TuningMode::LowNoise, d.si.tuningMode());
 }
 
-// D22 / SEC-V-1: off state High puts DC on every switched-off output, so under
+// E-611 / SEC-V-1: off state High puts DC on every switched-off output, so under
 // `Remote outputs: local only` a remote source may not select it (Denied); Low and High-Z stay
 // allowed, the touch source keeps High (after its own confirmation), and `allowed` lets the
 // network set it without a question.
@@ -706,7 +754,7 @@ static void test_autosave_writes_only_changed_keys() {
     TEST_ASSERT_EQUAL_UINT(before + 3, nvs.writeCount);
 }
 
-// W-E17: SCPI changes are saved after 30 s of quiet, touch and web changes after 5 s.
+// E-402: SCPI changes are saved after 30 s of quiet, touch and web changes after 5 s.
 static void test_remote_changes_save_later() {
     Device d;
     d.app.setSource(Source::Scpi);
@@ -724,7 +772,7 @@ static void test_remote_changes_save_later() {
     TEST_ASSERT_EQUAL_UINT(before + 2, nvs.writeCount);
 }
 
-// W-E19 / C-17: after *RST the defaults are not saved; a later change saves only its own key,
+// E-608 / C-17: after *RST the defaults are not saved; a later change saves only its own key,
 // SYSTem:SAVE (saveNow) saves everything at once.
 static void test_reset_for_remote_is_not_saved() {
     {
@@ -758,7 +806,7 @@ static void test_reset_for_remote_is_not_saved() {
     TEST_ASSERT_EQUAL_UINT8(DEFAULT_DRIVE_MA, d.app.system().drive_ma);
 }
 
-// AF17, D26: explicit saves (SYSTem:SAVE, POST /api/save) at most once per 10 s per source;
+// AF17, E-402: explicit saves (SYSTem:SAVE, POST /api/save) at most once per 10 s per source;
 // more are merged silently and saved at the latest 10 s after the previous save. A save writes
 // only the keys that changed.
 static void test_explicit_save_rate_limited_per_source() {
@@ -773,7 +821,7 @@ static void test_explicit_save_rate_limited_per_source() {
     for (int i = 0; i < 300; ++i) {
         d.app.setSource(Source::Scpi);
         d.app.setChannelFrequency(1, 7000000 + 1000 * (uint64_t)(i % 7));
-        TEST_ASSERT_TRUE(d.app.saveNow()); // never an error (D26)
+        TEST_ASSERT_TRUE(d.app.saveNow()); // never an error (E-402)
         d.app.setSource(Source::Touch);
         d.run(100);
     }
@@ -961,7 +1009,7 @@ static void test_spread_and_off_state_reach_the_chip() {
     TEST_ASSERT_EQUAL_UINT(0, errorCount);
 }
 
-// Range extension (E-16): CH1/CH2 8 kHz-160 MHz, CH3 stays at 4.730-100 MHz and waits above.
+// Range extension (E-203): CH1/CH2 8 kHz-160 MHz, CH3 stays at 4.730-100 MHz and waits above.
 static void test_extended_range_and_ch3_limit() {
     Device d;
     d.app.setChannelFrequency(2, 8000);
@@ -1300,7 +1348,7 @@ static void test_autosave_after_quiet_period() {
     TEST_ASSERT_EQUAL_UINT64(7110000ULL, p.getULong64("ch1_freq", 0));
 }
 
-// Audit C-5 / T-7: output states are not stored (A-4), so switching them must not write
+// Audit C-5 / T-7: output states are not stored (A-204), so switching them must not write
 // the flash; neither must setting a stored value to the value it already has.
 static void test_unchanged_settings_do_not_write_flash() {
     Device d;
@@ -1541,7 +1589,7 @@ static void test_identify_blinks_and_restores_backlight() {
 }
 
 // ---------------------------------------------------------------------------
-// Screen rotation (N16, E-53)
+// Screen rotation (N16, E-314)
 
 // 0 or 180 degrees, stored in NVS (key rot180); Defaults resets it and saves 0, *RST resets it
 // in RAM like the backlight (not saved).
@@ -1633,6 +1681,8 @@ int main() {
     RUN_TEST(test_boot_without_si5351_then_hot_plug);
     RUN_TEST(test_power_glitch_reports_once_and_restores);
     RUN_TEST(test_power_glitch_is_restored_in_the_same_cycle);
+    RUN_TEST(test_power_dip_without_output_reinitializes);
+    RUN_TEST(test_pll_lock_is_shown_as_state);
     RUN_TEST(test_millis_wrap_keeps_supervision_and_autosave);
     RUN_TEST(test_failing_bus_reinit_is_survived);
     RUN_TEST(test_reconnect_restores_spread_spectrum);

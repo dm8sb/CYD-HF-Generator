@@ -71,7 +71,7 @@ public:
         AppController& app_;
         const Source previous_;
     };
-    // Last remote source and when it sent a command (status bar REMOTE <source>, W-E14);
+    // Last remote source and when it sent a command (status bar REMOTE <source>, E-604);
     // Source::Touch while none did.
     Source lastRemote() const { return lastRemote_; }
     uint32_t lastRemoteMs() const { return lastRemoteMs_; }
@@ -82,7 +82,7 @@ public:
     Result adjustChannelFrequency(uint8_t ch, int64_t delta);
     // A remote source may not switch an output on while remote outputs are local only (Denied).
     Result setChannelEnabled(uint8_t ch, bool en);
-    // CH2 coupled to CH1 (E-52): CH2 = CH1 + offset. setChannelFrequency(2) and
+    // CH2 coupled to CH1 (E-213): CH2 = CH1 + offset. setChannelFrequency(2) and
     // adjustChannelFrequency(2) give Coupled meanwhile. Decoupling keeps the last frequency CH2
     // ran at. The offset may be set while free too (it applies when coupling).
     Result setCh2Coupled(bool coupled);
@@ -95,7 +95,7 @@ public:
     // BACKLIGHT_MIN_PERCENT..100, rounded to BACKLIGHT_STEP_PERCENT.
     Result setBacklight(uint8_t percent);
     Result stepBacklight(int8_t direction);
-    // Screen rotation in degrees, 0 or 180 (E-53; anything else Invalid). The GUI applies it to the
+    // Screen rotation in degrees, 0 or 180 (E-314; anything else Invalid). The GUI applies it to the
     // display and the touch when the revision changes; Defaults and *RST set 0 like the backlight.
     Result setRotation(uint16_t degrees);
     // One of DELTA_STEPS.
@@ -106,27 +106,27 @@ public:
     // Grundzustand for the next group (U-13): all settings and frequencies back to the defaults,
     // all outputs off; only the frequency correction (calibration) stays. Saved by the autosave.
     void resetToDefaults();
-    // *RST (W-E19): outputs off, defaults in RAM (correction kept), pending changes dropped;
+    // *RST (E-608): outputs off, defaults in RAM (correction kept), pending changes dropped;
     // nothing is saved until saveNow(), a later change saves only its own key.
     void resetForRemote();
-    // CONFIG "Remote outputs" (W-E25): allowed (default) or local only. Only the touch source
+    // CONFIG "Remote outputs" (E-610): allowed (default) or local only. Only the touch source
     // may change it (remote: Denied); saved at once, kept by resetToDefaults() and *RST.
     bool remoteOutputsAllowed() const { return remoteOutputsAllowed_; }
     Result setRemoteOutputsAllowed(bool allowed);
-    // SYSTem:IDENtify (W-E28): backlight and LED blink for IDENTIFY_MS; a new call restarts it.
+    // SYSTem:IDENtify (E-613): backlight and LED blink for IDENTIFY_MS; a new call restarts it.
     void identify();
     bool identifying() const { return identifying_; }
     // Blink phase while identifying: true = lit.
     bool identifyLit() const { return identifyLit_; }
     // SYSTem:SAVE / POST /api/save: writes the changed keys at once, at most once per 10 s per
-    // source (AF17, D26); a request within that time is merged and saved by update() 10 s after
+    // source (AF17, E-402); a request within that time is merged and saved by update() 10 s after
     // the previous save. true unless the immediate save failed.
     bool saveNow();
     // CONFIG options; each reconfigures the outputs as needed. Spread is ignored (stays Off)
     // in TuningMode::Integer; switching to Integer turns it off.
     Result setTuningMode(TuningMode mode);
     Result setSpread(Spread spread);
-    // A remote source may not select OffState::High while remote outputs are local only (Denied, D22).
+    // A remote source may not select OffState::High while remote outputs are local only (Denied, E-611).
     Result setOffState(OffState state);
 
     // ch 1 or 2; anything else gives an empty channel (frequency 0, off), never CH2 (S-12).
@@ -168,13 +168,16 @@ public:
     int i2cSclPin() const;
     bool i2cSwapped() const;
     bool si5351IdUnverified() const { return si5351_.idUnverified(); }
+    // PLL lock per PLL from the supervision read of register 0 (CONFIG info card, A-226); only
+    // meaningful while hardwareReady(). A change counts as a revision.
+    SI5351Manager::PllLock pllLock(SI5351Manager::Pll p) const { return si5351_.pllLock(p); }
 
 private:
     Channel& channel_(uint8_t ch);
     const Channel& channel_(uint8_t ch) const;
     uint8_t clkForChannel_(uint8_t ch) const { return ch == 1 ? CLK_CH1 : CLK_CH2; }
     SI5351Manager::Pll pllForChannel_(uint8_t ch) const { return ch == 1 ? SI5351Manager::Pll::A : SI5351Manager::Pll::B; }
-    // Marks the changed NVS keys; remote changes are saved later (W-E17).
+    // Marks the changed NVS keys; remote changes are saved later (E-402).
     void markChanged_(uint16_t keys);
     void bump_() { ++revision_; }
     void report_(EventCode code, EventCategory category, const char* title, const char* text, uint8_t channel = 0);
@@ -241,4 +244,7 @@ private:
     bool fault_[3] {};
     // Periodic retries of failed setups report to the log only, not as a dialog.
     bool quietRetry_ = false;
+    // Unlocked PLLs of the last supervision (lockCode_()), to bump the revision on a change.
+    uint8_t lockSeen_ = 0;
+    uint8_t lockCode_() const;
 };

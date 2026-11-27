@@ -27,9 +27,16 @@ public:
     Error lastError() const { return lastError_; }
     // Register 183 bits 5:0 differ from the documented reset value (e.g. a clone).
     bool idUnverified() const { return idUnverified_; }
-    // Reads back the output registers. Returns false and drops ready() if the chip
-    // does not answer or lost its configuration (e.g. after a power interruption).
+    // Reads back the output registers and the status registers 0 and 1 (AN619: register 0 holds
+    // the live SYS_INIT / LOL_B / LOL_A bits, register 1 their sticky copies, cleared by writing 0;
+    // begin() clears them). Returns false and drops ready() if the chip does not answer, lost its
+    // configuration or restarted (SYS_INIT or SYS_INIT_STKY set, e.g. after a power dip with all
+    // outputs off). No write.
     bool checkAlive();
+    // PLL lock state from the LOL bits of the last begin() / checkAlive(). Unused: the PLL has
+    // not been set up since begin() (its LOL bit means nothing then).
+    enum class PllLock : uint8_t { Unused, Locked, Unlocked };
+    PllLock pllLock(Pll pll) const;
     // Crystal correction in 0.01 ppm, positive = crystal runs fast. Takes effect with the next setup call.
     void setCorrection(int32_t correction) { correction_ = correction; }
     // CONFIG options. They survive begin(); begin() writes the off state to the chip, spread
@@ -110,6 +117,10 @@ private:
     OffState offState_ = OffState::Low;
     Error lastError_ = Error::None;
     bool idUnverified_ = false;
+    uint8_t status_ = 0;          // register 0 at the last begin() / checkAlive()
+    // begin() saw SYS_INIT clear and could clear SYS_INIT_STKY: restart detection by register 0/1
+    // is on (off for a clone that keeps them set; the read-back still detects a lost configuration).
+    bool statusTrusted_ = false;
     int32_t correction_ = 0;
     uint8_t outputMask_ = 0;
     OutputCache out_[3] {};

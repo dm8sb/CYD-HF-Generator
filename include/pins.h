@@ -6,7 +6,7 @@
 #include <Arduino.h>
 
 // Display (HSPI: MOSI 13, MISO 12, SCK 14, CS 15, DC 2) is configured for TFT_eSPI
-// by the build flags in platformio.ini; one firmware for both display controllers (E-18).
+// by the build flags in platformio.ini; one firmware for both display controllers (E-301).
 
 // XPT2046 touch on VSPI
 static constexpr int PIN_TOUCH_MOSI = 32;

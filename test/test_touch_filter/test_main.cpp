@@ -88,7 +88,7 @@ static void test_filter_rejects_weak_pressure_and_bad_calibration() {
 }
 
 // ---------------------------------------------------------------------------
-// Touch test builds (MESSPLAN B8, B9, B12)
+// Touch test builds (MESSPLAN M-126, M-425, M-316)
 
 static void test_recorder_measures_a_touch_with_a_bridged_dropout() {
     TouchTest::Recorder rec;

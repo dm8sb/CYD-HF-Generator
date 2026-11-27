@@ -8,7 +8,7 @@
 #include "wifi_policy.h"
 #include "scan_list.h"
 
-// Drives the radio from NetSettings (ARBEITSPLAN 3.3/3.4): Off, Client with up to two networks
+// Drives the radio from NetSettings (A-501, A-606): Off, Client with up to two networks
 // and the fallback AP, Access point. Runs in loop(): WiFi events only set flags, so nothing
 // is called from the WiFi task. Not host-compiled; the decisions are in WifiPolicy.
 //
@@ -16,7 +16,7 @@
 // the stored networks are tried in turn. No WiFiMulti: its run() blocks for seconds and would
 // trip the loop watchdog. AP: WPA2 with the random password (created on first use while the
 // radio runs, so esp_random() is a true RNG), DHCP without router option, captive DNS, never
-// together with a client address (D14).
+// together with a client address (E-511).
 class WifiManager {
 public:
     typedef WifiPolicy::Failure Failure;
@@ -51,20 +51,20 @@ public:
     // Access point settings (password, open) without touching the client connection: a running
     // AP restarts with them.
     void applyAp(const NetSettings& s);
-    // A new random AP password (W-E3), also with the radio off (bootloader RNG then).
+    // A new random AP password (E-503), also with the radio off (bootloader RNG then).
     void newApPassword(char out[NetConfig::AP_PASSWORD_LEN + 1]);
     // True random bytes (salt of the web password), also with the radio off.
     void randomBytes(uint8_t* out, size_t n);
     // The web password record only ("" = none): nothing restarts, the web server ends its
     // sessions when it sees the change (S55b).
     void applyWebPassword(const char* record);
-    // The touch confirmed an open fallback AP (W-S2).
+    // The touch confirmed an open fallback AP (A-702).
     // Counts only while the question is pending (CQ-1): a late or stale answer allows nothing.
     void confirmOpenFallback() {
         if (status_.needsOpenConfirmation) openFallbackConfirmed_ = true;
     }
     void update();
-    // Scan for the WIFI page (W-E2): asynchronous; with the radio off the client interface runs
+    // Scan for the WIFI page (E-502): asynchronous; with the radio off the client interface runs
     // only for the scan. The results stay until the next scan.
     void startScan();
     ScanState scanState() const { return uiScan_; }

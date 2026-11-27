@@ -16,7 +16,7 @@ namespace TouchFilter {
 bool plausibleRaw(int16_t rawX, int16_t rawY);
 // Raw values to screen coordinates (clamped); false for an unusable calibration.
 bool mapPoint(const TouchCalibration& cal, int16_t rawX, int16_t rawY, int16_t* x, int16_t* y);
-// Screen turned by 180 degrees (E-53): x' = 319 - x, y' = 239 - y. The calibration stays in raw
+// Screen turned by 180 degrees (E-314): x' = 319 - x, y' = 239 - y. The calibration stays in raw
 // coordinates of the upright screen, so it serves both rotations.
 void rotate180(int16_t* x, int16_t* y);
 

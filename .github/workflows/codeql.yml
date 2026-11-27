@@ -6,12 +6,12 @@
 # data/www and the workflows themselves. Query suite security-extended: the device is reachable
 # over WiFi, SCPI/TCP and HTTP, so the broader security queries are worth their few extra
 # false positives; the quality queries are left out (style is covered by -Wall -Wextra).
-# Actions are pinned by commit SHA (W-S24, audit S-20, S-27); the token is read-only except
+# Actions are pinned by commit SHA (A-724, audit S-20, S-27); the token is read-only except
 # for uploading the results.
 name: CodeQL
 
 on:
-  # Pushes only on the working branches (D49): main, dev and the agent branches; tags run only
+  # Pushes only on the working branches (E-807): main, dev and the agent branches; tags run only
   # in release.yml. Pull requests to main always (the ruleset requires the checks), to dev for
   # Dependabot.
   push:

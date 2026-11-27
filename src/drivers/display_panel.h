@@ -17,7 +17,7 @@ public:
     // landscape and clears the screen. Never fails; the backlight should still be off.
     void begin();
     void flush(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels);
-    // Landscape upright or turned by 180 degrees (E-53), at once; the caller redraws the screen.
+    // Landscape upright or turned by 180 degrees (E-314), at once; the caller redraws the screen.
     void setTurned(bool turned);
     bool turned() const { return turned_; }
     PanelType panel() const { return panel_; }

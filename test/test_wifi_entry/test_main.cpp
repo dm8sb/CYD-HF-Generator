@@ -79,7 +79,7 @@ static void test_entry_titles() {
     }
     entryTitle(EntryPurpose::Password, 0, "Lab", t, sizeof(t));
     TEST_ASSERT_EQUAL_STRING("Password Lab", t);
-    // A foreign SSID is sanitized (W-S9) and the longest one fits the title buffer unshortened.
+    // A foreign SSID is sanitized (A-709) and the longest one fits the title buffer unshortened.
     entryTitle(EntryPurpose::Password, 0, "a\x01" "b", t, sizeof(t));
     TEST_ASSERT_NULL(strchr(t, '\x01'));
     const std::string longest = repeat('W', 32);
@@ -163,7 +163,7 @@ static void test_submit_network_key() {
     TEST_ASSERT_EQUAL(EntryStep::StoreNetwork, submitEntry(EntryPurpose::Password, "sample-key", false).step);
     // A hidden open network: empty password.
     TEST_ASSERT_EQUAL(EntryStep::StoreNetwork, submitEntry(EntryPurpose::Password, "", false).step);
-    // 64 hex digits are a PMK (D31), 64 other characters are not.
+    // 64 hex digits are a PMK (E-510), 64 other characters are not.
     TEST_ASSERT_EQUAL(EntryStep::StoreNetwork, submitEntry(EntryPurpose::Password, repeat('a', 64).c_str(), false).step);
     expectInvalid(EntryPurpose::Password, repeat('z', 64).c_str(), "8-63 chars or 64 hex");
     expectInvalid(EntryPurpose::Password, "1234567", "8-63 chars or 64 hex");

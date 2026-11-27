@@ -6,7 +6,7 @@
 name: CI
 
 on:
-  # Pushes only on the working branches (D49): main, dev and the agent branches; tags run only
+  # Pushes only on the working branches (E-807): main, dev and the agent branches; tags run only
   # in release.yml. Pull requests to main always (the ruleset requires the checks), to dev for
   # Dependabot.
   push:
@@ -144,10 +144,17 @@ jobs:
         run: |
           python tools/size_report.py --self-test
           python tools/hostport.py
+      # G9: the documentation pages of the Pages site render and all their links, anchors and
+      # images resolve (release.yml builds them again with the flasher site).
+      - name: Documentation pages
+        run: |
+          pip install --require-hashes -r tools/requirements-ci.txt
+          python tools/docs_site.py build --out docs-site --version dev --ref "$GITHUB_SHA"
+          python tools/docs_site.py check docs-site --without-flasher
       - name: Web UI without HTML or code from strings
         run: |
           if grep -nE 'innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function' data/www/*.js data/www/*.html data/www/*.css; then
-            echo "::error::forbidden in data/www (W-S7, W-S8; embed_www.py stops the build too)"
+            echo "::error::forbidden in data/www (A-707, A-708; embed_www.py stops the build too)"
             exit 1
           fi
       # web_check logs in when CYD_WEB_PASSWORD is set (--password without a value would prompt).
@@ -169,7 +176,8 @@ jobs:
           python tools/fake_scpi_device.py --port 15025 > fake.log 2>&1 &
           for _ in $(seq 50); do python -c "import socket; socket.create_connection(('127.0.0.1',15025),1)" 2>/dev/null && break; sleep 0.2; done
           python tools/device_check.py --tcp 127.0.0.1:15025
-          python tools/device_check.py --tcp 127.0.0.1:15025 --profile L22
+          python tools/device_check.py --tcp 127.0.0.1:15025 --profile M-452
+          python tools/device_check.py --tcp 127.0.0.1:15025 --outputs --repeat 20   # WAIT of a coupled CH2 (fake only)
           python tools/counter_log.py --tcp 127.0.0.1:15025 --query "FREQ:ACT?" --interval 0.2 --count 3
       - name: Logs
         if: failure()
@@ -224,7 +232,7 @@ jobs:
       # ones THIRD_PARTY_NOTICES.md names (Arduino-ESP32, ESP-IDF tag and commit, GCC runtime).
       - name: Check pinned packages
         env:
-          # E-51: the SHA-256 digests of the pinned release assets are read over the GitHub API.
+          # E-804: the SHA-256 digests of the pinned release assets are read over the GitHub API.
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           pio pkg list -e esp32-2432S028R > pkg-list.txt

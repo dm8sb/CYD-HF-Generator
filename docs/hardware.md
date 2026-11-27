@@ -1,6 +1,6 @@
 # Hardware
 
-What you need to build the CYD HF Generator and how to connect the SI5351 module. Operation, messages and limits are described in the user manual ([English](../USER_MANUAL_EN.md), [German](../USER_MANUAL_DE.md)); the authoritative pin table is in the [project specification, section 2](../PROJECT_SPECIFICATION.md#2-hardware-and-pinout).
+What you need to build the CYD HF Generator and how to connect the SI5351 module. Operation, messages and limits are described in the user manual ([English](../USER_MANUAL_EN.md), [German](../USER_MANUAL_DE.md)); the authoritative pin table is in the [project specification, section 2](../PROJECT_SPECIFICATION.md#13-pin-table).
 
 <!-- Photo: complete setup on the bench (see "Photos" below)
 ![CYD HF Generator on the bench](img/setup-bench.jpg)
@@ -31,7 +31,7 @@ What you need to build the CYD HF Generator and how to connect the SI5351 module
 | Low-pass filter per output | optional | Required before a square-wave output goes anywhere near an antenna (see [Safety](#safety)). |
 | Low-noise 3.3 V LDO with ferrite bead and capacitors | optional | Separate supply for the SI5351 module (see [Hints](#hints-for-a-clean-signal)). |
 | Metal enclosure or shielding | optional | Keeps the display and ESP32 noise away from the outputs. |
-| 25 MHz TCXO | optional | Only if the warm-up drift turns out to matter; this depends on a pending measurement (MESSPLAN C7). |
+| 25 MHz TCXO | optional | Only if the warm-up drift turns out to matter; a recommendation follows after the measurements (MESSPLAN M-313, M-411). |
 
 ## Board variants
 
@@ -95,19 +95,19 @@ CN1 IO27 ---- SCL   (or SDA)
 | CLK1 | CH2 | Freely adjustable, 8 kHz–160 MHz |
 | CLK2 | CH3 | IQ follower of CH1 or CH2, 0/90/180/270°, 4.730–100 MHz |
 
-- The outputs are CMOS square waves between GND and the output supply of the module (usually 3.3 V), with a drive strength of 2–8 mA (CONFIG `Drive all`). Level and duty cycle into 50 Ω are not measured yet (MESSPLAN E5, F2).
+- The outputs are CMOS square waves between GND and the output supply of the module (usually 3.3 V), with a drive strength of 2–8 mA (CONFIG `Drive all`). Level and duty cycle into 50 Ω are not measured yet (MESSPLAN M-309, M-312).
 - A switched-off output is Low, High or High-Z (CONFIG `Off state`). With `High`, it carries a DC voltage: use a DC block in front of sensitive inputs.
 - For IQ measurements use coax cables of equal length from CLK0/CLK1 and CLK2; 1 mm of cable is about 5 ps.
 
 ## Hints for a clean signal
 
-These hints are general practice for SI5351 builds; their effect on this device is still being measured (MESSPLAN F6, F9, C7).
+These hints are general practice for SI5351 builds; their effect on this device is still being measured (MESSPLAN M-310, M-418, M-313). The manual summarizes them in [section 13](../USER_MANUAL_EN.md#assembly-and-supply).
 
 - **Own supply for the module:** a low-noise 3.3 V LDO for the SI5351, fed through a ferrite bead, with 100 nF and 10 µF close to the module, keeps the ESP32, WiFi and display noise out of the outputs.
 - **Short ground:** a short, wide ground connection between board and module; coax shields to the module ground right at the output.
 - **Short I2C cable:** keep the CN1 cable short and away from the output lines.
-- **Shielding:** a metal enclosure or a shield over the module reduces coupling from the display, the backlight PWM and the WiFi radio.
-- **TCXO:** an optional 25 MHz TCXO instead of the crystal, only if the warm-up drift matters for your use (decision after measurement C7). The frequency correction (CONFIG `Corr.`) compensates the static crystal error.
+- **Shielding:** a metal enclosure or a shield over the module reduces coupling from the display, the backlight PWM and the WiFi radio; run the outputs in coax, not loose wires.
+- **TCXO:** an optional 25 MHz TCXO instead of the crystal, only if the warm-up drift matters for your use; a recommendation follows after the measurements (MESSPLAN M-313, M-411). The frequency correction (CONFIG `Corr.`) compensates the static crystal error.
 
 ## Case
 

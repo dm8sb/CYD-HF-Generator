@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Request guard of the web server (ARBEITSPLAN 3.6, 3.7): Host allowlist (W-S4), POST rules
-// and no CORS (W-S5), WebSocket upgrade (W-S6), sizes and heap (W-S10), login lock and scan
-// rate (W-S11), sessions and broken headers (W-S13), password fields over an open AP (W-S1),
-// web password hash; a random-input test with a fixed seed (W-S25).
+// Request guard of the web server (PROJECT_SPECIFICATION.md 6.4 and chapter 7): Host allowlist (A-704), POST rules
+// and no CORS (A-705), WebSocket upgrade (A-706), sizes and heap (A-710), login lock and scan
+// rate (A-711), sessions and broken headers (A-713), password fields over an open AP (A-701),
+// web password hash; a random-input test with a fixed seed (A-725).
 
 #include <unity.h>
 #include <helpers/contract_vectors.h>
@@ -215,7 +215,7 @@ static void test_post_needs_json_token_and_own_origin() {
     RequestGuard g = guard(config());
     GuardRequest r = post("/api/channel/1");
     TEST_ASSERT_EQUAL_UINT16(200, status(g, r));
-    // Content-Type (W-S5): 415.
+    // Content-Type (A-705): 415.
     const char* const goodTypes[] = {"application/json", "application/json; charset=utf-8",
                                      "Application/JSON;charset=UTF-8", " application/json ",
                                      "application/json ; charset=\"utf-8\""};
@@ -232,7 +232,7 @@ static void test_post_needs_json_token_and_own_origin() {
     }
     r.contentType = nullptr;
     TEST_ASSERT_EQUAL_UINT16(415, status(g, r));
-    // Token (W-S5): 403.
+    // Token (A-705): 403.
     r = post("/api/channel/1");
     const char* const badTokens[] = {"", "0123456789abcdef0123456789abcdee", "0123456789abcdef0123456789abcde",
                                      "0123456789abcdef0123456789abcdef0", "0123456789ABCDEF0123456789ABCDEF"};
@@ -429,7 +429,7 @@ static void test_broken_cookie_and_authorization_headers() {
         TEST_ASSERT_EQUAL_UINT16_MESSAGE(400, status(g, r), c);
     }
     TEST_ASSERT_EQUAL_STRING("Bad Cookie header", g.check(r, 0).reason);
-    // Authorization: no Basic-Auth (W-E8); well-formed is ignored, broken refused.
+    // Authorization: no Basic-Auth (E-617); well-formed is ignored, broken refused.
     r = get("/api/state");
     r.authorization = "Basic dXNlcjpwYXNzd29yZA==";
     TEST_ASSERT_EQUAL_UINT16(200, status(g, r));
@@ -456,7 +456,7 @@ static std::string cookieOf(const char* setCookie) {
 
 static void test_login_scope() {
     // Default with a password: writes and the WiFi settings need a session; pages, state,
-    // token and WebSocket do not (the state holds no secrets, ARBEITSPLAN 3.6).
+    // token and WebSocket do not (the state holds no secrets, A-623).
     RequestGuard g = guard(config(true));
     TEST_ASSERT_EQUAL_UINT16(200, status(g, get("/")));
     TEST_ASSERT_EQUAL_UINT16(200, status(g, get("/api/state")));
@@ -497,7 +497,7 @@ static void test_sessions() {
     TEST_ASSERT_EQUAL_UINT16(401, status(g, post("/api/channel/1")));
     TEST_ASSERT_EQUAL_UINT16(401, status(g, wsUpgrade("t=0123456789abcdef0123456789abcdef")));
     TEST_ASSERT_EQUAL_UINT16(200, status(g, post("/api/login")));
-    // The LXI identification stays readable without login (D33), but only under an own Host
+    // The LXI identification stays readable without login (E-614), but only under an own Host
     // and only as GET/HEAD.
     TEST_ASSERT_EQUAL_UINT16(200, status(g, get("/lxi/identification")));
     GuardRequest lxi = get("/lxi/identification");
@@ -793,7 +793,7 @@ static void test_web_password_hash() {
     TEST_ASSERT_TRUE(constantTimeEqual("x", "y", 0));
 }
 
-// Random requests with a fixed seed (W-S25; fuzzing proper in S57): every decision is one of
+// Random requests with a fixed seed (A-725; fuzzing proper in S57a–c): every decision is one of
 // the documented ones, and an allowed request always passed the rules it is meant to pass.
 static const char* pick(const char* const* list, size_t n) { return list[rnd() % n]; }
 

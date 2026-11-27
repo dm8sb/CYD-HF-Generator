@@ -20,7 +20,7 @@ void Gui::begin(AppController& app, TouchDriver& touch, DisplayPanel& display) {
     touch_ = &touch;
     display_ = &display;
     lastConnections_ = app.connectionCount();
-    // Stored rotation (E-53) before the first frame.
+    // Stored rotation (E-314) before the first frame.
     shownRotation_ = app.system().rotation;
     display.setTurned(shownRotation_ == 180);
     touch.setTurned(shownRotation_ == 180);
@@ -300,7 +300,7 @@ void Gui::navigate(PageId page) {
     if (page == PageId::Numpad) {
         numpadPpm_ = currentPage_ == PageId::Config;
         if (!numpadPpm_) numpadReturn_ = currentPage_; // CH1, CH2 or CH3 (master frequency)
-        // A coupled CH2 (also as master from CH3) takes its offset (E-52).
+        // A coupled CH2 (also as master from CH3) takes its offset (E-213).
         numpadOffset_ = !numpadPpm_ && channel_ == 2 && app_->ch2Coupled();
     }
     currentPage_ = page;
@@ -392,7 +392,7 @@ void Gui::applyRotation_() {
 
 void Gui::update() {
     wifiPages_.update();
-    // Rotation from any source (touch, remote, Defaults, *RST), at once (E-53).
+    // Rotation from any source (touch, remote, Defaults, *RST), at once (E-314).
     applyRotation_();
     if (currentPage_ == PageId::TouchCal) {
         tickTouchCal_();
@@ -471,7 +471,7 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
         case Action::ChannelSwitch:
             app.setChannelEnabled(arg, lv_obj_has_state(obj, LV_STATE_CHECKED));
             break;
-        // A coupled CH2 changes its offset (E-52).
+        // A coupled CH2 changes its offset (E-213).
         case Action::FreqUp:
             if (channel_ == 2 && app.ch2Coupled()) app.adjustCh2Offset(steps * sys.delta_step);
             else app.adjustChannelFrequency(channel_, steps * sys.delta_step);
@@ -584,6 +584,15 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                 requestNavigate_(PageId::Config);
             } else if (obj) {
                 lv_obj_add_state(obj, LV_STATE_CHECKED); // a tap on the shown tab keeps it selected
+            }
+            return;
+        case Action::WifiSymbol:
+            // WiFi Off: the Net tab of CONFIG holds the row that switches it on.
+            if (services_.wifi && services_.wifi->status().mode == WifiMode::Off) {
+                configTab_ = CONFIG_TAB_NET;
+                requestNavigate_(PageId::Config);
+            } else {
+                requestNavigate_(PageId::Wifi);
             }
             return;
         case Action::WifiEdit:

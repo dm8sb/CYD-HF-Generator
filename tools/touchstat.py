@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 DM8SB
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Evaluates the touch test logs of MESSPLAN B8, B9, B12, B13 (AF39). Standard library only.
+"""Evaluates the touch test logs of MESSPLAN M-126, M-425, M-316, M-427 (AF39). Standard library only.
 
 Reads a serial log (one or more files, or stdin) of the test builds and prints:
 - [HITMAP] lines of env esp32-2432S028R-hitmap ("target n (x,y) hit (x,y) dx +a dy +b"): per

@@ -6,9 +6,13 @@
 
 A small TCP server that implements a subset of USER_MANUAL_EN.md section 15:
 IDN, OPC, ESR/STB/TST, OUTPut, FREQuency, CH3 IQ/PHASe, DRIVe, OFFState, SSC,
-TUNing, CORRection, STEP, SI5351, HEAP, LOG, ERRor, VERSion, SAVE, line limits,
-compound lines, the rate limit and *RST. Not implemented: BACKlight, IDENtify,
-*ESE/*SRE, status register semantics.
+TUNing, CORRection, STEP, SI5351, HEAP, LOG, ERRor, VERSion, SAVE, CH2 coupled to
+CH1 (SOURce2:COUPle, SOURce2:FREQuency:OFFSet, WAIT outside 8 kHz - 160 MHz, -221
+for a CH2 frequency while coupled), SYSTem:DISPlay:ROTation, line limits, compound
+lines, the rate limit and *RST. OUTPut3:CONDition? gives WAIT for a switched-off
+master or a master frequency outside the IQ range (without the narrower range of
+Spread CH1). Not implemented: BACKlight, IDENtify, *ESE/*SRE, status register
+semantics.
 
     python fake_scpi_device.py --port 5025
     python device_check.py --tcp 127.0.0.1:5025
@@ -27,6 +31,7 @@ one connection only.
 It prints "SAVE RECEIVED" if a client sends SYST:SAVE.
 """
 import argparse
+import decimal
 import re
 import socketserver
 import struct
@@ -52,10 +57,15 @@ class Device:
         self.step, self.corr, self.drive = dc.DEFAULT_STEP, 0.0, dc.DEFAULT_DRIVE
         self.tuning, self.ssc, self.off = "FRAC", "OFF", "LOW"
         self.master, self.phase = 1, 90
+        self.coupled, self.offset, self.rotation = False, 0, 0
         self.errors = []
         self.log = ["boot line 1", "boot line 2"]
         self.stamps = []
         self.saved = False
+
+    def note(self, line):
+        """A log line for SYST:LOG?; like the firmware's buffer the oldest goes beyond 32 lines."""
+        self.log = (self.log + [line])[-32:]
 
     def err(self, code, text):
         if len(self.errors) < 16:
@@ -90,10 +100,42 @@ class Device:
             return None
         return v
 
+    HZ_UNITS = {"": 0, "HZ": 0, "KHZ": 3, "MHZ": 6}
+    DEG_UNITS = {"": 0, "DEG": 0}
+
+    def integer(self, p, units, mn, mx, default):
+        """Exact integer like ScpiNumber::decimal (half away from zero) or MIN/MAX/DEF; None = error queued.
+
+        The range is the controller's business (the caller); only an overflow gives -222 here."""
+        u = p.upper()
+        if p.startswith('"'):
+            self.err(-104, "Data type error")
+            return None
+        if u in ("MIN", "MINIMUM"):
+            return mn
+        if u in ("MAX", "MAXIMUM"):
+            return mx
+        if u in ("DEF", "DEFAULT"):
+            return default
+        rest = re.match(r"^[+-]?\d+\.?\d*(?:E[+-]?\d+)?\s*[A-Z]*(.*)$", u)
+        if rest and rest.group(1).strip():
+            self.err(-101, "Invalid character")
+            return None
+        m = re.match(r"^([+-]?\d+\.?\d*(?:E[+-]?\d+)?)\s*([A-Z]*)$", u)
+        if not m or m.group(2) not in units:
+            self.err(-224, "Illegal parameter value")
+            return None
+        exp = m.group(1).partition("E")[2]
+        v = decimal.Decimal(m.group(1)).scaleb(units[m.group(2)]) if not exp or int(exp) <= 40 else None
+        if v is None or abs(v) >= 2 ** 63:
+            self.err(-222, "Data out of range")
+            return None
+        return int(v.quantize(decimal.Decimal(1), rounding=decimal.ROUND_HALF_UP))
+
     # -- one command -------------------------------------------------------
     # Constant answers (a set form is accepted silently, as before).
     FIXED = {
-        "*IDN": "CYD,HF-Generator,AA:BB:CC:DD:EE:FF,2.1.0",
+        "*IDN": "CYD,HF-Generator,AA:BB:CC:DD:EE:FF,2.2.0",
         "*ESR": "0", "*STB": "0", "*TST": "0",
         "SYST:VERS": "1999.0",
         "SYST:SI5351": "CONN",
@@ -139,7 +181,8 @@ class Device:
         self.step, self.drive = dc.DEFAULT_STEP, dc.DEFAULT_DRIVE
         self.tuning, self.ssc, self.off = "FRAC", "OFF", "LOW"
         self.master, self.phase = 1, 90
-        self.log.append("[APP] *RST: defaults in RAM, not saved")
+        self.coupled, self.offset, self.rotation = False, 0, 0
+        self.note("[APP] *RST: defaults in RAM, not saved")
         return None
 
     def _cls(self, query, p, ch):
@@ -167,18 +210,95 @@ class Device:
         else:
             self.out[ch] = 1 if v in ("ON", "1") else 0
 
+    # -- CH2 coupled to CH1 (AppController: ch2TargetHz, ch2Waiting, syncCoupled_) --
+    def ch2_target(self):
+        return self.freq[1] + self.offset if self.coupled else self.freq[2]
+
+    def ch2_waiting(self):
+        return self.coupled and not FREQ_MIN <= self.ch2_target() <= FREQ_MAX
+
+    def sync_coupled(self):
+        """A coupled CH2 runs at CH1 + offset; while it waits, freq[2] keeps the last valid one."""
+        if self.coupled and not self.ch2_waiting():
+            self.freq[2] = self.ch2_target()
+
+    def frequency(self, ch):
+        """Requested frequency as FREQ? answers it: CH3 = its master, a coupled CH2 = CH1 + offset (>= 0)."""
+        if ch == 3:
+            ch = self.master
+        return max(0, self.ch2_target()) if ch == 2 else self.freq[1]
+
     def _condition(self, query, p, ch):
-        return "ON" if self.out[ch] else "OFF"
+        if not self.out[ch]:
+            return "OFF"
+        if ch == 2 and self.ch2_waiting():
+            return "WAIT"
+        if ch == 3 and (not self.out[self.master] or not dc.IQ_MIN <= self.frequency(3) <= dc.IQ_MAX
+                        or (self.master == 2 and self.ch2_waiting())):
+            return "WAIT"
+        return "ON"
 
     def _freq(self, query, p, ch):
         if query:
-            return str(self.freq.get(ch, self.freq[1]))
+            return str(self.frequency(ch))
         v = self.number(p, FREQ_MIN, FREQ_MAX, dc.DEFAULT_FREQ[1])
-        if v is not None:
-            self.freq[ch] = int(round(v))
+        if v is None:
+            return
+        if ch == 2 and self.coupled:
+            self.err(-221, "Settings conflict;CH2 is coupled to CH1")
+            return
+        self.freq[ch] = int(round(v))
+        if ch == 1:
+            self.sync_coupled()
 
     def _actual(self, query, p, ch):
-        return "%.1f" % self.freq.get(ch, self.freq[1])
+        return "%.1f" % (self.freq[2] if ch == 2 or (ch == 3 and self.master == 2) else self.freq[1])
+
+    def _couple(self, query, p, ch):
+        if ch != 2:
+            self.err(-114, "Header suffix out of range")
+            return None
+        if query:
+            return "CH1" if self.coupled else "OFF"
+        v = p.upper()
+        if v not in ("OFF", "CH1"):
+            self.err(-224, "Illegal parameter value")
+            return None
+        if (v == "CH1") != self.coupled:
+            self.coupled = v == "CH1"
+            self.note("[APP] CH2 coupled to CH1" if self.coupled else "[APP] CH2 free")
+            self.sync_coupled()
+        return None
+
+    def _offset(self, query, p, ch):
+        if ch != 2:
+            self.err(-114, "Header suffix out of range")
+            return None
+        if query:
+            return str(self.offset)
+        v = self.integer(p, self.HZ_UNITS, -dc.OFFSET_MAX, dc.OFFSET_MAX, 0)
+        if v is None:
+            return None
+        if not -dc.OFFSET_MAX <= v <= dc.OFFSET_MAX:
+            self.err(-222, "Data out of range")
+            return None
+        self.offset = v  # also in OFF mode; applies with the next coupling
+        self.sync_coupled()
+        return None
+
+    def _rotation(self, query, p, ch):
+        if query:
+            return str(self.rotation)
+        v = self.integer(p, self.DEG_UNITS, 0, 180, 0)
+        if v is None:
+            return None
+        if v not in (0, 180):
+            self.err(-224, "Illegal parameter value")
+            return None
+        if v != self.rotation:
+            self.rotation = v
+            self.note("[APP] Screen rotated by 180 degrees" if v else "[APP] Screen upright")
+        return None
 
     def _step(self, query, p, ch):
         if query:
@@ -213,6 +333,7 @@ class Device:
         "OUTP": _output, "OUTP:STAT": _output, "OUTP:COND": _condition,
         "FREQ": _freq, "FREQ:CW": _freq, "FREQ:ACT": _actual,
         "SYST:STEP": _step, "SYST:CORR": _corr, "OUTP:DRIV": _drive,
+        "COUP": _couple, "FREQ:OFFS": _offset, "SYST:DISP:ROT": _rotation,
     }
 
     def enum_setting(self, path, query, p):
@@ -278,10 +399,12 @@ class Device:
         # canonicalize
         grammar = {
             None: ["SOURce", "OUTPut", "SYSTem", "FREQuency", "SSC"],
-            "SOURce": ["FREQuency", "SSC", "IQ", "PHASe"],
+            "SOURce": ["FREQuency", "SSC", "IQ", "PHASe", "COUPle"],
             "OUTPut": ["STATe", "CONDition", "DRIVe", "OFFState", "REMote"],
-            "SYSTem": ["TUNing", "CORRection", "STEP", "SI5351", "HEAP", "LOG", "SAVE", "ERRor", "VERSion"],
-            "FREQuency": ["CW", "ACTual"],
+            "SYSTem": ["TUNing", "CORRection", "STEP", "SI5351", "HEAP", "LOG", "SAVE", "ERRor", "VERSion",
+                       "DISPlay"],
+            "FREQuency": ["CW", "ACTual", "OFFSet"],
+            "DISPlay": ["ROTation"],
             "ERRor": ["NEXT", "COUNt"],
             "IQ": ["MASTer", "RANGe"],
         }
@@ -304,6 +427,10 @@ class Device:
                 ch = int(suffix)
             segs.append(hit)
             parent = hit
+        # SOURce#:COUPle and SOURce#:FREQuency:OFFSet have no optional SOURce node.
+        if segs[-1] in ("COUPle", "OFFSet") and segs[0] != "SOURce":
+            self.err(-113, "Undefined header")
+            return None, []
         # SOURce:FREQ -> FREQ, drop the SOURce prefix; map to short canonical names
         if segs and segs[0] == "SOURce" and len(segs) > 1:
             segs = segs[1:]
@@ -314,10 +441,12 @@ class Device:
                  .replace("REMote", "REM").replace("TUNing", "TUN").replace("CORRection", "CORR")
                  .replace("ERRor", "ERR").replace("VERSion", "VERS").replace("COUNt", "COUN")
                  .replace("ACTual", "ACT").replace("MASTer", "MAST").replace("PHASe", "PHAS")
-                 .replace("RANGe", "RANG").replace("NEXT", "NEXT"))
+                 .replace("RANGe", "RANG").replace("NEXT", "NEXT").replace("COUPle", "COUP")
+                 .replace("OFFSet", "OFFS").replace("DISPlay", "DISP").replace("ROTation", "ROT"))
         if canon.startswith("IQ") or canon == "PHAS":
             canon = "SOUR3:" + canon
-        if canon.startswith("SOUR3:") is False and ch == 3 and canon.startswith("FREQ") and not is_query:
+        if (not canon.startswith("SOUR3:") and ch == 3 and canon.startswith("FREQ") and canon != "FREQ:OFFS"
+                and not is_query):
             self.err(-221, "Settings conflict;CH3 follows its master")
             return None, segs[:-1]
         if canon.startswith("SOUR3:") and ch != 3 and segs[0] != "SOURce":

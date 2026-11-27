@@ -45,7 +45,7 @@ struct Nvs {
         for (const auto& v : values) n += v.first.compare(0, ns.size() + 1, ns + "/") == 0;
         return n;
     }
-    // true if any stored value of any namespace contains `text` (plaintext secrets, W-S14).
+    // true if any stored value of any namespace contains `text` (plaintext secrets, A-714).
     bool contains(const std::string& text) const {
         for (const auto& v : values) {
             if (v.second.type == Type::Str && v.second.str.find(text) != std::string::npos) return true;

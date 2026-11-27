@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Sanitize::text (W-S9, S-7, S-14): foreign strings become valid UTF-8 without control
+// Sanitize::text (A-709, S-7, S-14): foreign strings become valid UTF-8 without control
 // characters, at most 32 bytes, before LVGL and JSON see them.
 
 #include <unity.h>

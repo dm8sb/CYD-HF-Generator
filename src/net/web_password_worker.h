@@ -10,7 +10,7 @@
 // Hashes the web password typed at the device (S55b) in a short-lived worker task, so the GUI
 // keeps running during the ~1.3 s of PBKDF2 (the logic is in WebPasswordJob, host-tested).
 // start() and poll() run in loop(); the task does nothing but the hash (no NVS, LVGL or I2C)
-// and ends itself. Created on the heap (E-31); the task stack exists only while it hashes.
+// and ends itself. Created on the heap (E-305); the task stack exists only while it hashes.
 class WebPasswordWorker {
 public:
     WebPasswordWorker();

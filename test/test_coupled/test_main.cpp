@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// CH2 coupled to CH1 (N14, E-52) on the fakes: offset arithmetic and limits, waiting and
+// CH2 coupled to CH1 (N14, E-213) on the fakes: offset arithmetic and limits, waiting and
 // automatic restart, CH1 changes moving CH2, CH3 IQ with a coupled master, persistence and the
 // remote commands. Frequencies are checked on the SI5351 register model (helpers/si5351_model.h).
 

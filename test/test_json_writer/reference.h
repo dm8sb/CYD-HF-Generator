@@ -104,7 +104,7 @@ void actualText(double hz, char* out, size_t outSize) {
     snprintf(out, outSize, "%.1f", hz);
 }
 
-// Foreign text (SSID, names) through Sanitize (W-S9); the source is a char[33] or NUL-terminated.
+// Foreign text (SSID, names) through Sanitize (A-709); the source is a char[33] or NUL-terminated.
 void clean(const char* in, size_t maxIn, char* out, size_t outSize) {
     size_t n = 0;
     while (in && n < maxIn && in[n]) ++n;

@@ -4,7 +4,7 @@
 #pragma once
 
 // Pseudo-random inputs with a fixed seed for the standalone driver and test_fuzz_random
-// (W-S25: no libFuzzer, also on Windows/MinGW). Not coverage guided: inputs are mutations of
+// (A-725: no libFuzzer, also on Windows/MinGW). Not coverage guided: inputs are mutations of
 // the seeds or sequences of tokens that matter to the parsers, mixed with random bytes.
 
 #include <stddef.h>
@@ -41,7 +41,7 @@ inline const std::vector<std::string>& fuzzTokens() {
         "0.0000000000000000005", "E9999", " MHZ", " KHZ", " HZ", "mhz", "kHz", "Hz", "k", "M", " DEG",
         " PPM", " PCT", " MIN", " MAX", " DEF", " MAXimum", " NAN", " INF", " -INF", "#HFF", "#B101",
         "1 000 000", "7 100 000", "10,7", ",",
-        // HTTP-like lines (W-S18)
+        // HTTP-like lines (A-718)
         "GET / HTTP/1.1", "POST /api HTTP/1.0", "Host: ", "X-A: b", "HTTP/1.",
         // network text
         "192.168.0.1", "255.255.255.0", "0.0.0.0", "256", "010", "WIFI:", "\\", "S:", "P:", ";;",

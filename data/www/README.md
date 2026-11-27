@@ -1,6 +1,6 @@
 # Web user interface (WEB-HMI)
 
-Static files the firmware embeds and serves (S55: `tools/embed_www.py` gzips `app.js` and `style.css` into the image at build time, `index.html` gets the per-boot token at runtime; no LittleFS). No framework, no external resources, English only (W-E11).
+Static files the firmware embeds and serves (S55: `tools/embed_www.py` gzips `app.js` and `style.css` into the image at build time, `index.html` gets the per-boot token at runtime; no LittleFS). No framework, no external resources, English only (E-620).
 
 | File | Bytes | gzip -9 | Content |
 |---|---:|---:|---|
@@ -13,20 +13,20 @@ This README is not embedded and not served.
 
 ## Rules the files keep
 
-- CSP (W-S7): no inline script, no inline event handler, no `style="..."`, no `eval`/`new Function`. The only script is `<script src="app.js" defer>`.
-- W-S8: text from the device (SSIDs, names, errors) goes into the page only through `textContent` and DOM methods, never `innerHTML`.
-- Every POST sends `Content-Type: application/json` and `X-CYD-Token: <token from the meta tag>`. Writes are spaced by at least 60 ms (≤ 20/s, W-S11); steps that come faster than the device answers (held `+`, key repeat, mouse wheel) are merged into one request with the latest target.
+- CSP (A-707): no inline script, no inline event handler, no `style="..."`, no `eval`/`new Function`. The only script is `<script src="app.js" defer>`.
+- A-708: text from the device (SSIDs, names, errors) goes into the page only through `textContent` and DOM methods, never `innerHTML`.
+- Every POST sends `Content-Type: application/json` and `X-CYD-Token: <token from the meta tag>`. Writes are spaced by at least 60 ms (≤ 20/s, A-711); steps that come faster than the device answers (held `+`, key repeat, mouse wheel) are merged into one request with the latest target.
 - Buttons and fields are at least 44 CSS px; `touch-action: manipulation`.
-- The footer (G11) is static text in `index.html`: `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`, the two links (44 px high) open the repository and `THIRD_PARTY_NOTICES.md` on GitHub at the release tag of the firmware in a new tab (`rel="noopener noreferrer"`; `{{SRC_REF}}` is replaced at build time by `tools/embed_www.py`, E-39). The device display shows no license line.
+- The footer (G11) is static text in `index.html`: `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`, the two links (44 px high) open the repository and `THIRD_PARTY_NOTICES.md` on GitHub at the release tag of the firmware in a new tab (`rel="noopener noreferrer"`; `{{SRC_REF}}` is replaced at build time by `tools/embed_www.py`, E-907). The device display shows no license line.
 
 ## Areas
 
-- **Header:** device name and version, connection (`Live` = WebSocket, `Polling`, `Offline`), save state (`Saved`, `Saving...`, `Save failed`, `Not saved`), `REMOTE <source>`, SI5351 problem, `Identify`, `Save`, `Log out` (only while a web password is set and this browser is logged in), `Log in` (after a cancelled login while reads need it, D25), `?`, and the links MAIN, CH1, CH2, CH3, CONFIG, WiFi. It stays at the top on every width (on a phone as well, like the output bar at the bottom); anchors stop below it (`--toph` follows its height). On a phone `MAIN` scrolls to the top, the cards are the output bar.
+- **Header:** device name and version, connection (`Live` = WebSocket, `Polling`, `Offline`), save state (`Saved`, `Saving...`, `Save failed`, `Not saved`), `REMOTE <source>`, SI5351 problem, `Identify`, `Save`, `Log out` (only while a web password is set and this browser is logged in), `Log in` (after a cancelled login while reads need it, E-703), `?`, and the links MAIN, CH1, CH2, CH3, CONFIG, WiFi. It stays at the top on every width (on a phone as well, like the output bar at the bottom); anchors stop below it (`--toph` follows its height). On a phone `MAIN` scrolls to the top, the cards are the output bar.
 - **MAIN:** three cards as on the device: state (`ON`, `OFF`, `! ERR`, `WAIT`, `! NO HW`), frequency (`~` in Integer mode from 1 Hz deviation, below 100 MHz), mode line (`IQ master` / `IQ master of CH3`; CH3: `CH1 / 90°` with the reason for `WAIT`), switch. On a phone (< 700 px) the cards form a fixed output bar at the bottom and the areas are stacked.
 - **CH1, CH2:** switch and state, frequency digits (the digit of the step in the channel color; click = step, wheel = change that digit, click on the unit = input field), `Out` line, mode line with `IQ master (90°)` and the range hint, step chips `1M` … `1`, `−`/`+` with hold-to-repeat as on the device, frequency field.
-- **CH2 coupled (E-52):** chips `Free` / `CH1 + offset` above the step chips (`{"coupled":bool}`). Coupled, the digits show `offset` with its sign (`+455.000 kHz`), `−`/`+`, wheel, keys and the field (label `Offset`, input `+455k`, `-10.7M`, `-455000`: sign, digits, one `.`/`,` with unit `Hz`/`k`/`kHz`/`M`/`MHz`, parsed by the UI into `{"offset":int}`) change the offset within ±`limits.offsetMax`; the MAIN card shows `frequency` (CH1 + offset) and `CH1 +455 kHz`; with CH1 + offset outside `fmin`..`fmax` the `Out` line says `Waiting: CH1 + offset below 8 kHz` / `above 160 MHz`. On CH3 with a coupled master CH2 the frequency keys change the offset.
+- **CH2 coupled (E-213):** chips `Free` / `CH1 + offset` above the step chips (`{"coupled":bool}`). Coupled, the digits show `offset` with its sign (`+455.000 kHz`), `−`/`+`, wheel, keys and the field (label `Offset`, input `+455k`, `-10.7M`, `-455000`: sign, digits, one `.`/`,` with unit `Hz`/`k`/`kHz`/`M`/`MHz`, parsed by the UI into `{"offset":int}`) change the offset within ±`limits.offsetMax`; the MAIN card shows `frequency` (CH1 + offset) and `CH1 +455 kHz`; with CH1 + offset outside `fmin`..`fmax` the `Out` line says `Waiting: CH1 + offset below 8 kHz` / `above 160 MHz`. On CH3 with a coupled master CH2 the frequency keys change the offset.
 - **CH3 IQ:** switch, state, frequency, status line (`Off  |  follows CHx`, `Out …`, `Master CHx is off: click to switch on` as a button, `Waiting: CHx below 4.730 MHz`, …), master and phase chips, IQ range note, field for the master frequency.
-- **CONFIG:** `Drive all`, `Off state` (`High` asks first, as on the device; under `remoteOutputs` `local` the device refuses it with 403, so the UI sends it without asking and shows the error), `Tuning`, `Spread CH1` (locked as `Off (Integer)`), `Corr.` (field in ppm, step `0.01`/`0.1`/`1`, `−`/`+`), `Backlight` (`−`/`+` in 10 %), `Screen` (`0°`/`180°`: screen rotation of the device, E-53), `Remote outputs` read-only, info (firmware, SI5351, device name).
+- **CONFIG:** `Drive all`, `Off state` (`High` asks first, as on the device; under `remoteOutputs` `local` the device refuses it with 403, so the UI sends it without asking and shows the error), `Tuning`, `Spread CH1` (locked as `Off (Integer)`), `Corr.` (field in ppm, step `0.01`/`0.1`/`1`, `−`/`+`), `Backlight` (`−`/`+` in 10 %), `Screen` (`0°`/`180°`: screen rotation of the device, E-314), `Remote outputs` read-only, info (firmware, SI5351, device name).
 - **WiFi:** status; form with mode, device name, two networks (password fields write-only, never pre-filled, empty = keep), `Delete`, scan list (≤ 15, `→ 1`/`→ 2` fills a slot), static IP, access point (`Open (not recommended)`, new password). `Apply` sends only what changed; then the countdown "Confirm within N s, otherwise the previous settings return" with `Confirm` and the address to open if the page loses the connection.
 
 Live updates: a changed value is outlined briefly; a field with focus is never overwritten. While disconnected all controls are disabled and gray.
@@ -52,7 +52,7 @@ Python 3, standard library only. Serves this directory with `{{TOKEN}}` replaced
 ```bash
 python tools/web_mock.py                       # prints http://127.0.0.1:8080/
 python tools/web_mock.py --host 0.0.0.0        # for a phone in the LAN
-python tools/web_mock.py --password secret123   # state, token and /ws need the login, too (D25; --login-all is kept and has no effect)
+python tools/web_mock.py --password secret123   # state, token and /ws need the login, too (E-703; --login-all is kept and has no effect)
 python tools/web_mock.py --local-only          # Remote outputs: local only -> switch-on and offState high 403
 python tools/web_mock.py --open-ap             # client on the open AP -> password fields 403
 python tools/web_mock.py --hw NFO              # no SI5351: NO HW
@@ -65,7 +65,7 @@ It simulates the actual frequency per tuning mode (Integer on the 25 MHz × a / 
 
 ## API contract as implemented
 
-`test/contract/vectors.json` pins requests of this contract with their status and code; the C++ host tests and `tools/contract_check.py` (against the mock in CI, against the device in S61) read it (AF34). Change it with the contract.
+`test/contract/vectors.json` pins requests of this contract with their status and code; the C++ host tests and `tools/contract_check.py` (against the mock in CI, against the device in MES-07) read it (AF34). Change it with the contract.
 
 State (`GET /api/state`, every WebSocket text message, body of every successful POST except `/api/wifi*`, `/api/login`):
 
@@ -78,7 +78,7 @@ State (`GET /api/state`, every WebSocket text message, body of every successful 
  "config":{"drive":4,"tuning":"fractional","spread":"off","offState":"low","correction":0,"step":1000,"backlight":80,"rotation":0,"remoteOutputs":"allowed"},
  "wifi":{"mode":"client","connected":true,"ssid":"Lab","rssi":-60,"ip":"192.168.1.50","name":"cyd-hf-1a2b",
          "ap":{"active":false,"ssid":"CYD-HF-1A2B","open":false,"stations":0},"confirmWithin":0},
- "device":{"version":"2.1.0","passwordSet":false}}
+ "device":{"version":"2.2.0","passwordSet":false}}
 ```
 
 Values: `hw` CONN | NFO | BLOC | UNKN; `save` saved | pending | failed | unavailable; `remote` null | usb | web | scpi; status ON | OFF | ERR | WAIT | NOHW; `correction` in 0.01 ppm (±5000); `tuning` fractional | lownoise | integer; `spread` off | down05 | down15 | center05; `offState` low | high | hiz; `remoteOutputs` allowed | local; `wifi.mode` off | client | ap.
@@ -87,26 +87,26 @@ How the UI reads it:
 - `modes` holds only the CONFIG entries of the device mode line, in device order (`OFF=High`/`OFF=High-Z`, `SSC -0.5%`/`SSC -1.5%`/`SSC +/-0.5%`, `Low noise`/`Integer`, `2mA`/`6mA`/`8mA`). The UI adds `IQ master …` and the range hint itself and shows the line orange when it contains `OFF=High`. CH3 shows the modes of its master.
 - `actual` is what the `Out` line shows: with spread on CH1 (and CH3 with master CH1) the mean frequency, like `FREQ:ACT?`; 0 = no output (`Out -`). `ch3.actual` is 0 unless CH3 runs.
 - `ch3.iqMin`/`iqMax` are the effective limits (narrower with spread); the reason for `WAIT` is derived: master off → `master off`, master below `iqMin` → `below`, else `above`.
-- `ch[1].coupled` / `ch[1].offset` (CH2 only, E-52): CH2 = CH1 + `offset` (Hz, signed) while `coupled`; `ch[1].frequency` is then CH1 + offset (0 below 0 Hz, up to 320 MHz while waiting above the range), `status` `WAIT` while switched on and outside `fmin`..`fmax`, `actual` 0.0 meanwhile; `ch3.frequency` with master 2 follows it.
+- `ch[1].coupled` / `ch[1].offset` (CH2 only, E-213): CH2 = CH1 + `offset` (Hz, signed) while `coupled`; `ch[1].frequency` is then CH1 + offset (0 below 0 Hz, up to 320 MHz while waiting above the range), `status` `WAIT` while switched on and outside `fmin`..`fmax`, `actual` 0.0 meanwhile; `ch3.frequency` with master 2 follows it.
 - `limits` are the fixed limits of the firmware (`include/constants.h`): frequency range `fmin`..`fmax` in Hz, the step list `steps` (ascending) and `offsetMax` (CH2 offset ±, `CH2_OFFSET_MAX_HZ`). The UI takes the range of its checks and messages (`8 kHz - 160 MHz`) and the step chips from it; `tools/web_mock.py` reads the same constants (`tools/device_constants.py`), `tools/web_check.py` compares them.
 
 | Request | Body | Success |
 |---|---|---|
 | `POST /api/channel/<1\|2>` | subset of `{"enabled":bool,"frequency":int,"frequencyText":str}`, at most one of the two frequency keys; channel 2 also `"coupled":bool` and `"offset":int` (Hz, ±160 MHz), executed in the order offset, coupled, frequency, enabled; a frequency while coupled → 400 `-221,CH2 is coupled to CH1` | 200 state |
 | `POST /api/ch3` | subset of `{"enabled":bool,"master":1\|2,"phase":0\|90\|180\|270}` | 200 state |
-| `POST /api/config` | subset of `drive`, `tuning`, `spread`, `offState`, `correction`, `step`, `backlight`, `rotation` (0 or 180 degrees); `offState` `high` under `remoteOutputs` `local` → 403 `-221,Remote outputs: local only` (D22) | 200 state |
-| `POST /api/save`, `POST /api/identify` | `{}` | 200 state; save: only the changed keys, at most once per 10 s per source, a further request within 10 s is merged silently (still 200) and saved 10 s after the previous save (D26) |
-| `POST /api/login` | `{"password":str}` | 204 + `Set-Cookie` (HttpOnly, SameSite=Strict, 12 h); over an open AP 403 `-221,Passwords cannot be sent over the open access point` (W-S1, SEC-3), the UI does not send it there (`wifi.ap.active` and `open`) |
+| `POST /api/config` | subset of `drive`, `tuning`, `spread`, `offState`, `correction`, `step`, `backlight`, `rotation` (0 or 180 degrees); `offState` `high` under `remoteOutputs` `local` → 403 `-221,Remote outputs: local only` (E-611) | 200 state |
+| `POST /api/save`, `POST /api/identify` | `{}` | 200 state; save: only the changed keys, at most once per 10 s per source, a further request within 10 s is merged silently (still 200) and saved 10 s after the previous save (E-402) |
+| `POST /api/login` | `{"password":str}` | 204 + `Set-Cookie` (HttpOnly, SameSite=Strict, 12 h); over an open AP 403 `-221,Passwords cannot be sent over the open access point` (A-701, SEC-3), the UI does not send it there (`wifi.ap.active` and `open`) |
 | `POST /api/logout` | `{}` | 204 + `Set-Cookie: cyd_sid=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict`; ends the session of the cookie; needs no session (token and JSON as every POST) |
 | `GET /api/wifi` | | `{"mode","networks":[{"ssid","key":"set\|open\|none"}×2],"ap":{"ssid","open","passwordSet"},"name","staticIp":{"enabled","ip","mask","gateway","dns"}}` |
-| `POST /api/wifi` | subset of `mode`, `networks:[{slot,ssid,password}]`, `delete:[slot]`, `name`, `staticIp:{…}`, `ap:{open,password}` | 202 `{"confirmWithin":120}`; mode `off` is final: `{"confirmWithin":0}`, and only `{"mode":"off"}` alone is taken (any other key → 400 `-108,Parameter not allowed`, D23) |
+| `POST /api/wifi` | subset of `mode`, `networks:[{slot,ssid,password}]`, `delete:[slot]`, `name`, `staticIp:{…}`, `ap:{open,password}` | 202 `{"confirmWithin":120}`; mode `off` is final: `{"confirmWithin":0}`, and only `{"mode":"off"}` alone is taken (any other key → 400 `-108,Parameter not allowed`, E-515) |
 | `POST /api/wifi/confirm` | `{}` | 204 |
 | `GET /api/wifi/scan` | | `{"state":"running\|done\|failed","networks":[{"ssid","rssi","secure"}]}` |
 | `GET /api/token` | | `{"token":"…"}` (same-origin only, for scripts) |
-| `GET /lxi/identification` | | LXI identification XML (`text/xml`, A-78): manufacturer, model, serial number as in `*IDN?`, firmware version, device name, address/mask/gateway of the connection, `TCPIP::<ip>::INSTR` and `TCPIP::<ip>::5025::SOCKET`; Host check as for the page, no Origin or token; readable without login, also when a web password is set (D33, stays so with `loginForReads`); not used by the UI |
+| `GET /lxi/identification` | | LXI identification XML (`text/xml`, A-615): manufacturer, model, serial number as in `*IDN?`, firmware version, device name, address/mask/gateway of the connection, `TCPIP::<ip>::INSTR` and `TCPIP::<ip>::5025::SOCKET`; Host check as for the page, no Origin or token; readable without login, also when a web password is set (E-614, stays so with `loginForReads`); not used by the UI |
 | WebSocket `/ws?t=<token>` | push only | state on connect and on every change, at most every 100 ms (the first change at once, then the latest state; AF19); skipped while the largest free block is too small |
 
-`slot` is 0 or 1 (= network 1 and 2 at the device); `password` is `""` (open network), a passphrase of 8–63 printable ASCII characters or exactly 64 hex digits (PMK, D31); the AP password 8–63 characters.
+`slot` is 0 or 1 (= network 1 and 2 at the device); `password` is `""` (open network), a passphrase of 8–63 printable ASCII characters or exactly 64 hex digits (PMK, E-510); the AP password 8–63 characters.
 
 What the UI sends for networks: an entry for a slot only when its SSID changed or a password was typed; `password` only when typed, or `""` for a new SSID without password (open network, the UI asks first). A cleared SSID or `Delete` → `delete`. `staticIp` is sent complete when any of its fields changed.
 
@@ -118,7 +118,7 @@ Every error body is `{"error":"<code>,<text>"}` (the login lock adds `"retryAfte
 |---|---|
 | `-102,Syntax error` | invalid JSON, a duplicate key (`Duplicate key`) |
 | `-104,Data type error` | wrong JSON type: `"4"`, `4.5`, `4.0` or `true` for an integer, a number for a string, an array for an object, a body that is no JSON object |
-| `-108,Parameter not allowed` | unknown key (also `coupled`/`offset` on channel 1); `frequency` and `frequencyText` together (`frequency or frequencyText, not both`); WiFi `mode` `off` with any other key (D23); `{}` bodies (`save`, `identify`, `logout`, `wifi/confirm`) with a key |
+| `-108,Parameter not allowed` | unknown key (also `coupled`/`offset` on channel 1); `frequency` and `frequencyText` together (`frequency or frequencyText, not both`); WiFi `mode` `off` with any other key (E-515); `{}` bodies (`save`, `identify`, `logout`, `wifi/confirm`) with a key |
 | `-109,Missing parameter` | `{}` where at least one key is needed |
 | `-221,Settings conflict` | spread in `Integer` tuning (`Spread spectrum is not possible in Integer tuning`); CH2 frequency while CH2 is coupled (`CH2 is coupled to CH1`); static IP = gateway, outside the subnet, network or broadcast address; `A network change waits for confirmation`; `Nothing to confirm`; `Confirm at the device as well` |
 | `-222,Data out of range` | frequency outside 8 kHz–160 MHz (also as `frequencyText`), CH2 offset beyond ±160 MHz, correction beyond ±5000, backlight outside 10–100, more than two `networks` or `delete` entries, an integer beyond 64 bits |
@@ -141,9 +141,9 @@ HTTP status codes (guard: `net/request_guard.cpp`, raw-byte pre-filter: `net/web
 | 401 | `-200,Wrong password` | login with a wrong password (counts for the lock) |
 | 403 | `-200,Invalid token: reload the page` | `X-CYD-Token` (or `t=` of the WebSocket) missing or stale after a restart |
 | 403 | `-200,Foreign origin` / `Cross-site request` / `Same-origin only` | `Origin` not the device, `Sec-Fetch-Site: cross-site`, `GET /api/token` not same-origin |
-| 403 | `-221,Remote outputs: local only` | switching on or `offState` `high` under `local only` (D22) |
+| 403 | `-221,Remote outputs: local only` | switching on or `offState` `high` under `local only` (E-611) |
 | 403 | `-221,Remote outputs can only be changed at the device` | `remoteOutputs` in `POST /api/config` |
-| 403 | `-221,Passwords cannot be sent over the open access point` | any `POST` body with a password field (login, WiFi) over an open AP (W-S1) |
+| 403 | `-221,Passwords cannot be sent over the open access point` | any `POST` body with a password field (login, WiFi) over an open AP (A-701) |
 | 404 | `-200,Not found` / `-114,Header suffix out of range` | unknown path; `/api/channel/<n>` other than 1 and 2 |
 | 405 | `-200,OPTIONS not allowed` / `Method not allowed` | `OPTIONS`, a method other than `GET`/`HEAD`/`POST`, `POST` outside `/api/` |
 | 411 | `-200,Length required` | `POST` without `Content-Length` |
@@ -171,15 +171,15 @@ Scan: the first GET starts a scan (`running`), the GET after it finished returns
 ## Settled in S55 (firmware = reference, the mock follows it)
 
 - `wifi.confirmWithin` (seconds left, 0 = nothing pending) is part of the state; a page opened at the new address shows `Confirm`.
-- Mode `off` over the web is final: applied after the answer and saved, `confirmWithin` 0, the UI says WiFi switches off. The body is then exactly `{"mode":"off"}`: any other key (also an empty `networks`, `delete`, `staticIp` or `ap`) answers 400 `-108,Parameter not allowed` and changes nothing, because the other fields would be saved without the confirmation (D23, audit SEC-2). The UI refuses such a combination before sending: `WiFi off takes no other changes: apply them first`.
+- Mode `off` over the web is final: applied after the answer and saved, `confirmWithin` 0, the UI says WiFi switches off. The body is then exactly `{"mode":"off"}`: any other key (also an empty `networks`, `delete`, `staticIp` or `ap`) answers 400 `-108,Parameter not allowed` and changes nothing, because the other fields would be saved without the confirmation (E-515, audit SEC-2). The UI refuses such a combination before sending: `WiFi off takes no other changes: apply them first`.
 - `device.passwordSet` tells whether a web password is set; it is set at the device only (no REST call, WIFI > Device > `Web pw.`). Setting, changing or removing it ends every session; the UI then hides `Log out` until the next login. Without one, a network change needs `Keep` at the touch screen as well: a web `Confirm` before that answers `-221,Confirm at the device as well` and counts once the touch confirms.
 - Stale token after a restart: 403 `-200,Invalid token: reload the page`.
 - Error codes: see [Errors](#errors) (the earlier list here was merged into it, DOC-2).
-- Changed by D25 (AF18): with a web password `GET /api/state`, `GET /api/token` and the `/ws` upgrade need a session as well (401 `Login required`); the page itself (it carries the token) and `GET /lxi/identification` (D33) stay readable. The UI asks for the password when a read answers 401; after a cancelled login reads stop asking and the header shows `Login required` with a `Log in` button. Setting, changing or removing the password ends every session and closes every WebSocket. Without a web password everything stays readable as before (the state holds no secrets, MAC or commit).
+- Changed by E-703 (AF18): with a web password `GET /api/state`, `GET /api/token` and the `/ws` upgrade need a session as well (401 `Login required`); the page itself (it carries the token) and `GET /lxi/identification` (E-614) stay readable. The UI asks for the password when a read answers 401; after a cancelled login reads stop asking and the header shows `Login required` with a `Log in` button. Setting, changing or removing the password ends every session and closes every WebSocket. Without a web password everything stays readable as before (the state holds no secrets, MAC or commit).
 - WebSocket (AF18): the device pings every 15 s with a random 4-byte payload; only a PONG with that payload counts, so unsolicited PONGs keep no client alive (closed 30 s after the last answer). More than 3 PINGs from a client within 10 s close it with 1008 (the UI never pings). A hidden page closes its WebSocket after 60 s and polls nothing; it reconnects when it is shown again, and sends no heartbeat while hidden.
 - Without connection `wifi.ssid`/`ip` are `""`, `rssi` 0; with the AP `ip` is the AP address.
 - No REST call for `Defaults` / `Factory`, touch calibration, screen lock, AP `Regenerate` and the web password; the UI says these are set at the device.
-- `PgUp`/`PgDn` are read as frequency × 10 / ÷ 10 (ARBEITSPLAN 3.6 "× 10 / ÷ 10"); `←`/`→` already step the step size by decades.
+- `PgUp`/`PgDn` are read as frequency × 10 / ÷ 10 (`PROJECT_SPECIFICATION.md` 6.4); `←`/`→` already step the step size by decades.
 
 ## Settled in S56
 

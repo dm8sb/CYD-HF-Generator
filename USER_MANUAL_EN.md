@@ -1,8 +1,8 @@
 # User Manual – CYD HF Generator
 
-Firmware version: 2.1.0
+Firmware version: 2.2.0
 
-This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 2.1.0); the German manual is the reference for the firmware's behavior.
+This manual is a translation of [USER_MANUAL_DE.md](USER_MANUAL_DE.md) (firmware 2.2.0); the German manual is the reference for the firmware's behavior.
 
 ## Contents
 
@@ -80,7 +80,7 @@ The firmware contains third-party components under their own licenses (among the
 
 ## 2. Basic Operation
 
-After power-up, the display stays dark until the first screen has been drawn; then the main page appears. At the very first start (no touch calibration stored yet) the touch calibration comes first (section 8, `Touch`). **All outputs are off after power-up**, even if they were on when the device was switched off. Frequencies, CH3 master and phase, and all CONFIG settings are retained.
+After power-up, the display stays dark until the first screen has been drawn; then the start screen appears for 2.5 s (title, key data, three running square waves in the channel colors: CH2 at twice the frequency, CH3 90° behind CH1 like in IQ mode, the firmware version at the bottom) and fades to the main page; a tap ends it at once. The start goes on behind it, messages appear afterwards. At the very first start (no touch calibration stored yet) the touch calibration comes first (section 8, `Touch`). **All outputs are off after power-up**, even if they were on when the device was switched off. Frequencies, CH3 master and phase, and all CONFIG settings are retained.
 
 The main page shows one card per channel with:
 
@@ -109,8 +109,8 @@ Operation on the main page:
 - **Tapping a card** opens the channel's page.
 - **The switch on a card** (on the right, separated by a line) turns the output on or off directly, without leaving the page. A tap on the frequency or `MHz` only opens the channel page.
 - The frequencies are right-aligned; decimal point and `MHz` of all cards line up.
-- The status bar at the bottom shows something about saving on the left only when there is a problem (red `Save failed` / `Not saved`, section 8) and has the `CONFIG` button (yellow) on the right. The channels open via their cards. With the screen locked it also shows `LOCKED` in an orange field (section 8).
-- Next to it is the WiFi state (section 8, `WiFi`): the WiFi symbol green (connected) or gray (searching), `AP` green while the own access point runs, `AP open` orange when it runs without a password; nothing with `Off`.
+- The status bar at the bottom shows the WiFi state at the far left (section 8, `WiFi`): the WiFi symbol green (connected) or gray (searching), `AP` green while the own access point runs, `AP open` orange when it runs without a password; with `Off` the WiFi symbol gray and struck through. A tap on it opens the WIFI page, with `Off` CONFIG on the `Net` tab, where WiFi can be switched on.
+- Next to it, something about saving is shown only when there is a problem (red `Save failed` / `Not saved`, section 8); on the right is the `CONFIG` button (yellow). The channels open via their cards. With the screen locked it also shows `LOCKED` in an orange field (section 8).
 - After a remote command `REMOTE USB` (SCPI over USB), `REMOTE SCPI` (SCPI over TCP or VXI-11) or `REMOTE WEB` (web interface and REST) shows for 10 s in a blue field (the CH3 color); `LOCKED` takes precedence.
 - Colored buttons and selected chips have dark text, switched-off switches a light gray track, unselected chips a gray border.
 - Buttons at the screen edge (e.g. `◀` top left, `CONFIG` bottom right, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.
@@ -541,7 +541,7 @@ The title bar with `◀` stays fixed. Below it CONFIG shows at most three rows; 
 | `Device` | `Backlight` | `−`, value, `+` |
 | | `Screen` | `Lock` (screen lock), `Touch cal.` (touch calibration) and `Rotate` (turn the screen by 180°) buttons |
 | | `Reset` | `Defaults` and `Factory` (red) buttons |
-| `Info` | Info card | Firmware, Build, Display, Touch, SI5351, WiFi, remote access, memory |
+| `Info` | Info card | Firmware, Build, Display, Touch, SI5351, PLL, WiFi, remote access, memory |
 
 - A tap on a tab shows its rows; the selected tab is filled yellow. When CONFIG is opened for the first time after power-on, `Signal` is selected, the settings that change the signal.
 - The last selected tab is kept when you leave the page via `◀`, `Setup` or the numpad of the correction and come back to CONFIG (until power-off).
@@ -574,7 +574,7 @@ The SI5351 outputs are CMOS square-wave drivers. The drive strength sets how muc
 - Into a 50 Ω load or a long coax cable, 6 or 8 mA give more level and cleaner edges.
 - A square wave always contains odd harmonics (3rd, 5th, … multiple). If you need a clean sine wave, filter with a low-pass; a smaller drive strength only softens the harmonics.
 - The change takes effect immediately and without a dropout, also on a running IQ pair.
-- Typical levels per step into 50 Ω (not measured yet) are in section 18; the measured values follow after measurement F2 in `MESSPLAN.md`.
+- Typical levels per step into 50 Ω (not measured yet) are in section 18; the measured values follow after measurement M-312 in `MESSPLAN.md`.
 
 ### Off state (State of Switched-Off Outputs)
 
@@ -593,7 +593,7 @@ Determines the level that a switched-off output carries (SI5351 register 24). Th
 - The firmware writes the state when connecting to the SI5351, before any output can be switched on.
 - **`High`:** A continuous current flows into a DC-coupled load (e.g. 50 Ω), limited by the drive strength; a DC-coupled mixer sees a DC voltage.
 - For DC-coupled diode ring mixers, use `Low` or `High-Z`.
-- Until hardware check K2 (`MESSPLAN.md`), with `High` and `High-Z` the output driver of switched-off outputs stays powered, including that of CLK2 when CH3 is off. With `Low`, CLK2 is powered down completely as before, as long as CH3 is not running in IQ operation.
+- Until hardware check M-118 (`MESSPLAN.md`), with `High` and `High-Z` the output driver of switched-off outputs stays powered, including that of CLK2 when CH3 is off. With `Low`, CLK2 is powered down completely as before, as long as CH3 is not running in IQ operation.
 
 ### Tuning (Divider Scheme)
 
@@ -622,7 +622,7 @@ Both stages can work as **integer** (e.g. factor 36, divider 90) or **fractional
 
 Above 100 MHz `Fractional` and `Low noise` work largely the same (see below); the deviation there rises to up to 1.5 Hz (up to 112.5 MHz), 2 Hz (up to 150 MHz) and 3 Hz (up to 160 MHz).
 
-Whether a setting gives measurably fewer spurs in a given case depends on frequency, load and measurement setup. The comparison measurements are in `MESSPLAN.md` (K5, K6, F3); they also decide whether `Low noise` becomes the default.
+Whether a setting gives measurably fewer spurs in a given case depends on frequency, load and measurement setup. The comparison measurements are in `MESSPLAN.md` (M-301, M-303, M-302); they also decide whether `Low noise` becomes the default.
 
 #### Fractional
 
@@ -631,6 +631,7 @@ The PLL stays fixed at one of two values (900 or 887.5 MHz); only the MultiSynth
 - **Tuning:** A new divider is taken over without restarting the PLL; the output keeps running. Only when the current PLL frequency cannot hit a frequency accurately enough does it switch to the other value and restart: the output drops out briefly once. The firmware keeps the current PLL as long as it is accurate to 0.25 Hz; switches are therefore rare.
 - **Spurs:** The divider is almost always fractional. Even 10 MHz (900 MHz / 90) becomes fractional as soon as a frequency correction is set. Spurs can therefore occur at any frequency and move while tuning.
 - **Above 100 MHz:** If neither of the two fixed PLL frequencies hits to within 0.25 Hz, the firmware takes an even divider (8, 6 or 4) with a fractional PLL as in `Low noise`, if that is more accurate. From 112.5 MHz on this is always the case; then every step changes the PLL and the output drops out briefly at every step.
+- **VCO with correction:** The fixed 900 MHz PLL is 36 times the crystal and follows its actual frequency. With a correction of +50 ppm the VCO therefore runs at 900.045 MHz, 45 kHz above the 900 MHz limit of the datasheet. This is uncritical and accepted deliberately.
 - **Suited for:** general use, tuning through without interruption (e.g. as a VFO, sweeping by hand), calibration.
 
 #### Low noise
@@ -857,11 +858,12 @@ For mounting in a case with the USB and SMA sockets on the other side: `Rotate` 
 At the end of the page, a card shows information for troubleshooting without a serial monitor, for example:
 
 ```text
-Firmware 2.1.0 | main 1a2b3c4
+Firmware 2.2.0 | main 1a2b3c4
 Build 2026-11-05 14:00 UTC
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
+PLL locked: A ok  B ok
 WiFi Lab 192.168.1.50 -60 dBm
 Heap 241/215 KB, block 108 KB, LVGL 30 KB
 ```
@@ -873,9 +875,10 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Display` | Display controller (`ILI9341` or `ST7789`) and source: `detected` (detected automatically), `default` (nothing detected, ILI9341 assumed), `build flag` (set at build time) |
 | `Touch` | `Touch calibrated x … y …`: stored calibration with the raw values of the screen edges; `Touch not calibrated (default)`: fixed values |
 | `SI5351` | I2C pins of the connection; suffix ` (swapped)` for swapped wires, ` (clone?)` for an unusual register 183 (e.g. a clone). Without a connection: `SI5351 not found` |
+| `PLL locked` | Lock state of the two PLLs of the SI5351 (`A` feeds CH1, `B` CH2; CH3 uses the PLL of its master), read by the supervision every 2 s: `ok` locked, `LOL` (loss of lock) not locked, the whole line is then orange; `-` for a PLL that has not been set up since connecting. A short `LOL` right after a frequency change with a PLL reset is possible; a lasting `LOL` points to a fault of the module (crystal, supply). Without a connection: `PLL locked: -` in red |
 | `WiFi` | `WiFi off`; connected: network, address, signal strength (shown anew only after a change of at least 3 dB, read about once per second); `WiFi searching (<device name>)`; access point: `AP` or `Fallback AP`, name, address, number of connected devices (orange without password). Foreign network names are cleaned (control and invalid characters as `?`, at most 32 bytes) |
 | `Remote` | `web <n>` open browser pages, `SCPI <address>` or `-` the SCPI client over TCP 5025 or, if none is connected there, over VXI-11. The `Reconnect all` button (tab `Net`, row `Clients`) closes all browser connections, ends the web sessions, the SCPI TCP and the VXI-11 connection. The peers connect again by themselves afterwards (a browser without web password within seconds, an SCPI program at once). It does not lock anybody out. A web password locks only the web interface and REST; SCPI over TCP 5025 and VXI-11 stay without login (section 15). To keep the outputs from being switched on from the network set `Remote out.` to `local only`; against foreign clients use an own, secured network or switch WiFi off (section 14). |
-| `Heap` | free memory and its minimum since boot, largest contiguous block, free memory of the user interface (LVGL), each in KB; measured every 5 s, shown anew when the free memory changes by at least 4 KB or the page is redrawn anyway |
+| `Heap` | free memory and its minimum since boot, largest contiguous block, free memory of the user interface (LVGL), each in KB; measured every 5 s, shown anew when the free memory changes by at least 4 KB or the page is redrawn anyway. If the free memory drops below 40 KB, the log shows `[ERROR][MEM] Heap low` (section 12) |
 
 The display draws only what changes: without operation and without a change from outside the screen stays as it is (no SPI transfer to the display next to the SI5351).
 
@@ -1039,6 +1042,8 @@ If the SI5351 is not found at startup, **one** message appears. After that, the 
 
 The firmware checks every 2 seconds whether the SI5351 responds. Without an SI5351 it searches every 2 s during the first minute after boot or after losing the connection, then every 10 s (each search step sets up the I2C driver again for both assignments); a module connected later is then found after about 10 s at the latest. If it is connected later or a loose contact is fixed, the firmware reconnects automatically, restores the set frequencies and ON/OFF states and closes the connection message. If the connection is lost during operation (or the SI5351 briefly loses power), the message `Connection lost` appears and the channels show `! NO HW` until the connection is restored. The firmware tries to reconnect right after detecting the loss; after a short power interruption the outputs therefore run again after about 2 s at the latest.
 
+The supervision also detects a restart of the SI5351 when no output is on: after every power-up the SI5351 sets a flag (`SYS_INIT_STKY` in register 1), which the firmware clears after the setup and reads along every 2 s. If it is set again, the module lost its supply (voltage dip, loose contact at 3.3 V); the firmware reports `Connection lost`, sets up the SI5351 again and restores the settings (log `[ERROR][SI5351] Device restarted (SYS_INIT)`). A clone that does not let this bit be cleared is used anyway; this detection does not apply to it (log `SYS_INIT sticky not cleared; restart detection off`), a power interruption then only shows while an output is on.
+
 SDA and SCL may be connected to CN1 in either order (GPIO22/GPIO27). The firmware tries both assignments, also after replugging during operation. The info card on CONFIG and the serial monitor show the assignment found, with the suffix `(swapped)` for swapped wires.
 
 Further messages when connecting:
@@ -1145,7 +1150,7 @@ Important messages:
 
 | Message | Meaning |
 |---|---|
-| `[BOOT] CYD HF Generator 2.1.0 (main 1a2b3c4, 2026-11-10 11:00 UTC)` | Startup: version, branch, commit and build time as on the info card |
+| `[BOOT] CYD HF Generator 2.2.0 (main 1a2b3c4, 2026-11-10 11:00 UTC)` | Startup: version, branch, commit and build time as on the info card |
 | `[I2C] Line held low; releasing bus` | An I2C line was LOW at startup and was released |
 | `[SETTINGS] Loaded from NVS` | Settings loaded |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Once after updating from 1.3.0/1.3.1: the choice of the former boot gesture was deleted (section 13) |
@@ -1206,6 +1211,8 @@ Error messages start with `[ERROR]`, e.g.:
 | Message | Meaning |
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Supervision: the SI5351 does not respond or has lost its configuration |
+| `[ERROR][SI5351] Device restarted (SYS_INIT)` | Supervision: the SI5351 restarted (supply interrupted), also with no output on; it is set up again (section 11) |
+| `[ERROR][SI5351] SYS_INIT sticky not cleared; restart detection off` | The module does not let the restart flag be cleared (clone); it is used, but a restart with no output on goes unnoticed |
 | `[ERROR][SI5351] I2C transfer failed; device lost` | An I2C transfer to the SI5351 failed; the search for the SI5351 starts (every 2 s for one minute, then every 10 s) |
 | `[E][esp32-hal-i2c-ng.c:372] i2cWriteReadNonStop(): i2c_master_transmit_receive failed: [259] ESP_ERR_INVALID_STATE`, then `[E][Wire.cpp:532] requestFrom(): i2cWriteReadNonStop returned Error 259` | Message of the Arduino core (I2C driver) about the same failure, together with `[ERROR][SI5351] I2C transfer failed; device lost` |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Unusual register 183, e.g. a clone; the module is used anyway |
@@ -1215,6 +1222,7 @@ Error messages start with `[ERROR]`, e.g.:
 | `[ERROR][BOOT] SI5351 init failed`, `[ERROR][BOOT] Touch init failed`, `[ERROR][TOUCH] XPT2046 init failed` | At startup the SI5351 or the touch controller does not answer; the SI5351 is searched further |
 | `[ERROR][BOOT] No memory for SCPI over TCP` / `No memory for VXI-11` / `No memory for the web server` | Too little memory at startup: SCPI over TCP, VXI-11 or the web interface stays off |
 | `[ERROR][WEB] No memory for the web server`, `[ERROR][WEB] Saving the network settings failed`, `[ERROR][WEB] Low memory; WebSocket push skipped` | Web interface: too little memory when the server starts; network settings from the browser not saved; no contiguous memory for an update of the open pages (it follows as soon as there is room again; logged at most once per minute) |
+| `[ERROR][MEM] Heap low: free 39012 B, largest block 15020 B` | Less than 40 KB of memory free (checked once per second): free memory and largest contiguous block in bytes. In normal use, even with all remote accesses at once, at least 40 KB stay free; the line points to an overload or a fault. It appears once and again only after the free memory has risen above 48 KB |
 | `[ERROR][WIFI] Saving the AP password failed`, `[ERROR][WIFI] AP DHCP server start failed`, `[ERROR][WIFI] mDNS start failed`, `[ERROR][WIFI] Power save off failed` / `TX power not set` | WiFi: random password not saved; access point without DHCP server; `<device name>.local` not reachable (the address still works); the driver did not accept power save off or full TX power (WiFi still runs, but may answer more slowly, section 16) |
 | `[ERROR][FATAL] LVGL assert; restarting` | User interface out of memory or similar; the device restarts |
 | `task_wdt: Task watchdog got triggered … loopTask` | The firmware hung for 5 s; the device restarts |
@@ -1238,7 +1246,17 @@ SDA / SCL = GPIO22 / GPIO27 (either order; tried first: SDA = GPIO22)
 SI5351 address = 0x60
 ```
 
-Display and touch use separate SPI buses. The complete pinout is given in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), section 2.
+Display and touch use separate SPI buses. The complete pinout is given in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), section 1.3.
+
+### Assembly and Supply
+
+These hints are common practice for SI5351 builds; their effect on this device is still being measured (MESSPLAN M-310, M-418). Bill of materials, wiring and component values are on the hardware page [docs/hardware.md](docs/hardware.md).
+
+- **Own LDO with ferrite:** Supply the SI5351 from its own low-noise 3.3 V regulator, fed through a ferrite bead. This keeps noise from the ESP32, WiFi and display out of the outputs. The grounds of board and module stay connected.
+- **Short ground:** Connect board and module with a short, wide ground connection; connect the shields of the coax cables to the module ground right at the output.
+- **Shielding:** Shield the module and the output lines, for example with a metal enclosure or a shield over the module and with coax cables instead of loose wires. Keep the output lines away from the CN1 cable and the display.
+- **TCXO (optional):** A 25 MHz TCXO instead of the crystal is an option. Whether it is worth it depends on the warm-up drift and the short-term stability; a recommendation follows after the measurements (MESSPLAN M-313, M-411). The frequency correction compensates the fixed error of the crystal (`Corr.`, section 8).
+- **Flashing and reset:** The SI5351 keeps running with its last setting while the ESP32 is flashed or reset, until the restarted firmware sets it up; with its own supply also as long as the board is off. Disconnect sensitive circuits beforehand. The duration follows after the measurements (MESSPLAN M-119).
 
 ### Board Variants
 
@@ -1458,7 +1476,7 @@ WiFi runs without power save and at full transmit power: the device answers in t
 - At most 3 browsers at a time; a fourth sees `Too many clients (max. 3)`. A tab in the background (covered or minimized) frees its place after 60 s and connects again as soon as it is shown. A connection that does not answer the device's checks (every 15 s) is closed after 30 s; one that floods the device with checks of its own (WebSocket ping) at once.
 - CONFIG shows the screen orientation of the device as row `Screen` with `0°` and `180°`; a click turns the device screen at once (section 8).
 - Only at the device: defaults and factory reset, touch calibration, screen lock, new access point password, web password (WIFI → `Device`, row `Web pw.`).
-- The footer at the end of the page shows `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` and `licenses` open the repository and `THIRD_PARTY_NOTICES.md` on GitHub as of the release tag of the firmware (e.g. `v2.1.0`) in a new tab (this needs internet access in the browser, section 1, "Licenses").
+- The footer at the end of the page shows `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` and `licenses` open the repository and `THIRD_PARTY_NOTICES.md` on GitHub as of the release tag of the firmware (e.g. `v2.2.0`) in a new tab (this needs internet access in the browser, section 1, "Licenses").
 
 ### Web Password
 
@@ -1526,7 +1544,7 @@ One firmware serves both boards (CYD with ILI9341 and CYD2USB with ST7789); the 
    - **Update:** do not erase.
 5. Wait for the installation; the flasher shows the progress. The board then restarts.
 
-After every start, including after an update, all outputs are off (section 9).
+After every start, including after an update, all outputs are off (section 9). While flashing, the SI5351 keeps running with its last setting (section 13, "Assembly and Supply").
 
 ### First Installation or Update
 
@@ -1590,7 +1608,7 @@ gh attestation verify <file> --repo dm8sb/CYD-HF-Generator
 Without a browser, esptool installs the same parts. Install esptool 5 (`pip install esptool`), download the four flash parts of the release into one folder and run there (example for 2.0.0; the release notes contain the command for every version):
 
 ```bash
-esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.1.0-esp32-2432S028R-bootloader.bin 0x8000 cyd-hf-generator-2.1.0-esp32-2432S028R-partitions.bin 0xE000 cyd-hf-generator-2.1.0-esp32-2432S028R-boot_app0.bin 0x10000 cyd-hf-generator-2.1.0-esp32-2432S028R-firmware.bin
+esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.2.0-esp32-2432S028R-bootloader.bin 0x8000 cyd-hf-generator-2.2.0-esp32-2432S028R-partitions.bin 0xE000 cyd-hf-generator-2.2.0-esp32-2432S028R-boot_app0.bin 0x10000 cyd-hf-generator-2.2.0-esp32-2432S028R-firmware.bin
 ```
 
 - The command does not erase the settings memory; touch calibration, correction and WiFi stay (like the update in the web flasher).
@@ -1608,7 +1626,7 @@ Building it yourself needs PlatformIO; the README describes building and flashin
 
 The generator works as a local oscillator (LO) and as a test signal for mixer and receiver experiments. This section collects levels, filters and settings for that and shows two setups.
 
-**About the numbers:** values marked *typical, not measured* are calculated or empirical values, not measurements on this device. They will be replaced by measured values once measurements F2, G1, G2 and E10 in `MESSPLAN.md` are done. Values marked *calculated* follow from the formula, values marked *datasheet* from the datasheet of the part named.
+**About the numbers:** values marked *typical, not measured* are calculated or empirical values, not measurements on this device. They will be replaced by measured values once measurements M-312, M-419, M-420 and M-413 in `MESSPLAN.md` are done. Values marked *calculated* follow from the formula, values marked *datasheet* from the datasheet of the part named.
 
 ### Settings
 
@@ -1649,7 +1667,7 @@ A square wave with exactly 50 % duty cycle contains only odd harmonics. Their le
 | 7th | −16.9 dBc |
 | 9th | −19.1 dBc |
 
-- The duty cycle is not measured yet (MESSPLAN E5). If it deviates, even harmonics appear: at 49 % the 2nd harmonic is at ≈ −30 dBc, at 48 % at ≈ −24 dBc (calculated).
+- The duty cycle is not measured yet (MESSPLAN M-309). If it deviates, even harmonics appear: at 49 % the 2nd harmonic is at ≈ −30 dBc, at 48 % at ≈ −24 dBc (calculated).
 - Real edges have a finite slope; the high harmonics are therefore somewhat below the table. A lower drive strength reduces them only a little.
 - **Sine needed:** low-pass filter after the output. For −50 dBc the 3rd harmonic needs ≥ 40 dB attenuation: e.g. a 5th to 7th order low-pass (Chebyshev or Cauer) with a cutoff about 1.2 to 1.5 times above the wanted frequency, one filter per band.
 - **Switching mixers** (diode ring, FST3253) even work better with a square-wave LO than with a sine. The LO harmonics, however, mix signals at 3 × LO ± IF, 5 × LO ± IF etc. into the IF. A band-pass or low-pass filter in front of the mixer's RF input helps against that, not at the LO.
@@ -1697,8 +1715,8 @@ The FST3253 (or 74CBT3253) is a dual 1-of-4 analog switch. As a Tayloe detector 
 
 - **Range:** CH3 IQ works from 4.730 to 100 MHz (section 7). For lower frequencies (160 m, 80 m, 60 m) set CH1 to four times the frequency and divide by 4 with a Johnson counter of two D flip-flops (e.g. 74AC74); example: 3.6 MHz from 14.4 MHz.
 - **Sideband:** switching from `90` to `270` inverts Q and thus swaps the upper and lower sideband. The switch causes no dropout (section 7). `0` and `180` give no quadrature and are unsuitable for the Tayloe detector.
-- **Odd dividers:** in IQ mode with `Fractional` or `Low noise` the divider is min(127, ⌊900 MHz / f⌋), e.g. 63 at 14.2 MHz or 9 at 99 MHz. 180° and 270° are made by inverting the CH3 output (section 7). Whether the phase at an odd divider is as exact as at an even one is not measured yet (MESSPLAN E4). For the best image rejection use `90` and swap the sideband in software (swap I and Q).
-- **Duty cycle:** every edge of S0 and S1 defines a sampling window. A deviation from the 50 % duty cycle (MESSPLAN E5) shifts the windows and costs image rejection.
+- **Odd dividers:** in IQ mode with `Fractional` or `Low noise` the divider is min(127, ⌊900 MHz / f⌋), e.g. 63 at 14.2 MHz or 9 at 99 MHz. 180° and 270° are made by inverting the CH3 output (section 7). Whether the phase at an odd divider is as exact as at an even one is not measured yet (MESSPLAN M-308). For the best image rejection use `90` and swap the sideband in software (swap I and Q).
+- **Duty cycle:** every edge of S0 and S1 defines a sampling window. A deviation from the 50 % duty cycle (MESSPLAN M-309) shifts the windows and costs image rejection.
 - **Logic levels:** at a 5 V supply the FST3253 detects HIGH from 2.0 V (datasheet); the 3.3 V square waves drive it directly. The inputs have a high impedance; `Drive all` 2 or 4 mA is enough.
 - **Switched off:** with `Off state` `Low`, S0 and S1 are LOW; the switch stays on channel 0. This does no harm.
 
@@ -1744,12 +1762,12 @@ with g = 1:  IRR = 20 · log10( cot(φ/2) )
 | 0.5 dB | 31 dB |
 | 1 dB | 25 dB |
 
-- The phase error of the generator itself is not measured yet (MESSPLAN E1 to E4). The mixer, sampling capacitors, audio amplifiers and sound card add to the total error.
+- The phase error of the generator itself is not measured yet (MESSPLAN M-115, M-116, M-307 and M-308). The mixer, sampling capacitors, audio amplifiers and sound card add to the total error.
 - SDR programs often correct IQ errors automatically; without correction the table shows what the phase alone allows.
 
 ### Example: Superhet Receiver for 7.1 MHz with a 455 kHz IF
 
-A diode ring mixer converts 7.1 MHz to the 455 kHz IF; CH1 is the LO, CH2 the test signal (like MESSPLAN G1).
+A diode ring mixer converts 7.1 MHz to the 455 kHz IF; CH1 is the LO, CH2 the test signal (like MESSPLAN M-419).
 
 ```text
 CH2 7.100 MHz ── 30 dB ──────────► RF ┐
@@ -1781,7 +1799,7 @@ Image  = 7.555 + 0.455 = 8.010 MHz   (also gives 455 kHz)
 4. CLK0 to S0, CLK2 to S1, with lines of equal length.
 5. I and Q (after the audio amplifiers) to the stereo line input of a sound card; an SDR program in IQ mode, center frequency 7.100 MHz. At a 48 kHz sample rate 7.076–7.124 MHz are visible.
 6. If the spectrum is mirrored, choose phase `270` or swap I and Q in the program.
-7. Test signal: CH2 at 7.101 MHz through 40–60 dB attenuation to the RF input. The line appears 1 kHz above the center, its image 1 kHz below; the difference between both is the image rejection (table above, MESSPLAN E10).
+7. Test signal: CH2 at 7.101 MHz through 40–60 dB attenuation to the RF input. The line appears 1 kHz above the center, its image 1 kHz below; the difference between both is the image rejection (table above, MESSPLAN M-413).
 
 ### Never Unfiltered to an Antenna
 
@@ -1957,6 +1975,7 @@ Rendered with `tools/web_mock.py` in the same state (section 16): desktop at 128
 | `Touch calibrated …` / `Touch not calibrated (default)` | info card: touch calibration | 8 |
 | `detected` / `default` / `build flag` | info card: source of the display controller | 8, 13 |
 | `(swapped)` / `(clone?)` | info card: SDA/SCL swapped or unusual SI5351 register | 8, 11 |
+| `PLL locked: A ok  B ok` / `LOL` | info card: PLL locked or not locked (orange) | 8 |
 
 ---
 

@@ -15,7 +15,7 @@ uint64_t clamp(uint64_t hz);
 void format(uint64_t hz, char* out, size_t outSize);
 // MHz with a fixed number of decimals (0..6, rounded): 4730000, 3 -> "4.730"; 100000000, 0 -> "100".
 void formatMHz(uint64_t hz, uint8_t decimals, char* out, size_t outSize);
-// Offset of the coupled CH2 (E-52) as format() with the sign always shown: "+455.000 kHz",
+// Offset of the coupled CH2 (E-213) as format() with the sign always shown: "+455.000 kHz",
 // "-10.700 000 MHz", "+0.000 kHz".
 void formatOffset(int64_t hz, char* out, size_t outSize);
 // Compact for the MAIN mode line, trailing zeros dropped: "+455 kHz", "-10.7 MHz", "+1.5 kHz",

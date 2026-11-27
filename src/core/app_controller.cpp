@@ -84,9 +84,22 @@ void AppController::superviseHardware_() {
     superviseOnce_();
 }
 
+// Bit 0: PLL A unlocked, bit 1: PLL B. Unused -> Locked comes with a setup that counts already.
+uint8_t AppController::lockCode_() const {
+    using Lock = SI5351Manager::PllLock;
+    return (uint8_t)((si5351_.pllLock(SI5351Manager::Pll::A) == Lock::Unlocked ? 1 : 0) |
+                     (si5351_.pllLock(SI5351Manager::Pll::B) == Lock::Unlocked ? 2 : 0));
+}
+
 void AppController::superviseOnce_() {
     if (si5351_.ready()) {
+        // Also a restart with all outputs off (SYS_INIT / SYS_INIT_STKY, FW-07) fails here.
         if (si5351_.checkAlive()) {
+            const uint8_t lock = lockCode_();
+            if (lock != lockSeen_) {
+                lockSeen_ = lock;
+                bump_();
+            }
             if (anyFault_()) {
                 quietRetry_ = true;
                 reconfigureOutputs_();
@@ -215,7 +228,7 @@ const Channel& AppController::channel(uint8_t ch) const {
 const Channel& AppController::channel_(uint8_t ch) const { return (ch == 1) ? state_.ch1 : state_.ch2; }
 
 void AppController::markChanged_(uint16_t keys) {
-    // W-E17: touch and web after 5 s of quiet, SCPI (TCP and USB) after 30 s.
+    // E-402: touch and web after 5 s of quiet, SCPI (TCP and USB) after 30 s.
     const bool scpi = source_ == Source::Scpi || source_ == Source::Usb;
     settings_.markDirty(keys, scpi ? SETTINGS_REMOTE_AUTOSAVE_MS : SETTINGS_AUTOSAVE_MS);
     bump_();
@@ -415,9 +428,9 @@ Result AppController::adjustChannelFrequency(uint8_t ch, int64_t delta) {
 
 Result AppController::setChannelEnabled(uint8_t ch, bool en) {
     if (ch < 1 || ch > 3) return Result::Invalid;
-    // W-E25: the network may set everything, but not switch on; switching off stays allowed.
+    // E-610: the network may set everything, but not switch on; switching off stays allowed.
     if (en && isRemote(source_) && !remoteOutputsAllowed_) return Result::Denied;
-    // Output states are not stored (A-4): no autosave, no flash write (audit C-5).
+    // Output states are not stored (A-204): no autosave, no flash write (audit C-5).
     if (ch == 3) {
         if (state_.ch3.enabled == en) return Result::NoChange;
         state_.ch3.enabled = en;
@@ -595,7 +608,7 @@ void AppController::resetForRemote() {
 
 Result AppController::setOffState(OffState offState) {
     if (offState > OffState::HighZ) return Result::Invalid;
-    // D22: High puts DC on every switched-off output; under local only the network may not
+    // E-611: High puts DC on every switched-off output; under local only the network may not
     // select it, like switching an output on (Low and High-Z stay allowed).
     if (offState == OffState::High && isRemote(source_) && !remoteOutputsAllowed_) return Result::Denied;
     if (offState == state_.sys.off_state) return Result::NoChange;

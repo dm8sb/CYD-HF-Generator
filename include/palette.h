@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-// Color palette as 0xRRGGBB (PROJECT_SPECIFICATION.md A-27). The GUI turns them into lv_color_t
+// Color palette as 0xRRGGBB (PROJECT_SPECIFICATION.md A-307). The GUI turns them into lv_color_t
 // (gui_layout.h); test_contrast checks the pairs the pages use (audit U-7).
 namespace Palette {
 static constexpr uint32_t CH1 = 0xE53935;

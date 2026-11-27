@@ -1,6 +1,6 @@
 # Benutzeranleitung – CYD HF Generator
 
-Firmware-Version: 2.1.0
+Firmware-Version: 2.2.0
 
 Diese Anleitung ist die Referenz für das Verhalten der Firmware; [USER_MANUAL_EN.md](USER_MANUAL_EN.md) ist ihre Übersetzung.
 
@@ -80,7 +80,7 @@ Die Firmware enthält Komponenten Dritter unter eigenen Lizenzen (u. a. Arduino-
 
 ## 2. Grundbedienung
 
-Nach dem Einschalten bleibt das Display dunkel, bis das erste Bild gezeichnet ist; dann erscheint die Hauptseite. Beim allerersten Start (noch kein Touch-Abgleich gespeichert) erscheint vorher der Touch-Abgleich (Abschnitt 8, `Touch`). **Alle Ausgänge sind nach dem Einschalten aus**, auch wenn sie beim Ausschalten an waren. Frequenzen, CH3-Master und -Phase sowie alle CONFIG-Einstellungen bleiben gespeichert.
+Nach dem Einschalten bleibt das Display dunkel, bis das erste Bild gezeichnet ist; dann erscheint 2,5 s lang der Startbildschirm (Titel, Kenndaten, drei laufende Rechteckkurven in den Kanalfarben: CH2 mit doppelter Frequenz, CH3 um 90° hinter CH1 wie im IQ-Betrieb, unten die Firmware-Version) und blendet zur Hauptseite über; ein Tipp beendet ihn sofort. Der Start läuft dahinter weiter, Meldungen erscheinen danach. Beim allerersten Start (noch kein Touch-Abgleich gespeichert) erscheint vorher der Touch-Abgleich (Abschnitt 8, `Touch`). **Alle Ausgänge sind nach dem Einschalten aus**, auch wenn sie beim Ausschalten an waren. Frequenzen, CH3-Master und -Phase sowie alle CONFIG-Einstellungen bleiben gespeichert.
 
 Die Hauptseite zeigt für jeden Kanal eine Karte mit:
 
@@ -109,8 +109,8 @@ Bedienung auf der Hauptseite:
 - **Karte antippen** öffnet die Seite des Kanals.
 - **Schalter auf der Karte** (rechts, durch eine Linie abgetrennt) schaltet den Ausgang direkt ein oder aus, ohne die Seite zu wechseln. Ein Tipp auf die Frequenz oder `MHz` öffnet nur die Kanalseite.
 - Die Frequenzen stehen rechtsbündig, Dezimalpunkt und `MHz` aller Karten untereinander.
-- Die Statusleiste unten zeigt links nur dann etwas zum Speichern, wenn es ein Problem gibt (rot `Save failed` / `Not saved`, Abschnitt 8), und hat rechts den Button `CONFIG` (gelb). Die Kanäle öffnen sich über ihre Karten. Bei gesperrtem Bildschirm steht dort zusätzlich `LOCKED` im orangen Feld (Abschnitt 8).
-- Daneben steht der WLAN-Zustand (Abschnitt 8, `WiFi`): das WLAN-Symbol grün (verbunden) oder grau (sucht), `AP` grün, wenn der eigene Access Point läuft, `AP open` orange, wenn er ohne Passwort läuft; bei `Off` nichts.
+- Die Statusleiste unten zeigt ganz links den WLAN-Zustand (Abschnitt 8, `WiFi`): das WLAN-Symbol grün (verbunden) oder grau (sucht), `AP` grün, wenn der eigene Access Point läuft, `AP open` orange, wenn er ohne Passwort läuft; bei `Off` das WLAN-Symbol grau und durchgestrichen. Ein Tipp darauf öffnet die Seite WIFI, bei `Off` CONFIG mit dem Tab `Net`, wo sich das WLAN einschalten lässt.
+- Daneben steht nur dann etwas zum Speichern, wenn es ein Problem gibt (rot `Save failed` / `Not saved`, Abschnitt 8); rechts ist der Button `CONFIG` (gelb). Die Kanäle öffnen sich über ihre Karten. Bei gesperrtem Bildschirm steht dort zusätzlich `LOCKED` im orangen Feld (Abschnitt 8).
 - Nach einem Befehl der Fernsteuerung steht 10 s lang `REMOTE USB` (SCPI über USB), `REMOTE SCPI` (SCPI über TCP oder VXI-11) bzw. `REMOTE WEB` (Weboberfläche und REST) im blauen Feld (Farbe von CH3); `LOCKED` hat Vorrang.
 - Auf farbigen Tasten und gewählten Chips ist die Schrift dunkel, ausgeschaltete Schalter haben eine hellgraue Spur, nicht gewählte Chips einen grauen Rand.
 - Tasten am Bildschirmrand (z. B. `◀` oben links, `CONFIG` unten rechts, die äußeren NUMPAD-Tasten) reagieren bis an den Rand, auch auf einen Tipp knapp daneben in Richtung Rand. Der Abstand zwischen zwei Tasten bleibt frei.
@@ -541,7 +541,7 @@ Die Titelzeile mit `◀` bleibt stehen. Darunter zeigt CONFIG höchstens drei Ze
 | `Device` | `Backlight` | `−`, Wert, `+` |
 | | `Screen` | Tasten `Lock` (Bildschirmsperre), `Touch cal.` (Touch-Abgleich) und `Rotate` (Bild um 180° drehen) |
 | | `Reset` | Tasten `Defaults` und `Factory` (rot) |
-| `Info` | Info-Karte | Firmware, Build, Display, Touch, SI5351, WLAN, Fernsteuerung, Speicher |
+| `Info` | Info-Karte | Firmware, Build, Display, Touch, SI5351, PLL, WLAN, Fernsteuerung, Speicher |
 
 - Ein Tipp auf ein Register zeigt dessen Zeilen; das gewählte Register ist gelb gefüllt. Beim ersten Öffnen nach dem Einschalten ist `Signal` gewählt, die Einstellungen, die das Signal verändern.
 - Das zuletzt gewählte Register bleibt erhalten, wenn man über `◀`, `Setup` oder das NUMPAD der Korrektur die Seite verlässt und zu CONFIG zurückkehrt (bis zum Ausschalten).
@@ -574,7 +574,7 @@ Die Ausgänge des SI5351 sind CMOS-Rechtecktreiber. Die Drive-Strength legt fest
 - An einer 50-Ω-Last oder einem langen Koaxkabel bringen 6 oder 8 mA mehr Pegel und sauberere Flanken.
 - Ein Rechteck enthält immer ungerade Oberwellen (3., 5., … Vielfaches). Wer ein sauberes Sinussignal braucht, filtert mit einem Tiefpass; eine kleinere Drive-Strength mildert die Oberwellen nur.
 - Die Änderung wirkt sofort und ohne Aussetzer, auch bei einem laufenden IQ-Paar.
-- Typische Pegel je Stufe an 50 Ω (noch nicht gemessen) stehen in Abschnitt 18; die Messwerte folgen nach der Messung F2 in `MESSPLAN.md`.
+- Typische Pegel je Stufe an 50 Ω (noch nicht gemessen) stehen in Abschnitt 18; die Messwerte folgen nach der Messung M-312 in `MESSPLAN.md`.
 
 ### Off state (Zustand abgeschalteter Ausgänge)
 
@@ -593,7 +593,7 @@ Legt fest, welchen Pegel ein ausgeschalteter Ausgang führt (SI5351-Register 24)
 - Die Firmware schreibt den Zustand beim Verbinden mit dem SI5351, bevor ein Ausgang eingeschaltet werden kann.
 - **`High`:** In eine DC-gekoppelte Last (z. B. 50 Ω) fließt ein Dauerstrom, begrenzt durch die Drive-Strength; an einem DC-gekoppelten Mischer liegt eine Gleichspannung an.
 - Für DC-gekoppelte Diodenringmischer `Low` oder `High-Z` verwenden.
-- Bis zur Hardwareprüfung K2 (`MESSPLAN.md`) bleibt bei `High` und `High-Z` der Ausgangstreiber abgeschalteter Ausgänge versorgt, auch der von CLK2 bei ausgeschaltetem CH3. Bei `Low` wird CLK2 wie bisher ganz abgeschaltet, solange CH3 nicht im IQ-Betrieb läuft.
+- Bis zur Hardwareprüfung M-118 (`MESSPLAN.md`) bleibt bei `High` und `High-Z` der Ausgangstreiber abgeschalteter Ausgänge versorgt, auch der von CLK2 bei ausgeschaltetem CH3. Bei `Low` wird CLK2 wie bisher ganz abgeschaltet, solange CH3 nicht im IQ-Betrieb läuft.
 
 ### Tuning (Teilerverfahren)
 
@@ -622,7 +622,7 @@ Beide Stufen können **ganzzahlig** (z. B. Faktor 36, Teiler 90) oder **fraktion
 
 Über 100 MHz arbeiten `Fractional` und `Low noise` weitgehend gleich (siehe unten); die Abweichung steigt dort auf bis 1,5 Hz (bis 112,5 MHz), 2 Hz (bis 150 MHz) und 3 Hz (bis 160 MHz).
 
-Ob eine Einstellung im Einzelfall messbar weniger Nebenlinien bringt, hängt von Frequenz, Last und Messaufbau ab. Die Vergleichsmessungen stehen in `MESSPLAN.md` (K5, K6, F3); danach wird auch entschieden, ob `Low noise` Standard wird.
+Ob eine Einstellung im Einzelfall messbar weniger Nebenlinien bringt, hängt von Frequenz, Last und Messaufbau ab. Die Vergleichsmessungen stehen in `MESSPLAN.md` (M-301, M-303, M-302); danach wird auch entschieden, ob `Low noise` Standard wird.
 
 #### Fractional
 
@@ -631,6 +631,7 @@ Die PLL bleibt fest auf einem von zwei Werten (900 oder 887,5 MHz); nur der Mult
 - **Abstimmen:** Ein neuer Teiler wird ohne Neustart der PLL übernommen; der Ausgang läuft durch. Nur wenn die aktuelle PLL-Frequenz eine Frequenz nicht genau genug trifft, wechselt sie auf den anderen Wert und startet neu: Der Ausgang setzt einmal kurz aus. Die Firmware bleibt bei der bisherigen PLL, solange sie auf 0,25 Hz genau ist; Wechsel sind deshalb selten.
 - **Nebenlinien:** Der Teiler ist fast immer fraktional. Selbst 10 MHz (900 MHz / 90) wird fraktional, sobald eine Frequenzkorrektur eingestellt ist. Die Nebenlinien können deshalb bei jeder Frequenz auftreten und beim Abstimmen wandern.
 - **Über 100 MHz:** Trifft keine der beiden festen PLL-Frequenzen auf 0,25 Hz, nimmt die Firmware wie bei `Low noise` einen geraden Teiler (8, 6 oder 4) mit fraktionaler PLL, wenn das genauer ist. Ab 112,5 MHz ist das immer so; dann ändert jeder Schritt die PLL und der Ausgang setzt bei jedem Schritt kurz aus.
+- **VCO mit Korrektur:** Die feste PLL von 900 MHz ist das 36-Fache des Quarzes und folgt dessen tatsächlicher Frequenz. Bei einer Korrektur von +50 ppm läuft der VCO deshalb auf 900,045 MHz, 45 kHz über der Grenze von 900 MHz aus dem Datenblatt. Das ist unkritisch und bewusst zugelassen.
 - **Geeignet für:** allgemeinen Gebrauch, Durchstimmen ohne Unterbrechung (z. B. als VFO, Wobbeln von Hand), Kalibrieren.
 
 #### Low noise
@@ -857,11 +858,12 @@ Für den Einbau in ein Gehäuse, in dem USB- und SMA-Buchsen auf der anderen Sei
 Das Register `Info` zeigt Angaben für die Fehlersuche ohne seriellen Monitor, zum Beispiel:
 
 ```text
-Firmware 2.1.0 | main 1a2b3c4
+Firmware 2.2.0 | main 1a2b3c4
 Build 2026-11-05 14:00 UTC
 Display ST7789 (detected)
 Touch calibrated x 161-3778 y 245-3830
 SI5351 SDA 22 SCL 27
+PLL locked: A ok  B ok
 WiFi Lab 192.168.1.50 -60 dBm
 Heap 241/215 KB, block 108 KB, LVGL 30 KB
 ```
@@ -873,9 +875,10 @@ Heap 241/215 KB, block 108 KB, LVGL 30 KB
 | `Display` | Display-Controller (`ILI9341` oder `ST7789`) und Herkunft: `detected` (erkannt), `default` (nichts erkannt, ILI9341 angenommen), `build flag` (beim Bauen festgelegt) |
 | `Touch` | `Touch calibrated x … y …`: gespeicherter Abgleich mit den Rohwerten der Bildränder; `Touch not calibrated (default)`: feste Werte |
 | `SI5351` | I2C-Pins der Verbindung; Zusatz ` (swapped)` bei vertauschten Adern, ` (clone?)` bei ungewöhnlichem Register 183 (z. B. Nachbau). Ohne Verbindung: `SI5351 not found` |
+| `PLL locked` | Einrastzustand der beiden PLLs des SI5351 (`A` speist CH1, `B` CH2; CH3 hängt an der PLL seines Masters), gelesen bei der Überwachung alle 2 s: `ok` eingerastet, `LOL` (Loss of Lock) nicht eingerastet, dann ist die ganze Zeile orange; `-` für eine PLL, die seit dem Verbinden noch nicht eingestellt wurde. Ein kurzes `LOL` direkt nach einem Frequenzwechsel mit PLL-Reset ist möglich; ein bleibendes `LOL` deutet auf einen Fehler des Moduls (Quarz, Versorgung). Ohne Verbindung: `PLL locked: -` in Rot |
 | `WiFi` | `WiFi off`; verbunden: Netz, Adresse, Signalstärke (neu angezeigt erst bei einer Änderung um mindestens 3 dB, abgefragt etwa einmal pro Sekunde); `WiFi searching (<Gerätename>)`; Access Point: `AP` bzw. `Fallback AP`, Name, Adresse, Zahl der verbundenen Geräte (orange, wenn ohne Passwort). Fremde Netznamen werden bereinigt (Steuerzeichen und ungültige Zeichen als `?`, höchstens 32 Byte) |
 | `Remote` | `web <n>` offene Browser-Seiten, `SCPI <Adresse>` bzw. `-` der SCPI-Client über TCP 5025 oder, wenn dort keiner verbunden ist, über VXI-11. Die Taste `Reconnect all` (Register `Net`, Zeile `Clients`) trennt alle Browser-Verbindungen, beendet die Web-Anmeldungen, die SCPI-TCP- und die VXI-11-Verbindung. Die Gegenstellen verbinden sich danach von selbst neu (ein Browser ohne Web-Passwort nach wenigen Sekunden, ein SCPI-Programm sofort). Aussperren lässt sich niemand damit. Ein Web-Passwort sperrt nur Weboberfläche und REST; SCPI über TCP 5025 und VXI-11 bleiben ohne Anmeldung (Abschnitt 15). Gegen das Einschalten der Ausgänge aus dem Netz `Remote out.` auf `local only` stellen, gegen fremde Clients ein eigenes, gesichertes Netz verwenden oder das WLAN abschalten (Abschnitt 14). |
-| `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB; alle 5 s gemessen, neu angezeigt, wenn sich der freie Speicher um mindestens 4 KB ändert oder die Seite ohnehin neu gezeichnet wird |
+| `Heap` | freier Arbeitsspeicher und sein Minimum seit dem Start, größter zusammenhängender Block, freier Speicher der Bedienoberfläche (LVGL), je in KB; alle 5 s gemessen, neu angezeigt, wenn sich der freie Speicher um mindestens 4 KB ändert oder die Seite ohnehin neu gezeichnet wird. Fällt der freie Speicher unter 40 KB, steht `[ERROR][MEM] Heap low` im Log (Abschnitt 12) |
 
 Das Display zeichnet nur, was sich ändert: Ohne Bedienung und ohne Änderung von außen bleibt der Bildschirm unverändert (keine SPI-Übertragung zum Display neben dem SI5351).
 
@@ -1039,6 +1042,8 @@ Wird der SI5351 beim Start nicht gefunden, erscheint **eine** Meldung. Danach ze
 
 Die Firmware prüft alle 2 Sekunden, ob der SI5351 antwortet. Ohne SI5351 sucht sie in der ersten Minute nach dem Start bzw. nach dem Verbindungsverlust alle 2 s, danach alle 10 s (jeder Suchschritt baut den I2C-Treiber für beide Zuordnungen neu auf); ein später angeschlossenes Modul wird dann nach spätestens etwa 10 s gefunden. Wird er nachträglich angeschlossen oder ist ein Wackelkontakt behoben, verbindet sie automatisch neu, stellt die eingestellten Frequenzen und ON/OFF-Zustände wieder her und schließt die Verbindungsmeldung. Geht die Verbindung im Betrieb verloren (oder verliert der SI5351 kurz die Versorgung), erscheint die Meldung `Connection lost` und die Kanäle zeigen `! NO HW`, bis die Verbindung wieder steht. Die Firmware versucht sofort nach dem Erkennen neu zu verbinden; nach einem kurzen Versorgungsausfall laufen die Ausgänge daher spätestens nach etwa 2 s wieder.
 
+Einen Neustart des SI5351 erkennt die Überwachung auch, wenn kein Ausgang eingeschaltet ist: Der SI5351 setzt nach jedem Einschalten seiner Versorgung ein Merkbit (`SYS_INIT_STKY` in Register 1), das die Firmware nach dem Einrichten löscht und alle 2 s mitliest. Ist es wieder gesetzt, hat das Modul die Versorgung verloren (Spannungseinbruch, Wackelkontakt an 3,3 V); die Firmware meldet `Connection lost`, richtet den SI5351 neu ein und stellt die Einstellungen wieder her (Log `[ERROR][SI5351] Device restarted (SYS_INIT)`). Ein Nachbau, der dieses Bit nicht löschen lässt, wird trotzdem verwendet; für ihn gilt diese Erkennung nicht (Log `SYS_INIT sticky not cleared; restart detection off`), ein Versorgungsausfall fällt dann nur bei eingeschaltetem Ausgang auf.
+
 SDA und SCL dürfen an CN1 beliebig angeschlossen sein (GPIO22/GPIO27). Die Firmware probiert beide Zuordnungen, auch nach dem Umstecken im Betrieb. Die Info-Karte auf CONFIG und der Serial Monitor zeigen die gefundene Zuordnung, bei vertauschten Adern mit dem Zusatz `(swapped)`.
 
 Weitere Meldungen beim Verbinden:
@@ -1145,7 +1150,7 @@ Wichtige Meldungen:
 
 | Meldung | Bedeutung |
 |---|---|
-| `[BOOT] CYD HF Generator 2.1.0 (main 1a2b3c4, 2026-11-10 11:00 UTC)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
+| `[BOOT] CYD HF Generator 2.2.0 (main 1a2b3c4, 2026-11-10 11:00 UTC)` | Start: Version, Branch, Commit und Build-Zeit wie auf der Info-Karte |
 | `[I2C] Line held low; releasing bus` | Eine I2C-Leitung lag beim Start auf LOW und wurde freigegeben |
 | `[SETTINGS] Loaded from NVS` | Einstellungen geladen |
 | `[SETTINGS] Stored display choice removed; the controller is detected` | Einmalig nach dem Update von 1.3.0/1.3.1: die Wahl der früheren Boot-Geste wurde gelöscht (Abschnitt 13) |
@@ -1206,6 +1211,8 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | Meldung | Bedeutung |
 |---|---|
 | `[ERROR][SI5351] Device lost or reset` | Überwachung: SI5351 antwortet nicht oder hat seine Einstellung verloren |
+| `[ERROR][SI5351] Device restarted (SYS_INIT)` | Überwachung: der SI5351 ist neu gestartet (Versorgung unterbrochen), auch ohne eingeschalteten Ausgang; er wird neu eingerichtet (Abschnitt 11) |
+| `[ERROR][SI5351] SYS_INIT sticky not cleared; restart detection off` | Das Modul lässt das Neustart-Merkbit nicht löschen (Nachbau); es wird verwendet, ein Neustart ohne eingeschalteten Ausgang bleibt aber unbemerkt |
 | `[ERROR][SI5351] I2C transfer failed; device lost` | Eine I2C-Übertragung zum SI5351 ist gescheitert; die Suche nach dem SI5351 beginnt (eine Minute alle 2 s, dann alle 10 s) |
 | `[E][esp32-hal-i2c-ng.c:372] i2cWriteReadNonStop(): i2c_master_transmit_receive failed: [259] ESP_ERR_INVALID_STATE`, danach `[E][Wire.cpp:532] requestFrom(): i2cWriteReadNonStop returned Error 259` | Meldung des Arduino-Cores (I2C-Treiber) zum selben Ausfall, zusammen mit `[ERROR][SI5351] I2C transfer failed; device lost` |
 | `[ERROR][SI5351] Unexpected register 183 (clone?); continuing` | Ungewöhnliches Register 183, z. B. Nachbau; das Modul wird trotzdem verwendet |
@@ -1215,6 +1222,7 @@ Fehlermeldungen beginnen mit `[ERROR]`, z. B.:
 | `[ERROR][BOOT] SI5351 init failed`, `[ERROR][BOOT] Touch init failed`, `[ERROR][TOUCH] XPT2046 init failed` | Beim Start antwortet der SI5351 bzw. der Touch-Controller nicht; der SI5351 wird weiter gesucht |
 | `[ERROR][BOOT] No memory for SCPI over TCP` / `No memory for VXI-11` / `No memory for the web server` | Zu wenig Speicher beim Start: SCPI über TCP, VXI-11 bzw. die Weboberfläche bleibt aus |
 | `[ERROR][WEB] No memory for the web server`, `[ERROR][WEB] Saving the network settings failed`, `[ERROR][WEB] Low memory; WebSocket push skipped` | Weboberfläche: zu wenig Speicher beim Start des Servers; Netzeinstellungen aus dem Browser nicht gespeichert; kein zusammenhängender Speicher für eine Aktualisierung der offenen Seiten (sie kommt, sobald wieder Platz ist; höchstens einmal pro Minute geloggt) |
+| `[ERROR][MEM] Heap low: free 39012 B, largest block 15020 B` | Weniger als 40 KB Arbeitsspeicher frei (einmal je Sekunde geprüft): freier Speicher und größter zusammenhängender Block in Byte. Im normalen Betrieb, auch mit allen Fernzugängen zugleich, bleiben mindestens 40 KB frei; die Zeile deutet auf eine Überlast oder einen Fehler. Sie erscheint einmal und erst wieder, nachdem der freie Speicher über 48 KB gestiegen ist |
 | `[ERROR][WIFI] Saving the AP password failed`, `[ERROR][WIFI] AP DHCP server start failed`, `[ERROR][WIFI] mDNS start failed`, `[ERROR][WIFI] Power save off failed` / `TX power not set` | WLAN: Zufallspasswort nicht gespeichert; Access Point ohne DHCP-Server; `<Gerätename>.local` nicht erreichbar (die Adresse geht weiter); der Treiber hat Energiesparen aus bzw. volle Sendeleistung nicht angenommen (das WLAN läuft trotzdem, antwortet aber womöglich langsamer, Abschnitt 16) |
 | `[ERROR][FATAL] LVGL assert; restarting` | Speicher der Bedienoberfläche erschöpft o. Ä.; das Gerät startet neu |
 | `task_wdt: Task watchdog got triggered … loopTask` | Firmware hing 5 s; das Gerät startet neu |
@@ -1238,7 +1246,17 @@ SDA / SCL = GPIO22 / GPIO27 (beliebig; zuerst probiert: SDA = GPIO22)
 SI5351 Adresse = 0x60
 ```
 
-Display und Touch verwenden separate SPI-Busse. Die vollständige Pinbelegung steht in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), Abschnitt 2.
+Display und Touch verwenden separate SPI-Busse. Die vollständige Pinbelegung steht in [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md), Abschnitt 1.3.
+
+### Aufbau und Versorgung
+
+Diese Hinweise sind übliche Praxis bei SI5351-Aufbauten; ihre Wirkung an diesem Gerät wird noch gemessen (MESSPLAN M-310, M-418). Stückliste, Verdrahtung und Bauteilwerte stehen auf der Hardware-Seite [docs/hardware.md](docs/hardware.md) (englisch).
+
+- **Eigener LDO mit Ferrit:** Den SI5351 aus einem eigenen rauscharmen 3,3-V-Regler versorgen, der über eine Ferritperle gespeist wird. So bleiben Störungen von ESP32, WLAN und Display aus den Ausgängen heraus. Die Massen von Board und Modul bleiben verbunden.
+- **Kurze Masse:** Board und Modul mit einer kurzen, breiten Masseverbindung verbinden; die Schirme der Koaxkabel direkt am Ausgang auf die Masse des Moduls legen.
+- **Abschirmung:** Modul und Ausgangsleitungen abschirmen, etwa mit einem Metallgehäuse oder einem Schirmblech über dem Modul und mit Koaxkabeln statt freier Drähte. Die Ausgangsleitungen vom CN1-Kabel und vom Display fernhalten.
+- **TCXO (optional):** Ein 25-MHz-TCXO statt des Quarzes ist eine Option. Ob er sich lohnt, hängt von der Aufwärmdrift und der Kurzzeitstabilität ab; eine Empfehlung folgt nach den Messungen (MESSPLAN M-313, M-411). Den festen Fehler des Quarzes gleicht die Frequenzkorrektur aus (`Corr.`, Abschnitt 8).
+- **Flashen und Reset:** Der SI5351 läuft beim Flashen und nach einem Reset des ESP32 mit der letzten Einstellung weiter, bis die neu gestartete Firmware ihn einstellt; mit eigener Versorgung auch, solange das Board aus ist. Empfindliche Schaltungen vorher abtrennen. Die Dauer folgt nach den Messungen (MESSPLAN M-119).
 
 ### Board-Varianten
 
@@ -1458,7 +1476,7 @@ Das WLAN läuft ohne Energiesparen und mit voller Sendeleistung: Das Gerät antw
 - Höchstens 3 Browser gleichzeitig; ein vierter sieht `Too many clients (max. 3)`. Ein Tab im Hintergrund (verdeckt oder minimiert) gibt seinen Platz nach 60 s frei und verbindet sich wieder, sobald er sichtbar wird. Eine Verbindung, die auf die Prüfanfragen des Geräts (alle 15 s) nicht antwortet, trennt das Gerät nach 30 s; eine, die das Gerät selbst mit Prüfanfragen (WebSocket-Ping) überflutet, sofort.
 - CONFIG zeigt die Lage des Bildes am Gerät als Zeile `Screen` mit `0°` und `180°`; ein Klick dreht das Bild am Gerät sofort (Abschnitt 8).
 - Nur am Gerät: Grundzustand und Werksreset, Touch-Abgleich, Bildschirmsperre, neues Access-Point-Passwort, Web-Passwort (WIFI → `Device`, Zeile `Web pw.`).
-- Die Fußzeile am Ende der Seite zeigt `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` und `licenses` öffnen das Repository bzw. `THIRD_PARTY_NOTICES.md` auf GitHub im Stand des Release-Tags der Firmware (z. B. `v2.1.0`) in einem neuen Tab (dafür braucht der Browser Internet, Abschnitt 1, „Lizenzen“).
+- Die Fußzeile am Ende der Seite zeigt `CYD HF Generator · GPL-3.0-or-later, no warranty · Source and licenses`; `Source` und `licenses` öffnen das Repository bzw. `THIRD_PARTY_NOTICES.md` auf GitHub im Stand des Release-Tags der Firmware (z. B. `v2.2.0`) in einem neuen Tab (dafür braucht der Browser Internet, Abschnitt 1, „Lizenzen“).
 
 ### Web-Passwort
 
@@ -1526,7 +1544,7 @@ Eine Firmware gilt für beide Boards (CYD mit ILI9341 und CYD2USB mit ST7789); d
    - **Update:** nicht löschen.
 5. Die Installation abwarten; der Flasher zeigt den Fortschritt. Danach startet das Board neu.
 
-Nach jedem Start, auch nach einem Update, sind alle Ausgänge aus (Abschnitt 9).
+Nach jedem Start, auch nach einem Update, sind alle Ausgänge aus (Abschnitt 9). Während des Flashens läuft der SI5351 mit der letzten Einstellung weiter (Abschnitt 13, „Aufbau und Versorgung“).
 
 ### Erstinstallation oder Update
 
@@ -1590,7 +1608,7 @@ gh attestation verify <Datei> --repo dm8sb/CYD-HF-Generator
 Ohne Browser installiert esptool dieselben Teile. esptool 5 installieren (`pip install esptool`), die vier Flash-Teile des Release in einen Ordner laden und dort aufrufen (Beispiel für 2.0.0; den Befehl für jede Version enthalten die Release-Notizen):
 
 ```bash
-esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.1.0-esp32-2432S028R-bootloader.bin 0x8000 cyd-hf-generator-2.1.0-esp32-2432S028R-partitions.bin 0xE000 cyd-hf-generator-2.1.0-esp32-2432S028R-boot_app0.bin 0x10000 cyd-hf-generator-2.1.0-esp32-2432S028R-firmware.bin
+esptool --chip esp32 write-flash 0x1000 cyd-hf-generator-2.2.0-esp32-2432S028R-bootloader.bin 0x8000 cyd-hf-generator-2.2.0-esp32-2432S028R-partitions.bin 0xE000 cyd-hf-generator-2.2.0-esp32-2432S028R-boot_app0.bin 0x10000 cyd-hf-generator-2.2.0-esp32-2432S028R-firmware.bin
 ```
 
 - Der Befehl löscht den Einstellungsspeicher nicht; Touch-Abgleich, Korrektur und WLAN bleiben (wie das Update im Webflasher).
@@ -1608,7 +1626,7 @@ Wer selbst baut, braucht PlatformIO; Bauen und Flashen beschreibt das README (Ab
 
 Der Generator eignet sich als Lokaloszillator (LO) und als Testsignal für Mischer- und Empfängerversuche. Dieser Abschnitt sammelt Pegel, Filter und Einstellungen dafür und zeigt zwei Aufbauten.
 
-**Zu den Zahlen:** Werte mit dem Vermerk *typisch, nicht gemessen* sind Rechen- oder Erfahrungswerte, keine Messungen an diesem Gerät. Sie werden durch Messwerte ersetzt, sobald die Messungen F2, G1, G2 und E10 in `MESSPLAN.md` vorliegen. Werte mit *gerechnet* folgen aus der Formel, Werte mit *Datenblatt* aus dem Datenblatt des genannten Bauteils.
+**Zu den Zahlen:** Werte mit dem Vermerk *typisch, nicht gemessen* sind Rechen- oder Erfahrungswerte, keine Messungen an diesem Gerät. Sie werden durch Messwerte ersetzt, sobald die Messungen M-312, M-419, M-420 und M-413 in `MESSPLAN.md` vorliegen. Werte mit *gerechnet* folgen aus der Formel, Werte mit *Datenblatt* aus dem Datenblatt des genannten Bauteils.
 
 ### Einstellungen
 
@@ -1649,7 +1667,7 @@ Ein Rechteck mit genau 50 % Tastverhältnis enthält nur ungerade Oberwellen. Ih
 | 7. | −16,9 dBc |
 | 9. | −19,1 dBc |
 
-- Das Tastverhältnis ist noch nicht gemessen (MESSPLAN E5). Weicht es ab, entstehen gerade Oberwellen: Bei 49 % liegt die 2. Oberwelle bei ≈ −30 dBc, bei 48 % bei ≈ −24 dBc (gerechnet).
+- Das Tastverhältnis ist noch nicht gemessen (MESSPLAN M-309). Weicht es ab, entstehen gerade Oberwellen: Bei 49 % liegt die 2. Oberwelle bei ≈ −30 dBc, bei 48 % bei ≈ −24 dBc (gerechnet).
 - Reale Flanken sind endlich steil; die hohen Oberwellen liegen deshalb etwas unter der Tabelle. Eine kleinere Drive-Strength mildert sie nur wenig.
 - **Sinus gebraucht:** Tiefpass hinter den Ausgang. Für −50 dBc braucht die 3. Oberwelle ≥ 40 dB Dämpfung: z. B. ein Tiefpass 5. bis 7. Ordnung (Tschebyscheff oder Cauer) mit Grenzfrequenz etwa 1,2- bis 1,5-mal über der Nutzfrequenz, je Band ein Filter.
 - **Schaltmischer** (Diodenring, FST3253) arbeiten mit einem Rechteck-LO sogar besser als mit einem Sinus. Die Oberwellen des LO mischen aber Signale bei 3 × LO ± ZF, 5 × LO ± ZF usw. in die ZF. Dagegen hilft ein Bandpass oder Tiefpass vor dem HF-Eingang des Mischers, nicht am LO.
@@ -1697,8 +1715,8 @@ Der FST3253 (oder 74CBT3253) ist ein doppelter 1-aus-4-Analogschalter. Als Taylo
 
 - **Bereich:** CH3 IQ arbeitet von 4,730 bis 100 MHz (Abschnitt 7). Für tiefere Frequenzen (160 m, 80 m, 60 m) CH1 auf die vierfache Frequenz stellen und mit einem Johnson-Zähler aus zwei D-Flipflops (z. B. 74AC74) durch 4 teilen; Beispiel: 3,6 MHz aus 14,4 MHz.
 - **Seitenband:** Ein Wechsel von `90` auf `270` invertiert Q und vertauscht damit oberes und unteres Seitenband. Der Wechsel kommt ohne Aussetzer aus (Abschnitt 7). `0` und `180` ergeben keine Quadratur und sind für den Tayloe-Detektor ungeeignet.
-- **Ungerade Teiler:** Im IQ-Betrieb mit `Fractional` oder `Low noise` ist der Teiler min(127, ⌊900 MHz / f⌋), z. B. 63 bei 14,2 MHz oder 9 bei 99 MHz. 180° und 270° entstehen durch Invertieren des CH3-Ausgangs (Abschnitt 7). Ob die Phase bei ungeradem Teiler so genau ist wie bei geradem, ist noch nicht gemessen (MESSPLAN E4). Wer die beste Spiegelunterdrückung braucht, nimmt `90` und vertauscht das Seitenband in der Software (I und Q tauschen).
-- **Tastverhältnis:** Jede Flanke von S0 und S1 legt ein Abtastfenster fest. Eine Abweichung vom 50-%-Tastverhältnis (MESSPLAN E5) verschiebt die Fenster und kostet Spiegelunterdrückung.
+- **Ungerade Teiler:** Im IQ-Betrieb mit `Fractional` oder `Low noise` ist der Teiler min(127, ⌊900 MHz / f⌋), z. B. 63 bei 14,2 MHz oder 9 bei 99 MHz. 180° und 270° entstehen durch Invertieren des CH3-Ausgangs (Abschnitt 7). Ob die Phase bei ungeradem Teiler so genau ist wie bei geradem, ist noch nicht gemessen (MESSPLAN M-308). Wer die beste Spiegelunterdrückung braucht, nimmt `90` und vertauscht das Seitenband in der Software (I und Q tauschen).
+- **Tastverhältnis:** Jede Flanke von S0 und S1 legt ein Abtastfenster fest. Eine Abweichung vom 50-%-Tastverhältnis (MESSPLAN M-309) verschiebt die Fenster und kostet Spiegelunterdrückung.
 - **Logikpegel:** Bei 5 V Versorgung erkennt der FST3253 ab 2,0 V HIGH (Datenblatt); die 3,3-V-Rechtecke reichen direkt. Die Eingänge sind hochohmig; `Drive all` 2 oder 4 mA genügt.
 - **Ausgeschaltet:** Mit `Off state` `Low` liegen S0 und S1 auf LOW; der Schalter bleibt auf Kanal 0 stehen. Das schadet nicht.
 
@@ -1744,12 +1762,12 @@ mit g = 1:  IRR = 20 · log10( cot(φ/2) )
 | 0,5 dB | 31 dB |
 | 1 dB | 25 dB |
 
-- Der Phasenfehler des Generators selbst ist noch nicht gemessen (MESSPLAN E1 bis E4). Zum Gesamtfehler tragen auch Mischer, Abtastkondensatoren, NF-Verstärker und Soundkarte bei.
+- Der Phasenfehler des Generators selbst ist noch nicht gemessen (MESSPLAN M-115, M-116, M-307 und M-308). Zum Gesamtfehler tragen auch Mischer, Abtastkondensatoren, NF-Verstärker und Soundkarte bei.
 - SDR-Programme gleichen IQ-Fehler oft automatisch aus; ohne Ausgleich zeigt die Tabelle, was die Phase allein erlaubt.
 
 ### Beispiel: Überlagerungsempfänger für 7,1 MHz mit 455-kHz-ZF
 
-Ein Diodenringmischer setzt 7,1 MHz auf die ZF 455 kHz um; CH1 ist der LO, CH2 das Testsignal (wie MESSPLAN G1).
+Ein Diodenringmischer setzt 7,1 MHz auf die ZF 455 kHz um; CH1 ist der LO, CH2 das Testsignal (wie MESSPLAN M-419).
 
 ```text
 CH2 7,100 MHz ── 30 dB ──────────► HF ┐
@@ -1781,7 +1799,7 @@ Spiegel  = 7,555 + 0,455 = 8,010 MHz   (ergibt ebenfalls 455 kHz)
 4. CLK0 an S0, CLK2 an S1, mit gleich langen Leitungen.
 5. I und Q (hinter den NF-Verstärkern) an den Stereo-Line-Eingang einer Soundkarte; ein SDR-Programm im IQ-Betrieb, Mittenfrequenz 7,100 MHz. Mit 48 kHz Abtastrate sind 7,076–7,124 MHz zu sehen.
 6. Ist das Spektrum gespiegelt, Phase `270` wählen oder I und Q im Programm tauschen.
-7. Testsignal: CH2 auf 7,101 MHz über 40–60 dB Dämpfung an den HF-Eingang. Die Linie erscheint 1 kHz über der Mitte, ihr Spiegel 1 kHz darunter; der Abstand beider ist die Spiegelunterdrückung (Tabelle oben, MESSPLAN E10).
+7. Testsignal: CH2 auf 7,101 MHz über 40–60 dB Dämpfung an den HF-Eingang. Die Linie erscheint 1 kHz über der Mitte, ihr Spiegel 1 kHz darunter; der Abstand beider ist die Spiegelunterdrückung (Tabelle oben, MESSPLAN M-413).
 
 ### Nie ungefiltert an eine Antenne
 
@@ -1957,6 +1975,7 @@ Gerendert mit `tools/web_mock.py` im gleichen Zustand (Abschnitt 16): Desktop mi
 | `Touch calibrated …` / `Touch not calibrated (default)` | Info-Karte: Touch-Abgleich | 8 |
 | `detected` / `default` / `build flag` | Info-Karte: Herkunft des Display-Controllers | 8, 13 |
 | `(swapped)` / `(clone?)` | Info-Karte: SDA/SCL vertauscht bzw. ungewöhnliches SI5351-Register | 8, 11 |
+| `PLL locked: A ok  B ok` / `LOL` | Info-Karte: PLL eingerastet bzw. nicht eingerastet (orange) | 8 |
 
 ---
 

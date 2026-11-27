@@ -21,7 +21,7 @@ struct Text {
 };
 
 Text channel(ChannelStatus s);
-// Why a coupled CH2 waits (E-52): "Waiting: CH1 + offset below 8 kHz" / "... above 160 MHz"
+// Why a coupled CH2 waits (E-213): "Waiting: CH1 + offset below 8 kHz" / "... above 160 MHz"
 // for a target (CH1 + offset in Hz) outside FREQ_MIN_HZ..FREQ_MAX_HZ, "" inside.
 const char* coupledWait(int64_t targetHz);
 Text ch3(Ch3Status s);
@@ -42,7 +42,7 @@ void outputErrorText(uint8_t ch, uint8_t master, char* out, size_t outSize);
 // Tone::Warn while waiting, Tone::Error for an error, otherwise Tone::Muted.
 Tone ch3Info(Ch3Status s, uint8_t master, uint64_t iqMinHz, uint64_t iqMaxHz, char* out, size_t outSize);
 
-// Hint for the channel page outside 1-100 MHz (E-16), short enough for the mode line next to
+// Hint for the channel page outside 1-100 MHz (E-203), short enough for the mode line next to
 // a few special modes: "" inside the range.
 const char* rangeNote(uint64_t hz);
 

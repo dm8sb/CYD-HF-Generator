@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// SCPI command tree (ARBEITSPLAN 3.5) through a session with the loop backend, against the
+// SCPI command tree (A-607) through a session with the loop backend, against the
 // real controller and the SI5351 register model: short/long forms, units, MIN/MAX/DEF,
-// rejected numbers (W-S19), error queue, IEEE 488.2, W-E25, *RST, USB session and log.
+// rejected numbers (A-719), error queue, IEEE 488.2, E-610, *RST, USB session and log.
 
 #include <unity.h>
 #include <Preferences.h>
@@ -286,7 +286,7 @@ static void test_outputs_and_condition() {
     ASSERT_ANSWER("1", d.q("*TST?"));
 }
 
-// CH2 coupled to CH1 (E-52): SOURce2:COUPle and SOURce2:FREQuency:OFFSet.
+// CH2 coupled to CH1 (E-213): SOURce2:COUPle and SOURce2:FREQuency:OFFSet.
 static void test_coupled_ch2() {
     Device d;
     auto w = [&](const char* line) {
@@ -380,7 +380,7 @@ static void test_settings_commands() {
     TEST_ASSERT_TRUE(d.app.identifying());
 }
 
-// W-E25 / W-S21: local only refuses switching on (-221), off stays allowed.
+// E-610 / A-721: local only refuses switching on (-221), off stays allowed.
 static void test_remote_outputs_local_only() {
     Device d;
     ASSERT_ANSWER("ALLOWED", d.q("OUTP:REM?"));
@@ -393,7 +393,7 @@ static void test_remote_outputs_local_only() {
     d.q("OUTP1 OFF");
     TEST_ASSERT_FALSE(d.app.channel(1).enabled);
     ASSERT_ANSWER("0,\"No error\"", d.err());
-    // D22: off state High is refused as well, Low and High-Z stay allowed.
+    // E-611: off state High is refused as well, Low and High-Z stay allowed.
     d.q("OUTP:OFFS HIGH");
     ASSERT_ANSWER("-221,\"Settings conflict;Remote outputs: local only\"", d.err());
     ASSERT_ANSWER("LOW", d.q("OUTP:OFFS?"));
@@ -406,7 +406,7 @@ static void test_remote_outputs_local_only() {
     ASSERT_ANSWER("0,\"No error\"", d.err());
 }
 
-// N16 (E-53): SYSTem:DISPlay:ROTation 0|180 in degrees (unit DEG allowed); *RST sets 0 like the
+// N16 (E-314): SYSTem:DISPlay:ROTation 0|180 in degrees (unit DEG allowed); *RST sets 0 like the
 // backlight.
 static void test_display_rotation() {
     Device d;
@@ -433,7 +433,7 @@ static void test_display_rotation() {
     ASSERT_ANSWER("0,\"No error\"", d.err());
 }
 
-// W-E19: *RST switches off and loads the defaults without saving; SYST:SAVE writes at once.
+// E-608: *RST switches off and loads the defaults without saving; SYST:SAVE writes at once.
 static void test_rst_and_save() {
     Device d;
     d.q("FREQ 7MHZ;:OUTP1 ON;:SYST:CORR 1");
@@ -474,7 +474,7 @@ static void test_rate_limit_gives_execution_error() {
     TEST_ASSERT_EQUAL_UINT32(100, d.app.system().delta_step);
 }
 
-// W-E27: the first line starts a USB session; the log goes into the ring buffer until it ends.
+// E-612: the first line starts a USB session; the log goes into the ring buffer until it ends.
 static void test_log_query_gives_one_line() {
     Device d;
     Logger::setOutput(Logger::Output::ToBuffer);

@@ -19,7 +19,7 @@ static constexpr int ROW_PAD = 4;
 static constexpr int ROW_CONTENT_W = CONTENT_W - 2 * ROW_PAD - 2; // border 1
 static constexpr int ROW_CONTENT_H = ROW_H - 2 * ROW_PAD - 2;
 static constexpr uint8_t ROWS_PER_TAB = 3;
-static constexpr uint8_t INFO_LINES = 8;
+static constexpr uint8_t INFO_LINES = 9;
 static constexpr int INFO_LINE_H = 15;                             // montserrat 12
 static constexpr int INFO_H = INFO_LINES * INFO_LINE_H + 2 * ROW_PAD + 2;
 static constexpr int VALUE_X = 92;                                 // values and dropdowns
@@ -136,7 +136,7 @@ void Gui::createConfig_() {
             addButton_(row, LV_SYMBOL_MINUS, 190, 0, 47, ROW_CONTENT_H, btnColor, Action::CorrDown, 0, true);
             addButton_(row, LV_SYMBOL_PLUS, 241, 0, 47, ROW_CONTENT_H, btnColor, Action::CorrUp, 0, true);
             break;
-        case 2: // Net: WiFi mode (W-E1, default Off), remote switch-on (W-E25, only here) and the
+        case 2: // Net: WiFi mode (E-501, default Off), remote switch-on (E-610, only here) and the
                 // remote clients (S55b; they connect again by themselves).
             w_.wifiDd = addOptionRow_(root_, 0, "WiFi", "Off\nClient\nAccess point", Action::WifiMode);
             addButton_(lv_obj_get_parent(w_.wifiDd), "Setup", BTN_RIGHT_X, 0, BTN_W, ROW_CONTENT_H, btnColor,
@@ -146,7 +146,7 @@ void Gui::createConfig_() {
             addButton_(row, "Reconnect all", VALUE_X, 0, DROPDOWN_W + 56, ROW_CONTENT_H, btnColor,
                        Action::RemoteDisconnect);
             break;
-        case 3: // Device: backlight, screen (lock, touch cal. U-26, rotate E-53) and reset (U-13; both ask first).
+        case 3: // Device: backlight, screen (lock, touch cal. U-26, rotate E-314) and reset (U-13; both ask first).
             row = addConfigRow_(root_, 0, ROW_H, "Backlight");
             addButton_(row, LV_SYMBOL_MINUS, VALUE_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::BacklightDown);
             w_.blValue = addLabel_(row, "", &lv_font_montserrat_16, Colors::text(), 0, 0);
@@ -155,7 +155,7 @@ void Gui::createConfig_() {
             lv_obj_align(w_.blValue, LV_ALIGN_LEFT_MID, VALUE_X + BTN_W, 0);
             addButton_(row, LV_SYMBOL_PLUS, BTN_RIGHT_X, 0, BTN_W, ROW_CONTENT_H, btnColor, Action::BacklightUp);
             row = addConfigRow_(root_, 1, ROW_H, "Screen");
-            // Three buttons from right after the title to the row end (E-53: Rotate toggles 0/180 degrees).
+            // Three buttons from right after the title to the row end (E-314: Rotate toggles 0/180 degrees).
             addButton_(row, "Lock", SCREEN_BTN_X, 0, SCREEN_LOCK_W, ROW_CONTENT_H, btnColor, Action::LockScreen);
             addButton_(row, "Touch cal.", SCREEN_BTN_X + SCREEN_LOCK_W + SCREEN_BTN_GAP, 0, SCREEN_CAL_W, ROW_CONTENT_H,
                        btnColor, Action::TouchCal);
@@ -165,7 +165,7 @@ void Gui::createConfig_() {
             addButton_(row, "Defaults", VALUE_X, 0, 96, ROW_CONTENT_H, btnColor, Action::ResetDefaults);
             addButton_(row, "Factory", VALUE_X + 100, 0, 96, ROW_CONTENT_H, Colors::error(), Action::FactoryReset);
             break;
-        default: { // Info: firmware, build, display, touch, SI5351 link, WiFi, remote clients, heap.
+        default: { // Info: firmware, build, display, touch, SI5351 link, PLL lock, WiFi, remote clients, heap.
             row = addConfigRow_(root_, 0, INFO_H, nullptr);
             lv_obj_t* info[INFO_LINES];
             for (uint8_t i = 0; i < INFO_LINES; ++i) {
@@ -185,9 +185,10 @@ void Gui::createConfig_() {
             Ui::setText(info[2], buf);
             w_.touchInfo = info[3];
             w_.si5351Info = info[4];
-            w_.wifiInfo = info[5];
-            w_.remoteInfo = info[6];
-            w_.heapInfo = info[7];
+            w_.pllInfo = info[5];
+            w_.wifiInfo = info[6];
+            w_.remoteInfo = info[7];
+            w_.heapInfo = info[8];
             break;
         }
     }
@@ -247,8 +248,21 @@ void Gui::refreshConfig_() {
         Ui::setText(w_.si5351Info, "SI5351 not found");
         Ui::setTextColor(w_.si5351Info, Colors::error());
     }
+    // PLL lock from register 0 (A-226): "-" for a PLL not set up yet, LOL in the warning color.
+    if (app.hardwareReady()) {
+        static const char* const LOCK_TEXT[] = {"-", "ok", "LOL"};
+        const SI5351Manager::PllLock a = app.pllLock(SI5351Manager::Pll::A);
+        const SI5351Manager::PllLock b = app.pllLock(SI5351Manager::Pll::B);
+        snprintf(buf, sizeof(buf), "PLL locked: A %s  B %s", LOCK_TEXT[(uint8_t)a], LOCK_TEXT[(uint8_t)b]);
+        Ui::setText(w_.pllInfo, buf);
+        const bool lol = a == SI5351Manager::PllLock::Unlocked || b == SI5351Manager::PllLock::Unlocked;
+        Ui::setTextColor(w_.pllInfo, lol ? Colors::warn() : Colors::muted());
+    } else {
+        Ui::setText(w_.pllInfo, "PLL locked: -");
+        Ui::setTextColor(w_.pllInfo, Colors::error());
+    }
 
-    // WiFi line; a foreign SSID only through sanitize (W-S9).
+    // WiFi line; a foreign SSID only through sanitize (A-709).
     lv_color_t wifiColor = Colors::muted();
     if (!services_.wifi || services_.wifi->status().mode == WifiMode::Off) {
         snprintf(buf, sizeof(buf), "WiFi off");
@@ -275,7 +289,7 @@ void Gui::refreshConfig_() {
     }
     Ui::setText(w_.wifiInfo, buf);
     Ui::setTextColor(w_.wifiInfo, wifiColor);
-    // Remote clients: open web pages (WebSockets) and the SCPI TCP client (W-S20).
+    // Remote clients: open web pages (WebSockets) and the SCPI TCP client (A-720).
     const unsigned web = services_.webClients ? services_.webClients() : 0;
     const uint32_t scpi = services_.scpiClient ? services_.scpiClient() : 0;
     char scpiText[16] = "-";

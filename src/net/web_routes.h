@@ -48,7 +48,7 @@ Kind find(const char* method, const char* path);
 // The channel of Channel1/Channel2, else 0.
 uint8_t channelOf(Kind k);
 
-// Path classes of RequestGuard (W-S5, W-S6, W-S13).
+// Path classes of RequestGuard (A-705, A-706, A-713).
 bool isApi(const char* path);  // /api/...
 bool isWs(const char* path);   // /ws
 // The WiFi settings and their sub-paths: need a session with a web password, also for GET.

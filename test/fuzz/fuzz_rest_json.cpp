@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 DM8SB
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Fuzz target rest_json: the REST JSON mapping (remote/rest_json.*, ARBEITSPLAN 3.6, W-S1, W-S8,
-// W-S9, W-S19, W-S21) on ArduinoJson 7.4.3.
+// Fuzz target rest_json: the REST JSON mapping (remote/rest_json.*, PROJECT_SPECIFICATION.md 6.4, A-701, A-708,
+// A-709, A-719, A-721) on ArduinoJson 7.4.3.
 // Input: byte 0 bits 0-3 the function (mod 12), bit 4 pad the body with blanks to MAX_BODY,
 // bit 5 to MAX_BODY + 1, bit 6 pass the body as nullptr (with its length); then:
 //   0 / 1   parseChannel(1 / 2), body
@@ -338,7 +338,7 @@ struct Field {
 const Field CHANNEL[] = {{"frequency", Kind::Integer, CommandType::SetFrequency},
                          {"frequencyText", Kind::FrequencyText, CommandType::SetFrequency},
                          {"enabled", Kind::Bool, CommandType::SetEnabled}};
-// CH2 (E-52): offset, coupled, then as CHANNEL.
+// CH2 (E-213): offset, coupled, then as CHANNEL.
 const Field CH2[] = {{"offset", Kind::Integer, CommandType::Ch2Offset},
                      {"coupled", Kind::Bool, CommandType::Ch2Couple},
                      {"frequency", Kind::Integer, CommandType::SetFrequency},
@@ -819,7 +819,7 @@ void state(const uint8_t* d, size_t n) {
     const uint8_t sizeSel = rd.u8();
     s.state.ch2c.coupled = rd.u8() & 1; // read last: older seeds keep their meaning
     s.state.ch2c.offset = (int32_t)rd.u32();
-    s.state.sys.rotation = rd.u16(); // read last as well (E-53)
+    s.state.sys.rotation = rd.u16(); // read last as well (E-314)
     if (device) deviceRanges(s, di);
 
     // Built into a large buffer first (the size only limits the output); with device values the

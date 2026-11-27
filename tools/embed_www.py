@@ -21,7 +21,7 @@ import subprocess
 Import("env")
 
 REF_RE = re.compile(r"^v[0-9A-Za-z.+-]{1,63}$")
-# W-S7, W-S8 (AF34): the build stops on HTML from strings or code from strings in the web UI.
+# A-707, A-708 (AF34): the build stops on HTML from strings or code from strings in the web UI.
 FORBIDDEN = (b"innerHTML", b"outerHTML", b"insertAdjacentHTML", b"document.write", b"eval(", b"new Function")
 
 
@@ -30,11 +30,11 @@ def check_forbidden(name, raw):
     for word in FORBIDDEN:
         if word in raw:
             line = raw[:raw.index(word)].count(b"\n") + 1
-            raise Exception("data/www/%s:%d: %s is not allowed (W-S7, W-S8)" % (name, line, word.decode()))
+            raise Exception("data/www/%s:%d: %s is not allowed (A-707, A-708)" % (name, line, word.decode()))
 
 
 def source_ref():
-    """Git ref the footer links to (AF30, E-39): the release tag of this build, so the source
+    """Git ref the footer links to (AF30, E-907): the release tag of this build, so the source
     and license links match the firmware. The tag pushed in the release workflow, else a v* tag
     on HEAD, else v<APP_VERSION> (the release a development build leads to). Never the commit:
     the page is readable without login (S-26). Changes only with the tag, so a normal build
