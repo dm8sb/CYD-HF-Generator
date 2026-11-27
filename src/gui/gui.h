@@ -31,6 +31,7 @@ class Gui {
 public:
     // CONFIG tabs: Signal, Freq, Net, Device, Info.
     static constexpr uint8_t CONFIG_TAB_COUNT = 5;
+    static constexpr uint8_t CONFIG_TAB_NET = 2; // tab order: Signal, Freq, Net, Device, Info
     // The display must already be initialized (DisplayPanel::begin()).
     void begin(AppController& app, TouchDriver& touch, DisplayPanel& display);
     void update();
@@ -88,6 +89,7 @@ private:
         lv_obj_t* wifiInfo;    // CONFIG info card
         lv_obj_t* heapInfo;
         lv_obj_t* wifiState;   // MAIN status bar: WiFi symbol or AP
+        lv_obj_t* wifiOff;     // MAIN status bar: strike through the symbol while WiFi is Off
         lv_obj_t* remoteState; // MAIN status bar: REMOTE <source>
         lv_obj_t* remoteInfo;  // CONFIG info card: web and SCPI clients
     };

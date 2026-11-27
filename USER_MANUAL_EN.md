@@ -109,8 +109,8 @@ Operation on the main page:
 - **Tapping a card** opens the channel's page.
 - **The switch on a card** (on the right, separated by a line) turns the output on or off directly, without leaving the page. A tap on the frequency or `MHz` only opens the channel page.
 - The frequencies are right-aligned; decimal point and `MHz` of all cards line up.
-- The status bar at the bottom shows something about saving on the left only when there is a problem (red `Save failed` / `Not saved`, section 8) and has the `CONFIG` button (yellow) on the right. The channels open via their cards. With the screen locked it also shows `LOCKED` in an orange field (section 8).
-- Next to it is the WiFi state (section 8, `WiFi`): the WiFi symbol green (connected) or gray (searching), `AP` green while the own access point runs, `AP open` orange when it runs without a password; nothing with `Off`.
+- The status bar at the bottom shows the WiFi state at the far left (section 8, `WiFi`): the WiFi symbol green (connected) or gray (searching), `AP` green while the own access point runs, `AP open` orange when it runs without a password; with `Off` the WiFi symbol gray and struck through. A tap on it opens the WIFI page, with `Off` CONFIG on the `Net` tab, where WiFi can be switched on.
+- Next to it, something about saving is shown only when there is a problem (red `Save failed` / `Not saved`, section 8); on the right is the `CONFIG` button (yellow). The channels open via their cards. With the screen locked it also shows `LOCKED` in an orange field (section 8).
 - After a remote command `REMOTE USB` (SCPI over USB), `REMOTE SCPI` (SCPI over TCP or VXI-11) or `REMOTE WEB` (web interface and REST) shows for 10 s in a blue field (the CH3 color); `LOCKED` takes precedence.
 - Colored buttons and selected chips have dark text, switched-off switches a light gray track, unselected chips a gray border.
 - Buttons at the screen edge (e.g. `◀` top left, `CONFIG` bottom right, the outer NUMPAD keys) react up to the edge, also to a tap just beside them towards the edge. The gap between two buttons stays free.

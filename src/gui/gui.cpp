@@ -586,6 +586,15 @@ void Gui::handleAction_(Action action, uint8_t arg, lv_obj_t* obj) {
                 lv_obj_add_state(obj, LV_STATE_CHECKED); // a tap on the shown tab keeps it selected
             }
             return;
+        case Action::WifiSymbol:
+            // WiFi Off: the Net tab of CONFIG holds the row that switches it on.
+            if (services_.wifi && services_.wifi->status().mode == WifiMode::Off) {
+                configTab_ = CONFIG_TAB_NET;
+                requestNavigate_(PageId::Config);
+            } else {
+                requestNavigate_(PageId::Wifi);
+            }
+            return;
         case Action::WifiEdit:
         case Action::WifiDelete:
         case Action::WifiRescan:

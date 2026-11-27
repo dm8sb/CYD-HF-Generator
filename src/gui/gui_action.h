@@ -53,5 +53,6 @@ enum class GuiAction : uint8_t {
     DevWebPassword, // device page: set, change or remove the web password
     RemoteDisconnect, // CONFIG Net tab: disconnect all web and SCPI clients
     ConfigTab,        // CONFIG tab bar: arg tab 0..CONFIG_TAB_COUNT-1
+    WifiSymbol,       // MAIN status bar, WiFi symbol: WIFI page, with WiFi Off the CONFIG tab Net
     Ch2Couple         // CH2 page: arg 0 Free, 1 CH1 + offset (E-213)
 };
