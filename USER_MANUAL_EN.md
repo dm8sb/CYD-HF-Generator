@@ -80,7 +80,7 @@ The firmware contains third-party components under their own licenses (among the
 
 ## 2. Basic Operation
 
-After power-up, the display stays dark until the first screen has been drawn; then the main page appears. At the very first start (no touch calibration stored yet) the touch calibration comes first (section 8, `Touch`). **All outputs are off after power-up**, even if they were on when the device was switched off. Frequencies, CH3 master and phase, and all CONFIG settings are retained.
+After power-up, the display stays dark until the first screen has been drawn; then the start screen appears for 2.5 s (title, key data, three running square waves in the channel colors: CH2 at twice the frequency, CH3 90° behind CH1 like in IQ mode, the firmware version at the bottom) and fades to the main page; a tap ends it at once. The start goes on behind it, messages appear afterwards. At the very first start (no touch calibration stored yet) the touch calibration comes first (section 8, `Touch`). **All outputs are off after power-up**, even if they were on when the device was switched off. Frequencies, CH3 master and phase, and all CONFIG settings are retained.
 
 The main page shows one card per channel with:
 

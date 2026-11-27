@@ -32,6 +32,7 @@
 #endif
 #include <drivers/status_led.h>
 #include <gui/gui.h>
+#include <gui/splash.h>
 #include <utils/build_info.h>
 #include <utils/logger.h>
 #include <utils/mem_monitor.h>
@@ -279,6 +280,8 @@ void setup() {
     gui.setServices(guiServices);
     // The hit map build (TEST_HIT_MAP) checks a stored calibration and skips the wizard.
     if (!touchCalStored && !TEST_HIT_MAP) gui.calibrateTouch(true);
+    // Start screen over MAIN; not over the touch wizard of a first start or the hit map.
+    else if (!TEST_HIT_MAP) Splash::show(SPLASH_MS);
     app.addListener(Gui::onAppEvent, &gui);
     if (!si5351Ok) {
         gui.showMessage("SI5351", AppController::linkText(app.linkState()), (uint8_t)EventCategory::Link);

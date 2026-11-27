@@ -232,6 +232,7 @@ Whether `CLKx_PDN` leaves a pin high-impedance or pulls it low is unmeasured (me
 - **A-317** The frequency correction can also be typed on the numpad (tap the value in CONFIG): signed, rounded to 0.01 ppm, at most ±50.00 ppm; a value outside is rejected and stays editable (audit U-11).
 - **A-318** Lab operation (audit U-13): a screen lock (CONFIG, unlock by holding 2 s anywhere, the unlocking touch triggers nothing, not stored), a reset to defaults that keeps the frequency correction and the touch calibration and switches all outputs off, and a factory reset that erases the NVS and restarts; both resets need a confirmation.
 - **A-319** Touch: XPT2046 with a calibration per board (wizard with four corner crosses and a check cross, stored in NVS; fixed default calibration without one, E-303), jitter filter and debounce.
+- **A-320** Start screen at boot: about 2.5 s with title, key data, running square waves in the channel colors and the firmware version, ended early by a tap; it must not delay the start (the boot, WiFi and SI5351 continue behind it, dialogs follow) and is left out while the touch calibration wizard of a first start runs.
 
 ### 3.4 Decisions
 

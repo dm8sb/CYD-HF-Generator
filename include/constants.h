@@ -129,3 +129,6 @@ inline uint8_t snapBacklight(int percent) {
     if (p > 100) p = 100;
     return (uint8_t)p;
 }
+
+// Start screen at boot (src/gui/splash.cpp); a tap ends it earlier.
+static constexpr uint32_t SPLASH_MS = 2500;

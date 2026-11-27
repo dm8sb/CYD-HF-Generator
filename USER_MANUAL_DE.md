@@ -80,7 +80,7 @@ Die Firmware enthält Komponenten Dritter unter eigenen Lizenzen (u. a. Arduino-
 
 ## 2. Grundbedienung
 
-Nach dem Einschalten bleibt das Display dunkel, bis das erste Bild gezeichnet ist; dann erscheint die Hauptseite. Beim allerersten Start (noch kein Touch-Abgleich gespeichert) erscheint vorher der Touch-Abgleich (Abschnitt 8, `Touch`). **Alle Ausgänge sind nach dem Einschalten aus**, auch wenn sie beim Ausschalten an waren. Frequenzen, CH3-Master und -Phase sowie alle CONFIG-Einstellungen bleiben gespeichert.
+Nach dem Einschalten bleibt das Display dunkel, bis das erste Bild gezeichnet ist; dann erscheint 2,5 s lang der Startbildschirm (Titel, Kenndaten, drei laufende Rechteckkurven in den Kanalfarben: CH2 mit doppelter Frequenz, CH3 um 90° hinter CH1 wie im IQ-Betrieb, unten die Firmware-Version) und blendet zur Hauptseite über; ein Tipp beendet ihn sofort. Der Start läuft dahinter weiter, Meldungen erscheinen danach. Beim allerersten Start (noch kein Touch-Abgleich gespeichert) erscheint vorher der Touch-Abgleich (Abschnitt 8, `Touch`). **Alle Ausgänge sind nach dem Einschalten aus**, auch wenn sie beim Ausschalten an waren. Frequenzen, CH3-Master und -Phase sowie alle CONFIG-Einstellungen bleiben gespeichert.
 
 Die Hauptseite zeigt für jeden Kanal eine Karte mit:
 
